@@ -14,14 +14,13 @@
 //!
 //! ```rust
 //! use netabase_macros::{NetabaseModel, netabase_schema_module};
-//! use serde::{Serialize, Deserialize};
-//! use bincode::{Encode, Decode};
+//! // Note: serde and bincode imports are no longer required - macros are hygienic!
 //!
 //! #[netabase_schema_module(BlogSchema, BlogKeys)]
 //! mod blog {
 //!     use super::*;
 //!
-//!     #[derive(NetabaseModel, Clone, Encode, Decode, Debug, Serialize, Deserialize)]
+//!     #[derive(NetabaseModel, Clone, Debug)]
 //!     #[key_name(UserKey)]
 //!     pub struct User {
 //!         #[key]
@@ -85,10 +84,9 @@ mod visitors;
 ///
 /// ```rust
 /// use netabase_macros::NetabaseModel;
-/// use serde::{Serialize, Deserialize};
-/// use bincode::{Encode, Decode};
+/// // Note: serde and bincode imports are no longer required - macros are hygienic!
 ///
-/// #[derive(NetabaseModel, Clone, Encode, Decode, Debug, Serialize, Deserialize)]
+/// #[derive(NetabaseModel, Clone, Debug)]
 /// #[key_name(UserKey)]
 /// pub struct User {
 ///     #[key]
@@ -212,6 +210,7 @@ pub fn netabase_derive(input: TokenStream) -> TokenStream {
 ///
 /// ```rust
 /// use netabase_macros::NetabaseModelKey;
+/// // Note: All dependencies are automatically available - no manual imports needed!
 ///
 /// #[derive(NetabaseModelKey)]
 /// pub struct CustomKey {
@@ -284,14 +283,13 @@ pub fn key_derive(_derives: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// ```rust
 /// use netabase_macros::{NetabaseModel, netabase_schema_module};
-/// use serde::{Serialize, Deserialize};
-/// use bincode::{Encode, Decode};
+/// // Note: All serialization dependencies are handled automatically!
 ///
 /// #[netabase_schema_module(BlogSchema, BlogKeys)]
 /// mod blog {
 ///     use super::*;
 ///
-///     #[derive(NetabaseModel, Clone, Encode, Decode, Debug, Serialize, Deserialize)]
+///     #[derive(NetabaseModel, Clone, Debug)]
 ///     #[key_name(UserKey)]
 ///     pub struct User {
 ///         #[key] pub id: u64,
@@ -299,7 +297,7 @@ pub fn key_derive(_derives: TokenStream, input: TokenStream) -> TokenStream {
 ///         #[secondary_key] pub email: String,
 ///     }
 ///
-///     #[derive(NetabaseModel, Clone, Encode, Decode, Debug, Serialize, Deserialize)]
+///     #[derive(NetabaseModel, Clone, Debug)]
 ///     #[key_name(PostKey)]
 ///     pub struct Post {
 ///         #[key] pub id: u64,
