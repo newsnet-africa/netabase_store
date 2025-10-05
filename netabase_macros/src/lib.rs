@@ -14,13 +14,13 @@
 //!
 //! ```rust
 //! use netabase_macros::{NetabaseModel, netabase_schema_module};
-//! // Note: serde and bincode imports are no longer required - macros are hygienic!
+//! use netabase_deps::{bincode, serde}; // Re-exported for convenience
 //!
 //! #[netabase_schema_module(BlogSchema, BlogKeys)]
 //! mod blog {
 //!     use super::*;
 //!
-//!     #[derive(NetabaseModel, Clone, Debug)]
+//!     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
 //!     #[key_name(UserKey)]
 //!     pub struct User {
 //!         #[key]
@@ -84,9 +84,9 @@ mod visitors;
 ///
 /// ```rust
 /// use netabase_macros::NetabaseModel;
-/// // Note: serde and bincode imports are no longer required - macros are hygienic!
+/// use netabase_deps::{bincode, serde}; // Re-exported for convenience
 ///
-/// #[derive(NetabaseModel, Clone, Debug)]
+/// #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
 /// #[key_name(UserKey)]
 /// pub struct User {
 ///     #[key]
@@ -210,9 +210,9 @@ pub fn netabase_derive(input: TokenStream) -> TokenStream {
 ///
 /// ```rust
 /// use netabase_macros::NetabaseModelKey;
-/// // Note: All dependencies are automatically available - no manual imports needed!
+/// use netabase_deps::{bincode, serde}; // Re-exported for convenience
 ///
-/// #[derive(NetabaseModelKey)]
+/// #[derive(NetabaseModelKey, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
 /// pub struct CustomKey {
 ///     pub field1: String,
 ///     pub field2: u64,
@@ -283,13 +283,13 @@ pub fn key_derive(_derives: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// ```rust
 /// use netabase_macros::{NetabaseModel, netabase_schema_module};
-/// // Note: All serialization dependencies are handled automatically!
+/// use netabase_deps::{bincode, serde}; // Re-exported for convenience
 ///
 /// #[netabase_schema_module(BlogSchema, BlogKeys)]
 /// mod blog {
 ///     use super::*;
 ///
-///     #[derive(NetabaseModel, Clone, Debug)]
+///     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
 ///     #[key_name(UserKey)]
 ///     pub struct User {
 ///         #[key] pub id: u64,
@@ -297,7 +297,7 @@ pub fn key_derive(_derives: TokenStream, input: TokenStream) -> TokenStream {
 ///         #[secondary_key] pub email: String,
 ///     }
 ///
-///     #[derive(NetabaseModel, Clone, Debug)]
+///     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
 ///     #[key_name(PostKey)]
 ///     pub struct Post {
 ///         #[key] pub id: u64,

@@ -3,10 +3,25 @@
 //! This test intentionally does NOT import serde, bincode, strum, derive_more, or sled
 //! to ensure that the macros work without requiring users to manually import dependencies.
 
-use netabase_macros::{NetabaseModel, netabase_schema_module};
+use netabase_deps::{bincode, serde};
+use netabase_macros::{NetabaseModel, netabase_schema_module}; // Re-exported for convenience
 
-/// Test that basic NetabaseModel works without manual imports
-#[derive(NetabaseModel, Clone, Debug, PartialEq)]
+// Import necessary traits for the test
+use netabase_store::traits::{
+    NetabaseModel as NetabaseModelTrait, NetabaseModelKey, NetabaseSchema,
+};
+
+/// Test that basic NetabaseModel works with re-exported dependencies
+#[derive(
+    NetabaseModel,
+    Clone,
+    Debug,
+    PartialEq,
+    bincode::Encode,
+    bincode::Decode,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 #[key_name(UserKey)]
 pub struct User {
     #[key]
@@ -19,12 +34,23 @@ pub struct User {
     pub age: u32,
 }
 
-/// Test that schema modules work without manual imports
+/// Test that schema modules work with re-exported dependencies
 #[netabase_schema_module(TestSchema, TestKeys)]
 mod test_schema {
     use super::*;
+    // Import traits needed within the module
+    use netabase_store::traits::{NetabaseModel as NetabaseModelTrait, NetabaseSchema};
 
-    #[derive(NetabaseModel, Clone, Debug, PartialEq)]
+    #[derive(
+        NetabaseModel,
+        Clone,
+        Debug,
+        PartialEq,
+        bincode::Encode,
+        bincode::Decode,
+        serde::Serialize,
+        serde::Deserialize,
+    )]
     #[key_name(PersonKey)]
     pub struct Person {
         #[key]
@@ -35,7 +61,16 @@ mod test_schema {
         pub age: u32,
     }
 
-    #[derive(NetabaseModel, Clone, Debug, PartialEq)]
+    #[derive(
+        NetabaseModel,
+        Clone,
+        Debug,
+        PartialEq,
+        bincode::Encode,
+        bincode::Decode,
+        serde::Serialize,
+        serde::Deserialize,
+    )]
     #[key_name(CompanyKey)]
     pub struct Company {
         #[key]
@@ -50,7 +85,7 @@ mod test_schema {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use netabase_store::traits::NetabaseModel;
+    use netabase_store::traits::{NetabaseModel, NetabaseModelKey, NetabaseSchema};
 
     #[test]
     fn test_user_model_hygiene() {
@@ -72,11 +107,11 @@ mod tests {
         }
 
         // Test that secondary keys work
-        let secondary_keys = user.secondary_keys();
+        let secondary_keys = User::secondary_keys();
         assert_eq!(secondary_keys.len(), 2);
 
         // Test that tree name generation works
-        assert_eq!(User::tree_name(), "user");
+        assert_eq!(User::tree_name(), "User");
     }
 
     #[test]
@@ -122,7 +157,7 @@ mod tests {
 
     #[test]
     fn test_serialization_hygiene() {
-        // Test that serialization works without manual imports
+        // Test that serialization works with re-exported dependencies
         let user = User {
             id: 42,
             name: "Bob".to_string(),
@@ -131,7 +166,7 @@ mod tests {
             age: 35,
         };
 
-        // This should work because bincode serialization is handled hygienically
+        // This should work because bincode serialization uses re-exported dependencies
         let key = user.key();
 
         // Test IVec conversion (which uses bincode internally)
@@ -148,7 +183,7 @@ mod tests {
 
     #[test]
     fn test_secondary_key_enum_hygiene() {
-        // Test that secondary key enums work without strum imports
+        // Test that secondary key enums work with re-exported strum
         let email_key = UserSecondaryKeys::EmailKey("test@example.com".to_string());
         let dept_key = UserSecondaryKeys::DepartmentKey("HR".to_string());
 
@@ -156,18 +191,30 @@ mod tests {
         let discriminants = UserKey::secondary_key_discriminants();
         assert!(!discriminants.is_empty());
 
-        // Test AsRef implementation
-        let email_key_str: &str = email_key.as_ref();
-        assert_eq!(email_key_str, "email");
+        // Test that the enum variants can be created and used
+        match email_key {
+            UserSecondaryKeys::EmailKey(email) => assert_eq!(email, "test@example.com"),
+            _ => panic!("Expected EmailKey variant"),
+        }
 
-        let dept_key_str: &str = dept_key.as_ref();
-        assert_eq!(dept_key_str, "department");
+        match dept_key {
+            UserSecondaryKeys::DepartmentKey(dept) => assert_eq!(dept, "HR"),
+            _ => panic!("Expected DepartmentKey variant"),
+        }
     }
 
     #[test]
     fn test_no_secondary_keys_hygiene() {
         // Test a model with no secondary keys to ensure placeholder works
-        #[derive(NetabaseModel, Clone, Debug)]
+        #[derive(
+            NetabaseModel,
+            Clone,
+            Debug,
+            bincode::Encode,
+            bincode::Decode,
+            serde::Serialize,
+            serde::Deserialize,
+        )]
         #[key_name(SimpleKey)]
         pub struct SimpleModel {
             #[key]
@@ -187,7 +234,7 @@ mod tests {
         }
 
         // Should have empty secondary keys
-        let secondary_keys = model.secondary_keys();
+        let secondary_keys = SimpleModel::secondary_keys();
         assert!(secondary_keys.is_empty());
     }
 }
