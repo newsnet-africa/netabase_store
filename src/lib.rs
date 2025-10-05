@@ -266,4 +266,4 @@ pub mod relational;
 
 pub mod traits;
 
-pub use netabase_macors;
+pub use netabase_macros;
