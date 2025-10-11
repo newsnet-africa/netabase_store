@@ -1,1 +1,0 @@
-FlatMap<std::slice::Iter<'_, ModuleInfo<'_>>, Vec<Variant>, {closure@netabase_macros/src/generators/module_definition.rs:52:23: 52:26}>

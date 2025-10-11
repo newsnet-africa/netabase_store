@@ -1,1 +1,0 @@
-std::result::Result<std::option::Option<<K as traits::model::NetabaseModelKey>::Model>, error::StoreError>
