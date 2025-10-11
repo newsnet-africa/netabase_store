@@ -36,17 +36,15 @@ pub trait Store<D: NetabaseDefinition>: Iterator<Item = D> {
         Self::Tree: StoreTree<Model = V>,
     {
         let tree = self.open_tree::<V>(V::DISCRIMINANT)?;
-        tree.put(value)
+        tree.insert(value)
     }
 }
 
 pub trait StoreTree {
-    type Model: NetabaseModel;
-
-    fn get(
+    fn get<M: NetabaseModel>(
         &self,
-        key: <Self::Model as NetabaseModel>::Key,
-    ) -> Result<Option<Self::Model>, StoreError>;
+        key: <M as NetabaseModel>::Key,
+    ) -> Result<Option<M>, StoreError>;
 
-    fn put(&self, value: Self::Model) -> Result<Option<Self::Model>, StoreError>;
+    fn insert<M: NetabaseModel>(&self, value: M) -> Result<Option<M>, StoreError>;
 }

@@ -1,6 +1,6 @@
 use crate::traits::definition::NetabaseDefinition;
 
-pub trait NetabaseModel
+pub trait NetabaseModel: bincode::Decode<()> + bincode::Encode
 where
     Self::Defined: From<Self>,
     Self: TryInto<Self::Defined>,
@@ -12,6 +12,6 @@ where
 
     fn key(&self) -> Self::Key;
 }
-pub trait NetabaseModelKey {
+pub trait NetabaseModelKey: bincode::Decode<()> + bincode::Encode {
     type Model: NetabaseModel;
 }
