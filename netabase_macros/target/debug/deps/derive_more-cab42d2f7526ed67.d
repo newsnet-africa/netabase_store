@@ -1,0 +1,6 @@
+/home/nsomi/Projects/NewsNet/netabase_macros/target/debug/deps/derive_more-cab42d2f7526ed67.d: /home/nsomi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive_more-2.0.1/src/lib.rs /home/nsomi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive_more-2.0.1/src/convert.rs
+
+/home/nsomi/Projects/NewsNet/netabase_macros/target/debug/deps/libderive_more-cab42d2f7526ed67.rmeta: /home/nsomi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive_more-2.0.1/src/lib.rs /home/nsomi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive_more-2.0.1/src/convert.rs
+
+/home/nsomi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive_more-2.0.1/src/lib.rs:
+/home/nsomi/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/derive_more-2.0.1/src/convert.rs:
