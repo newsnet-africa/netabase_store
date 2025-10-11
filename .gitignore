@@ -1,0 +1,43 @@
+# Rust build artifacts
+/target/
+**/target/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*tmp*
+/test_tmp
+
+# Generated files
+/target/generated/
+
+# Backup files
+*.bak
+*.backup
+
+# Log files
+*.log
+
+# dotenv environment variables file
+.env
+
+# Rust specific
+**/*.rs.bk
+
+# Netabase specific
+SLED_IMPLEMENTATION.md
