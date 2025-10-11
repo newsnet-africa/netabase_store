@@ -14,6 +14,10 @@ pub enum EncodingDecodingError {
     Encoding(#[from] bincode::error::EncodeError),
     #[error("There was an error decoding type")]
     Decoding(#[from] bincode::error::DecodeError),
+    #[error("Invalid key format for provider record")]
+    InvalidKeyFormat,
+    #[error("Invalid PeerId format")]
+    InvalidPeerId,
 }
 
 #[derive(Debug, thiserror::Error)]
