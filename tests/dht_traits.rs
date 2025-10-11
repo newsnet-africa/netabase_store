@@ -66,7 +66,16 @@ pub enum TestDefinitionKeys {
 
 // Trait implementations
 impl NetabaseDefinitionDiscriminants for TestDiscriminants {}
-impl NetabaseDefinitionKeys for TestDefinitionKeys {}
+impl NetabaseDefinitionKeys for TestDefinitionKeys {
+    type Discriminants = TestDiscriminants;
+
+    fn discriminant(&self) -> Self::Discriminants {
+        match self {
+            TestDefinitionKeys::User(_) => TestDiscriminants::User,
+            TestDefinitionKeys::Post(_) => TestDiscriminants::Post,
+        }
+    }
+}
 
 impl NetabaseDefinition for TestDefinition {
     type Keys = TestDefinitionKeys;
@@ -129,17 +138,13 @@ impl From<TestPost> for TestDefinition {
 }
 
 // DHT trait implementations
-#[cfg(feature = "libp2p")]
-impl KademliaRecord for TestDefinition {
-    type NetabaseRecordKey = TestDefinitionKeys;
-
-    fn record_keys(&self) -> Self::NetabaseRecordKey {
-        self.keys()
-    }
-}
-
-#[cfg(feature = "libp2p")]
-impl KademliaRecordKey for TestDefinitionKeys {}
+// Note: KademliaRecord and KademliaRecordKey traits are now automatically
+// implemented via blanket implementations for any type that satisfies the bounds:
+// - NetabaseDefinition + bincode::Encode + bincode::Decode<()> for KademliaRecord
+// - NetabaseDefinitionKeys + bincode::Encode + bincode::Decode<()> for KademliaRecordKey
+//
+// Since TestDefinition and TestDefinitionKeys already implement these traits,
+// they automatically get the KademliaRecord and KademliaRecordKey implementations!
 
 // Helper functions for tests
 fn create_test_user() -> TestUser {

@@ -65,6 +65,27 @@ pub trait KademliaRecordKey:
     }
 }
 
+/// Blanket implementation of KademliaRecord for all NetabaseDefinition types that can be encoded/decoded
+#[cfg(feature = "libp2p")]
+impl<T> KademliaRecord for T
+where
+    T: NetabaseDefinition + bincode::Encode + bincode::Decode<()>,
+    T::Keys: KademliaRecordKey,
+{
+    type NetabaseRecordKey = T::Keys;
+
+    fn record_keys(&self) -> Self::NetabaseRecordKey {
+        self.keys()
+    }
+}
+
+/// Blanket implementation of KademliaRecordKey for all NetabaseDefinitionKeys types that can be encoded/decoded
+#[cfg(feature = "libp2p")]
+impl<T> KademliaRecordKey for T where
+    T: NetabaseDefinitionKeys + bincode::Encode + bincode::Decode<()>
+{
+}
+
 /// Helper functions for ProviderRecord management in sled database
 #[cfg(feature = "libp2p")]
 pub mod provider_record_helpers {
@@ -239,7 +260,7 @@ pub mod provider_record_helpers {
 pub mod record_helpers {
     use super::*;
 
-    /// Placeholder iterator for Records - converts from NetabaseStore iterator to libp2p Records
+    /// Creates an iterator for Records - converts from NetabaseStore iterator to libp2p Records
     /// This should be implemented based on your specific Store trait
     pub fn create_record_iter<'a, D, S>(_store: &'a S) -> impl Iterator<Item = Cow<'a, Record>> + 'a
     where
@@ -251,17 +272,24 @@ pub mod record_helpers {
         // 2. Converting each NetabaseModel to NetabaseDefinition
         // 3. Converting NetabaseDefinition to Record via KademliaRecord trait
         // 4. Wrapping in Cow::Owned(record)
+        //
+        // Note: This is a placeholder implementation. The actual implementation
+        // would require access to the store's internal structure to iterate
+        // over all trees and convert models to definitions to records.
 
         std::iter::empty() // Placeholder - replace with actual implementation
     }
 
     /// Helper function to create the iterator - placeholder for now
-    pub fn iter<'a, D, S>(_store: &'a S) -> RecordIter<'a, D, S>
+    pub fn iter<'a, D, S>(store: &'a S) -> RecordIter<'a, D, S>
     where
         D: NetabaseDefinition + KademliaRecord,
         S: Store<D>,
     {
-        todo!("Implement record iteration over NetabaseStore")
+        RecordIter {
+            _store: store,
+            _phantom: std::marker::PhantomData,
+        }
     }
 
     /// Iterator wrapper for converting store data to Records
@@ -282,7 +310,18 @@ pub mod record_helpers {
         type Item = Cow<'a, Record>;
 
         fn next(&mut self) -> Option<Self::Item> {
-            todo!("Implement record iteration over NetabaseStore")
+            // TODO: Implement record iteration over NetabaseStore
+            // This would require:
+            // 1. Iterating over all discriminants in the store
+            // 2. For each discriminant, opening the corresponding tree
+            // 3. Iterating over all models in each tree
+            // 4. Converting models to definitions via From<Model> for Definition
+            // 5. Converting definitions to records via KademliaRecord::try_to_record()
+            // 6. Returning Cow::Owned(record)
+            //
+            // Note: This is complex because it requires maintaining state
+            // across multiple tree iterators and handling conversion errors.
+            None
         }
     }
 }

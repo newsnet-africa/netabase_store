@@ -1,10 +1,11 @@
 //! Example demonstrating libp2p Kademlia DHT integration with NetabaseStore
 //!
 //! This example shows how to:
-//! 1. Use the KademliaRecord and KademliaRecordKey traits
+//! 1. Use the KademliaRecord and KademliaRecordKey traits with blanket implementations
 //! 2. Convert between NetabaseDefinition and libp2p Records
 //! 3. Implement a RecordStore using the provided helper functions
 //! 4. Manage ProviderRecords with the helper utilities
+//! 5. Test the blanket implementations work automatically for types that meet the trait bounds
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -77,7 +78,16 @@ pub enum ExampleDefinitionKeys {
 
 // Trait implementations
 impl NetabaseDefinitionDiscriminants for ExampleDiscriminants {}
-impl NetabaseDefinitionKeys for ExampleDefinitionKeys {}
+impl NetabaseDefinitionKeys for ExampleDefinitionKeys {
+    type Discriminants = ExampleDiscriminants;
+
+    fn discriminant(&self) -> Self::Discriminants {
+        match self {
+            ExampleDefinitionKeys::UserProfile(_) => ExampleDiscriminants::UserProfile,
+            ExampleDefinitionKeys::BlogPost(_) => ExampleDiscriminants::BlogPost,
+        }
+    }
+}
 
 impl NetabaseDefinition for ExampleDefinition {
     type Keys = ExampleDefinitionKeys;
@@ -141,18 +151,13 @@ impl From<BlogPost> for ExampleDefinition {
     }
 }
 
-// Implement the DHT traits
-#[cfg(feature = "libp2p")]
-impl KademliaRecord for ExampleDefinition {
-    type NetabaseRecordKey = ExampleDefinitionKeys;
-
-    fn record_keys(&self) -> Self::NetabaseRecordKey {
-        self.keys()
-    }
-}
-
-#[cfg(feature = "libp2p")]
-impl KademliaRecordKey for ExampleDefinitionKeys {}
+// Note: The DHT traits (KademliaRecord and KademliaRecordKey) are automatically
+// implemented via blanket implementations for any type that satisfies the bounds:
+// - NetabaseDefinition + bincode::Encode + bincode::Decode<()> for KademliaRecord
+// - NetabaseDefinitionKeys + bincode::Encode + bincode::Decode<()> for KademliaRecordKey
+//
+// Since ExampleDefinition and ExampleDefinitionKeys already implement these traits,
+// they automatically get the KademliaRecord and KademliaRecordKey implementations!
 
 // Example RecordStore implementation
 #[cfg(feature = "libp2p")]
@@ -292,8 +297,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let user_def = ExampleDefinition::UserProfile(user_profile.clone());
     let post_def = ExampleDefinition::BlogPost(blog_post.clone());
 
-    // Demonstrate Record conversion
-    println!("=== Converting NetabaseDefinition to libp2p Records ===");
+    // Demonstrate Record conversion using blanket implementations
+    println!("=== Converting NetabaseDefinition to libp2p Records (Blanket Implementations) ===");
 
     let user_record = user_def.try_to_record()?;
     let post_record = post_def.try_to_record()?;
@@ -426,15 +431,78 @@ mod tests {
             provider_record_helpers::provider_record_to_ivec(&provider_record).unwrap();
 
         // Test conversion back
-        let recovered = provider_record_helpers::ivec_to_provider_record(
-            &key_ivec,
-            &value_ivec,
-            b"test_key".len(),
-        )
-        .unwrap();
+        let recovered =
+            provider_record_helpers::ivec_to_provider_record(&key_ivec, &value_ivec).unwrap();
 
         assert_eq!(provider_record.key, recovered.key);
         assert_eq!(provider_record.provider, recovered.provider);
         assert_eq!(provider_record.addresses.len(), recovered.addresses.len());
+    }
+
+    #[test]
+    #[cfg(feature = "libp2p")]
+    fn test_blanket_implementations() {
+        // Test that blanket implementations work automatically
+
+        // Create test data
+        let user = UserProfile {
+            id: "blanket_test".to_string(),
+            name: "Blanket Test".to_string(),
+            email: "blanket@test.com".to_string(),
+            bio: Some("Testing blanket implementations".to_string()),
+        };
+
+        let definition = ExampleDefinition::UserProfile(user);
+
+        // These method calls work thanks to the blanket implementations
+        // KademliaRecord trait methods:
+        let keys = definition.record_keys(); // Calls the blanket implementation
+        let serialized = definition.try_to_vec().unwrap();
+        let record = definition.try_to_record().unwrap();
+
+        // KademliaRecordKey trait methods:
+        let key_serialized = keys.try_to_vec().unwrap();
+        let record_key = keys.try_to_record_key().unwrap();
+
+        // Verify round-trip
+        let recovered_def = ExampleDefinition::try_from_record(record).unwrap();
+        let recovered_keys = ExampleDefinitionKeys::try_from_record_key(&record_key).unwrap();
+
+        // Verify they match
+        assert_eq!(definition, recovered_def);
+        // Note: We can't directly compare keys due to the enum structure,
+        // but we can verify they serialize to the same bytes
+        assert_eq!(key_serialized, recovered_keys.try_to_vec().unwrap());
+
+        println!("✓ Blanket implementations working correctly!");
+    }
+
+    #[test]
+    #[cfg(feature = "libp2p")]
+    fn test_automatic_trait_availability() {
+        // This test verifies that the traits are automatically available
+        // without any manual implementation
+
+        fn requires_kademlia_record<T: KademliaRecord>(_: &T) -> bool {
+            true
+        }
+        fn requires_kademlia_record_key<T: KademliaRecordKey>(_: &T) -> bool {
+            true
+        }
+
+        let definition = ExampleDefinition::UserProfile(UserProfile {
+            id: "trait_test".to_string(),
+            name: "Trait Test".to_string(),
+            email: "trait@test.com".to_string(),
+            bio: None,
+        });
+
+        let keys = definition.keys();
+
+        // These calls succeed because of the blanket implementations
+        assert!(requires_kademlia_record(&definition));
+        assert!(requires_kademlia_record_key(&keys));
+
+        println!("✓ Traits are automatically available via blanket implementations!");
     }
 }
