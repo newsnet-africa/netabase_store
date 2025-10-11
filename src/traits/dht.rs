@@ -1,15 +1,16 @@
-use std::borrow::Cow;
+// use std::borrow::Cow;
 
-use libp2p::kad::{Record, RecordKey};
+// use libp2p::kad::{Record, RecordKey};
 
 use crate::{
     error::EncodingDecodingError,
     traits::{
         definition::{NetabaseDefinition, NetabaseDefinitionKeys},
-        store::Store,
+        // store::Store,
     },
 };
 
+/*
 pub trait KademilaRecord: NetabaseDefinition + bincode::Encode + bincode::Decode<()> {
     type NetabaseRecordKey: KademliaRecordKey;
 
@@ -50,3 +51,4 @@ pub trait KademliaRecordKey:
         Ok(Self::try_from_vec(record.value)?)
     }
 }
+*/

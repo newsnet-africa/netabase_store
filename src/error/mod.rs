@@ -1,7 +1,9 @@
 #[derive(Debug, thiserror::Error)]
 pub enum NetabaseError {
-    #[error("There was a conversion Error")]
-    Conversion(#[from] EncodingDecodingError),
+    #[error("There was a decoding Error")]
+    DecodeError(#[from] bincode::error::DecodeError),
+    #[error("There was a encode Error")]
+    EncodeError(#[from] bincode::error::EncodeError),
     #[error("There was an error with the Sled database")]
     DatabaseError(#[from] sled::Error),
 }
