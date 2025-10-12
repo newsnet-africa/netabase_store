@@ -156,12 +156,7 @@ where
 
     fn get(&self, k: &RecordKey) -> Option<Cow<'_, Record>> {
         // Step 1: Try to decode the RecordKey to NetabaseDefinitionKeys
-        if let Ok(definition_keys) = D::Keys::try_from_record_key(k) {
-            // Step 2: Extract discriminant from definition_keys to target specific tree
-            let discriminant: <D as IntoDiscriminant>::Discriminant =
-                definition_keys.definition_discriminant();
-
-            // Step 3: Directly open the tree using the same logic as get_raw_tree
+        if let Ok((definition_keys, discriminant)) = D::Keys::try_from_record_key(k) {
             let discriminant_bytes =
                 bincode::encode_to_vec(&discriminant, bincode::config::standard()).ok()?;
             let tree = self.db.open_tree(discriminant_bytes).ok()?;
@@ -173,10 +168,9 @@ where
                 if let Ok((definition, _)) = bincode::decode_from_slice::<D, _>(
                     value_bytes.as_ref(),
                     bincode::config::standard(),
-                ) {
-                    if let Ok(record) = definition.try_to_record() {
-                        return Some(Cow::Owned(record));
-                    }
+                ) && let Ok(record) = definition.try_to_record()
+                {
+                    return Some(Cow::Owned(record));
                 }
             }
         }
@@ -222,9 +216,7 @@ where
 
     fn remove(&mut self, k: &RecordKey) {
         // Step 1: Try to decode the key to determine the correct tree
-        if let Ok(definition_keys) = D::Keys::try_from_record_key(k) {
-            // Step 2: Extract discriminant from definition_keys to target specific tree
-            let discriminant = definition_keys.definition_discriminant();
+        if let Ok((definition_keys, discriminant)) = D::Keys::try_from_record_key(k) {
             let key_bytes = k.as_ref();
 
             // Step 3: Directly open the tree

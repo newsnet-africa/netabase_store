@@ -71,8 +71,13 @@ pub trait KademliaRecordKey:
         Ok(RecordKey::new(&self.try_to_vec()?))
     }
 
-    fn try_from_record_key(key: &RecordKey) -> Result<Self, EncodingDecodingError> {
-        Ok(Self::try_from_vec(key.as_ref())?)
+    fn try_from_record_key(
+        key: &RecordKey,
+    ) -> Result<(Self, <Self as NetabaseDefinitionKeys>::Discriminants), EncodingDecodingError>
+    {
+        let keys = Self::try_from_vec(key.as_ref())?;
+        let disc = keys.definition_discriminant();
+        Ok((keys, disc))
     }
 }
 

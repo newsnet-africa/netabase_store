@@ -41,13 +41,16 @@ where
     fn open_tree<V: NetabaseModel<Defined = D>>(
         &self,
         tree_type: <<V as NetabaseModel>::Defined as IntoDiscriminant>::Discriminant,
-    ) -> Result<SledStoreTree<V>, StoreError>;
+    ) -> Result<impl StoreTree<V>, StoreError>;
 
     fn get<V: NetabaseModel<Defined = D>>(&self, key: V::Key) -> Result<Option<V>, StoreError> {
         let tree = self.open_tree::<V>(V::DISCRIMINANT)?;
         tree.get(key)
     }
-    fn put<V: NetabaseModel<Defined = D>>(&self, value: V) -> Result<Option<V>, StoreError> {
+    fn put<V: NetabaseModel<Defined = D>, T: StoreTree<V>>(
+        &self,
+        value: V,
+    ) -> Result<Option<V>, StoreError> {
         let tree = self.open_tree::<V>(V::DISCRIMINANT)?;
         tree.insert(value)
     }
