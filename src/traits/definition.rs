@@ -1,8 +1,8 @@
-use strum::IntoEnumIterator;
+use strum::{IntoDiscriminant, IntoEnumIterator};
 
-pub trait NetabaseDefinition {
-    type Keys: NetabaseDefinitionKeys<Discriminants = Self::Discriminants>;
-    type Discriminants: NetabaseDefinitionDiscriminants
+pub trait NetabaseDefinition: IntoDiscriminant
+where
+    <Self as IntoDiscriminant>::Discriminant: NetabaseDefinitionDiscriminant
         + PartialEq
         + Eq
         + std::hash::Hash
@@ -10,17 +10,19 @@ pub trait NetabaseDefinition {
         + Sync
         + Clone
         + Copy
-        + 'static;
+        + 'static,
+{
+    type Keys: NetabaseDefinitionKeys<Discriminants = <Self as IntoDiscriminant>::Discriminant>;
 
     fn keys(&self) -> Self::Keys;
 }
 pub trait NetabaseDefinitionKeys {
-    type Discriminants: NetabaseDefinitionDiscriminants;
+    type Discriminants: NetabaseDefinitionDiscriminant;
 
     /// Get the discriminant for this definition key
-    fn discriminant(&self) -> Self::Discriminants;
+    fn definition_discriminant(&self) -> Self::Discriminants;
 }
-pub trait NetabaseDefinitionDiscriminants:
+pub trait NetabaseDefinitionDiscriminant:
     IntoEnumIterator + bincode::Decode<()> + bincode::Encode + Send + Sync + Clone + Copy + 'static
 {
 }

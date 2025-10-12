@@ -6,6 +6,8 @@ use libp2p::{
     kad::{ProviderRecord, Record, RecordKey},
 };
 
+#[cfg(feature = "libp2p")]
+use crate::traits::definition::NetabaseDefinitionDiscriminant;
 use crate::{
     error::EncodingDecodingError,
     traits::{
@@ -16,10 +18,19 @@ use crate::{
 
 /// Trait for NetabaseDefinition types that can be converted to/from libp2p Records
 #[cfg(feature = "libp2p")]
-pub trait KademliaRecord: NetabaseDefinition + bincode::Encode + bincode::Decode<()> {
+pub trait KademliaRecord: NetabaseDefinition + bincode::Encode + bincode::Decode<()>
+where
+    <Self as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <Self as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <Self as strum::IntoDiscriminant>::Discriminant: NetabaseDefinitionDiscriminant,
+{
     type NetabaseRecordKey: KademliaRecordKey;
 
-    fn record_keys(&self) -> Self::NetabaseRecordKey;
+    fn record_keys(&self) -> Self::NetabaseRecordKey
+    where
+        <Self as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+        <Self as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+        <Self as strum::IntoDiscriminant>::Discriminant: NetabaseDefinitionDiscriminant;
 
     fn try_to_vec(&self) -> Result<Vec<u8>, bincode::error::EncodeError> {
         bincode::encode_to_vec(self, bincode::config::standard())
@@ -71,6 +82,9 @@ impl<T> KademliaRecord for T
 where
     T: NetabaseDefinition + bincode::Encode + bincode::Decode<()>,
     T::Keys: KademliaRecordKey,
+    <T as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <T as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <T as strum::IntoDiscriminant>::Discriminant: NetabaseDefinitionDiscriminant,
 {
     type NetabaseRecordKey = T::Keys;
 
@@ -266,6 +280,9 @@ pub mod record_helpers {
     where
         D: NetabaseDefinition + KademliaRecord,
         S: Store<D>,
+        <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+        <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+        <D as strum::IntoDiscriminant>::Discriminant: NetabaseDefinitionDiscriminant,
     {
         // TODO: Implement this iterator by:
         // 1. Iterating over all trees in the store
@@ -285,6 +302,9 @@ pub mod record_helpers {
     where
         D: NetabaseDefinition + KademliaRecord,
         S: Store<D>,
+        <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+        <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+        <D as strum::IntoDiscriminant>::Discriminant: NetabaseDefinitionDiscriminant,
     {
         RecordIter {
             _store: store,
@@ -297,6 +317,9 @@ pub mod record_helpers {
     where
         D: NetabaseDefinition + KademliaRecord,
         S: Store<D>,
+        <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+        <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+        <D as strum::IntoDiscriminant>::Discriminant: NetabaseDefinitionDiscriminant,
     {
         _store: &'a S,
         _phantom: std::marker::PhantomData<D>,
@@ -306,6 +329,9 @@ pub mod record_helpers {
     where
         D: NetabaseDefinition + KademliaRecord,
         S: Store<D>,
+        <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+        <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+        <D as strum::IntoDiscriminant>::Discriminant: NetabaseDefinitionDiscriminant,
     {
         type Item = Cow<'a, Record>;
 

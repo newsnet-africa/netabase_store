@@ -13,24 +13,34 @@
 //!
 //! The traits define the interface while keeping implementation details separate.
 
-use strum::IntoEnumIterator;
+use strum::{IntoDiscriminant, IntoEnumIterator};
 
 use crate::{
     databases::sled_store::SledStoreTree,
     error::StoreError,
-    traits::{definition::NetabaseDefinition, model::NetabaseModel},
+    traits::{
+        definition::{NetabaseDefinition, NetabaseDefinitionDiscriminant},
+        model::NetabaseModel,
+    },
 };
 
-pub trait Store<D: NetabaseDefinition> {
+pub trait Store<D: NetabaseDefinition>
+where
+    <D as IntoDiscriminant>::Discriminant: NetabaseDefinitionDiscriminant,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+{
     type StoreError: std::error::Error;
 
-    fn get_definitions(&self) -> <D::Discriminants as IntoEnumIterator>::Iterator {
-        D::Discriminants::iter()
+    fn get_definitions(
+        &self,
+    ) -> <<D as IntoDiscriminant>::Discriminant as IntoEnumIterator>::Iterator {
+        D::Discriminant::iter()
     }
 
     fn open_tree<V: NetabaseModel<Defined = D>>(
         &self,
-        tree_type: <<V as NetabaseModel>::Defined as NetabaseDefinition>::Discriminants,
+        tree_type: <<V as NetabaseModel>::Defined as IntoDiscriminant>::Discriminant,
     ) -> Result<SledStoreTree<V>, StoreError>;
 
     fn get<V: NetabaseModel<Defined = D>>(&self, key: V::Key) -> Result<Option<V>, StoreError> {

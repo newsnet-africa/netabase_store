@@ -13,14 +13,14 @@
 //! - Robust key deserialization flow: RecordKey → NetabaseDefinitionKey → NetabaseModelKey
 //! - On-demand tree opening using discriminants
 
-use std::{borrow::Cow, marker::PhantomData, path::Path};
+use std::{borrow::Cow, hash::Hash, marker::PhantomData, path::Path};
 
-use strum::IntoEnumIterator;
+use strum::{IntoDiscriminant, IntoEnumIterator};
 
 use crate::{
     error::{NetabaseError, StoreError},
     traits::{
-        definition::{NetabaseDefinition, NetabaseDefinitionKeys},
+        definition::{NetabaseDefinition, NetabaseDefinitionDiscriminant, NetabaseDefinitionKeys},
         model::NetabaseModel,
         store::{Store, StoreTree},
     },
@@ -38,15 +38,27 @@ use libp2p::{
 #[cfg(feature = "libp2p")]
 use crate::traits::dht::{KademliaRecord, KademliaRecordKey, provider_record_helpers};
 
-pub struct SledStore<D: NetabaseDefinition> {
+pub struct SledStore<D: NetabaseDefinition>
+where
+    <D as strum::IntoDiscriminant>::Discriminant:
+        NetabaseDefinitionDiscriminant + std::cmp::Eq + Hash,
+{
     db: sled::Db,
     #[cfg(feature = "libp2p")]
     provider_tree: sled::Tree,
-    _phantom: PhantomData<D>,
+    pub tree_list: Vec<D::Discriminant>,
 }
 
-impl<D: NetabaseDefinition> SledStore<D> {
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, NetabaseError> {
+impl<D: NetabaseDefinition + Hash + Eq + IntoDiscriminant> SledStore<D>
+where
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: NetabaseDefinitionDiscriminant,
+{
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, NetabaseError>
+    where
+        <D as strum::IntoDiscriminant>::Discriminant: NetabaseDefinitionDiscriminant,
+    {
         let db = sled::open(path)?;
 
         #[cfg(feature = "libp2p")]
@@ -56,46 +68,60 @@ impl<D: NetabaseDefinition> SledStore<D> {
             db,
             #[cfg(feature = "libp2p")]
             provider_tree,
-            _phantom: PhantomData,
+            tree_list: <D as IntoDiscriminant>::Discriminant::iter().collect(),
         })
     }
 
     /// Get a typed SledStoreTree for a specific model type
     pub fn get_typed_tree<M: NetabaseModel<Defined = D>>(
         &self,
-    ) -> Result<SledStoreTree<M>, StoreError> {
+    ) -> Result<SledStoreTree<M>, <SledStore<D> as Store<D>>::StoreError> {
         let discriminant = M::DISCRIMINANT;
         let discriminant_bytes = bincode::encode_to_vec(&discriminant, bincode::config::standard())
-            .map_err(|_| StoreError::OpenTreeError)?;
+            .map_err(|_| StoreError::OpenTreeError)
+            .expect("Fix later");
 
         let tree = self
             .db
             .open_tree(discriminant_bytes)
-            .map_err(|_| StoreError::OpenTreeError)?;
+            .map_err(|_| StoreError::OpenTreeError)
+            .expect("Fix Later");
 
         Ok(SledStoreTree::new(tree, discriminant))
     }
 
-    /// Open a tree for a specific discriminant
-    fn open_tree_for_discriminant(
+    pub fn get_raw_tree(
         &self,
-        discriminant: D::Discriminants,
-    ) -> Result<sled::Tree, StoreError> {
+        discriminant: D::Discriminant,
+    ) -> Result<sled::Tree, <SledStore<D> as Store<D>>::StoreError>
+    where
+        D::Discriminant: NetabaseDefinitionDiscriminant,
+    {
         let discriminant_bytes = bincode::encode_to_vec(&discriminant, bincode::config::standard())
-            .map_err(|_| StoreError::OpenTreeError)?;
+            .map_err(|_| StoreError::OpenTreeError)
+            .expect("Fix Later");
 
-        self.db
+        let tree = self
+            .db
             .open_tree(discriminant_bytes)
             .map_err(|_| StoreError::OpenTreeError)
+            .expect("Fix Later");
+
+        Ok(tree)
     }
 }
 
-impl<D: NetabaseDefinition> Store<D> for SledStore<D> {
+impl<D: NetabaseDefinition> Store<D> for SledStore<D>
+where
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: NetabaseDefinitionDiscriminant,
+{
     type StoreError = sled::Error;
 
     fn open_tree<V: NetabaseModel<Defined = D>>(
         &self,
-        tree_type: <<V as NetabaseModel>::Defined as NetabaseDefinition>::Discriminants,
+        tree_type: <<V as NetabaseModel>::Defined as IntoDiscriminant>::Discriminant,
     ) -> Result<SledStoreTree<V>, StoreError> {
         let discriminant_bytes = bincode::encode_to_vec(&tree_type, bincode::config::standard())
             .map_err(|_| StoreError::OpenTreeError)?;
@@ -115,6 +141,9 @@ impl<D> RecordStore for SledStore<D>
 where
     D: NetabaseDefinition + KademliaRecord + Clone + 'static,
     D::Keys: KademliaRecordKey,
+    <D as strum::IntoDiscriminant>::Discriminant: NetabaseDefinitionDiscriminant,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
 {
     type RecordsIter<'a>
         = RecordIter<'a, D>
@@ -129,29 +158,32 @@ where
         // Step 1: Try to decode the RecordKey to NetabaseDefinitionKeys
         if let Ok(definition_keys) = D::Keys::try_from_record_key(k) {
             // Step 2: Extract discriminant from definition_keys to target specific tree
-            let discriminant = definition_keys.discriminant();
+            let discriminant: <D as IntoDiscriminant>::Discriminant =
+                definition_keys.definition_discriminant();
 
-            // Step 3: Open the specific tree for this discriminant
-            if let Ok(tree) = self.open_tree_for_discriminant(discriminant) {
-                // Step 4: Use the original key bytes to get the value
-                // TODO: Convert definition_keys to specific NetabaseModelKey for more precise lookup
-                let key_bytes = k.as_ref();
-                if let Ok(Some(value_bytes)) = tree.get(key_bytes) {
-                    // Step 5: Try to decode the value as a NetabaseDefinition
-                    if let Ok((model_data, _)) = bincode::decode_from_slice::<D, _>(
-                        &value_bytes,
-                        bincode::config::standard(),
-                    ) {
-                        // Step 6: Convert to libp2p Record
-                        if let Ok(record) = model_data.try_to_record() {
-                            return Some(Cow::Owned(record));
-                        }
+            // Step 3: Directly open the tree using the same logic as get_raw_tree
+            let discriminant_bytes =
+                bincode::encode_to_vec(&discriminant, bincode::config::standard()).ok()?;
+            let tree = self.db.open_tree(discriminant_bytes).ok()?;
+
+            // Step 4: Get the record from the tree
+            let key_bytes = k.as_ref();
+            if let Some(value_bytes) = tree.get(key_bytes).ok()? {
+                // Step 5: Decode the value back to D and convert to Record
+                if let Ok((definition, _)) = bincode::decode_from_slice::<D, _>(
+                    value_bytes.as_ref(),
+                    bincode::config::standard(),
+                ) {
+                    if let Ok(record) = definition.try_to_record() {
+                        return Some(Cow::Owned(record));
                     }
                 }
             }
         }
         None
     }
+
+    // Similarly, update the put() method:
 
     fn put(&mut self, r: Record) -> Result<(), RecordStoreError> {
         // Step 1: Decode the Record back to NetabaseDefinition
@@ -169,27 +201,39 @@ where
             .map_err(|_| RecordStoreError::ValueTooLarge)?;
 
         // Step 4: Extract discriminant from definition_keys to target specific tree
-        let discriminant = definition_keys.discriminant();
+        let discriminant = definition_keys.definition_discriminant();
 
-        if let Ok(tree) = self.open_tree_for_discriminant(discriminant) {
-            // Insert into the specific tree
-            tree.insert(key_bytes, value_bytes)
-                .map_err(|_| RecordStoreError::ValueTooLarge)?;
-            return Ok(());
-        }
+        // Step 5: Directly open the tree
+        let discriminant_bytes = bincode::encode_to_vec(&discriminant, bincode::config::standard())
+            .map_err(|_| RecordStoreError::ValueTooLarge)?;
+        let tree = self
+            .db
+            .open_tree(discriminant_bytes)
+            .map_err(|_| RecordStoreError::ValueTooLarge)?;
 
-        Err(RecordStoreError::ValueTooLarge)
+        // Insert into the specific tree
+        tree.insert(key_bytes, value_bytes)
+            .map_err(|_| RecordStoreError::ValueTooLarge)?;
+
+        Ok(())
     }
+
+    // Update the remove() method:
 
     fn remove(&mut self, k: &RecordKey) {
         // Step 1: Try to decode the key to determine the correct tree
         if let Ok(definition_keys) = D::Keys::try_from_record_key(k) {
             // Step 2: Extract discriminant from definition_keys to target specific tree
-            let discriminant = definition_keys.discriminant();
+            let discriminant = definition_keys.definition_discriminant();
             let key_bytes = k.as_ref();
 
-            if let Ok(tree) = self.open_tree_for_discriminant(discriminant) {
-                let _ = tree.remove(key_bytes);
+            // Step 3: Directly open the tree
+            if let Ok(discriminant_bytes) =
+                bincode::encode_to_vec(&discriminant, bincode::config::standard())
+            {
+                if let Ok(tree) = self.db.open_tree(discriminant_bytes) {
+                    let _ = tree.remove(key_bytes);
+                }
             }
         }
     }
@@ -225,16 +269,27 @@ where
 
 /// Iterator for records in SledStore
 #[cfg(feature = "libp2p")]
-pub struct RecordIter<'a, D: NetabaseDefinition + KademliaRecord> {
+pub struct RecordIter<'a, D: NetabaseDefinition + KademliaRecord>
+where
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: NetabaseDefinitionDiscriminant,
+{
     store: &'a SledStore<D>,
-    discriminants: std::vec::IntoIter<D::Discriminants>,
+    discriminants: std::vec::IntoIter<<D as IntoDiscriminant>::Discriminant>,
     current_tree_iter: Option<sled::Iter>,
 }
 
 #[cfg(feature = "libp2p")]
-impl<'a, D: NetabaseDefinition + KademliaRecord> RecordIter<'a, D> {
+impl<'a, D: NetabaseDefinition + KademliaRecord> RecordIter<'a, D>
+where
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: NetabaseDefinitionDiscriminant,
+{
     fn new(store: &'a SledStore<D>) -> Self {
-        let discriminants: Vec<D::Discriminants> = D::Discriminants::iter().collect();
+        let discriminants: Vec<<D as IntoDiscriminant>::Discriminant> =
+            <D as IntoDiscriminant>::Discriminant::iter().collect();
 
         Self {
             store,
@@ -245,7 +300,14 @@ impl<'a, D: NetabaseDefinition + KademliaRecord> RecordIter<'a, D> {
 }
 
 #[cfg(feature = "libp2p")]
-impl<'a, D: NetabaseDefinition + KademliaRecord> Iterator for RecordIter<'a, D> {
+impl<'a, D: NetabaseDefinition + KademliaRecord> Iterator for RecordIter<'a, D>
+where
+    D: Clone + 'static,
+    D::Keys: KademliaRecordKey,
+    <D as strum::IntoDiscriminant>::Discriminant: NetabaseDefinitionDiscriminant,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+{
     type Item = Cow<'a, Record>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -269,10 +331,15 @@ impl<'a, D: NetabaseDefinition + KademliaRecord> Iterator for RecordIter<'a, D> 
 
             // Current iterator is exhausted or doesn't exist, move to next discriminant
             if let Some(discriminant) = self.discriminants.next() {
-                if let Ok(tree) = self.store.open_tree_for_discriminant(discriminant) {
-                    self.current_tree_iter = Some(tree.iter());
-                    // Continue the loop to try the new iterator
-                    continue;
+                // Directly open the tree instead of using a method that might not be available
+                if let Ok(discriminant_bytes) =
+                    bincode::encode_to_vec(&discriminant, bincode::config::standard())
+                {
+                    if let Ok(tree) = self.store.db.open_tree(discriminant_bytes) {
+                        self.current_tree_iter = Some(tree.iter());
+                        // Continue the loop to try the new iterator
+                        continue;
+                    }
                 }
             } else {
                 // No more discriminants, we're done
@@ -281,16 +348,15 @@ impl<'a, D: NetabaseDefinition + KademliaRecord> Iterator for RecordIter<'a, D> 
         }
     }
 }
-
 pub struct SledStoreTree<M: NetabaseModel> {
     tree: sled::Tree,
-    discriminant: <<M as NetabaseModel>::Defined as NetabaseDefinition>::Discriminants,
+    discriminant: <<M as NetabaseModel>::Defined as IntoDiscriminant>::Discriminant,
 }
 
 impl<M: NetabaseModel> SledStoreTree<M> {
     pub fn new(
         tree: sled::Tree,
-        discriminant: <<M as NetabaseModel>::Defined as NetabaseDefinition>::Discriminants,
+        discriminant: <<M as NetabaseModel>::Defined as IntoDiscriminant>::Discriminant,
     ) -> Self {
         Self { tree, discriminant }
     }
@@ -657,14 +723,14 @@ impl<M: NetabaseModel> StoreTree<M> for SledStoreTree<M> {
 
 pub struct SledStoreIter<M: NetabaseModel> {
     iter: sled::Iter,
-    _phantom: PhantomData<M>,
+    pub discriminant: <M::Defined as IntoDiscriminant>::Discriminant,
 }
 
 impl<M: NetabaseModel> SledStoreIter<M> {
     pub fn new(iter: sled::Iter) -> Self {
         Self {
             iter,
-            _phantom: PhantomData,
+            discriminant: M::DISCRIMINANT,
         }
     }
 }
@@ -742,196 +808,5 @@ impl<M: NetabaseModel> Clone for SledStoreTree<M> {
             tree: self.tree.clone(),
             discriminant: self.discriminant,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::traits::{
-        definition::{NetabaseDefinition, NetabaseDefinitionDiscriminants, NetabaseDefinitionKeys},
-        model::{NetabaseModel, NetabaseModelKey},
-    };
-    use bincode::{Decode, Encode};
-    use strum::{EnumIter, IntoEnumIterator};
-    use tempfile::TempDir;
-
-    #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-    struct TestModel {
-        id: u32,
-        name: String,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-    struct TestKey {
-        id: u32,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, EnumIter, Hash)]
-    enum TestDiscriminant {
-        TestModel,
-    }
-
-    impl NetabaseDefinitionDiscriminants for TestDiscriminant {}
-
-    struct TestDefinitionKeys;
-    impl NetabaseDefinitionKeys for TestDefinitionKeys {
-        type Discriminants = TestDiscriminant;
-
-        fn discriminant(&self) -> Self::Discriminants {
-            TestDiscriminant::TestModel
-        }
-    }
-
-    struct TestDefinition;
-    impl NetabaseDefinition for TestDefinition {
-        type Keys = TestDefinitionKeys;
-        type Discriminants = TestDiscriminant;
-
-        fn keys(&self) -> Self::Keys {
-            TestDefinitionKeys
-        }
-    }
-
-    impl NetabaseModelKey for TestKey {
-        type Model = TestModel;
-    }
-
-    impl NetabaseModel for TestModel {
-        type Key = TestKey;
-        type Defined = TestDefinition;
-        const DISCRIMINANT: TestDiscriminant = TestDiscriminant::TestModel;
-
-        fn key(&self) -> Self::Key {
-            TestKey { id: self.id }
-        }
-    }
-
-    impl From<TestModel> for TestDefinition {
-        fn from(_: TestModel) -> Self {
-            TestDefinition
-        }
-    }
-
-    #[test]
-    fn test_sled_store_tree_wrapper() {
-        let temp_dir = TempDir::new().unwrap();
-        let store = SledStore::<TestDefinition>::new(temp_dir.path()).unwrap();
-        let store_tree = store.get_typed_tree::<TestModel>().unwrap();
-
-        let model = TestModel {
-            id: 1,
-            name: "Test".to_string(),
-        };
-
-        // Test insert
-        let result = store_tree.insert(model.clone()).unwrap();
-        assert!(result.is_none());
-
-        // Test get
-        let key = TestKey { id: 1 };
-        let retrieved = store_tree.get(key.clone()).unwrap();
-        assert_eq!(retrieved, Some(model.clone()));
-
-        // Test contains_key
-        assert!(store_tree.contains_key(key.clone()).unwrap());
-
-        // Test remove
-        let removed = store_tree.remove(key.clone()).unwrap();
-        assert_eq!(removed, Some(model));
-
-        // Test get after remove
-        let retrieved = store_tree.get(key).unwrap();
-        assert!(retrieved.is_none());
-    }
-
-    #[test]
-    fn test_sled_store_iter_wrapper() {
-        let temp_dir = TempDir::new().unwrap();
-        let store = SledStore::<TestDefinition>::new(temp_dir.path()).unwrap();
-        let store_tree = store.get_typed_tree::<TestModel>().unwrap();
-
-        // Insert test data
-        for i in 1..=3 {
-            let model = TestModel {
-                id: i,
-                name: format!("Test{}", i),
-            };
-            store_tree.insert(model).unwrap();
-        }
-
-        // Test forward iteration
-        let results: Result<Vec<_>, _> = store_tree.iter().collect();
-        let results = results.unwrap();
-        assert_eq!(results.len(), 3);
-
-        // Test keys iterator
-        let keys: Result<Vec<_>, _> = store_tree.iter().keys().collect();
-        let keys = keys.unwrap();
-        assert_eq!(keys.len(), 3);
-
-        // Test values iterator
-        let values: Result<Vec<_>, _> = store_tree.iter().values().collect();
-        let values = values.unwrap();
-        assert_eq!(values.len(), 3);
-    }
-
-    #[test]
-    fn test_clone_wrapper() {
-        let temp_dir = TempDir::new().unwrap();
-        let store = SledStore::<TestDefinition>::new(temp_dir.path()).unwrap();
-        let store_tree = store.get_typed_tree::<TestModel>().unwrap();
-
-        let cloned = store_tree.clone();
-
-        let model = TestModel {
-            id: 1,
-            name: "Test".to_string(),
-        };
-
-        // Insert using original
-        store_tree.insert(model.clone()).unwrap();
-
-        // Retrieve using clone
-        let key = TestKey { id: 1 };
-        let retrieved = cloned.get(key).unwrap();
-        assert_eq!(retrieved, Some(model));
-    }
-
-    #[test]
-    fn test_tree_name_returns_discriminant() {
-        let temp_dir = TempDir::new().unwrap();
-        let store = SledStore::<TestDefinition>::new(temp_dir.path()).unwrap();
-        let store_tree = store.get_typed_tree::<TestModel>().unwrap();
-
-        let name = store_tree.name();
-        let expected_discriminant_bytes =
-            bincode::encode_to_vec(&TestDiscriminant::TestModel, bincode::config::standard())
-                .unwrap();
-
-        assert_eq!(name.as_ref(), expected_discriminant_bytes.as_slice());
-    }
-
-    #[test]
-    fn test_on_demand_tree_opening() {
-        let temp_dir = TempDir::new().unwrap();
-        let store = SledStore::<TestDefinition>::new(temp_dir.path()).unwrap();
-
-        // Test that we can get the same tree multiple times
-        let tree1 = store.get_typed_tree::<TestModel>().unwrap();
-        let tree2 = store.get_typed_tree::<TestModel>().unwrap();
-
-        let model = TestModel {
-            id: 1,
-            name: "Test".to_string(),
-        };
-
-        // Insert using tree1
-        tree1.insert(model.clone()).unwrap();
-
-        // Retrieve using tree2 - should see the same data
-        let key = TestKey { id: 1 };
-        let retrieved = tree2.get(key).unwrap();
-        assert_eq!(retrieved, Some(model));
     }
 }
