@@ -1,4 +1,5 @@
 #![cfg(feature = "native")]
+use blog::*;
 use databases::sled_store::*;
 use netabase_store::model::NetabaseModelTrait;
 use netabase_store::{NetabaseModel, convert, netabase_definition_module, *};

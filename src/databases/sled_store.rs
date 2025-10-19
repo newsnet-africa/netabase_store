@@ -38,7 +38,7 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
     db: sled::Db,
-    _phantom: PhantomData<D>,
+    pub trees: Vec<D::Discriminant>,
 }
 
 impl<D> SledStore<D>
@@ -104,7 +104,7 @@ where
         let db = sled::open(path)?;
         Ok(Self {
             db,
-            _phantom: PhantomData,
+            trees: D::Discriminant::iter().collect(),
         })
     }
 
@@ -114,7 +114,7 @@ where
         let db = config.open()?;
         Ok(Self {
             db,
-            _phantom: PhantomData,
+            trees: D::Discriminant::iter().collect(),
         })
     }
 

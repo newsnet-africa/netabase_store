@@ -1,3 +1,0 @@
-<<Self as traits::definition::NetabaseDefinitionTrait>::Keys as strum::IntoDiscriminant>::Discriminant
-<<Self as traits::definition::NetabaseDefinitionTrait>::Keys as strum::IntoDiscriminant>::Discriminant: std::hash::Hash
-std::string::String: std::convert::From<<<Self as traits::definition::NetabaseDefinitionTrait>::Keys as strum::IntoDiscriminant>::Discriminant>

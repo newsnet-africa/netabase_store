@@ -1,1 +1,0 @@
-netabase_store::databases::sled_store::SledStoreTree<definitions::ExampleDefs, definitions::User>

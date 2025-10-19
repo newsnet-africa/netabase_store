@@ -1,7 +1,8 @@
 use syn::{Ident, ItemEnum};
 
 use crate::{
-    generators::module_definition::def_gen::generate_enums, util::append_ident,
+    generators::module_definition::def_gen::{generate_enums, generate_into_inner},
+    util::append_ident,
     visitors::definitions_visitor::DefinitionsVisitor,
 };
 
@@ -19,9 +20,14 @@ impl<'a> DefinitionsVisitor<'a> {
         definition: &Ident,
         definition_key: &Ident,
     ) -> proc_macro2::TokenStream {
+        let models = self
+            .modules
+            .iter()
+            .flat_map(|m| def_gen::generate_model_variants(&m.models, m.path.clone()));
+        let _into_inner = generate_into_inner(models.collect());
+        // panic!("{:?}", into_inner.to_string());
         quote::quote! {
             impl ::netabase_store::traits::definition::NetabaseDefinitionTrait for #definition {
-
             }
 
             impl ::netabase_store::traits::definition::NetabaseDefinitionTraitKey for #definition_key {
@@ -39,7 +45,7 @@ impl<'a> DefinitionsVisitor<'a> {
 
 pub mod def_gen {
     use syn::{
-        Ident, ItemEnum, ItemStruct, PathSegment, Token, Variant, parse_quote,
+        Arm, ExprMatch, Ident, ItemEnum, ItemStruct, PathSegment, Token, Variant, parse_quote,
         punctuated::Punctuated,
     };
 
@@ -61,6 +67,25 @@ pub mod def_gen {
             })
             .collect()
     }
+    pub fn generate_into_inner(variants: Vec<Variant>) -> proc_macro2::TokenStream {
+        let arms: Vec<Arm> = variants
+            .iter()
+            .map(|v| {
+                let id = &v.ident;
+                parse_quote! {
+                    Self::#id(x) => x.clone()
+                }
+            })
+            .collect();
+        quote::quote! {
+            fn into_inner(self) -> Box<dyn NetabaseModelTrait<Self>> {
+                match self {
+                    #(#arms),*
+                }
+            }
+        }
+    }
+
     pub fn generate_model_key_variants(
         keys: &Vec<Ident>,
         path: Punctuated<PathSegment, Token![::]>,

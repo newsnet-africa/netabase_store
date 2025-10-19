@@ -118,10 +118,10 @@ where
 
         // Try each tree to find which one contains this key
         for disc in D::Discriminant::iter() {
-            if let Ok(tree) = self.db().open_tree(disc.to_string()) {
-                if tree.contains_key(&key_bytes).unwrap_or(false) {
-                    return Ok(tree);
-                }
+            if let Ok(tree) = self.db().open_tree(disc.to_string())
+                && tree.contains_key(&key_bytes).unwrap_or(false)
+            {
+                return Ok(tree);
             }
         }
 
@@ -446,7 +446,7 @@ impl<'a> Iterator for RecordsIter<'a> {
             match self.tree_iters[self.current_index].next() {
                 Some(result) => {
                     if let Ok((_, v)) = result {
-                        if let Ok(record) = SledStore::<DummyDefinition>::decode_record(&v) {
+                        if let Ok(record) = dummy_util::decode_record(&v) {
                             return Some(Cow::Owned(record));
                         }
                     }
@@ -476,71 +476,79 @@ impl<'a> Iterator for ProvidedIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().and_then(|result| {
-            result.ok().and_then(|(_, v)| {
-                SledStore::<DummyDefinition>::decode_provider(&v)
-                    .ok()
-                    .map(Cow::Owned)
-            })
+            result
+                .ok()
+                .and_then(|(_, v)| dummy_util::decode_provider(&v).ok().map(Cow::Owned))
         })
     }
 }
 
-// Dummy definition for use in iterators (since we can't use the generic D)
-#[cfg(feature = "libp2p")]
-#[derive(Clone, Debug, EnumDiscriminants, EnumIter, Hash, EnumString, Display, Encode, Decode)]
-#[strum_discriminants(derive(EnumIter, EnumString, Hash, Display, AsRefStr))]
-#[strum_discriminants(name(DummyDiscriminant))]
-enum DummyDefinition {}
+pub mod dummy_util {
+    use super::*;
+    pub fn encode_key(key: &Key) -> Vec<u8> {
+        key.to_vec()
+    }
 
-#[cfg(feature = "libp2p")]
-impl crate::traits::definition::NetabaseDefinitionTrait for DummyDefinition {}
+    /// Encode a Record to bytes using SerializableRecord
+    pub fn encode_record(record: &Record) -> Result<Vec<u8>> {
+        let serializable = SerializableRecord {
+            key: record.key.to_vec(),
+            value: record.value.clone(),
+            publisher: record.publisher.as_ref().map(|p| p.to_bytes()),
+        };
+        bincode::encode_to_vec(&serializable, bincode::config::standard())
+            .map_err(|_| Error::ValueTooLarge)
+    }
 
-#[cfg(feature = "libp2p")]
-impl From<DummyDiscriminant> for String {
-    fn from(_: DummyDiscriminant) -> String {
-        String::new()
+    /// Decode a Record from bytes using SerializableRecord
+    pub fn decode_record(bytes: &[u8]) -> Result<Record> {
+        let (serializable, _): (SerializableRecord, _) =
+            bincode::decode_from_slice(bytes, bincode::config::standard())
+                .map_err(|_| Error::MaxRecords)?;
+
+        let publisher = match serializable.publisher {
+            Some(bytes) => Some(PeerId::from_bytes(&bytes).map_err(|_| Error::MaxRecords)?),
+            None => None,
+        };
+
+        Ok(Record {
+            key: Key::from(serializable.key),
+            value: serializable.value,
+            publisher,
+            expires: None, // Always None - we don't persist expiration times
+        })
+    }
+
+    /// Encode a ProviderRecord to bytes using SerializableProviderRecord
+    pub fn encode_provider(provider: &ProviderRecord) -> Result<Vec<u8>> {
+        let serializable = SerializableProviderRecord {
+            key: provider.key.to_vec(),
+            provider: provider.provider.to_bytes(),
+            addresses: provider.addresses.iter().map(|a| a.to_vec()).collect(),
+        };
+        bincode::encode_to_vec(&serializable, bincode::config::standard())
+            .map_err(|_| Error::ValueTooLarge)
+    }
+
+    /// Decode a ProviderRecord from bytes using SerializableProviderRecord
+    pub fn decode_provider(bytes: &[u8]) -> Result<ProviderRecord> {
+        let (serializable, _): (SerializableProviderRecord, _) =
+            bincode::decode_from_slice(bytes, bincode::config::standard())
+                .map_err(|_| Error::MaxRecords)?;
+
+        let provider = PeerId::from_bytes(&serializable.provider).map_err(|_| Error::MaxRecords)?;
+
+        let addresses = serializable
+            .addresses
+            .iter()
+            .filter_map(|bytes| libp2p::Multiaddr::try_from(bytes.clone()).ok())
+            .collect();
+
+        Ok(ProviderRecord {
+            key: Key::from(serializable.key),
+            provider,
+            expires: None, // Always None - we don't persist expiration times
+            addresses,
+        })
     }
 }
-
-#[cfg(feature = "libp2p")]
-#[derive(Clone, Debug, EnumDiscriminants, EnumIter, Hash, EnumString, Display)]
-#[strum_discriminants(derive(EnumIter, EnumString, Hash, Display))]
-#[strum_discriminants(name(DummyKeysDiscriminant))]
-enum DummyKeys {}
-
-#[cfg(feature = "libp2p")]
-impl crate::traits::definition::NetabaseDefinitionTraitKey for DummyKeys {
-    type Definition = DummyDefinition;
-}
-
-#[cfg(feature = "libp2p")]
-impl From<DummyKeysDiscriminant> for String {
-    fn from(_: DummyKeysDiscriminant) -> String {
-        String::new()
-    }
-}
-
-#[cfg(feature = "libp2p")]
-impl bincode::Encode for DummyKeys {
-    fn encode<E: bincode::enc::Encoder>(
-        &self,
-        _encoder: &mut E,
-    ) -> core::result::Result<(), bincode::error::EncodeError> {
-        match *self {}
-    }
-}
-
-#[cfg(feature = "libp2p")]
-impl bincode::Decode<()> for DummyKeys {
-    fn decode<De: bincode::de::Decoder>(
-        _decoder: &mut De,
-    ) -> core::result::Result<Self, bincode::error::DecodeError> {
-        Err(bincode::error::DecodeError::Other("Empty enum"))
-    }
-}
-
-#[cfg(feature = "libp2p")]
-impl crate::traits::convert::ToIVec for DummyDefinition {}
-
-#[cfg(feature = "libp2p")]
-impl crate::traits::convert::ToIVec for DummyKeys {}
