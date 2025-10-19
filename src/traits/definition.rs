@@ -42,7 +42,10 @@ where
     <Self as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
     <Self as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
     <Self as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <<Self as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant:
+        Clone + Copy + std::fmt::Debug + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
 {
+    type Keys: NetabaseDefinitionTraitKey;
     /// Get the discriminant name as a string (for tree names)
     fn discriminant_name(&self) -> String {
         self.discriminant().to_string()
@@ -80,42 +83,7 @@ pub trait NetabaseDefinitionTraitKey:
 where
     <Self as IntoDiscriminant>::Discriminant:
         Clone + Copy + std::fmt::Debug + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
-    <<Self as NetabaseDefinitionTraitKey>::Definition as IntoDiscriminant>::Discriminant:
-        AsRef<str>
-            + Clone
-            + Copy
-            + std::fmt::Debug
-            + std::fmt::Display
-            + PartialEq
-            + Eq
-            + std::hash::Hash
-            + strum::IntoEnumIterator
-            + Send
-            + Sync
-            + 'static
-            + FromStr,
-    <<Self as NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant:
-        std::marker::Copy,
-    <<Self as NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant:
-        std::fmt::Debug,
-    <<Self as NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant:
-        std::hash::Hash,
-    <<Self as NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant:
-        std::cmp::Eq,
-    <<Self as NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant:
-        std::fmt::Display,
-    <<Self as NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant:
-        FromStr,
-    <<Self as NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant:
-        std::marker::Sync,
-    <<Self as NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant:
-        std::marker::Send,
-    <<Self as NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant:
-        strum::IntoEnumIterator,
 {
-    /// The associated definition type
-    type Definition: NetabaseDefinitionTrait;
-
     /// Convert this key to a libp2p kad::RecordKey
     #[cfg(feature = "libp2p")]
     fn to_record_key(&self) -> Result<libp2p::kad::RecordKey, bincode::error::EncodeError> {

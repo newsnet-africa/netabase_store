@@ -28,10 +28,10 @@ impl<'a> DefinitionsVisitor<'a> {
         // panic!("{:?}", into_inner.to_string());
         quote::quote! {
             impl ::netabase_store::traits::definition::NetabaseDefinitionTrait for #definition {
+                type Keys = #definition_key;
             }
 
             impl ::netabase_store::traits::definition::NetabaseDefinitionTraitKey for #definition_key {
-                type Definition = #definition;
 
             }
 
