@@ -1,14 +1,13 @@
 #![cfg(feature = "native")]
-
-use netabase_macros::netabase_definition_module;
-use netabase_store::databases::sled_store::{SledStore, SledStoreTree};
-use netabase_store::traits::model::NetabaseModel;
+use databases::sled_store::*;
+use netabase_store::model::NetabaseModelTrait;
+use netabase_store::{NetabaseModel, convert, netabase_definition_module, *};
 
 // Test schema
 #[netabase_definition_module(BlogDefinition, BlogKeys)]
 mod blog {
-    use netabase_deps::{bincode, serde};
-    use netabase_macros::NetabaseModel;
+    use super::*;
+    use strum::IntoDiscriminant;
 
     #[derive(
         NetabaseModel,
@@ -21,6 +20,7 @@ mod blog {
         serde::Serialize,
         serde::Deserialize,
     )]
+    #[netabase(BlogDefinition)]
     pub struct User {
         #[primary_key]
         pub id: u64,
@@ -40,6 +40,7 @@ mod blog {
         serde::Serialize,
         serde::Deserialize,
     )]
+    #[netabase(BlogDefinition)]
     pub struct Post {
         #[primary_key]
         pub id: u64,
@@ -202,7 +203,7 @@ fn test_iteration() {
 
     let mut retrieved = Vec::new();
     for result in user_tree.iter() {
-        let (_key, user) = result.unwrap();
+        let (_, user) = result.unwrap();
         retrieved.push(user);
     }
 

@@ -2,9 +2,9 @@ use crate::error::NetabaseError;
 use crate::traits::convert::ToIVec;
 use crate::traits::definition::NetabaseDefinitionTrait;
 use crate::traits::model::NetabaseModelTrait;
-use std::marker::PhantomData;
 use std::path::Path;
-use strum::IntoEnumIterator;
+use std::{marker::PhantomData, str::FromStr};
+use strum::{IntoDiscriminant, IntoEnumIterator};
 
 /// Type-safe wrapper around sled::Db that works with NetabaseDefinitionTrait
 /// types.
@@ -14,6 +14,28 @@ use strum::IntoEnumIterator;
 pub struct SledStore<D>
 where
     D: NetabaseDefinitionTrait,
+    <D as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
     db: sled::Db,
     _phantom: PhantomData<D>,
@@ -22,6 +44,28 @@ where
 impl<D> SledStore<D>
 where
     D: NetabaseDefinitionTrait,
+    <D as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
     /// Get direct access to the underlying sled database
     pub fn db(&self) -> &sled::Db {
@@ -32,6 +76,28 @@ where
 impl<D> SledStore<D>
 where
     D: NetabaseDefinitionTrait + ToIVec,
+    <D as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
     /// Open a new SledStore at the given path
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, NetabaseError> {
@@ -55,16 +121,22 @@ where
     /// Open a tree for a specific model type
     pub fn open_tree<M>(&self) -> SledStoreTree<D, M>
     where
-        M: NetabaseModelTrait + TryFrom<D> + Into<D>,
+        M: NetabaseModelTrait<D> + TryFrom<D> + Into<D>,
         D: TryFrom<M> + ToIVec,
     {
-        let tree_name = M::discriminant_name();
-        SledStoreTree::new(&self.db, tree_name)
+        SledStoreTree::new(&self.db, M::DISCRIMINANT)
     }
 
+    // pub fn open_tree_discriminant(
+    //     &self,
+    //     tree_discriminant: D::Discriminant,
+    // ) -> SledStoreTree<D, impl NetabaseModelTrait<D> + TryFrom<D> + Into<D>> {
+
+    // }
+
     /// Get all tree names (discriminants) in the database
-    pub fn tree_names(&self) -> Vec<String> {
-        D::Discriminants::iter().map(|d| d.into()).collect()
+    pub fn tree_names(&self) -> Vec<D::Discriminant> {
+        D::Discriminant::iter().collect()
     }
 
     // Commenting out iter_all for now as it requires Keys to implement ToIVec
@@ -98,7 +170,29 @@ where
 pub struct SledStoreTree<D, M>
 where
     D: NetabaseDefinitionTrait,
-    M: NetabaseModelTrait,
+    M: NetabaseModelTrait<D>,
+    <D as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
     tree: sled::Tree,
     db: sled::Db,
@@ -109,11 +203,35 @@ where
 impl<D, M> SledStoreTree<D, M>
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec,
-    M: NetabaseModelTrait + TryFrom<D> + Into<D>,
+    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D>,
+    <D as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
     /// Create a new SledStoreTree
-    fn new(db: &sled::Db, tree_name: &str) -> Self {
-        let tree = db.open_tree(tree_name).expect("Failed to open tree");
+    fn new(db: &sled::Db, tree_name: D::Discriminant) -> Self {
+        let tree = db
+            .open_tree(tree_name.to_string())
+            .expect("Failed to open tree");
         Self {
             tree,
             db: db.clone(),
@@ -129,7 +247,7 @@ where
     {
         let primary_key = model.primary_key();
         let key_bytes = bincode::encode_to_vec(&primary_key, bincode::config::standard())
-            .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+            .map_err(crate::error::EncodingDecodingError::from)?;
 
         let definition: D = model.clone().into();
         let value_bytes = definition.to_ivec()?;
@@ -295,7 +413,29 @@ where
 pub struct SledIter<D, M>
 where
     D: NetabaseDefinitionTrait,
-    M: NetabaseModelTrait,
+    M: NetabaseModelTrait<D>,
+    <D as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
     inner: sled::Iter,
     _phantom_d: PhantomData<D>,
@@ -305,8 +445,30 @@ where
 impl<D, M> Iterator for SledIter<D, M>
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec,
-    M: NetabaseModelTrait + TryFrom<D>,
+    M: NetabaseModelTrait<D> + TryFrom<D>,
     M::PrimaryKey: bincode::Decode<()>,
+    <D as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
     type Item = Result<(M::PrimaryKey, M), NetabaseError>;
 

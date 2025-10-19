@@ -1,0 +1,9 @@
+/home/rusta/Projects/NewsNet/netabase_store/target/debug/deps/accessory-6781ca2f75c4d4d2.d: /home/rusta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/accessory-1.3.1/src/lib.rs /home/rusta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/accessory-1.3.1/src/derive_accessors.rs /home/rusta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/accessory-1.3.1/src/derive_accessors/final_options.rs /home/rusta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/accessory-1.3.1/src/derive_accessors/options.rs /home/rusta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/accessory-1.3.1/src/derive_accessors/parsed_field.rs
+
+/home/rusta/Projects/NewsNet/netabase_store/target/debug/deps/libaccessory-6781ca2f75c4d4d2.so: /home/rusta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/accessory-1.3.1/src/lib.rs /home/rusta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/accessory-1.3.1/src/derive_accessors.rs /home/rusta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/accessory-1.3.1/src/derive_accessors/final_options.rs /home/rusta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/accessory-1.3.1/src/derive_accessors/options.rs /home/rusta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/accessory-1.3.1/src/derive_accessors/parsed_field.rs
+
+/home/rusta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/accessory-1.3.1/src/lib.rs:
+/home/rusta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/accessory-1.3.1/src/derive_accessors.rs:
+/home/rusta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/accessory-1.3.1/src/derive_accessors/final_options.rs:
+/home/rusta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/accessory-1.3.1/src/derive_accessors/options.rs:
+/home/rusta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/accessory-1.3.1/src/derive_accessors/parsed_field.rs:

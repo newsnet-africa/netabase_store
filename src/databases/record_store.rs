@@ -3,6 +3,8 @@ use crate::databases::sled_store::SledStore;
 #[cfg(feature = "libp2p")]
 use crate::traits::definition::NetabaseDefinitionTrait;
 #[cfg(feature = "libp2p")]
+use bincode::{Decode, Encode};
+#[cfg(feature = "libp2p")]
 use libp2p::PeerId;
 #[cfg(feature = "libp2p")]
 use libp2p::kad::store::{Error, RecordStore, Result};
@@ -10,6 +12,10 @@ use libp2p::kad::store::{Error, RecordStore, Result};
 use libp2p::kad::{ProviderRecord, Record, RecordKey as Key};
 #[cfg(feature = "libp2p")]
 use std::borrow::Cow;
+#[cfg(feature = "libp2p")]
+use std::str::FromStr;
+#[cfg(feature = "libp2p")]
+use strum::{AsRefStr, Display, EnumDiscriminants, EnumIter, EnumString, IntoDiscriminant};
 
 /// Serializable version of libp2p::kad::Record
 /// Note: expires is always None since Instant is not serializable
@@ -69,6 +75,16 @@ impl Default for RecordStoreConfig {
 impl<D> SledStore<D>
 where
     D: NetabaseDefinitionTrait,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
     /// Get the configuration for the record store
     pub fn record_store_config(&self) -> RecordStoreConfig {
@@ -101,9 +117,8 @@ where
         let key_bytes = Self::encode_key(key);
 
         // Try each tree to find which one contains this key
-        for disc in D::Discriminants::iter() {
-            let tree_name: String = disc.into();
-            if let Ok(tree) = self.db().open_tree(&tree_name) {
+        for disc in D::Discriminant::iter() {
+            if let Ok(tree) = self.db().open_tree(disc.to_string()) {
                 if tree.contains_key(&key_bytes).unwrap_or(false) {
                     return Ok(tree);
                 }
@@ -111,10 +126,9 @@ where
         }
 
         // If not found in any tree, return the first tree (for new inserts)
-        let first_disc = D::Discriminants::iter().next().ok_or(Error::MaxRecords)?;
-        let tree_name: String = first_disc.into();
+        let first_disc = D::Discriminant::iter().next().ok_or(Error::MaxRecords)?;
         self.db()
-            .open_tree(tree_name)
+            .open_tree(first_disc.to_string())
             .map_err(|_| Error::MaxRecords)
     }
 
@@ -202,13 +216,10 @@ where
 
     /// Get the count of records in the store (across all trees)
     fn record_count(&self) -> usize {
-        use strum::IntoEnumIterator;
+        use strum::{IntoDiscriminant, IntoEnumIterator};
 
-        D::Discriminants::iter()
-            .filter_map(|disc| {
-                let tree_name: String = disc.into();
-                self.db().open_tree(tree_name).ok()
-            })
+        <<D as IntoDiscriminant>::Discriminant as IntoEnumIterator>::iter()
+            .filter_map(|disc| self.db().open_tree(disc.to_string()).ok())
             .map(|tree| tree.len())
             .sum()
     }
@@ -239,6 +250,28 @@ where
 impl<D> RecordStore for SledStore<D>
 where
     D: NetabaseDefinitionTrait,
+    <D as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
     type RecordsIter<'a>
         = RecordsIter<'a>
@@ -299,11 +332,8 @@ where
         use strum::IntoEnumIterator;
 
         // Collect all tree iterators
-        let tree_iters: Vec<sled::Iter> = D::Discriminants::iter()
-            .filter_map(|disc| {
-                let tree_name: String = disc.into();
-                self.db().open_tree(tree_name).ok()
-            })
+        let tree_iters: Vec<sled::Iter> = D::Discriminant::iter()
+            .filter_map(|disc| self.db().open_tree(disc.to_string()).ok())
             .map(|tree| tree.iter())
             .collect();
 
@@ -457,86 +487,36 @@ impl<'a> Iterator for ProvidedIter<'a> {
 
 // Dummy definition for use in iterators (since we can't use the generic D)
 #[cfg(feature = "libp2p")]
-#[derive(Clone, Debug)]
-struct DummyDefinition;
+#[derive(Clone, Debug, EnumDiscriminants, EnumIter, Hash, EnumString, Display, Encode, Decode)]
+#[strum_discriminants(derive(EnumIter, EnumString, Hash, Display, AsRefStr))]
+#[strum_discriminants(name(DummyDiscriminant))]
+enum DummyDefinition {}
 
 #[cfg(feature = "libp2p")]
-impl crate::traits::definition::NetabaseDefinitionTrait for DummyDefinition {
-    type Discriminants = DummyDiscriminants;
-    type Keys = DummyKeys;
-
-    fn discriminant(&self) -> Self::Discriminants {
-        unreachable!("DummyDefinition is empty and cannot be instantiated")
-    }
-}
+impl crate::traits::definition::NetabaseDefinitionTrait for DummyDefinition {}
 
 #[cfg(feature = "libp2p")]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum DummyDiscriminants {}
-
-#[cfg(feature = "libp2p")]
-impl From<DummyDiscriminants> for String {
-    fn from(_: DummyDiscriminants) -> String {
+impl From<DummyDiscriminant> for String {
+    fn from(_: DummyDiscriminant) -> String {
         String::new()
     }
 }
 
 #[cfg(feature = "libp2p")]
-impl std::fmt::Display for DummyDiscriminants {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Ok(())
-    }
-}
-
-#[cfg(feature = "libp2p")]
-impl strum::IntoEnumIterator for DummyDiscriminants {
-    type Iterator = std::iter::Empty<Self>;
-    fn iter() -> Self::Iterator {
-        std::iter::empty()
-    }
-}
-
-#[cfg(feature = "libp2p")]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, EnumDiscriminants, EnumIter, Hash, EnumString, Display)]
+#[strum_discriminants(derive(EnumIter, EnumString, Hash, Display))]
+#[strum_discriminants(name(DummyKeysDiscriminant))]
 enum DummyKeys {}
 
 #[cfg(feature = "libp2p")]
 impl crate::traits::definition::NetabaseDefinitionTraitKey for DummyKeys {
-    type Discriminants = DummyKeysDiscriminants;
     type Definition = DummyDefinition;
-
-    fn discriminant(&self) -> Self::Discriminants {
-        match *self {}
-    }
 }
 
 #[cfg(feature = "libp2p")]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum DummyKeysDiscriminants {}
-
-#[cfg(feature = "libp2p")]
-impl From<DummyKeysDiscriminants> for String {
-    fn from(_: DummyKeysDiscriminants) -> String {
+impl From<DummyKeysDiscriminant> for String {
+    fn from(_: DummyKeysDiscriminant) -> String {
         String::new()
-    }
-}
-
-#[cfg(feature = "libp2p")]
-impl bincode::Encode for DummyDefinition {
-    fn encode<E: bincode::enc::Encoder>(
-        &self,
-        _encoder: &mut E,
-    ) -> core::result::Result<(), bincode::error::EncodeError> {
-        Ok(())
-    }
-}
-
-#[cfg(feature = "libp2p")]
-impl bincode::Decode<()> for DummyDefinition {
-    fn decode<De: bincode::de::Decoder>(
-        _decoder: &mut De,
-    ) -> core::result::Result<Self, bincode::error::DecodeError> {
-        Ok(DummyDefinition)
     }
 }
 

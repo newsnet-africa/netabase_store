@@ -22,8 +22,8 @@ impl<'a> ModelVisitor<'a> {
             secondary_newtypes,
             secondary_keys,
             parse_quote!(
-                #[derive(Debug, Clone, ::netabase_store::strum::EnumDiscriminants,
-                    ::netabase_store::derive_more::From, ::netabase_store::derive_more::TryInto,
+                #[derive(Debug, Clone,
+                ::netabase_store::derive_more::From, ::netabase_store::derive_more::TryInto,
                     ::netabase_store::bincode::Encode, ::netabase_store::bincode::Decode
                 )]
                 pub enum #name {
@@ -34,7 +34,7 @@ impl<'a> ModelVisitor<'a> {
         )
     }
 
-    pub fn generate_model_trait_impl(&self) -> proc_macro2::TokenStream {
+    pub fn generate_model_trait_impl(&self) -> Vec<proc_macro2::TokenStream> {
         let model_name = match self.name {
             Some(n) => n,
             None => panic!("Visitor error (parsing struct name?)"),
@@ -74,29 +74,34 @@ impl<'a> ModelVisitor<'a> {
 
         let discriminant_name = model_name.to_string();
 
-        quote::quote! {
-            impl ::netabase_store::traits::model::NetabaseModelTrait for #model_name {
-                type PrimaryKey = #primary_key_ty;
-                type SecondaryKeys = #secondary_keys_ty;
-                type Keys = #keys_ty;
+        self.definitions.iter().map(|p| {
+            quote::quote! {
+                impl ::netabase_store::traits::model::NetabaseModelTrait<#p> for #model_name {
+                    type PrimaryKey = #primary_key_ty;
+                    type SecondaryKeys = #secondary_keys_ty;
+                    type Keys = #keys_ty;
 
-                fn primary_key(&self) -> Self::PrimaryKey {
-                    #primary_key_ty(self.#primary_field.clone())
+                    const DISCRIMINANT:<#p as ::netabase_store::strum::IntoDiscriminant>::Discriminant
+                        = <#p as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#model_name;
+
+                    fn primary_key(&self) -> Self::PrimaryKey {
+                        #primary_key_ty(self.#primary_field.clone())
+                    }
+
+                    fn secondary_keys(&self) -> Vec<Self::SecondaryKeys> {
+                        vec![#(#secondary_fields),*]
+                    }
+
+                    fn discriminant_name() -> &'static str {
+                        #discriminant_name
+                    }
                 }
 
-                fn secondary_keys(&self) -> Vec<Self::SecondaryKeys> {
-                    vec![#(#secondary_fields),*]
-                }
-
-                fn discriminant_name() -> &'static str {
-                    #discriminant_name
-                }
+                impl ::netabase_store::traits::model::NetabaseModelTraitKey for #primary_key_ty {}
+                impl ::netabase_store::traits::model::NetabaseModelTraitKey for #secondary_keys_ty {}
+                impl ::netabase_store::traits::model::NetabaseModelTraitKey for #keys_ty {}
             }
-
-            impl ::netabase_store::traits::model::NetabaseModelTraitKey for #primary_key_ty {}
-            impl ::netabase_store::traits::model::NetabaseModelTraitKey for #secondary_keys_ty {}
-            impl ::netabase_store::traits::model::NetabaseModelTraitKey for #keys_ty {}
-        }
+        }).collect::<Vec<proc_macro2::TokenStream>>()
     }
 }
 
@@ -172,9 +177,12 @@ mod key_gen {
             };
             parse_quote!(
                 #[derive(Debug, Clone, ::netabase_store::strum::EnumDiscriminants,
+                    ::netabase_store::strum::Display,
                     ::netabase_store::derive_more::From, ::netabase_store::derive_more::TryInto,
                     ::netabase_store::bincode::Encode, ::netabase_store::bincode::Decode
                 )]
+                #[strum_discriminants(derive(::netabase_store::strum::Display,
+                ::netabase_store::netabase_deps::strum::AsRefStr ))]
                 pub enum #name {
                     #(#list),*
                 }

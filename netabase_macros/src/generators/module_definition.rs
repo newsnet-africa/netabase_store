@@ -19,55 +19,20 @@ impl<'a> DefinitionsVisitor<'a> {
         definition: &Ident,
         definition_key: &Ident,
     ) -> proc_macro2::TokenStream {
-        let discriminants = append_ident(definition, "Discriminants");
-        let key_discriminants = append_ident(definition_key, "Discriminants");
-
         quote::quote! {
             impl ::netabase_store::traits::definition::NetabaseDefinitionTrait for #definition {
-                type Discriminants = #discriminants;
-                type Keys = #definition_key;
 
-                fn discriminant(&self) -> Self::Discriminants {
-                    // EnumDiscriminants automatically generates From<T> for TDiscriminants
-                    self.clone().into()
-                }
             }
 
             impl ::netabase_store::traits::definition::NetabaseDefinitionTraitKey for #definition_key {
-                type Discriminants = #key_discriminants;
                 type Definition = #definition;
 
-                fn discriminant(&self) -> Self::Discriminants {
-                    self.clone().into()
-                }
             }
 
             impl ::netabase_store::traits::convert::ToIVec for #definition {}
             impl ::netabase_store::traits::convert::ToIVec for #definition_key {}
 
-            impl ::std::convert::From<#discriminants> for String {
-                fn from(d: #discriminants) -> String {
-                    format!("{:?}", d)
-                }
-            }
 
-            impl ::std::convert::From<#key_discriminants> for String {
-                fn from(d: #key_discriminants) -> String {
-                    format!("{:?}", d)
-                }
-            }
-
-            impl ::std::fmt::Display for #discriminants {
-                fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-                    write!(f, "{:?}", self)
-                }
-            }
-
-            impl ::std::fmt::Display for #key_discriminants {
-                fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-                    write!(f, "{:?}", self)
-                }
-            }
         }
     }
 }
@@ -124,11 +89,13 @@ pub mod def_gen {
 
         (
             parse_quote! {
-                #[derive(Debug, Clone, ::netabase_store::netabase_deps::strum::IntoStaticStr, ::netabase_store::netabase_deps::strum::EnumDiscriminants,
+                #[derive(Debug, Clone, ::netabase_store::netabase_deps::strum::EnumDiscriminants,
                     ::netabase_store::netabase_deps::derive_more::From,::netabase_store::netabase_deps::derive_more::TryInto,
-                    ::netabase_store::netabase_deps::bincode::Encode, ::netabase_store::netabase_deps::bincode::Decode
+                    ::netabase_store::netabase_deps::bincode::Encode, ::netabase_store::netabase_deps::bincode::Decode,
+                    ::netabase_store::netabase_deps::strum::Display
                 )]
-                #[strum_discriminants(derive(Hash, ::netabase_store::netabase_deps::strum::EnumIter))]
+                #[strum_discriminants(derive(Hash, ::netabase_store::netabase_deps::strum::EnumIter, ::netabase_store::netabase_deps::strum::EnumString,
+                ::netabase_store::netabase_deps::strum::Display, ::netabase_store::netabase_deps::strum::AsRefStr))]
                 pub enum #definition {
                     #(#models),*
                 }
@@ -138,7 +105,9 @@ pub mod def_gen {
                     ::netabase_store::netabase_deps::derive_more::From, ::netabase_store::netabase_deps::derive_more::TryInto,
                     ::netabase_store::netabase_deps::bincode::Encode, ::netabase_store::netabase_deps::bincode::Decode
                 )]
-                #[strum_discriminants(derive(Hash))]
+                #[strum_discriminants(derive(Hash, ::netabase_store::netabase_deps::strum::EnumString,
+                ::netabase_store::netabase_deps::strum::AsRefStr,
+                ::netabase_store::netabase_deps::strum::Display))]
                 pub enum #definition_key {
                     #(#keys),*
                 }

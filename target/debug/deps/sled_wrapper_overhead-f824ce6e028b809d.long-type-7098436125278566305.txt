@@ -1,0 +1,1 @@
+bench_schema::Article: netabase_store::model::NetabaseModelTrait<bench_schema::BenchDefinition>

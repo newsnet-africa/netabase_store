@@ -1,6 +1,6 @@
 #![cfg(feature = "native")]
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use netabase_macros::netabase_definition_module;
 use netabase_store::databases::sled_store::SledStore;
 
@@ -9,6 +9,7 @@ use netabase_store::databases::sled_store::SledStore;
 mod bench_schema {
     use netabase_deps::{bincode, serde};
     use netabase_macros::NetabaseModel;
+    use netabase_store::netabase;
 
     #[derive(
         NetabaseModel,
@@ -21,6 +22,7 @@ mod bench_schema {
         serde::Serialize,
         serde::Deserialize,
     )]
+    #[netabase(BenchDefinition)]
     pub struct Article {
         #[primary_key]
         pub id: u64,
@@ -200,5 +202,10 @@ fn bench_raw_sled_iteration(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_raw_sled_insert, bench_raw_sled_get, bench_raw_sled_iteration);
+criterion_group!(
+    benches,
+    bench_raw_sled_insert,
+    bench_raw_sled_get,
+    bench_raw_sled_iteration
+);
 criterion_main!(benches);

@@ -1,12 +1,13 @@
 use crate::definitions::*;
-use netabase_macros::netabase_definition_module;
-use netabase_store::traits::model::NetabaseModel;
+use netabase_store::model::NetabaseModelTrait;
+use netabase_store::netabase_definition_module;
 
 #[netabase_definition_module(ExampleDefs, ExampleDefKeys)]
 pub mod definitions {
-    use netabase_macros::NetabaseModel;
+    use netabase_store::{NetabaseModel, netabase};
 
     #[derive(NetabaseModel, bincode::Encode, bincode::Decode, Clone, Debug)]
+    #[netabase(ExampleDefs)]
     pub struct User {
         #[primary_key]
         pub name: String,

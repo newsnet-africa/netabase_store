@@ -1,0 +1,3 @@
+<databases::record_store::DummyKeys as traits::definition::NetabaseDefinitionTraitKey>::Definition
+<<Self as traits::definition::NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant
+std::string::String: std::convert::From<<<Self as traits::definition::NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant>

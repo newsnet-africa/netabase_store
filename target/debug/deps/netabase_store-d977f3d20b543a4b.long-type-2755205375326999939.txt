@@ -1,0 +1,7 @@
+<<Self as traits::definition::NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant
+<<Self as traits::definition::NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant: std::marker::Copy
+<<Self as traits::definition::NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq
+<<Self as traits::definition::NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant: std::hash::Hash
+<<Self as traits::definition::NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator
+<<Self as traits::definition::NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>
+std::string::String: std::convert::From<<<Self as traits::definition::NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant>

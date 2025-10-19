@@ -1,0 +1,2 @@
+<<Self as traits::definition::NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant
+<<Self as traits::definition::NetabaseDefinitionTraitKey>::Definition as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>

@@ -1,10 +1,7 @@
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
-    DeriveInput, Ident, ItemMod, Token,
-    parse::Parser,
-    parse_macro_input,
-    punctuated::Punctuated,
+    DeriveInput, Ident, ItemMod, Token, parse::Parser, parse_macro_input, punctuated::Punctuated,
     visit::Visit,
 };
 
@@ -29,14 +26,14 @@ pub fn netabase_model_derive(input: TokenStream) -> TokenStream {
         #(#sl)*
         #s
         #k
-        #trait_impl
+        #(#trait_impl)*
     }
     .into()
 }
 
-#[proc_macro_derive(NetabaseModelKey)]
-pub fn netabase_model_key_derive(_input: TokenStream) -> TokenStream {
-    quote! {}.into()
+#[proc_macro_attribute]
+pub fn netabase(defs: TokenStream, input: TokenStream) -> TokenStream {
+    input
 }
 
 #[proc_macro_attribute]
@@ -61,5 +58,6 @@ pub fn netabase_definition_module(name: TokenStream, input: TokenStream) -> Toke
     quote! {
         #def_module
         #trait_impls
-    }.into()
+    }
+    .into()
 }
