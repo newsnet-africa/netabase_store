@@ -74,15 +74,15 @@ impl<'a> ModelVisitor<'a> {
 
         let discriminant_name = model_name.to_string();
 
-        self.definitions.iter().map(|p| {
+        self.definitions.iter().map(|def_path| {
             quote::quote! {
-                impl ::netabase_store::traits::model::NetabaseModelTrait<#p> for #model_name {
+                impl ::netabase_store::traits::model::NetabaseModelTrait<#def_path> for #model_name {
                     type PrimaryKey = #primary_key_ty;
                     type SecondaryKeys = #secondary_keys_ty;
                     type Keys = #keys_ty;
 
-                    const DISCRIMINANT:<#p as ::netabase_store::strum::IntoDiscriminant>::Discriminant
-                        = <#p as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#model_name;
+                    const DISCRIMINANT:<#def_path as ::netabase_store::strum::IntoDiscriminant>::Discriminant
+                        = <#def_path as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#model_name;
 
                     fn primary_key(&self) -> Self::PrimaryKey {
                         #primary_key_ty(self.#primary_field.clone())
@@ -97,9 +97,21 @@ impl<'a> ModelVisitor<'a> {
                     }
                 }
 
-                impl ::netabase_store::traits::model::NetabaseModelTraitKey for #primary_key_ty {}
-                impl ::netabase_store::traits::model::NetabaseModelTraitKey for #secondary_keys_ty {}
-                impl ::netabase_store::traits::model::NetabaseModelTraitKey for #keys_ty {}
+                impl ::netabase_store::traits::model::NetabaseModelTraitKey<#def_path> for #primary_key_ty {
+                    
+                    const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant
+                        = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#keys_ty;
+                }
+                impl ::netabase_store::traits::model::NetabaseModelTraitKey<#def_path> for #secondary_keys_ty {
+                    
+                    const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant
+                        = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#keys_ty;
+                }
+                impl ::netabase_store::traits::model::NetabaseModelTraitKey<#def_path> for #keys_ty {
+                    
+                    const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant
+                        = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#keys_ty;
+                }
             }
         }).collect::<Vec<proc_macro2::TokenStream>>()
     }

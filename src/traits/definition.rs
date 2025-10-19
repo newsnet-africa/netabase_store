@@ -2,8 +2,6 @@ use std::str::FromStr;
 
 use strum::IntoDiscriminant;
 
-use crate::model::NetabaseModelTrait;
-
 /// Trait for the module-level definition enum that wraps all models.
 ///
 /// This trait is automatically implemented by the `#[netabase_definition_module]` macro.

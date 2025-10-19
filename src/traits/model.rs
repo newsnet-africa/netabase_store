@@ -1,6 +1,6 @@
 use strum::IntoDiscriminant;
 
-use crate::definition::NetabaseDefinitionTrait;
+use crate::definition::{NetabaseDefinitionTrait, NetabaseDefinitionTraitKey};
 
 /// Trait for user-defined models that can be stored in the database.
 ///
@@ -25,13 +25,13 @@ where
     const DISCRIMINANT: <D as IntoDiscriminant>::Discriminant;
 
     /// The primary key type for this model
-    type PrimaryKey: NetabaseModelTraitKey;
+    type PrimaryKey: NetabaseModelTraitKey<D>;
 
     /// The secondary keys enum for this model
-    type SecondaryKeys: NetabaseModelTraitKey;
+    type SecondaryKeys: NetabaseModelTraitKey<D>;
 
     /// The keys enum that wraps both primary and secondary keys
-    type Keys: NetabaseModelTraitKey;
+    type Keys: NetabaseModelTraitKey<D>;
 
     /// Extract the primary key from the model instance
     fn primary_key(&self) -> Self::PrimaryKey;
@@ -46,7 +46,21 @@ where
 /// Marker trait for key types (both primary and secondary).
 ///
 /// This trait is automatically implemented by the macro-generated key types.
-pub trait NetabaseModelTraitKey:
+pub trait NetabaseModelTraitKey<D: NetabaseDefinitionTrait>:
     bincode::Encode + std::fmt::Debug + Clone + Send + Sync + 'static
+where
+    <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant:
+        Clone + Copy + std::fmt::Debug + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: std::str::FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
+    const DISCRIMINANT: <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant;
 }
