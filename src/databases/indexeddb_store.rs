@@ -26,8 +26,9 @@ pub struct IndexedDBStore<D>
 where
     D: NetabaseDefinitionTrait,
 {
-    db: IdbDatabase,
+    db: std::sync::Arc<IdbDatabase>,
     db_name: String,
+    pub trees: Vec<D::Discriminant>,
     _phantom: PhantomData<D>,
 }
 
@@ -44,6 +45,11 @@ where
     /// Get the database name
     pub fn db_name(&self) -> &str {
         &self.db_name
+    }
+
+    /// Get all tree names (discriminants) in the database
+    pub fn tree_names(&self) -> Vec<D::Discriminant> {
+        D::Discriminant::iter().collect()
     }
 }
 
@@ -96,20 +102,21 @@ where
             .map_err(|e| NetabaseError::Storage(format!("Failed to open IndexedDB: {:?}", e)))?;
 
         Ok(Self {
-            db,
+            db: std::sync::Arc::new(db),
             db_name: db_name.to_string(),
+            trees: D::Discriminant::iter().collect(),
             _phantom: PhantomData,
         })
     }
 
     /// Open a tree for a specific model type
-    pub fn open_tree<M>(&self) -> IndexedDBStoreTree<'_, D, M>
+    /// This creates a tree abstraction that can handle dynamic object store creation
+    pub fn open_tree<M>(&self) -> IndexedDBStoreTree<D, M>
     where
-        M: NetabaseModelTrait + TryFrom<D> + Into<D>,
+        M: NetabaseModelTrait<D> + TryFrom<D> + Into<D>,
         D: TryFrom<M> + ToIVec,
     {
-        let store_name = M::discriminant_name();
-        IndexedDBStoreTree::new(&self.db, store_name)
+        IndexedDBStoreTree::new(std::sync::Arc::clone(&self.db), M::DISCRIMINANT)
     }
 
     /// Get all store names (discriminants) in the database
@@ -126,33 +133,52 @@ where
 /// Type-safe wrapper around an IndexedDB object store for a specific model type.
 ///
 /// IndexedDBStoreTree provides async CRUD operations for a single model type with automatic
-/// encoding/decoding and secondary key management.
+/// encoding/decoding and secondary key management. It handles dynamic object store creation
+/// similar to sled's Tree abstraction.
 #[cfg(feature = "wasm")]
-pub struct IndexedDBStoreTree<'a, D, M>
+pub struct IndexedDBStoreTree<D, M>
 where
     D: NetabaseDefinitionTrait,
-    M: NetabaseModelTrait,
+    M: NetabaseModelTrait<D>,
 {
-    db: &'a IdbDatabase,
-    store_name: String,
+    db: std::sync::Arc<IdbDatabase>,
+    discriminant: D::Discriminant,
     _phantom_d: PhantomData<D>,
     _phantom_m: PhantomData<M>,
 }
 
 #[cfg(feature = "wasm")]
-impl<'a, D, M> IndexedDBStoreTree<'a, D, M>
+impl<D, M> IndexedDBStoreTree<D, M>
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec,
-    M: NetabaseModelTrait + TryFrom<D> + Into<D>,
+    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D>,
 {
-    /// Create a new IndexedDBStoreTree
-    fn new(db: &'a IdbDatabase, store_name: &str) -> Self {
+    /// Create a new IndexedDBStoreTree with shared database access
+    /// Uses discriminant directly instead of string conversion
+    fn new(db: std::sync::Arc<IdbDatabase>, discriminant: D::Discriminant) -> Self {
         Self {
             db,
-            store_name: store_name.to_string(),
+            discriminant,
             _phantom_d: PhantomData,
             _phantom_m: PhantomData,
         }
+    }
+
+    /// Get the store name from discriminant
+    fn store_name(&self) -> String {
+        self.discriminant.to_string()
+    }
+
+    /// Get the secondary store name using discriminant-based naming
+    fn secondary_store_name(&self) -> String {
+        format!("{}_secondary", self.discriminant)
+    }
+
+    /// Open a secondary tree for indexing using discriminant-based naming
+    /// This allows dynamic creation of object stores for secondary key indexing and future graph features
+    pub fn open_secondary_tree(&self, suffix: &str) -> IndexedDBTree {
+        let tree_name = format!("{}_{}", self.discriminant, suffix);
+        IndexedDBTree::new(std::sync::Arc::clone(&self.db), tree_name)
     }
 
     /// Insert or update a model in the store
@@ -171,16 +197,18 @@ where
         let key_js = js_sys::Uint8Array::from(&key_bytes[..]);
         let value_js = js_sys::Uint8Array::from(&value_bytes[..]);
 
+        let store_name = self.store_name();
+
         // Create transaction
         let tx = self
             .db
-            .transaction_on_one_with_mode(&self.store_name, IdbTransactionMode::Readwrite)
+            .transaction_on_one_with_mode(&store_name, IdbTransactionMode::Readwrite)
             .map_err(|e| {
                 NetabaseError::Storage(format!("Failed to create transaction: {:?}", e))
             })?;
 
         let store = tx
-            .object_store(&self.store_name)
+            .object_store(&store_name)
             .map_err(|e| NetabaseError::Storage(format!("Failed to get object store: {:?}", e)))?;
 
         let _request = store
@@ -193,7 +221,7 @@ where
             .into_result()
             .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
 
-        // Handle secondary keys
+        // Handle secondary keys using secondary trees
         let secondary_keys = model.secondary_keys();
         for sec_key in secondary_keys {
             self.insert_secondary_key(&sec_key, &primary_key).await?;
@@ -209,12 +237,14 @@ where
 
         let key_js = js_sys::Uint8Array::from(&key_bytes[..]);
 
-        let tx = self.db.transaction_on_one(&self.store_name).map_err(|e| {
+        let store_name = self.store_name();
+
+        let tx = self.db.transaction_on_one(&store_name).map_err(|e| {
             NetabaseError::Storage(format!("Failed to create transaction: {:?}", e))
         })?;
 
         let store = tx
-            .object_store(&self.store_name)
+            .object_store(&store_name)
             .map_err(|e| NetabaseError::Storage(format!("Failed to get object store: {:?}", e)))?;
 
         let value = store
@@ -253,15 +283,17 @@ where
             .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
         let key_js = js_sys::Uint8Array::from(&key_bytes[..]);
 
+        let store_name = self.store_name();
+
         let tx = self
             .db
-            .transaction_on_one_with_mode(&self.store_name, IdbTransactionMode::Readwrite)
+            .transaction_on_one_with_mode(&store_name, IdbTransactionMode::Readwrite)
             .map_err(|e| {
                 NetabaseError::Storage(format!("Failed to create transaction: {:?}", e))
             })?;
 
         let store = tx
-            .object_store(&self.store_name)
+            .object_store(&store_name)
             .map_err(|e| NetabaseError::Storage(format!("Failed to get object store: {:?}", e)))?;
 
         store
@@ -288,12 +320,14 @@ where
 
     /// Get the number of models in the store
     pub async fn len(&self) -> Result<usize, NetabaseError> {
-        let tx = self.db.transaction_on_one(&self.store_name).map_err(|e| {
+        let store_name = self.store_name();
+
+        let tx = self.db.transaction_on_one(&store_name).map_err(|e| {
             NetabaseError::Storage(format!("Failed to create transaction: {:?}", e))
         })?;
 
         let store = tx
-            .object_store(&self.store_name)
+            .object_store(&store_name)
             .map_err(|e| NetabaseError::Storage(format!("Failed to get object store: {:?}", e)))?;
 
         let count = store
@@ -312,15 +346,17 @@ where
 
     /// Clear all models from the store
     pub async fn clear(&self) -> Result<(), NetabaseError> {
+        let store_name = self.store_name();
+
         let tx = self
             .db
-            .transaction_on_one_with_mode(&self.store_name, IdbTransactionMode::Readwrite)
+            .transaction_on_one_with_mode(&store_name, IdbTransactionMode::Readwrite)
             .map_err(|e| {
                 NetabaseError::Storage(format!("Failed to create transaction: {:?}", e))
             })?;
 
         let store = tx
-            .object_store(&self.store_name)
+            .object_store(&store_name)
             .map_err(|e| NetabaseError::Storage(format!("Failed to get object store: {:?}", e)))?;
 
         store
@@ -334,29 +370,9 @@ where
             .into_result()
             .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
 
-        // Also clear secondary keys
-        let sec_store_name = format!("{}_secondary", self.store_name);
-        let tx2 = self
-            .db
-            .transaction_on_one_with_mode(&sec_store_name, IdbTransactionMode::Readwrite)
-            .map_err(|e| {
-                NetabaseError::Storage(format!("Failed to create transaction: {:?}", e))
-            })?;
-
-        let sec_store = tx2
-            .object_store(&sec_store_name)
-            .map_err(|e| NetabaseError::Storage(format!("Failed to get object store: {:?}", e)))?;
-
-        sec_store
-            .clear()
-            .map_err(|e| NetabaseError::Storage(format!("Failed to clear: {:?}", e)))?
-            .await
-            .map_err(|e| NetabaseError::Storage(format!("Clear request failed: {:?}", e)))?;
-
-        let _ = tx2
-            .await
-            .into_result()
-            .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
+        // Also clear secondary keys using secondary tree
+        let sec_tree = self.open_secondary_tree("secondary");
+        sec_tree.clear().await?;
 
         Ok(())
     }
@@ -366,12 +382,14 @@ where
     where
         M::PrimaryKey: bincode::Decode<()>,
     {
-        let tx = self.db.transaction_on_one(&self.store_name).map_err(|e| {
+        let store_name = self.store_name();
+
+        let tx = self.db.transaction_on_one(&store_name).map_err(|e| {
             NetabaseError::Storage(format!("Failed to create transaction: {:?}", e))
         })?;
 
         let store = tx
-            .object_store(&self.store_name)
+            .object_store(&store_name)
             .map_err(|e| NetabaseError::Storage(format!("Failed to get object store: {:?}", e)))?;
 
         let cursor_request = store
@@ -436,13 +454,13 @@ where
         Ok(results)
     }
 
-    /// Insert a secondary key mapping
+    /// Insert a secondary key mapping using a secondary tree
     async fn insert_secondary_key(
         &self,
         secondary_key: &M::SecondaryKeys,
         primary_key: &M::PrimaryKey,
     ) -> Result<(), NetabaseError> {
-        let sec_store_name = format!("{}_secondary", self.store_name);
+        let sec_tree = self.open_secondary_tree("secondary");
 
         let mut composite_key = bincode::encode_to_vec(secondary_key, bincode::config::standard())
             .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
@@ -451,39 +469,19 @@ where
 
         composite_key.extend_from_slice(&prim_key_bytes);
 
-        let key_js = js_sys::Uint8Array::from(&composite_key[..]);
-        let empty_value = js_sys::Uint8Array::new_with_length(0);
-
-        let tx = self
-            .db
-            .transaction_on_one_with_mode(&sec_store_name, IdbTransactionMode::Readwrite)
-            .map_err(|e| {
-                NetabaseError::Storage(format!("Failed to create transaction: {:?}", e))
-            })?;
-
-        let store = tx
-            .object_store(&sec_store_name)
-            .map_err(|e| NetabaseError::Storage(format!("Failed to get object store: {:?}", e)))?;
-
-        store
-            .put_key_val(&key_js, &empty_value)
-            .map_err(|e| NetabaseError::Storage(format!("Failed to put secondary key: {:?}", e)))?;
-
-        let _ = tx
-            .await
-            .into_result()
-            .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
+        // Store with empty value (we only need the key for indexing)
+        sec_tree.insert(&composite_key, &[]).await?;
 
         Ok(())
     }
 
-    /// Remove a secondary key mapping
+    /// Remove a secondary key mapping from a secondary tree
     async fn remove_secondary_key(
         &self,
         secondary_key: &M::SecondaryKeys,
         primary_key: &M::PrimaryKey,
     ) -> Result<(), NetabaseError> {
-        let sec_store_name = format!("{}_secondary", self.store_name);
+        let sec_tree = self.open_secondary_tree("secondary");
 
         let mut composite_key = bincode::encode_to_vec(secondary_key, bincode::config::standard())
             .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
@@ -491,32 +489,12 @@ where
             .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
         composite_key.extend_from_slice(&prim_key_bytes);
 
-        let key_js = js_sys::Uint8Array::from(&composite_key[..]);
-
-        let tx = self
-            .db
-            .transaction_on_one_with_mode(&sec_store_name, IdbTransactionMode::Readwrite)
-            .map_err(|e| {
-                NetabaseError::Storage(format!("Failed to create transaction: {:?}", e))
-            })?;
-
-        let store = tx
-            .object_store(&sec_store_name)
-            .map_err(|e| NetabaseError::Storage(format!("Failed to get object store: {:?}", e)))?;
-
-        store.delete(&key_js).map_err(|e| {
-            NetabaseError::Storage(format!("Failed to delete secondary key: {:?}", e))
-        })?;
-
-        let _ = tx
-            .await
-            .into_result()
-            .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
+        sec_tree.remove(&composite_key).await?;
 
         Ok(())
     }
 
-    /// Find models by secondary key
+    /// Find models by secondary key using the secondary tree index
     pub async fn get_by_secondary_key(
         &self,
         secondary_key: M::SecondaryKeys,
@@ -524,20 +502,147 @@ where
     where
         M::PrimaryKey: bincode::Decode<()>,
     {
-        let sec_store_name = format!("{}_secondary", self.store_name);
+        let sec_tree = self.open_secondary_tree("secondary");
 
         let sec_key_bytes = bincode::encode_to_vec(&secondary_key, bincode::config::standard())
             .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
 
-        let tx = self.db.transaction_on_one(&sec_store_name).map_err(|e| {
+        let mut results = Vec::new();
+
+        // Use the secondary tree to find matching primary keys
+        for (composite_key, _) in sec_tree.scan_prefix(&sec_key_bytes).await? {
+            let prim_key_start = sec_key_bytes.len();
+            if composite_key.len() > prim_key_start {
+                let (primary_key, _) = bincode::decode_from_slice::<M::PrimaryKey, _>(
+                    &composite_key[prim_key_start..],
+                    bincode::config::standard(),
+                )
+                .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+
+                if let Some(model) = self.get(primary_key).await? {
+                    results.push(model);
+                }
+            }
+        }
+
+        Ok(results)
+    }
+}
+
+/// Generic tree abstraction for IndexedDB that can be used for any key-value storage
+/// This allows dynamic object store creation similar to sled::Tree
+/// Uses discriminant-based naming for type safety
+#[cfg(feature = "wasm")]
+pub struct IndexedDBTree {
+    db: std::sync::Arc<IdbDatabase>,
+    tree_name: String,
+}
+
+#[cfg(feature = "wasm")]
+impl IndexedDBTree {
+    /// Create a new IndexedDBTree with shared database access
+    pub fn new(db: std::sync::Arc<IdbDatabase>, tree_name: String) -> Self {
+        Self { db, tree_name }
+    }
+
+    /// Insert a key-value pair
+    pub async fn insert(&self, key: &[u8], value: &[u8]) -> Result<(), NetabaseError> {
+        let key_js = js_sys::Uint8Array::from(key);
+        let value_js = js_sys::Uint8Array::from(value);
+
+        let tx = self
+            .db
+            .transaction_on_one_with_mode(&self.tree_name, IdbTransactionMode::Readwrite)
+            .map_err(|e| {
+                NetabaseError::Storage(format!("Failed to create transaction: {:?}", e))
+            })?;
+
+        let store = tx
+            .object_store(&self.tree_name)
+            .map_err(|e| NetabaseError::Storage(format!("Failed to get object store: {:?}", e)))?;
+
+        store
+            .put_key_val(&key_js, &value_js)
+            .map_err(|e| NetabaseError::Storage(format!("Failed to put value: {:?}", e)))?;
+
+        let _ = tx
+            .await
+            .into_result()
+            .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
+
+        Ok(())
+    }
+
+    /// Get a value by key
+    pub async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, NetabaseError> {
+        let key_js = js_sys::Uint8Array::from(key);
+
+        let tx = self.db.transaction_on_one(&self.tree_name).map_err(|e| {
             NetabaseError::Storage(format!("Failed to create transaction: {:?}", e))
         })?;
 
         let store = tx
-            .object_store(&sec_store_name)
+            .object_store(&self.tree_name)
             .map_err(|e| NetabaseError::Storage(format!("Failed to get object store: {:?}", e)))?;
 
-        // Use cursor to scan for keys with the prefix
+        let value = store
+            .get(&key_js)
+            .map_err(|e| NetabaseError::Storage(format!("Failed to get value: {:?}", e)))?
+            .await
+            .map_err(|e| NetabaseError::Storage(format!("Get request failed: {:?}", e)))?;
+
+        match value {
+            Some(js_value) => {
+                let uint8_array = js_sys::Uint8Array::new(&js_value);
+                let mut bytes = vec![0u8; uint8_array.length() as usize];
+                uint8_array.copy_to(&mut bytes);
+                Ok(Some(bytes))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Remove a key-value pair
+    pub async fn remove(&self, key: &[u8]) -> Result<Option<Vec<u8>>, NetabaseError> {
+        let old_value = self.get(key).await?;
+
+        let key_js = js_sys::Uint8Array::from(key);
+
+        let tx = self
+            .db
+            .transaction_on_one_with_mode(&self.tree_name, IdbTransactionMode::Readwrite)
+            .map_err(|e| {
+                NetabaseError::Storage(format!("Failed to create transaction: {:?}", e))
+            })?;
+
+        let store = tx
+            .object_store(&self.tree_name)
+            .map_err(|e| NetabaseError::Storage(format!("Failed to get object store: {:?}", e)))?;
+
+        store
+            .delete(&key_js)
+            .map_err(|e| NetabaseError::Storage(format!("Failed to delete value: {:?}", e)))?
+            .await
+            .map_err(|e| NetabaseError::Storage(format!("Delete request failed: {:?}", e)))?;
+
+        let _ = tx
+            .await
+            .into_result()
+            .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
+
+        Ok(old_value)
+    }
+
+    /// Scan with a key prefix (similar to sled's scan_prefix)
+    pub async fn scan_prefix(&self, prefix: &[u8]) -> Result<Vec<(Vec<u8>, Vec<u8>)>, NetabaseError> {
+        let tx = self.db.transaction_on_one(&self.tree_name).map_err(|e| {
+            NetabaseError::Storage(format!("Failed to create transaction: {:?}", e))
+        })?;
+
+        let store = tx
+            .object_store(&self.tree_name)
+            .map_err(|e| NetabaseError::Storage(format!("Failed to get object store: {:?}", e)))?;
+
         let cursor_request = store
             .open_cursor()
             .map_err(|e| NetabaseError::Storage(format!("Failed to open cursor: {:?}", e)))?;
@@ -553,25 +658,18 @@ where
                 let key_js = cursor.key().ok_or_else(|| {
                     NetabaseError::Storage("Failed to get cursor key".to_string())
                 })?;
+                let value_js = cursor.value();
 
                 let key_array = js_sys::Uint8Array::new(&key_js);
-                let mut composite_key = vec![0u8; key_array.length() as usize];
-                key_array.copy_to(&mut composite_key);
+                let mut key_bytes = vec![0u8; key_array.length() as usize];
+                key_array.copy_to(&mut key_bytes);
 
-                // Check if this composite key starts with our secondary key
-                if composite_key.starts_with(&sec_key_bytes) {
-                    let prim_key_start = sec_key_bytes.len();
-                    if composite_key.len() > prim_key_start {
-                        let (primary_key, _) = bincode::decode_from_slice::<M::PrimaryKey, _>(
-                            &composite_key[prim_key_start..],
-                            bincode::config::standard(),
-                        )
-                        .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+                if key_bytes.starts_with(prefix) {
+                    let value_array = js_sys::Uint8Array::new(&value_js);
+                    let mut value_bytes = vec![0u8; value_array.length() as usize];
+                    value_array.copy_to(&mut value_bytes);
 
-                        if let Some(model) = self.get(primary_key).await? {
-                            results.push(model);
-                        }
-                    }
+                    results.push((key_bytes, value_bytes));
                 }
 
                 let continue_request = cursor.continue_cursor().map_err(|e| {
@@ -589,5 +687,110 @@ where
         }
 
         Ok(results)
+    }
+
+    /// Clear all entries in the tree
+    pub async fn clear(&self) -> Result<(), NetabaseError> {
+        let tx = self
+            .db
+            .transaction_on_one_with_mode(&self.tree_name, IdbTransactionMode::Readwrite)
+            .map_err(|e| {
+                NetabaseError::Storage(format!("Failed to create transaction: {:?}", e))
+            })?;
+
+        let store = tx
+            .object_store(&self.tree_name)
+            .map_err(|e| NetabaseError::Storage(format!("Failed to get object store: {:?}", e)))?;
+
+        store
+            .clear()
+            .map_err(|e| NetabaseError::Storage(format!("Failed to clear: {:?}", e)))?
+            .await
+            .map_err(|e| NetabaseError::Storage(format!("Clear request failed: {:?}", e)))?;
+
+        let _ = tx
+            .await
+            .into_result()
+            .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
+
+        Ok(())
+    }
+
+    /// Iterate over all key-value pairs
+    pub async fn iter(&self) -> Result<Vec<(Vec<u8>, Vec<u8>)>, NetabaseError> {
+        let tx = self.db.transaction_on_one(&self.tree_name).map_err(|e| {
+            NetabaseError::Storage(format!("Failed to create transaction: {:?}", e))
+        })?;
+
+        let store = tx
+            .object_store(&self.tree_name)
+            .map_err(|e| NetabaseError::Storage(format!("Failed to get object store: {:?}", e)))?;
+
+        let cursor_request = store
+            .open_cursor()
+            .map_err(|e| NetabaseError::Storage(format!("Failed to open cursor: {:?}", e)))?;
+
+        let cursor = cursor_request
+            .await
+            .map_err(|e| NetabaseError::Storage(format!("Cursor request failed: {:?}", e)))?;
+
+        let mut results = Vec::new();
+
+        if let Some(mut cursor) = cursor {
+            loop {
+                let key_js = cursor.key().ok_or_else(|| {
+                    NetabaseError::Storage("Failed to get cursor key".to_string())
+                })?;
+                let value_js = cursor.value();
+
+                let key_array = js_sys::Uint8Array::new(&key_js);
+                let mut key_bytes = vec![0u8; key_array.length() as usize];
+                key_array.copy_to(&mut key_bytes);
+
+                let value_array = js_sys::Uint8Array::new(&value_js);
+                let mut value_bytes = vec![0u8; value_array.length() as usize];
+                value_array.copy_to(&mut value_bytes);
+
+                results.push((key_bytes, value_bytes));
+
+                let continue_request = cursor.continue_cursor().map_err(|e| {
+                    NetabaseError::Storage(format!("Failed to continue cursor: {:?}", e))
+                })?;
+
+                let has_next = continue_request.await.map_err(|e| {
+                    NetabaseError::Storage(format!("Cursor continue failed: {:?}", e))
+                })?;
+
+                if !has_next {
+                    break;
+                }
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// Get the number of entries in the tree
+    pub async fn len(&self) -> Result<usize, NetabaseError> {
+        let tx = self.db.transaction_on_one(&self.tree_name).map_err(|e| {
+            NetabaseError::Storage(format!("Failed to create transaction: {:?}", e))
+        })?;
+
+        let store = tx
+            .object_store(&self.tree_name)
+            .map_err(|e| NetabaseError::Storage(format!("Failed to get object store: {:?}", e)))?;
+
+        let count = store
+            .count()
+            .map_err(|e| NetabaseError::Storage(format!("Failed to count: {:?}", e)))?
+            .await
+            .map_err(|e| NetabaseError::Storage(format!("Count request failed: {:?}", e)))?;
+
+        Ok(count as usize)
+    }
+
+    /// Check if the tree is empty
+    pub async fn is_empty(&self) -> Result<bool, NetabaseError> {
+        Ok(self.len().await? == 0)
     }
 }

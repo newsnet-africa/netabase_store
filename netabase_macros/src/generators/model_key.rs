@@ -128,7 +128,7 @@ mod key_gen {
         fn generate_newtype<'ast>(field: &'ast Field, name: &Ident) -> ItemStruct {
             let ty = &field.ty;
             parse_quote!(
-                #[derive(Debug, Clone, PartialEq, Eq, ::netabase_store::derive_more::From, ::netabase_store::derive_more::Into,
+                #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, ::netabase_store::derive_more::From, ::netabase_store::derive_more::Into,
                     ::netabase_store::bincode::Encode, ::netabase_store::bincode::Decode
                 )]
                 pub struct #name(pub #ty);
@@ -188,7 +188,7 @@ mod key_gen {
                 None => panic!("Visitor not initialised"),
             };
             parse_quote!(
-                #[derive(Debug, Clone, ::netabase_store::strum::EnumDiscriminants,
+                #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, ::netabase_store::strum::EnumDiscriminants,
                     ::netabase_store::strum::Display,
                     ::netabase_store::derive_more::From, ::netabase_store::derive_more::TryInto,
                     ::netabase_store::bincode::Encode, ::netabase_store::bincode::Decode

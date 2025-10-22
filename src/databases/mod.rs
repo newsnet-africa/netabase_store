@@ -1,3 +1,4 @@
+pub mod redb_store;
 #[cfg(feature = "native")]
 pub mod sled_store;
 

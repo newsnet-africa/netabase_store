@@ -4,7 +4,19 @@ pub enum NetabaseError {
     Conversion(#[from] EncodingDecodingError),
     #[cfg(feature = "native")]
     #[error("There was an error with the Sled database")]
-    DatabaseError(#[from] sled::Error),
+    SledDatabaseError(#[from] sled::Error),
+    #[error("There was an error with the Redb database")]
+    RedbDatabaseError(#[from] redb::DatabaseError),
+    #[error("There was an error with the Redb database")]
+    RedbCompactionError(#[from] redb::CompactionError),
+    #[error("There was an error with the Redb database")]
+    RedbCommitError(#[from] redb::CommitError),
+    #[error("There was an error with the Redb transaction")]
+    RedbTransactionError(#[from] redb::TransactionError),
+    #[error("There was an error with the Redb table")]
+    RedbTableError(#[from] redb::TableError),
+    #[error("There was an error with the Redb storage")]
+    RedbStorageError(#[from] redb::StorageError),
     #[error("Storage error: {0}")]
     Storage(String),
 }
