@@ -46,6 +46,10 @@ wasm-bindgen-test = "0.3"
 name = "sled_wrapper_overhead"
 harness = false
 
+[[bench]]
+name = "redb_wrapper_overhead"
+harness = false
+
 [[example]]
 name = "basic_store"
 
