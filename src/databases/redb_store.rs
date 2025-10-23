@@ -2,7 +2,10 @@ use crate::error::NetabaseError;
 use crate::traits::convert::ToIVec;
 use crate::traits::definition::NetabaseDefinitionTrait;
 use crate::traits::model::NetabaseModelTrait;
-use redb::{Database, Key, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition, TypeName, Value};
+use redb::{
+    Database, Key, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition,
+    TypeName, Value,
+};
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -20,8 +23,14 @@ impl<T> Value for BincodeWrapper<T>
 where
     T: Debug + bincode::Encode + bincode::Decode<()>,
 {
-    type SelfType<'a> = T where Self: 'a;
-    type AsBytes<'a> = Vec<u8> where Self: 'a;
+    type SelfType<'a>
+        = T
+    where
+        Self: 'a;
+    type AsBytes<'a>
+        = Vec<u8>
+    where
+        Self: 'a;
 
     fn fixed_width() -> Option<usize> {
         None
@@ -88,7 +97,7 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
-    db: Arc<Database>,
+    pub(crate) db: Arc<Database>,
     pub trees: Vec<D::Discriminant>,
 }
 
@@ -171,11 +180,11 @@ where
     /// Open a tree for a specific model type
     /// This creates a tree abstraction that can handle dynamic table creation
     pub fn open_tree<M>(&self) -> RedbStoreTree<D, M>
-        where
-            M: NetabaseModelTrait<D> + TryFrom<D> + Into<D>,
-            M::PrimaryKey: Debug + bincode::Decode<()> + Ord,
-            M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq,
-            D: TryFrom<M> + ToIVec + Debug,
+    where
+        M: NetabaseModelTrait<D> + TryFrom<D> + Into<D>,
+        M::PrimaryKey: Debug + bincode::Decode<()> + Ord,
+        M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq,
+        D: TryFrom<M> + ToIVec + Debug,
     {
         RedbStoreTree::new(Arc::clone(&self.db), M::DISCRIMINANT)
     }
@@ -189,7 +198,9 @@ where
     pub fn check_integrity(&mut self) -> Result<bool, NetabaseError> {
         // Get mutable access to the database for integrity check
         let db = Arc::get_mut(&mut self.db).ok_or_else(|| {
-            NetabaseError::Storage("Cannot check integrity: database has multiple references".to_string())
+            NetabaseError::Storage(
+                "Cannot check integrity: database has multiple references".to_string(),
+            )
         })?;
         Ok(db.check_integrity()?)
     }
@@ -283,7 +294,9 @@ where
     }
 
     /// Get the table definition for this tree using typed keys and values
-    fn table_def(&self) -> TableDefinition<'static, BincodeWrapper<M::PrimaryKey>, BincodeWrapper<D>> {
+    fn table_def(
+        &self,
+    ) -> TableDefinition<'static, BincodeWrapper<M::PrimaryKey>, BincodeWrapper<D>> {
         // Leak the discriminant string to get 'static lifetime - acceptable for table definitions
         let table_name = self.discriminant.to_string();
         let static_name: &'static str = Box::leak(table_name.into_boxed_str());
@@ -291,7 +304,13 @@ where
     }
 
     /// Get the table definition for secondary keys
-    fn secondary_table_def(&self) -> TableDefinition<'static, BincodeWrapper<(M::SecondaryKeys, M::PrimaryKey)>, BincodeWrapper<()>> {
+    fn secondary_table_def(
+        &self,
+    ) -> TableDefinition<
+        'static,
+        BincodeWrapper<(M::SecondaryKeys, M::PrimaryKey)>,
+        BincodeWrapper<()>,
+    > {
         // Use discriminant-based naming for secondary tables
         // Leak the string to get 'static lifetime - this is acceptable for table definitions
         let sec_name = format!("{}_secondary", self.discriminant.as_ref());
@@ -532,7 +551,8 @@ where
         // Iterate through the secondary index to find matching entries
         for item in sec_table.iter()? {
             let (composite_key_guard, _) = item?;
-            let (sec_key, prim_key): (M::SecondaryKeys, M::PrimaryKey) = composite_key_guard.value();
+            let (sec_key, prim_key): (M::SecondaryKeys, M::PrimaryKey) =
+                composite_key_guard.value();
 
             // Check if the secondary key matches
             if sec_key == secondary_key {
