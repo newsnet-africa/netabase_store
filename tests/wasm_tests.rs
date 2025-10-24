@@ -18,7 +18,7 @@ mod wasm_store_tests {
     #[netabase_definition_module(TestDefinition, TestKeys)]
     mod test_schema {
         use netabase_deps::{bincode, serde};
-        use netabase_macros::NetabaseModel;
+        use netabase_macros::{netabase, NetabaseModel};
 
         #[derive(
             NetabaseModel,
@@ -31,6 +31,7 @@ mod wasm_store_tests {
             serde::Serialize,
             serde::Deserialize,
         )]
+        #[netabase(TestDefinition)]
         pub struct TestModel {
             #[primary_key]
             pub id: u64,

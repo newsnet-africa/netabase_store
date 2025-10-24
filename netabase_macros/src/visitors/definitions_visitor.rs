@@ -31,5 +31,8 @@ impl<'a> Visit<'a> for DefinitionsVisitor<'a> {
             });
         }
         self.modules.push(module_info);
+        if self.inner {
+            let _ = self.current_path.pop();
+        }
     }
 }
