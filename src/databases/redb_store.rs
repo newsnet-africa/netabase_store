@@ -2,8 +2,11 @@ use crate::error::NetabaseError;
 use crate::traits::convert::ToIVec;
 use crate::traits::definition::NetabaseDefinitionTrait;
 use crate::traits::model::NetabaseModelTrait;
+use crate::traits::tree::NetabaseTreeSync;
 use redb::{
-    Database, Key, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition,
+    Database, Key, ReadableTable, TableDefinition,
+    ReadableDatabase,
+    ReadableTableMetadata,
     TypeName, Value,
 };
 use std::cmp::Ordering;
@@ -15,7 +18,7 @@ use std::sync::Arc;
 use strum::{IntoDiscriminant, IntoEnumIterator};
 
 /// Wrapper type for bincode serialization with redb
-/// This allows any bincode-compatible type to be used as a redb Key or Value
+/// This implements redb's Key and Value traits for any type that supports bincode
 #[derive(Debug)]
 pub struct BincodeWrapper<T>(pub T);
 
@@ -71,6 +74,9 @@ where
 ///
 /// The RedbStore provides a type-safe interface to the underlying redb database,
 /// using discriminants as table names and ensuring all operations are type-checked.
+///
+/// Unlike sled which uses byte arrays, redb allows us to implement Key and Value traits
+/// directly on our types for type-safe operations.
 pub struct RedbStore<D>
 where
     D: NetabaseDefinitionTrait,
@@ -178,7 +184,7 @@ where
     }
 
     /// Open a tree for a specific model type
-    /// This creates a tree abstraction that can handle dynamic table creation
+    /// This creates a tree abstraction that wraps redb table operations
     pub fn open_tree<M>(&self) -> RedbStoreTree<D, M>
     where
         M: NetabaseModelTrait<D> + TryFrom<D> + Into<D>,
@@ -218,8 +224,9 @@ where
 /// Type-safe wrapper around redb table operations for a specific model type.
 ///
 /// RedbStoreTree provides CRUD operations for a single model type with automatic
-/// encoding/decoding and secondary key management. It handles dynamic table creation
-/// similar to sled's Tree abstraction.
+/// encoding/decoding via redb's Key/Value traits and secondary key management.
+///
+/// This is similar to SledStoreTree but leverages redb's native type safety.
 pub struct RedbStoreTree<D, M>
 where
     D: NetabaseDefinitionTrait,
@@ -330,7 +337,7 @@ where
         let sec_table_def = self.secondary_table_def();
 
         // Begin write transaction
-        let write_txn = self.db.begin_write()?;
+        let write_txn = self.db.as_ref().begin_write()?;
 
         // Handle secondary keys in the same transaction
         let secondary_keys = model.secondary_keys();
@@ -364,7 +371,7 @@ where
     pub fn get(&self, key: M::PrimaryKey) -> Result<Option<M>, NetabaseError> {
         let table_def = self.table_def();
 
-        let read_txn = self.db.begin_read()?;
+        let read_txn = self.db.as_ref().begin_read()?;
 
         // Handle the case where the table doesn't exist yet (hasn't been written to)
         let table = match read_txn.open_table(table_def) {
@@ -397,7 +404,7 @@ where
         let table_def = self.table_def();
         let sec_table_def = self.secondary_table_def();
 
-        let write_txn = self.db.begin_write()?;
+        let write_txn = self.db.as_ref().begin_write()?;
         {
             let mut table = write_txn.open_table(table_def)?;
             table.remove(&key)?;
@@ -421,13 +428,10 @@ where
     }
 
     /// Iterate over all models in the tree
-    pub fn iter(&self) -> Result<Vec<(M::PrimaryKey, M)>, NetabaseError>
-    where
-        M::PrimaryKey: bincode::Decode<()>,
-    {
+    pub fn iter(&self) -> Result<Vec<(M::PrimaryKey, M)>, NetabaseError> {
         let table_def = self.table_def();
 
-        let read_txn = self.db.begin_read()?;
+        let read_txn = self.db.as_ref().begin_read()?;
 
         // Handle the case where the table doesn't exist yet (hasn't been written to)
         let table = match read_txn.open_table(table_def) {
@@ -462,7 +466,7 @@ where
     pub fn len(&self) -> Result<usize, NetabaseError> {
         let table_def = self.table_def();
 
-        let read_txn = self.db.begin_read()?;
+        let read_txn = self.db.as_ref().begin_read()?;
 
         // Handle the case where the table doesn't exist yet (hasn't been written to)
         match read_txn.open_table(table_def) {
@@ -482,7 +486,7 @@ where
         let table_def = self.table_def();
         let sec_table_def = self.secondary_table_def();
 
-        let write_txn = self.db.begin_write()?;
+        let write_txn = self.db.as_ref().begin_write()?;
         {
             // Clear main table (if it exists)
             match write_txn.open_table(table_def) {
@@ -531,13 +535,10 @@ where
     pub fn get_by_secondary_key(
         &self,
         secondary_key: M::SecondaryKeys,
-    ) -> Result<Vec<M>, NetabaseError>
-    where
-        M::PrimaryKey: bincode::Decode<()>,
-    {
+    ) -> Result<Vec<M>, NetabaseError> {
         let sec_table_def = self.secondary_table_def();
 
-        let read_txn = self.db.begin_read()?;
+        let read_txn = self.db.as_ref().begin_read()?;
 
         // Handle the case where the secondary table doesn't exist yet (hasn't been written to)
         let sec_table = match read_txn.open_table(sec_table_def) {
@@ -563,5 +564,70 @@ where
         }
 
         Ok(results)
+    }
+}
+
+// Implement the unified NetabaseTreeSync trait for RedbStoreTree
+impl<D, M> NetabaseTreeSync<D, M> for RedbStoreTree<D, M>
+where
+    D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + Debug + From<M>,
+    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone,
+    M::PrimaryKey: Debug + bincode::Decode<()> + Ord + Clone,
+    M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq,
+    <D as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
+{
+    type PrimaryKey = M::PrimaryKey;
+    type SecondaryKeys = M::SecondaryKeys;
+
+    fn put(&self, model: M) -> Result<(), NetabaseError> {
+        self.put(model)
+    }
+
+    fn get(&self, key: Self::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+        self.get(key)
+    }
+
+    fn remove(&self, key: Self::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+        self.remove(key)
+    }
+
+    fn get_by_secondary_key(
+        &self,
+        secondary_key: Self::SecondaryKeys,
+    ) -> Result<Vec<M>, NetabaseError> {
+        self.get_by_secondary_key(secondary_key)
+    }
+
+    fn is_empty(&self) -> Result<bool, NetabaseError> {
+        self.is_empty()
+    }
+
+    fn len(&self) -> Result<usize, NetabaseError> {
+        self.len()
+    }
+
+    fn clear(&self) -> Result<(), NetabaseError> {
+        self.clear()
     }
 }

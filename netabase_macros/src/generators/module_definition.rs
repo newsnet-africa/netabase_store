@@ -114,25 +114,25 @@ pub mod def_gen {
 
         (
             parse_quote! {
-                #[derive(Debug, Clone, ::netabase_store::netabase_deps::strum::EnumDiscriminants,
-                    ::netabase_store::netabase_deps::derive_more::From,::netabase_store::netabase_deps::derive_more::TryInto,
-                    ::netabase_store::netabase_deps::bincode::Encode, ::netabase_store::netabase_deps::bincode::Decode,
-                    ::netabase_store::netabase_deps::strum::Display
+                #[derive(Debug, Clone, ::netabase_deps::strum::EnumDiscriminants,
+                    ::netabase_deps::derive_more::From,::netabase_deps::derive_more::TryInto,
+                    ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode,
+                    ::netabase_deps::strum::Display
                 )]
-                #[strum_discriminants(derive(Hash, ::netabase_store::netabase_deps::strum::EnumIter, ::netabase_store::netabase_deps::strum::EnumString,
-                ::netabase_store::netabase_deps::strum::Display, ::netabase_store::netabase_deps::strum::AsRefStr))]
+                #[strum_discriminants(derive(Hash, ::netabase_deps::strum::EnumIter, ::netabase_deps::strum::EnumString,
+                ::netabase_deps::strum::Display, ::netabase_deps::strum::AsRefStr))]
                 pub enum #definition {
                     #(#models),*
                 }
             },
             parse_quote! {
-                #[derive(Debug, Clone, ::netabase_store::netabase_deps::strum::EnumDiscriminants,
-                    ::netabase_store::netabase_deps::derive_more::From, ::netabase_store::netabase_deps::derive_more::TryInto,
-                    ::netabase_store::netabase_deps::bincode::Encode, ::netabase_store::netabase_deps::bincode::Decode
+                #[derive(Debug, Clone, ::netabase_deps::strum::EnumDiscriminants,
+                    ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::TryInto,
+                    ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode
                 )]
-                #[strum_discriminants(derive(Hash, ::netabase_store::netabase_deps::strum::EnumString,
-                ::netabase_store::netabase_deps::strum::AsRefStr,
-                ::netabase_store::netabase_deps::strum::Display))]
+                #[strum_discriminants(derive(Hash, ::netabase_deps::strum::EnumString,
+                ::netabase_deps::strum::AsRefStr,
+                ::netabase_deps::strum::Display))]
                 pub enum #definition_key {
                     #(#keys),*
                 }

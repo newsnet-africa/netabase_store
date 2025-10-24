@@ -7,6 +7,8 @@ use crate::traits::definition::NetabaseDefinitionTrait;
 #[cfg(feature = "wasm")]
 use crate::traits::model::NetabaseModelTrait;
 #[cfg(feature = "wasm")]
+use crate::traits::tree::NetabaseTreeAsync;
+#[cfg(feature = "wasm")]
 use indexed_db_futures::prelude::*;
 #[cfg(feature = "wasm")]
 use std::marker::PhantomData;
@@ -526,6 +528,60 @@ where
         }
 
         Ok(results)
+    }
+}
+
+// ============================================================================
+// NetabaseTreeAsync trait implementation for IndexedDBStoreTree
+// ============================================================================
+
+#[cfg(feature = "wasm")]
+impl<D, M> NetabaseTreeAsync<D, M> for IndexedDBStoreTree<D, M>
+where
+    D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
+    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone,
+    M::PrimaryKey: bincode::Encode + bincode::Decode<()> + Clone,
+    M::SecondaryKeys: bincode::Encode + bincode::Decode<()>,
+    D::Discriminant: std::fmt::Display + strum::IntoEnumIterator,
+{
+    type PrimaryKey = M::PrimaryKey;
+    type SecondaryKeys = M::SecondaryKeys;
+
+    fn put(&self, model: M) -> impl std::future::Future<Output = Result<(), NetabaseError>> + Send {
+        async move { self.put(model).await }
+    }
+
+    fn get(
+        &self,
+        key: Self::PrimaryKey,
+    ) -> impl std::future::Future<Output = Result<Option<M>, NetabaseError>> + Send {
+        async move { self.get(key).await }
+    }
+
+    fn remove(
+        &self,
+        key: Self::PrimaryKey,
+    ) -> impl std::future::Future<Output = Result<Option<M>, NetabaseError>> + Send {
+        async move { self.remove(key).await }
+    }
+
+    fn get_by_secondary_key(
+        &self,
+        secondary_key: Self::SecondaryKeys,
+    ) -> impl std::future::Future<Output = Result<Vec<M>, NetabaseError>> + Send {
+        async move { self.get_by_secondary_key(secondary_key).await }
+    }
+
+    fn is_empty(&self) -> impl std::future::Future<Output = Result<bool, NetabaseError>> + Send {
+        async move { self.is_empty().await }
+    }
+
+    fn len(&self) -> impl std::future::Future<Output = Result<usize, NetabaseError>> + Send {
+        async move { self.len().await }
+    }
+
+    fn clear(&self) -> impl std::future::Future<Output = Result<(), NetabaseError>> + Send {
+        async move { self.clear().await }
     }
 }
 

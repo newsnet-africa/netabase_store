@@ -2,6 +2,7 @@ use crate::error::NetabaseError;
 use crate::traits::convert::ToIVec;
 use crate::traits::definition::NetabaseDefinitionTrait;
 use crate::traits::model::NetabaseModelTrait;
+use crate::traits::tree::NetabaseTreeSync;
 use std::path::Path;
 use std::{marker::PhantomData, str::FromStr};
 use strum::{IntoDiscriminant, IntoEnumIterator};
@@ -489,6 +490,71 @@ where
                 Ok((key, model))
             })
         })
+    }
+}
+
+// Implement the unified NetabaseTreeSync trait for SledStoreTree
+impl<D, M> NetabaseTreeSync<D, M> for SledStoreTree<D, M>
+where
+    D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
+    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone,
+    M::PrimaryKey: bincode::Decode<()> + Clone,
+    M::SecondaryKeys: bincode::Decode<()>,
+    <D as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
+{
+    type PrimaryKey = M::PrimaryKey;
+    type SecondaryKeys = M::SecondaryKeys;
+
+    fn put(&self, model: M) -> Result<(), NetabaseError> {
+        self.put(model)
+    }
+
+    fn get(&self, key: Self::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+        self.get(key)
+    }
+
+    fn remove(&self, key: Self::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+        self.remove(key)
+    }
+
+    fn get_by_secondary_key(
+        &self,
+        secondary_key: Self::SecondaryKeys,
+    ) -> Result<Vec<M>, NetabaseError> {
+        self.get_by_secondary_key(secondary_key)
+    }
+
+    fn is_empty(&self) -> Result<bool, NetabaseError> {
+        Ok(self.is_empty())
+    }
+
+    fn len(&self) -> Result<usize, NetabaseError> {
+        Ok(self.len())
+    }
+
+    fn clear(&self) -> Result<(), NetabaseError> {
+        self.clear()
     }
 }
 

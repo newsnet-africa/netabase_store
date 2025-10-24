@@ -1,26 +1,23 @@
-#[cfg(feature = "libp2p")]
+#[cfg(all(feature = "libp2p", feature = "redb"))]
 use crate::databases::redb_store::RedbStore;
-#[cfg(feature = "libp2p")]
+#[cfg(all(feature = "libp2p", feature = "sled"))]
 use crate::databases::sled_store::SledStore;
 #[cfg(feature = "libp2p")]
 use crate::traits::definition::NetabaseDefinitionTrait;
-#[cfg(feature = "libp2p")]
-use bincode::{Decode, Encode};
 #[cfg(feature = "libp2p")]
 use libp2p::PeerId;
 #[cfg(feature = "libp2p")]
 use libp2p::kad::store::{Error, RecordStore, Result};
 #[cfg(feature = "libp2p")]
 use libp2p::kad::{ProviderRecord, Record, RecordKey as Key};
-use redb::ReadableDatabase;
-use redb::ReadableTable;
-use redb::ReadableTableMetadata;
+#[cfg(all(feature = "libp2p", feature = "redb"))]
+use redb::{ReadableDatabase, ReadableTable, ReadableTableMetadata};
 #[cfg(feature = "libp2p")]
 use std::borrow::Cow;
 #[cfg(feature = "libp2p")]
 use std::str::FromStr;
 #[cfg(feature = "libp2p")]
-use strum::{AsRefStr, Display, EnumDiscriminants, EnumIter, EnumString, IntoDiscriminant};
+use strum::IntoDiscriminant;
 
 /// Serializable version of libp2p::kad::Record
 /// Note: expires is always None since Instant is not serializable
@@ -76,20 +73,23 @@ impl Default for RecordStoreConfig {
     }
 }
 
-#[cfg(feature = "libp2p")]
+#[cfg(all(feature = "libp2p", feature = "sled"))]
 impl<D> SledStore<D>
 where
     D: NetabaseDefinitionTrait,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
-    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
-    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
-    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
-    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
-    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
+    <D as IntoDiscriminant>::Discriminant: AsRef<str>
+        + Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
 {
     /// Get the configuration for the record store
     pub fn record_store_config(&self) -> RecordStoreConfig {
@@ -98,8 +98,6 @@ where
 
     /// Get the tree for a given Record by decoding the value's discriminant
     fn tree_for_record(&self, record: &Record) -> Result<sled::Tree> {
-        use crate::traits::definition::NetabaseDefinitionTrait;
-
         // Decode the Record value to get the NetabaseDefinitionTrait
         let (definition, _): (D, _) =
             bincode::decode_from_slice(&record.value, bincode::config::standard())
@@ -251,11 +249,12 @@ where
     }
 }
 
-#[cfg(feature = "libp2p")]
+#[cfg(all(feature = "libp2p", feature = "sled"))]
 impl<D> RecordStore for SledStore<D>
 where
     D: NetabaseDefinitionTrait,
-    <D as IntoDiscriminant>::Discriminant: Clone
+    <D as IntoDiscriminant>::Discriminant: AsRef<str>
+        + Clone
         + Copy
         + std::fmt::Debug
         + std::fmt::Display
@@ -267,16 +266,6 @@ where
         + Sync
         + 'static
         + FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
-    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
-    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
-    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
-    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
-    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
     type RecordsIter<'a>
         = RecordsIter<'a>
@@ -562,23 +551,26 @@ pub mod dummy_util {
 // REDB STORE RECORDSTORE IMPLEMENTATION
 // ============================================================================
 
-#[cfg(feature = "libp2p")]
+#[cfg(all(feature = "libp2p", feature = "redb"))]
 use redb::TableDefinition;
 
-#[cfg(feature = "libp2p")]
+#[cfg(all(feature = "libp2p", feature = "redb"))]
 impl<D> RedbStore<D>
 where
     D: NetabaseDefinitionTrait,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
-    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
-    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
-    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
-    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
-    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
+    <D as IntoDiscriminant>::Discriminant: AsRef<str>
+        + Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
 {
     /// Get the configuration for the record store
     pub fn record_store_config(&self) -> RecordStoreConfig {
@@ -596,8 +588,6 @@ where
 
     /// Get the table for a given Record by decoding the value's discriminant
     fn table_name_for_record(&self, record: &Record) -> Result<String> {
-        use crate::traits::definition::NetabaseDefinitionTrait;
-
         // Decode the Record value to get the NetabaseDefinitionTrait
         let (definition, _): (D, _) =
             bincode::decode_from_slice(&record.value, bincode::config::standard())
@@ -694,11 +684,12 @@ where
     }
 }
 
-#[cfg(feature = "libp2p")]
+#[cfg(all(feature = "libp2p", feature = "redb"))]
 impl<D> RecordStore for RedbStore<D>
 where
     D: NetabaseDefinitionTrait,
-    <D as IntoDiscriminant>::Discriminant: Clone
+    <D as IntoDiscriminant>::Discriminant: AsRef<str>
+        + Clone
         + Copy
         + std::fmt::Debug
         + std::fmt::Display
@@ -710,16 +701,6 @@ where
         + Sync
         + 'static
         + FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
-    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
-    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
-    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
-    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
-    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
     type RecordsIter<'a>
         = RedbRecordsIter<'a>
@@ -963,7 +944,7 @@ impl<'a> Iterator for RedbRecordsIter<'a> {
                 Err(_) => continue,
             };
 
-            let table_def = {
+            let table_def: TableDefinition<&[u8], &[u8]> = {
                 let table_name = disc.to_string();
                 let static_name: &'static str = Box::leak(table_name.into_boxed_str());
                 TableDefinition::new(static_name)
@@ -998,7 +979,7 @@ impl<'a> Iterator for RedbProvidedIter<'a> {
         // Initialize on first call
         if self.range.is_none() {
             let read_txn = self.db.begin_read().ok()?;
-            let table_def = TableDefinition::new("__libp2p_provided");
+            let table_def: TableDefinition<&[u8], &[u8]> = TableDefinition::new("__libp2p_provided");
 
             let table = match read_txn.open_table(table_def) {
                 Ok(t) => t,

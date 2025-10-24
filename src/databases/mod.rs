@@ -1,8 +1,10 @@
+#[cfg(feature = "redb")]
 pub mod redb_store;
-#[cfg(feature = "native")]
+
+#[cfg(feature = "sled")]
 pub mod sled_store;
 
-#[cfg(all(feature = "wasm", not(feature = "native")))]
+#[cfg(feature = "wasm")]
 pub mod indexeddb_store;
 
 #[cfg(feature = "libp2p")]

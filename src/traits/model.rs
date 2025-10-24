@@ -1,6 +1,6 @@
 use strum::IntoDiscriminant;
 
-use crate::definition::{NetabaseDefinitionTrait, NetabaseDefinitionTraitKey};
+use crate::definition::NetabaseDefinitionTrait;
 
 /// Trait for user-defined models that can be stored in the database.
 ///
