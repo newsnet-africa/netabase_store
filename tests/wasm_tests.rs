@@ -105,7 +105,7 @@ mod wasm_store_tests {
 
         // Query by secondary key
         let books = tree
-            .get_by_secondary_key(CategorySecondaryKey("books".to_string()))
+            .get_by_secondary_key(TestModelSecondaryKeys::Category(CategorySecondaryKey("books".to_string())))
             .await
             .expect("Failed to query by secondary key");
 
@@ -136,7 +136,7 @@ mod wasm_store_tests {
             .await
             .expect("Failed to remove model");
 
-        assert!(removed);
+        assert!(removed.is_some());
 
         let retrieved = tree
             .get(TestModelPrimaryKey(1))

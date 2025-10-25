@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use strum::IntoDiscriminant;
+use crate::{MaybeSend, MaybeSync};
 
 /// Trait for the module-level definition enum that wraps all models.
 ///
@@ -13,8 +14,8 @@ pub trait NetabaseDefinitionTrait:
     + Clone
     + std::fmt::Debug
     + Sized
-    + Send
-    + Sync
+    + MaybeSend
+    + MaybeSync
     + 'static
     + IntoDiscriminant
 where
@@ -27,8 +28,8 @@ where
         + Eq
         + std::hash::Hash
         + strum::IntoEnumIterator
-        + Send
-        + Sync
+        + MaybeSend
+        + MaybeSync
         + 'static
         + FromStr,
     <Self as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
@@ -37,11 +38,11 @@ where
     <Self as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
     <Self as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
     <Self as strum::IntoDiscriminant>::Discriminant: FromStr,
-    <Self as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
-    <Self as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <Self as strum::IntoDiscriminant>::Discriminant: MaybeSync,
+    <Self as strum::IntoDiscriminant>::Discriminant: MaybeSend,
     <Self as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
     <<Self as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant:
-        Clone + Copy + std::fmt::Debug + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
+        Clone + Copy + std::fmt::Debug + PartialEq + Eq + std::hash::Hash + MaybeSend + MaybeSync + 'static,
 {
     type Keys: NetabaseDefinitionTraitKey;
     /// Get the discriminant name as a string (for tree names)
@@ -74,13 +75,13 @@ pub trait NetabaseDefinitionTraitKey:
     + Clone
     + std::fmt::Debug
     + Sized
-    + Send
-    + Sync
+    + MaybeSend
+    + MaybeSync
     + 'static
     + strum::IntoDiscriminant
 where
     <Self as IntoDiscriminant>::Discriminant:
-        Clone + Copy + std::fmt::Debug + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
+        Clone + Copy + std::fmt::Debug + PartialEq + Eq + std::hash::Hash + MaybeSend + MaybeSync + 'static,
 {
     /// Convert this key to a libp2p kad::RecordKey
     #[cfg(feature = "libp2p")]

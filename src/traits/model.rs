@@ -1,6 +1,7 @@
 use strum::IntoDiscriminant;
 
 use crate::definition::NetabaseDefinitionTrait;
+use crate::{MaybeSend, MaybeSync};
 
 /// Trait for user-defined models that can be stored in the database.
 ///
@@ -9,7 +10,7 @@ use crate::definition::NetabaseDefinitionTrait;
 /// - A primary key field marked with `#[primary_key]`
 /// - Optional secondary key fields marked with `#[secondary_key]`
 pub trait NetabaseModelTrait<D: NetabaseDefinitionTrait>:
-    bincode::Encode + Sized + Clone + Send + Sync + 'static
+    bincode::Encode + Sized + Clone + MaybeSend + MaybeSync + 'static
 where
     <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
@@ -17,8 +18,8 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
     <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
     <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSend,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSync,
     <D as strum::IntoDiscriminant>::Discriminant: std::str::FromStr,
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
@@ -47,18 +48,18 @@ where
 ///
 /// This trait is automatically implemented by the macro-generated key types.
 pub trait NetabaseModelTraitKey<D: NetabaseDefinitionTrait>:
-    bincode::Encode + std::fmt::Debug + Clone + Send + Sync + 'static
+    bincode::Encode + std::fmt::Debug + Clone + MaybeSend + MaybeSync + 'static
 where
     <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant:
-        Clone + Copy + std::fmt::Debug + PartialEq + Eq + std::hash::Hash + Send + Sync + 'static,
+        Clone + Copy + std::fmt::Debug + PartialEq + Eq + std::hash::Hash + MaybeSend + MaybeSync + 'static,
     <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
     <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
     <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
     <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSend,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSync,
     <D as strum::IntoDiscriminant>::Discriminant: std::str::FromStr,
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {

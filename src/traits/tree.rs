@@ -110,7 +110,7 @@ pub trait NetabaseTreeAsync<D, M> {
     type PrimaryKey;
     type SecondaryKeys;
 
-    fn put(&self, model: M) -> impl std::future::Future<Output = Result<(), NetabaseError>> + Send;
+    fn put(&self, model: M) -> impl std::future::Future<Output = Result<(), NetabaseError>>;
 
     /// Get a model by its primary key
     ///
@@ -124,7 +124,7 @@ pub trait NetabaseTreeAsync<D, M> {
     fn get(
         &self,
         key: Self::PrimaryKey,
-    ) -> impl std::future::Future<Output = Result<Option<M>, NetabaseError>> + Send;
+    ) -> impl std::future::Future<Output = Result<Option<M>, NetabaseError>>;
 
     /// Delete a model by its primary key
     ///
@@ -138,7 +138,7 @@ pub trait NetabaseTreeAsync<D, M> {
     fn remove(
         &self,
         key: Self::PrimaryKey,
-    ) -> impl std::future::Future<Output = Result<Option<M>, NetabaseError>> + Send;
+    ) -> impl std::future::Future<Output = Result<Option<M>, NetabaseError>>;
 
     /// Find models by secondary key
     ///
@@ -151,7 +151,7 @@ pub trait NetabaseTreeAsync<D, M> {
     fn get_by_secondary_key(
         &self,
         secondary_key: Self::SecondaryKeys,
-    ) -> impl std::future::Future<Output = Result<Vec<M>, NetabaseError>> + Send;
+    ) -> impl std::future::Future<Output = Result<Vec<M>, NetabaseError>>;
 
     /// Check if the tree is empty
     ///
@@ -159,19 +159,19 @@ pub trait NetabaseTreeAsync<D, M> {
     /// * `Ok(true)` if the tree contains no models
     /// * `Ok(false)` if the tree contains at least one model
     /// * `Err(NetabaseError)` if the operation failed
-    fn is_empty(&self) -> impl std::future::Future<Output = Result<bool, NetabaseError>> + Send;
+    fn is_empty(&self) -> impl std::future::Future<Output = Result<bool, NetabaseError>>;
 
     /// Get the number of models in the tree
     ///
     /// # Returns
     /// * `Ok(count)` - The number of models in the tree
     /// * `Err(NetabaseError)` if the operation failed
-    fn len(&self) -> impl std::future::Future<Output = Result<usize, NetabaseError>> + Send;
+    fn len(&self) -> impl std::future::Future<Output = Result<usize, NetabaseError>>;
 
     /// Clear all models from the tree
     ///
     /// # Returns
     /// * `Ok(())` if the operation succeeded
     /// * `Err(NetabaseError)` if the operation failed
-    fn clear(&self) -> impl std::future::Future<Output = Result<(), NetabaseError>> + Send;
+    fn clear(&self) -> impl std::future::Future<Output = Result<(), NetabaseError>>;
 }

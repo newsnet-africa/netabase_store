@@ -1536,6 +1536,7 @@ dependencies = [
  "criterion",
  "derive_more",
  "env_logger 0.10.2",
+ "getrandom 0.2.16",
  "indexed_db_futures",
  "js-sys",
  "libp2p",

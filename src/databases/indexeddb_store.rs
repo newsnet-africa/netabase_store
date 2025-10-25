@@ -27,6 +27,7 @@ use web_sys::{IdbCursorDirection, IdbTransactionMode};
 pub struct IndexedDBStore<D>
 where
     D: NetabaseDefinitionTrait,
+    D::Discriminant: crate::DiscriminantBounds,
 {
     db: std::sync::Arc<IdbDatabase>,
     db_name: String,
@@ -38,6 +39,7 @@ where
 impl<D> IndexedDBStore<D>
 where
     D: NetabaseDefinitionTrait,
+    D::Discriminant: crate::DiscriminantBounds,
 {
     /// Get direct access to the underlying IndexedDB database
     pub fn db(&self) -> &IdbDatabase {
@@ -59,6 +61,7 @@ where
 impl<D> IndexedDBStore<D>
 where
     D: NetabaseDefinitionTrait + ToIVec,
+    D::Discriminant: crate::DiscriminantBounds,
 {
     /// Open a new IndexedDBStore with the given database name
     pub async fn new(db_name: &str) -> Result<Self, NetabaseError> {
@@ -75,8 +78,8 @@ where
             let db = evt.db();
 
             // Create object stores for each discriminant
-            for disc in D::Discriminants::iter() {
-                let store_name: String = disc.into();
+            for disc in D::Discriminant::iter() {
+                let store_name: String = disc.as_ref().to_string();
 
                 // Check if object store already exists
                 if !db.object_store_names().any(|name| name == store_name) {
@@ -87,8 +90,8 @@ where
             }
 
             // Create secondary key stores
-            for disc in D::Discriminants::iter() {
-                let store_name: String = disc.into();
+            for disc in D::Discriminant::iter() {
+                let store_name: String = disc.as_ref().to_string();
                 let sec_store_name = format!("{}_secondary", store_name);
 
                 if !db.object_store_names().any(|name| name == sec_store_name) {
@@ -123,7 +126,7 @@ where
 
     /// Get all store names (discriminants) in the database
     pub fn store_names(&self) -> Vec<String> {
-        D::Discriminants::iter().map(|d| d.into()).collect()
+        D::Discriminant::iter().map(|d| d.as_ref().to_string()).collect()
     }
 
     /// Close the database connection
@@ -141,6 +144,7 @@ where
 pub struct IndexedDBStoreTree<D, M>
 where
     D: NetabaseDefinitionTrait,
+    D::Discriminant: crate::DiscriminantBounds,
     M: NetabaseModelTrait<D>,
 {
     db: std::sync::Arc<IdbDatabase>,
@@ -153,6 +157,7 @@ where
 impl<D, M> IndexedDBStoreTree<D, M>
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec,
+    D::Discriminant: crate::DiscriminantBounds,
     M: NetabaseModelTrait<D> + TryFrom<D> + Into<D>,
 {
     /// Create a new IndexedDBStoreTree with shared database access
@@ -168,18 +173,18 @@ where
 
     /// Get the store name from discriminant
     fn store_name(&self) -> String {
-        self.discriminant.to_string()
+        self.discriminant.as_ref().to_string()
     }
 
     /// Get the secondary store name using discriminant-based naming
     fn secondary_store_name(&self) -> String {
-        format!("{}_secondary", self.discriminant)
+        format!("{}_secondary", self.discriminant.as_ref())
     }
 
     /// Open a secondary tree for indexing using discriminant-based naming
     /// This allows dynamic creation of object stores for secondary key indexing and future graph features
     pub fn open_secondary_tree(&self, suffix: &str) -> IndexedDBTree {
-        let tree_name = format!("{}_{}", self.discriminant, suffix);
+        let tree_name = format!("{}_{}", self.discriminant.as_ref(), suffix);
         IndexedDBTree::new(std::sync::Arc::clone(&self.db), tree_name)
     }
 
@@ -542,45 +547,57 @@ where
     M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone,
     M::PrimaryKey: bincode::Encode + bincode::Decode<()> + Clone,
     M::SecondaryKeys: bincode::Encode + bincode::Decode<()>,
-    D::Discriminant: std::fmt::Display + strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + crate::MaybeSend
+        + crate::MaybeSync
+        + 'static
+        + std::str::FromStr
+        + AsRef<str>,
 {
     type PrimaryKey = M::PrimaryKey;
     type SecondaryKeys = M::SecondaryKeys;
 
-    fn put(&self, model: M) -> impl std::future::Future<Output = Result<(), NetabaseError>> + Send {
+    fn put(&self, model: M) -> impl std::future::Future<Output = Result<(), NetabaseError>> {
         async move { self.put(model).await }
     }
 
     fn get(
         &self,
         key: Self::PrimaryKey,
-    ) -> impl std::future::Future<Output = Result<Option<M>, NetabaseError>> + Send {
+    ) -> impl std::future::Future<Output = Result<Option<M>, NetabaseError>> {
         async move { self.get(key).await }
     }
 
     fn remove(
         &self,
         key: Self::PrimaryKey,
-    ) -> impl std::future::Future<Output = Result<Option<M>, NetabaseError>> + Send {
+    ) -> impl std::future::Future<Output = Result<Option<M>, NetabaseError>> {
         async move { self.remove(key).await }
     }
 
     fn get_by_secondary_key(
         &self,
         secondary_key: Self::SecondaryKeys,
-    ) -> impl std::future::Future<Output = Result<Vec<M>, NetabaseError>> + Send {
+    ) -> impl std::future::Future<Output = Result<Vec<M>, NetabaseError>> {
         async move { self.get_by_secondary_key(secondary_key).await }
     }
 
-    fn is_empty(&self) -> impl std::future::Future<Output = Result<bool, NetabaseError>> + Send {
+    fn is_empty(&self) -> impl std::future::Future<Output = Result<bool, NetabaseError>> {
         async move { self.is_empty().await }
     }
 
-    fn len(&self) -> impl std::future::Future<Output = Result<usize, NetabaseError>> + Send {
+    fn len(&self) -> impl std::future::Future<Output = Result<usize, NetabaseError>> {
         async move { self.len().await }
     }
 
-    fn clear(&self) -> impl std::future::Future<Output = Result<(), NetabaseError>> + Send {
+    fn clear(&self) -> impl std::future::Future<Output = Result<(), NetabaseError>> {
         async move { self.clear().await }
     }
 }

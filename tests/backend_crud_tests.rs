@@ -684,7 +684,7 @@ mod indexeddb_tests {
     #[wasm_bindgen_test]
     async fn test_indexeddb_crud_operations() {
         let store = IndexedDBStore::<TestDefinition>::new("test_crud_db").await.unwrap();
-        let user_tree = store.open_tree::<User>().await;
+        let user_tree = store.open_tree::<User>();
 
         // CREATE
         let alice = User {
@@ -693,7 +693,7 @@ mod indexeddb_tests {
             email: "alice@example.com".to_string(),
             age: 30,
         };
-        assert!(user_tree.insert(alice.clone()).await.is_ok(), "Failed to insert user");
+        assert!(user_tree.put(alice.clone()).await.is_ok(), "Failed to insert user");
 
         // READ
         let retrieved = user_tree.get(UserPrimaryKey(1)).await.unwrap();
@@ -706,7 +706,7 @@ mod indexeddb_tests {
             email: "alice_new@example.com".to_string(),
             age: 31,
         };
-        assert!(user_tree.insert(updated_alice.clone()).await.is_ok(), "Failed to update user");
+        assert!(user_tree.put(updated_alice.clone()).await.is_ok(), "Failed to update user");
 
         let retrieved = user_tree.get(UserPrimaryKey(1)).await.unwrap();
         assert_eq!(Some(updated_alice), retrieved, "Updated user doesn't match");
@@ -722,7 +722,7 @@ mod indexeddb_tests {
     #[wasm_bindgen_test]
     async fn test_indexeddb_secondary_key_single_result() {
         let store = IndexedDBStore::<TestDefinition>::new("test_sec_single_db").await.unwrap();
-        let user_tree = store.open_tree::<User>().await;
+        let user_tree = store.open_tree::<User>();
 
         let alice = User {
             id: 1,
@@ -737,8 +737,8 @@ mod indexeddb_tests {
             age: 25,
         };
 
-        user_tree.insert(alice.clone()).await.unwrap();
-        user_tree.insert(bob.clone()).await.unwrap();
+        user_tree.put(alice.clone()).await.unwrap();
+        user_tree.put(bob.clone()).await.unwrap();
 
         // Query by email secondary key
         let results = user_tree
@@ -755,7 +755,7 @@ mod indexeddb_tests {
     #[wasm_bindgen_test]
     async fn test_indexeddb_secondary_key_multiple_results() {
         let store = IndexedDBStore::<TestDefinition>::new("test_sec_multi_db").await.unwrap();
-        let user_tree = store.open_tree::<User>().await;
+        let user_tree = store.open_tree::<User>();
 
         let users = vec![
             User {
@@ -779,7 +779,7 @@ mod indexeddb_tests {
         ];
 
         for user in &users {
-            user_tree.insert(user.clone()).await.unwrap();
+            user_tree.put(user.clone()).await.unwrap();
         }
 
         // Query by age secondary key (should find 2 users with age 30)
@@ -798,17 +798,17 @@ mod indexeddb_tests {
         let store = IndexedDBStore::<TestDefinition>::new("test_multi_models_db").await.unwrap();
 
         // Test User model
-        let user_tree = store.open_tree::<User>().await;
+        let user_tree = store.open_tree::<User>();
         let alice = User {
             id: 1,
             username: "alice".to_string(),
             email: "alice@example.com".to_string(),
             age: 30,
         };
-        user_tree.insert(alice.clone()).await.unwrap();
+        user_tree.put(alice.clone()).await.unwrap();
 
         // Test Product model
-        let product_tree = store.open_tree::<Product>().await;
+        let product_tree = store.open_tree::<Product>();
         let laptop = Product {
             id: "LAPTOP-001".to_string(),
             name: "ThinkPad X1".to_string(),
@@ -816,7 +816,7 @@ mod indexeddb_tests {
             category: "Electronics".to_string(),
             in_stock: true,
         };
-        product_tree.insert(laptop.clone()).await.unwrap();
+        product_tree.put(laptop.clone()).await.unwrap();
 
         // Verify both models are stored correctly
         assert_eq!(Some(alice), user_tree.get(UserPrimaryKey(1)).await.unwrap());
@@ -829,7 +829,7 @@ mod indexeddb_tests {
     #[wasm_bindgen_test]
     async fn test_indexeddb_iteration() {
         let store = IndexedDBStore::<TestDefinition>::new("test_iter_db").await.unwrap();
-        let user_tree = store.open_tree::<User>().await;
+        let user_tree = store.open_tree::<User>();
 
         let users = vec![
             User {
@@ -853,12 +853,11 @@ mod indexeddb_tests {
         ];
 
         for user in &users {
-            user_tree.insert(user.clone()).await.unwrap();
+            user_tree.put(user.clone()).await.unwrap();
         }
 
         let mut retrieved = Vec::new();
-        for result in user_tree.iter().await {
-            let (_, user) = result.unwrap();
+        for (_, user) in user_tree.iter().await.unwrap() {
             retrieved.push(user);
         }
 
@@ -871,7 +870,7 @@ mod indexeddb_tests {
     #[wasm_bindgen_test]
     async fn test_indexeddb_clear_and_len() {
         let store = IndexedDBStore::<TestDefinition>::new("test_clear_db").await.unwrap();
-        let user_tree = store.open_tree::<User>().await;
+        let user_tree = store.open_tree::<User>();
 
         assert!(user_tree.is_empty().await.unwrap(), "Tree should be empty initially");
         assert_eq!(0, user_tree.len().await.unwrap(), "Length should be 0");
@@ -882,7 +881,7 @@ mod indexeddb_tests {
             email: "alice@example.com".to_string(),
             age: 30,
         };
-        user_tree.insert(alice).await.unwrap();
+        user_tree.put(alice).await.unwrap();
 
         assert!(!user_tree.is_empty().await.unwrap(), "Tree should not be empty");
         assert_eq!(1, user_tree.len().await.unwrap(), "Length should be 1");
@@ -894,7 +893,7 @@ mod indexeddb_tests {
     #[wasm_bindgen_test]
     async fn test_indexeddb_string_primary_key() {
         let store = IndexedDBStore::<TestDefinition>::new("test_string_pk_db").await.unwrap();
-        let product_tree = store.open_tree::<Product>().await;
+        let product_tree = store.open_tree::<Product>();
 
         let laptop = Product {
             id: "LAPTOP-001".to_string(),
@@ -904,7 +903,7 @@ mod indexeddb_tests {
             in_stock: true,
         };
 
-        product_tree.insert(laptop.clone()).await.unwrap();
+        product_tree.put(laptop.clone()).await.unwrap();
 
         let retrieved = product_tree
             .get(ProductPrimaryKey("LAPTOP-001".to_string()))
@@ -916,7 +915,7 @@ mod indexeddb_tests {
     #[wasm_bindgen_test]
     async fn test_indexeddb_secondary_key_with_bool() {
         let store = IndexedDBStore::<TestDefinition>::new("test_bool_sec_db").await.unwrap();
-        let product_tree = store.open_tree::<Product>().await;
+        let product_tree = store.open_tree::<Product>();
 
         let products = vec![
             Product {
@@ -943,7 +942,7 @@ mod indexeddb_tests {
         ];
 
         for product in &products {
-            product_tree.insert(product.clone()).await.unwrap();
+            product_tree.put(product.clone()).await.unwrap();
         }
 
         // Query by in_stock = true
