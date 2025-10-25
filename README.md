@@ -68,14 +68,18 @@ A type-safe, multi-backend key-value storage library for Rust with support for n
 Add to your `Cargo.toml`:
 
 ```toml
-# For native platforms (default: sled)
 [dependencies]
-netabase_store = "0.1"
+netabase_store = { version = "0.1", features = ["native"] }
 
-# For specific backends
-[dependencies]
-netabase_store = { version = "0.1", features = ["native"] }  # Sled + Redb
-netabase_store = { version = "0.1", features = ["wasm"] }     # IndexedDB
+# Required dependencies for macros to work
+bincode = "2.0.1"
+serde = { version = "1.0", features = ["derive"] }
+strum = { version = "0.27.2", features = ["derive"] }
+derive_more = "2.0.1"
+anyhow = "1.0"  # For error handling
+
+# For WASM
+# netabase_store = { version = "0.1", features = ["wasm"] }
 ```
 
 ## Quick Start
@@ -159,12 +163,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(retrieved.username, "alice");
 
     // Query by secondary key
-    let users_age_30 = user_tree.get_by_secondary_key(UserSecondaryKeys::AgeKey(30))?;
+    let users_age_30 = user_tree.get_by_secondary_key(UserSecondaryKeys::Age(AgeSecondaryKey(30)))?;
     assert_eq!(users_age_30.len(), 1);
 
-    // Iterate over all users
-    for (key, user) in user_tree.iter() {
-        println!("User: {} - {}", key.0, user.username);
+    // Iterate over all users (iter() returns Result tuples)
+    for result in user_tree.iter() {
+        let (_key, user) = result?;
+        println!("User: {} - {}", user.username, user.email);
     }
 
     Ok(())
@@ -243,10 +248,10 @@ pub struct Article {
 
 // Query by secondary key
 let published_articles = article_tree
-    .get_by_secondary_key(ArticleSecondaryKeys::PublishedKey(true))?;
+    .get_by_secondary_key(ArticleSecondaryKeys::Published(PublishedSecondaryKey(true)))?;
 
 let tech_articles = article_tree
-    .get_by_secondary_key(ArticleSecondaryKeys::CategoryKey("tech".to_string()))?;
+    .get_by_secondary_key(ArticleSecondaryKeys::Category(CategorySecondaryKey("tech".to_string())))?;
 ```
 
 ### Multiple Models in One Store

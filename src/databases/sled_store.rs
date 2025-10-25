@@ -39,7 +39,7 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
     db: sled::Db,
-    pub trees: Vec<D::Discriminant>,
+    trees: Vec<D::Discriminant>,
 }
 
 impl<D> SledStore<D>
