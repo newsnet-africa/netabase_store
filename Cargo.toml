@@ -12,6 +12,7 @@ native = ["sled", "redb"]
 wasm = ["web-sys", "js-sys", "wasm-bindgen", "wasm-bindgen-futures", "indexed_db_futures"]
 libp2p = ["dep:libp2p"]
 record-store = ["libp2p"]
+uniffi = ["netabase_macros/uniffi"]
 
 [dependencies]
 anyhow = "1.0.100"

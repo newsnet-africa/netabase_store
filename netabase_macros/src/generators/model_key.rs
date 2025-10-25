@@ -26,6 +26,7 @@ impl<'a> ModelVisitor<'a> {
                 ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::TryInto,
                     ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode
                 )]
+                #[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
                 pub enum #name {
                     Primary(#primary_key_id),
                     Secondary(#secondary_key_id),
@@ -131,6 +132,7 @@ mod key_gen {
                 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::Into,
                     ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode
                 )]
+                #[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
                 pub struct #name(pub #ty);
             )
         }
@@ -193,6 +195,7 @@ mod key_gen {
                     ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::TryInto,
                     ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode
                 )]
+                #[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
                 #[strum_discriminants(derive(::netabase_deps::strum::Display,
                 ::netabase_deps::strum::AsRefStr ))]
                 pub enum #name {

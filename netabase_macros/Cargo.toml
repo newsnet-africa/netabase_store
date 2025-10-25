@@ -8,8 +8,10 @@ proc-macro = true
 
 [features]
 libp2p = []
+uniffi = ["dep:uniffi"]
 
 [dependencies]
+uniffi = { version = "0.28", optional = true }
 anyhow = "1.0.100"
 bincode = { version = "2.0", features = ["derive", "serde"] }
 derive_more = { version = "2.0.1", features = ["from", "try_into", "into"] }
