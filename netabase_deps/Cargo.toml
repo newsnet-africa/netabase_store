@@ -5,7 +5,6 @@ edition = "2024"
 description = "Re-exports of dependencies for netabase macro hygiene"
 license = "GPL-3.0-only"
 licence-file = "LICENCE"
-readme = "README.md"
 repository = "https://github.com/newsnet-africa/netabase_store.git"
 keywords = ["kv", "key-value", "storage", "wrapper", "redb", "libp2p", "wasm"]
 categories = ["databases"]
