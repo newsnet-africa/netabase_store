@@ -2,6 +2,8 @@
 
 A type-safe, multi-backend key-value storage library for Rust with support for native (Sled, Redb) and WASM (IndexedDB) environments.
 
+# This crate is still in early development and will change frequently as it stabalises. It is not advised to use this in a production environment until it stabalises.
+
 ## Features
 
 ### Current Features
