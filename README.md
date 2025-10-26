@@ -369,7 +369,7 @@ The vision is to make it trivial to build distributed applications where your lo
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the GNU Apache License - see the LICENSE file for details.
 
 ## Contributing
 
