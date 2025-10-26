@@ -1,6 +1,6 @@
 [package]
 name = "netabase_store"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2024"
 description = "A type-safe, multi-backend key-value storage library for Rust with support for native (Sled, Redb) and WASM (IndexedDB) environments."
 license = "GPL-3.0-only"
