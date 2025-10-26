@@ -112,33 +112,42 @@ pub mod def_gen {
             .iter()
             .flat_map(|m| generate_model_key_variants(&m.keys, m.path.clone()));
 
-        (
-            parse_quote! {
-                #[derive(Debug, Clone, ::netabase_deps::strum::EnumDiscriminants,
-                    ::netabase_deps::derive_more::From,::netabase_deps::derive_more::TryInto,
-                    ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode,
-                    ::netabase_deps::strum::Display
-                )]
-                #[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
-                #[strum_discriminants(derive(Hash, ::netabase_deps::strum::EnumIter, ::netabase_deps::strum::EnumString,
-                ::netabase_deps::strum::Display, ::netabase_deps::strum::AsRefStr))]
-                pub enum #definition {
-                    #(#models),*
-                }
-            },
-            parse_quote! {
-                #[derive(Debug, Clone, ::netabase_deps::strum::EnumDiscriminants,
-                    ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::TryInto,
-                    ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode
-                )]
-                #[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
-                #[strum_discriminants(derive(Hash, ::netabase_deps::strum::EnumString,
-                ::netabase_deps::strum::AsRefStr,
-                ::netabase_deps::strum::Display))]
-                pub enum #definition_key {
-                    #(#keys),*
-                }
-            },
-        )
+        let mut def_enum: ItemEnum = parse_quote! {
+            #[derive(Debug, Clone, ::netabase_deps::strum::EnumDiscriminants,
+                ::netabase_deps::derive_more::From,::netabase_deps::derive_more::TryInto,
+                ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode,
+                ::netabase_deps::strum::Display
+            )]
+            #[strum_discriminants(derive(Hash, ::netabase_deps::strum::EnumIter, ::netabase_deps::strum::EnumString,
+            ::netabase_deps::strum::Display, ::netabase_deps::strum::AsRefStr))]
+            pub enum #definition {
+                #(#models),*
+            }
+        };
+
+        if cfg!(feature = "uniffi") {
+            let uniffi_attr: syn::Attribute = parse_quote!(#[derive(uniffi::Enum)]);
+            def_enum.attrs.push(uniffi_attr);
+        }
+
+        let mut def_key_enum: ItemEnum = parse_quote! {
+            #[derive(Debug, Clone, ::netabase_deps::strum::EnumDiscriminants,
+                ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::TryInto,
+                ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode
+            )]
+            #[strum_discriminants(derive(Hash, ::netabase_deps::strum::EnumString,
+            ::netabase_deps::strum::AsRefStr,
+            ::netabase_deps::strum::Display))]
+            pub enum #definition_key {
+                #(#keys),*
+            }
+        };
+
+        if cfg!(feature = "uniffi") {
+            let uniffi_attr: syn::Attribute = parse_quote!(#[derive(uniffi::Enum)]);
+            def_key_enum.attrs.push(uniffi_attr);
+        }
+
+        (def_enum, def_key_enum)
     }
 }
