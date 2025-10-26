@@ -3,12 +3,59 @@ use strum::IntoDiscriminant;
 use crate::definition::NetabaseDefinitionTrait;
 use crate::{MaybeSend, MaybeSync};
 
-/// Trait for user-defined models that can be stored in the database.
+/// Trait for user-defined models that can be stored in the netabase database.
 ///
-/// This trait is automatically derived via the `#[derive(NetabaseModel)]` macro.
+/// This trait is **automatically derived** using the `#[derive(NetabaseModel)]` macro.
+/// You should never implement this trait manually - always use the derive macro.
+///
+/// # Requirements
+///
 /// Models must have:
-/// - A primary key field marked with `#[primary_key]`
-/// - Optional secondary key fields marked with `#[secondary_key]`
+/// - **One** `#[primary_key]` field - used for unique identification and primary access
+/// - **Zero or more** `#[secondary_key]` fields - used for efficient querying
+/// - All standard derives: `Clone`, `bincode::Encode`, `bincode::Decode`, `serde::Serialize`, `serde::Deserialize`
+///
+/// # Generated Types
+///
+/// The derive macro automatically generates:
+/// - `{ModelName}PrimaryKey` - Newtype wrapper for the primary key
+/// - `{ModelName}SecondaryKeys` - Enum of all secondary key types
+/// - `{ModelName}Keys` - Combined enum of primary and secondary keys
+///
+/// # Examples
+///
+/// ```ignore
+/// use netabase_store::NetabaseModel;
+///
+/// #[derive(NetabaseModel, Clone, Debug, PartialEq,
+///          bincode::Encode, bincode::Decode,
+///          serde::Serialize, serde::Deserialize)]
+/// #[netabase(MyDefinition)]
+/// pub struct User {
+///     #[primary_key]
+///     pub id: u64,           // Unique identifier
+///     pub name: String,       // Regular field
+///     #[secondary_key]
+///     pub email: String,      // Can query by email
+///     #[secondary_key]
+///     pub age: u32,           // Can query by age
+/// }
+///
+/// // Usage
+/// let user = User { id: 1, name: "Alice".into(), email: "alice@example.com".into(), age: 30 };
+///
+/// // Access primary key
+/// let pk = user.primary_key();  // Returns UserPrimaryKey(1)
+///
+/// // Access secondary keys
+/// let sk = user.secondary_keys(); // Returns vec![EmailKey("alice@example.com"), AgeKey(30)]
+/// ```
+///
+/// # See Also
+///
+/// - [`NetabaseModel` derive macro](crate::NetabaseModel) - Derives this trait
+/// - [`netabase_definition_module`](crate::netabase_definition_module) - Groups models into a schema
+/// - [`NetabaseTreeSync`](crate::traits::tree::NetabaseTreeSync) - CRUD operations on models
 pub trait NetabaseModelTrait<D: NetabaseDefinitionTrait>:
     bincode::Encode + Sized + Clone + MaybeSend + MaybeSync + 'static
 where
