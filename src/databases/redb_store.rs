@@ -4,9 +4,7 @@ use crate::traits::definition::NetabaseDefinitionTrait;
 use crate::traits::model::NetabaseModelTrait;
 use crate::traits::tree::NetabaseTreeSync;
 use redb::{
-    Database, Key, ReadableTable, TableDefinition,
-    ReadableDatabase,
-    ReadableTableMetadata,
+    Database, Key, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition,
     TypeName, Value,
 };
 use std::cmp::Ordering;
@@ -255,7 +253,7 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
     db: Arc<Database>,
-    discriminant: D::Discriminant,
+    pub discriminant: D::Discriminant,
     /// Cached table name string with 'static lifetime (leaked once)
     table_name: &'static str,
     /// Cached secondary table name string with 'static lifetime (leaked once)

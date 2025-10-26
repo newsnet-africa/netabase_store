@@ -135,7 +135,7 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
     db: sled::Db,
-    trees: Vec<D::Discriminant>,
+    pub trees: Vec<D::Discriminant>,
 }
 
 impl<D> SledStore<D>
@@ -630,7 +630,7 @@ where
 {
     tree: sled::Tree,
     secondary_tree: sled::Tree,
-    db: sled::Db,
+    pub db: sled::Db,
     _phantom_d: PhantomData<D>,
     _phantom_m: PhantomData<M>,
 }
@@ -807,7 +807,7 @@ where
     /// ```
     pub fn get(&self, key: M::PrimaryKey) -> Result<Option<M>, NetabaseError> {
         let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())
-            .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+            .map_err(crate::error::EncodingDecodingError::from)?;
 
         match self.tree.get(key_bytes)? {
             Some(ivec) => {
@@ -868,7 +868,7 @@ where
     /// ```
     pub fn remove(&self, key: M::PrimaryKey) -> Result<Option<M>, NetabaseError> {
         let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())
-            .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+            .map_err(crate::error::EncodingDecodingError::from)?;
 
         match self.tree.remove(key_bytes)? {
             Some(ivec) => {
@@ -1032,36 +1032,13 @@ where
         primary_key: &M::PrimaryKey,
     ) -> Result<Vec<u8>, NetabaseError> {
         let mut composite_key = bincode::encode_to_vec(secondary_key, bincode::config::standard())
-            .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+            .map_err(crate::error::EncodingDecodingError::from)?;
         let prim_key_bytes = bincode::encode_to_vec(primary_key, bincode::config::standard())
-            .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+            .map_err(crate::error::EncodingDecodingError::from)?;
 
         // Append primary key to secondary key to create composite key
         composite_key.extend_from_slice(&prim_key_bytes);
         Ok(composite_key)
-    }
-
-    /// Insert a secondary key mapping (deprecated - use put() which batches)
-    fn insert_secondary_key(
-        &self,
-        secondary_key: &M::SecondaryKeys,
-        primary_key: &M::PrimaryKey,
-    ) -> Result<(), NetabaseError> {
-        let composite_key = self.build_composite_key(secondary_key, primary_key)?;
-        // Store with empty value (we only need the key)
-        self.secondary_tree.insert(composite_key, &[] as &[u8])?;
-        Ok(())
-    }
-
-    /// Remove a secondary key mapping
-    fn remove_secondary_key(
-        &self,
-        secondary_key: &M::SecondaryKeys,
-        primary_key: &M::PrimaryKey,
-    ) -> Result<(), NetabaseError> {
-        let composite_key = self.build_composite_key(secondary_key, primary_key)?;
-        let _: Option<sled::IVec> = self.secondary_tree.remove(composite_key)?;
-        Ok(())
     }
 
     /// Find all models matching a secondary key value.
@@ -1133,7 +1110,7 @@ where
         M::PrimaryKey: bincode::Decode<()>,
     {
         let sec_key_bytes = bincode::encode_to_vec(&secondary_key, bincode::config::standard())
-            .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+            .map_err(crate::error::EncodingDecodingError::from)?;
 
         let mut results = Vec::new();
         for item in self.secondary_tree.scan_prefix(&sec_key_bytes) {
@@ -1145,7 +1122,7 @@ where
                     &composite_key[prim_key_start..],
                     bincode::config::standard(),
                 )
-                .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+                .map_err(crate::error::EncodingDecodingError::from)?;
 
                 if let Some(model) = self.get(primary_key)? {
                     results.push(model);
@@ -1225,7 +1202,7 @@ where
             result.map_err(|e| e.into()).and_then(|(k, v)| {
                 let (key, _) =
                     bincode::decode_from_slice::<M::PrimaryKey, _>(&k, bincode::config::standard())
-                        .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+                        .map_err(crate::error::EncodingDecodingError::from)?;
                 let definition = D::from_ivec(&v)?;
                 let model = M::try_from(definition).map_err(|_| {
                     crate::error::NetabaseError::Conversion(

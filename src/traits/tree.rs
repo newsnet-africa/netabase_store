@@ -66,8 +66,8 @@ use crate::error::NetabaseError;
 ///
 /// # See Also
 ///
-/// - [`SledStoreTree`](crate::databases::sled_store::SledStoreTree) - Sled implementation
-/// - [`RedbStoreTree`](crate::databases::redb_store::RedbStoreTree) - Redb implementation
+/// - [`SledStoreTree`](netabase_store::databases::sled_store::SledStoreTree) - Sled implementation
+/// - [`RedbStoreTree`](netabase_store::databases::redb_store::RedbStoreTree) - Redb implementation
 /// - [`NetabaseTreeAsync`] - Async version for WASM backends
 pub trait NetabaseTreeSync<D, M> {
     /// Insert or update a model in the tree
