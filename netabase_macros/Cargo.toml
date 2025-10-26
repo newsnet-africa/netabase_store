@@ -1,7 +1,14 @@
 [package]
 name = "netabase_macros"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2024"
+
+license = "GPL-3.0-only"
+licence-file = "LICENCE"
+readme = "README.md"
+repository = "https://github.com/newsnet-africa/netabase_store.git"
+keywords = ["kv", "key-value", "storage", "wrapper", "redb", "libp2p", "wasm"]
+categories = ["databases"]
 
 [lib]
 proc-macro = true
