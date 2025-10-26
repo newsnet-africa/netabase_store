@@ -378,7 +378,7 @@
 //! }
 //! use blog::*;
 //!
-//! // Create an in-memory database for testing
+//! // Create an database in tmp database for testing
 //! let store = SledStore::<BlogDefinition>::temp().unwrap();
 //! let user_tree = store.open_tree::<User>();
 //!
@@ -390,37 +390,10 @@
 //!
 //! ## libp2p Integration
 //!
-//! When using the `libp2p` feature, stores can be used as record stores for Kademlia DHT:
+//! When using the `libp2p` feature, stores can be used as record stores for Kademlia DHT. This was designed to to be implementned with the
+//! [netabase](https://github.com/newsnet-africa/netabase.git) crate, which (eventually) should be a dht networking layer abstraction.
+//! The stores in the [databases module](crate::databases) implement [RecordStore](https://docs.rs/libp2p/latest/libp2p/kad/store/trait.RecordStore.html), which allow for the [libp2p's kademlia implementation](https://docs.rs/libp2p/latest/libp2p/kad/index.html).
 //!
-//! ```rust,no_run
-//! # // This example requires the 'libp2p' feature
-//! # #[cfg(feature = "libp2p")]
-//! # fn example() {
-//! # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
-//! # use netabase_store::databases::sled_store::SledStore;
-//! # use libp2p::kad::{Behaviour, RecordStore};
-//! # use libp2p::identity::Keypair;
-//! # #[netabase_definition_module(MyDefinition, MyKeys)]
-//! # mod my { use super::*; use netabase_store::{NetabaseModel, netabase};
-//! #   #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode,
-//! #            serde::Serialize, serde::Deserialize)]
-//! #   #[netabase(MyDefinition)]
-//! #   pub struct MyModel { #[primary_key] pub id: u64 }
-//! # }
-//! # use my::*;
-//! let store = SledStore::<MyDefinition>::new("./dht_store").unwrap();
-//! let keypair = Keypair::generate_ed25519();
-//! let peer_id = keypair.public().to_peer_id();
-//! let kad_behaviour = Behaviour::new(peer_id, store);
-//! # }
-//! ```
-//!
-//! ## Performance Considerations
-//!
-//! - **Primary Key Access**: O(log n) - Very fast
-//! - **Secondary Key Queries**: O(m) where m is matching records
-//! - **Iteration**: O(n) - Scans all records
-//! - **Batch Operations**: Use transactions for multiple writes (when available)
 //!
 //! ## Feature Flags
 //!

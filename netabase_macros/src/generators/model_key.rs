@@ -17,7 +17,7 @@ impl<'a> ModelVisitor<'a> {
             Some(n) => append_ident(n, "Key"),
             None => panic!("Visitor error (parsing struct name?)"),
         };
-        let mut keys_enum: ItemEnum = parse_quote!(
+        let keys_enum: ItemEnum = parse_quote!(
             #[derive(Debug, Clone,
             ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::TryInto,
                 ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode
