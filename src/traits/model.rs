@@ -24,7 +24,7 @@ use crate::{MaybeSend, MaybeSync};
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use netabase_store::NetabaseModel;
 ///
 /// #[derive(NetabaseModel, Clone, Debug, PartialEq,
@@ -97,8 +97,15 @@ where
 pub trait NetabaseModelTraitKey<D: NetabaseDefinitionTrait>:
     bincode::Encode + std::fmt::Debug + Clone + MaybeSend + MaybeSync + 'static
 where
-    <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant:
-        Clone + Copy + std::fmt::Debug + PartialEq + Eq + std::hash::Hash + MaybeSend + MaybeSync + 'static,
+    <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + MaybeSend
+        + MaybeSync
+        + 'static,
     <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,

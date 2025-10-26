@@ -24,7 +24,7 @@
 //! #[netabase_definition_module(BlogDefinition, BlogKeys)]
 //! mod blog {
 //!     use super::*;
-//!     use netabase_store::netabase;  // Required: import the netabase attribute
+//!     use netabase_store::{netabase, NetabaseModel};
 //!
 //!     /// User model with primary and secondary keys
 //!     #[derive(
@@ -74,7 +74,7 @@
 //!
 //! ### Using Sled Backend (Native)
 //!
-//! ```rust,ignore
+//! ```rust
 //! use netabase_store::databases::sled_store::SledStore;
 //! use netabase_store::traits::tree::NetabaseTreeSync;
 //!
@@ -118,7 +118,57 @@
 //!
 //! ### Using Redb Backend (Native)
 //!
-//! ```rust,ignore
+//! ```rust
+//! // Define your schema with the definition module macro
+//! #[netabase_definition_module(BlogDefinition, BlogKeys)]
+//! mod blog {
+//!     use super::*;
+//!     use netabase_store::{netabase, NetabaseModel};
+//!
+//!     /// User model with primary and secondary keys
+//!     #[derive(
+//!         NetabaseModel,
+//!         Clone,
+//!         Debug,
+//!         PartialEq,
+//!         bincode::Encode,
+//!         bincode::Decode,
+//!         serde::Serialize,
+//!         serde::Deserialize,
+//!     )]
+//!     #[netabase(BlogDefinition)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: u64,
+//!         pub username: String,
+//!         #[secondary_key]
+//!         pub email: String,
+//!         pub age: u32,
+//!     }
+//!
+//!     /// Post model associated with the same definition
+//!     #[derive(
+//!         NetabaseModel,
+//!         Clone,
+//!         Debug,
+//!         PartialEq,
+//!         bincode::Encode,
+//!         bincode::Decode,
+//!         serde::Serialize,
+//!         serde::Deserialize,
+//!     )]
+//!     #[netabase(BlogDefinition)]
+//!     pub struct Post {
+//!         #[primary_key]
+//!         pub id: String,
+//!         pub title: String,
+//!         pub author_id: u64,
+//!         #[secondary_key]
+//!         pub published: bool,
+//!     }
+//! }  // end mod blog
+//!
+//! use blog::*;
 //! use netabase_store::databases::redb_store::RedbStore;
 //! use netabase_store::traits::tree::NetabaseTreeSync;
 //!
@@ -132,7 +182,7 @@
 //!
 //! ### Using IndexedDB Backend (WASM)
 //!
-//! ```rust,ignore
+//! ```rust
 //! use netabase_store::databases::indexeddb_store::IndexedDBStore;
 //! use netabase_store::traits::tree::NetabaseTreeAsync;
 //!
@@ -176,7 +226,7 @@
 //!
 //! Secondary keys enable efficient querying by non-primary fields:
 //!
-//! ```rust,ignore
+//! ```rust
 //! // Query by email (secondary key)
 //! let users = user_tree
 //!     .get_by_secondary_key(UserSecondaryKeys::EmailKey(
@@ -194,7 +244,7 @@
 //!
 //! Iterate over all records in a tree:
 //!
-//! ```rust,ignore
+//! ```rust
 //! // Iterate over all users
 //! for result in user_tree.iter() {
 //!     let user = result.unwrap();
@@ -206,7 +256,7 @@
 //!
 //! Use temporary databases for testing:
 //!
-//! ```rust,ignore
+//! ```rust
 //! // Create an in-memory database for testing
 //! let store = SledStore::<BlogDefinition>::temp().unwrap();
 //! let user_tree = store.open_tree::<User>();
@@ -220,7 +270,7 @@
 //!
 //! When using the `libp2p` feature, stores can be used as record stores for Kademlia DHT:
 //!
-//! ```rust,ignore
+//! ```rust
 //! use libp2p::kad::{Behaviour, RecordStore};
 //!
 //! let store = SledStore::<MyDefinition>::new("./dht_store").unwrap();
@@ -245,7 +295,7 @@
 //!
 //! All operations return `Result<T, NetabaseError>`:
 //!
-//! ```rust,ignore
+//! ```rust
 //! match user_tree.get(UserPrimaryKey(1)) {
 //!     Ok(Some(user)) => println!("Found: {}", user.username),
 //!     Ok(None) => println!("User not found"),

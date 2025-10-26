@@ -126,7 +126,9 @@ where
 
     /// Get all store names (discriminants) in the database
     pub fn store_names(&self) -> Vec<String> {
-        D::Discriminant::iter().map(|d| d.as_ref().to_string()).collect()
+        D::Discriminant::iter()
+            .map(|d| d.as_ref().to_string())
+            .collect()
     }
 
     /// Close the database connection
@@ -267,7 +269,7 @@ where
                 let mut bytes = vec![0u8; uint8_array.length() as usize];
                 uint8_array.copy_to(&mut bytes);
 
-                let definition = D::from_ivec(&bytes)?;
+                let definition = D::from_vec(&bytes)?;
                 match M::try_from(definition) {
                     Ok(model) => Ok(Some(model)),
                     Err(_) => Ok(None),
@@ -432,7 +434,7 @@ where
                 let mut value_bytes = vec![0u8; value_array.length() as usize];
                 value_array.copy_to(&mut value_bytes);
 
-                let definition = D::from_ivec(&value_bytes)?;
+                let definition = D::from_vec(&value_bytes)?;
                 let model = M::try_from(definition).map_err(|_| {
                     crate::error::NetabaseError::Conversion(
                         crate::error::EncodingDecodingError::Decoding(
@@ -707,7 +709,10 @@ impl IndexedDBTree {
     }
 
     /// Scan with a key prefix (similar to sled's scan_prefix)
-    pub async fn scan_prefix(&self, prefix: &[u8]) -> Result<Vec<(Vec<u8>, Vec<u8>)>, NetabaseError> {
+    pub async fn scan_prefix(
+        &self,
+        prefix: &[u8],
+    ) -> Result<Vec<(Vec<u8>, Vec<u8>)>, NetabaseError> {
         let tx = self.db.transaction_on_one(&self.tree_name).map_err(|e| {
             NetabaseError::Storage(format!("Failed to create transaction: {:?}", e))
         })?;

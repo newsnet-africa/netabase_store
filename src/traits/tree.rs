@@ -2,7 +2,6 @@
 ///!
 ///! This module provides a uniform API for CRUD operations on netabase store trees,
 ///! abstracting away the differences between SledStore, RedbStore, and IndexedDBStore.
-
 use crate::error::NetabaseError;
 
 /// Synchronous tree operations trait for native backends (SledStore, RedbStore).
@@ -27,7 +26,7 @@ use crate::error::NetabaseError;
 ///
 /// ## Writing Backend-Agnostic Code
 ///
-/// ```ignore
+/// ```
 /// use netabase_store::traits::tree::NetabaseTreeSync;
 ///
 /// // This function works with ANY backend
@@ -102,8 +101,10 @@ pub trait NetabaseTreeSync<D, M> {
     /// # Returns
     /// * `Ok(Vec<M>)` - Vector of all models matching the secondary key
     /// * `Err(NetabaseError)` if the operation failed
-    fn get_by_secondary_key(&self, secondary_key: Self::SecondaryKeys)
-        -> Result<Vec<M>, NetabaseError>;
+    fn get_by_secondary_key(
+        &self,
+        secondary_key: Self::SecondaryKeys,
+    ) -> Result<Vec<M>, NetabaseError>;
 
     /// Check if the tree is empty
     ///

@@ -31,12 +31,13 @@ use strum::{IntoDiscriminant, IntoEnumIterator};
 /// use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
 /// use netabase_store::databases::sled_store::SledStore;
 /// use netabase_store::traits::tree::NetabaseTreeSync;
+/// use netabase_store::traits::model::NetabaseModelTrait;
 ///
 /// // Define your schema
 /// #[netabase_definition_module(BlogDefinition, BlogKeys)]
 /// mod blog {
 ///     use super::*;
-///
+///     use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
 ///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
 ///              bincode::Encode, bincode::Decode,
 ///              serde::Serialize, serde::Deserialize)]
@@ -73,13 +74,14 @@ use strum::{IntoDiscriminant, IntoEnumIterator};
 ///
 /// ## Persistent Storage
 ///
-/// ```rust,no_run
+/// ```rust
 /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
 /// # use netabase_store::databases::sled_store::SledStore;
 /// #
 /// # #[netabase_definition_module(MyDefinition, MyKeys)]
 /// # mod my_models {
 /// #     use super::*;
+/// #     use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
 /// #     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode,
 /// #              serde::Serialize, serde::Deserialize)]
 /// #     #[netabase(MyDefinition)]
@@ -174,6 +176,7 @@ where
     /// # use netabase_store::databases::sled_store::SledStore;
     /// # #[netabase_definition_module(MyDef, MyKeys)]
     /// # mod my { use super::*;
+    /// #   use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     /// #   #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
     /// #   #[netabase(MyDef)]
     /// #   pub struct MyModel { #[primary_key] pub id: u64 }
@@ -235,11 +238,12 @@ where
     ///
     /// # Examples
     ///
-    /// ```rust,no_run
+    /// ```rust
     /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     /// # use netabase_store::databases::sled_store::SledStore;
     /// # #[netabase_definition_module(AppDef, AppKeys)]
     /// # mod app { use super::*;
+    /// #   use netabase_store::{NetabaseModel, netabase};
     /// #   #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
     /// #   #[netabase(AppDef)]
     /// #   pub struct User { #[primary_key] pub id: u64, pub name: String }
@@ -257,6 +261,7 @@ where
     /// # use netabase_store::databases::sled_store::SledStore;
     /// # #[netabase_definition_module(TestDef, TestKeys)]
     /// # mod test { use super::*;
+    /// #   use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     /// #   #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
     /// #   #[netabase(TestDef)]
     /// #   pub struct Item { #[primary_key] pub id: u64 }
@@ -292,10 +297,12 @@ where
     /// use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     /// use netabase_store::databases::sled_store::SledStore;
     /// use netabase_store::traits::tree::NetabaseTreeSync;
+    /// use netabase_store::traits::model::NetabaseModelTrait;
     ///
     /// #[netabase_definition_module(TestDef, TestKeys)]
     /// mod test {
     ///     use super::*;
+    ///     use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     ///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
     ///              bincode::Encode, bincode::Decode,
     ///              serde::Serialize, serde::Deserialize)]
@@ -360,6 +367,8 @@ where
     /// #[netabase_definition_module(ShopDef, ShopKeys)]
     /// mod shop {
     ///     use super::*;
+    ///
+    /// use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     ///
     ///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
     ///              bincode::Encode, bincode::Decode,
@@ -439,6 +448,7 @@ where
     /// #[netabase_definition_module(MultiModelDef, MultiModelKeys)]
     /// mod models {
     ///     use super::*;
+    /// use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     ///     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode,
     ///              serde::Serialize, serde::Deserialize)]
     ///     #[netabase(MultiModelDef)]
@@ -484,6 +494,7 @@ where
     /// # use netabase_store::databases::sled_store::SledStore;
     /// # #[netabase_definition_module(AppDef, AppKeys)]
     /// # mod app { use super::*;
+    /// #   use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     /// #   #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode,
     /// #            serde::Serialize, serde::Deserialize)]
     /// #   #[netabase(AppDef)]
@@ -535,10 +546,12 @@ where
 /// use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
 /// use netabase_store::databases::sled_store::SledStore;
 /// use netabase_store::traits::tree::NetabaseTreeSync;
+/// use netabase_store::traits::model::NetabaseModelTrait;
 ///
 /// #[netabase_definition_module(StoreDef, StoreKeys)]
 /// mod store {
 ///     use super::*;
+/// use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
 ///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
 ///              bincode::Encode, bincode::Decode,
 ///              serde::Serialize, serde::Deserialize)]
@@ -616,6 +629,7 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
     tree: sled::Tree,
+    secondary_tree: sled::Tree,
     db: sled::Db,
     _phantom_d: PhantomData<D>,
     _phantom_m: PhantomData<M>,
@@ -653,8 +667,13 @@ where
         let tree = db
             .open_tree(tree_name.to_string())
             .expect("Failed to open tree");
+        let sec_tree_name = format!("{}_secondary", M::discriminant_name());
+        let secondary_tree = db
+            .open_tree(sec_tree_name)
+            .expect("Failed to open secondary tree");
         Self {
             tree,
+            secondary_tree,
             db: db.clone(),
             _phantom_d: PhantomData,
             _phantom_m: PhantomData,
@@ -666,12 +685,12 @@ where
     /// If a model with the same primary key already exists, it will be overwritten.
     /// This method automatically:
     /// - Serializes the model using bincode
-    /// - Updates secondary key indexes
+    /// - Updates secondary key indexes atomically using batching
     /// - Persists the data to disk (eventually, via sled's write-ahead log)
     ///
     /// # Arguments
     ///
-    /// * `model` - The model instance to insert or update
+    /// * `model` - The model instance to insert or update (consumed)
     ///
     /// # Returns
     ///
@@ -683,9 +702,11 @@ where
     /// ```rust
     /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     /// # use netabase_store::databases::sled_store::SledStore;
+    /// # use netabase_store::traits::model::NetabaseModelTrait;
     /// # #[netabase_definition_module(AppDef, AppKeys)]
     /// # mod app {
     /// #     use super::*;
+    /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq, bincode::Encode, bincode::Decode,
     /// #              serde::Serialize, serde::Deserialize)]
     /// #     #[netabase(AppDef)]
@@ -697,14 +718,15 @@ where
     ///
     /// // Insert a new task
     /// let task = Task { id: 1, title: "Learn Rust".to_string(), done: false };
-    /// tasks.put(task.clone()).unwrap();
+    /// tasks.put(task).unwrap();
     ///
     /// // Update the task (same primary key)
     /// let updated_task = Task { id: 1, title: "Learn Rust".to_string(), done: true };
-    /// tasks.put(updated_task.clone()).unwrap();
+    /// tasks.put(updated_task).unwrap();
     ///
     /// // Verify update
-    /// let retrieved = tasks.get(updated_task.primary_key()).unwrap().unwrap();
+    /// let retrieved_task = Task { id: 1, title: "".to_string(), done: false };
+    /// let retrieved = tasks.get(retrieved_task.primary_key()).unwrap().unwrap();
     /// assert_eq!(retrieved.done, true);
     /// ```
     pub fn put(&self, model: M) -> Result<(), NetabaseError>
@@ -712,18 +734,27 @@ where
         D: From<M>,
     {
         let primary_key = model.primary_key();
+        let secondary_keys = model.secondary_keys();
+
         let key_bytes = bincode::encode_to_vec(&primary_key, bincode::config::standard())
             .map_err(crate::error::EncodingDecodingError::from)?;
 
-        let definition: D = model.clone().into();
+        let definition: D = model.into();
         let value_bytes = definition.to_ivec()?;
 
-        self.tree.insert(key_bytes, value_bytes)?;
+        // Use batch for atomic operations
+        let mut batch = sled::Batch::default();
+        batch.insert(key_bytes, value_bytes.as_ref());
+        self.tree.apply_batch(batch)?;
 
-        // Handle secondary keys
-        let secondary_keys = model.secondary_keys();
-        for sec_key in secondary_keys {
-            self.insert_secondary_key(&sec_key, &primary_key)?;
+        // Batch secondary key inserts
+        if !secondary_keys.is_empty() {
+            let mut sec_batch = sled::Batch::default();
+            for sec_key in secondary_keys {
+                let composite_key = self.build_composite_key(&sec_key, &primary_key)?;
+                sec_batch.insert(composite_key, &[] as &[u8]);
+            }
+            self.secondary_tree.apply_batch(sec_batch)?;
         }
 
         Ok(())
@@ -749,9 +780,11 @@ where
     /// ```rust
     /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     /// # use netabase_store::databases::sled_store::SledStore;
+    /// # use netabase_store::traits::model::NetabaseModelTrait;
     /// # #[netabase_definition_module(AppDef, AppKeys)]
     /// # mod app {
     /// #     use super::*;
+    /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq, bincode::Encode, bincode::Decode,
     /// #              serde::Serialize, serde::Deserialize)]
     /// #     #[netabase(AppDef)]
@@ -808,9 +841,11 @@ where
     /// ```rust
     /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     /// # use netabase_store::databases::sled_store::SledStore;
+    /// # use netabase_store::traits::model::NetabaseModelTrait;
     /// # #[netabase_definition_module(AppDef, AppKeys)]
     /// # mod app {
     /// #     use super::*;
+    /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq, bincode::Encode, bincode::Decode,
     /// #              serde::Serialize, serde::Deserialize)]
     /// #     #[netabase(AppDef)]
@@ -821,11 +856,11 @@ where
     /// let articles = store.open_tree::<Article>();
     ///
     /// let article = Article { id: 1, title: "Hello".to_string() };
-    /// articles.put(article.clone()).unwrap();
+    /// articles.put(article.clone()).unwrap();  // Clone needed since we use article later
     ///
     /// // Delete and get the deleted model
     /// let deleted = articles.remove(article.primary_key()).unwrap();
-    /// assert_eq!(deleted, Some(article));
+    /// assert_eq!(deleted, Some(article.clone()));
     ///
     /// // Verify it's gone
     /// let gone = articles.get(article.primary_key()).unwrap();
@@ -840,10 +875,15 @@ where
                 let definition = D::from_ivec(&ivec)?;
                 match M::try_from(definition) {
                     Ok(model) => {
-                        // Clean up secondary keys
+                        // Clean up secondary keys using batch
                         let secondary_keys = model.secondary_keys();
-                        for sec_key in secondary_keys {
-                            self.remove_secondary_key(&sec_key, &key)?;
+                        if !secondary_keys.is_empty() {
+                            let mut sec_batch = sled::Batch::default();
+                            for sec_key in &secondary_keys {
+                                let composite_key = self.build_composite_key(sec_key, &key)?;
+                                sec_batch.remove(composite_key);
+                            }
+                            self.secondary_tree.apply_batch(sec_batch)?;
                         }
                         Ok(Some(model))
                     }
@@ -867,6 +907,7 @@ where
     /// # #[netabase_definition_module(AppDef, AppKeys)]
     /// # mod app {
     /// #     use super::*;
+    /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     /// #     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode,
     /// #              serde::Serialize, serde::Deserialize)]
     /// #     #[netabase(AppDef)]
@@ -903,6 +944,7 @@ where
     /// # #[netabase_definition_module(AppDef, AppKeys)]
     /// # mod app {
     /// #     use super::*;
+    /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     /// #     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode,
     /// #              serde::Serialize, serde::Deserialize)]
     /// #     #[netabase(AppDef)]
@@ -930,6 +972,7 @@ where
     /// # #[netabase_definition_module(AppDef, AppKeys)]
     /// # mod app {
     /// #     use super::*;
+    /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     /// #     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode,
     /// #              serde::Serialize, serde::Deserialize)]
     /// #     #[netabase(AppDef)]
@@ -960,6 +1003,7 @@ where
     /// # #[netabase_definition_module(AppDef, AppKeys)]
     /// # mod app {
     /// #     use super::*;
+    /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     /// #     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode,
     /// #              serde::Serialize, serde::Deserialize)]
     /// #     #[netabase(AppDef)]
@@ -981,17 +1025,12 @@ where
         Ok(())
     }
 
-    /// Insert a secondary key mapping
-    fn insert_secondary_key(
+    /// Build a composite key from secondary key + primary key
+    fn build_composite_key(
         &self,
         secondary_key: &M::SecondaryKeys,
         primary_key: &M::PrimaryKey,
-    ) -> Result<(), NetabaseError> {
-        // Secondary keys are stored in a separate tree with suffix "_secondary"
-        // We use a composite key: secondary_key + primary_key to allow multiple values
-        let sec_tree_name = format!("{}_secondary", M::discriminant_name());
-        let sec_tree = self.db.open_tree(sec_tree_name)?;
-
+    ) -> Result<Vec<u8>, NetabaseError> {
         let mut composite_key = bincode::encode_to_vec(secondary_key, bincode::config::standard())
             .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
         let prim_key_bytes = bincode::encode_to_vec(primary_key, bincode::config::standard())
@@ -999,9 +1038,18 @@ where
 
         // Append primary key to secondary key to create composite key
         composite_key.extend_from_slice(&prim_key_bytes);
+        Ok(composite_key)
+    }
 
+    /// Insert a secondary key mapping (deprecated - use put() which batches)
+    fn insert_secondary_key(
+        &self,
+        secondary_key: &M::SecondaryKeys,
+        primary_key: &M::PrimaryKey,
+    ) -> Result<(), NetabaseError> {
+        let composite_key = self.build_composite_key(secondary_key, primary_key)?;
         // Store with empty value (we only need the key)
-        sec_tree.insert(composite_key, &[] as &[u8])?;
+        self.secondary_tree.insert(composite_key, &[] as &[u8])?;
         Ok(())
     }
 
@@ -1011,17 +1059,8 @@ where
         secondary_key: &M::SecondaryKeys,
         primary_key: &M::PrimaryKey,
     ) -> Result<(), NetabaseError> {
-        let sec_tree_name = format!("{}_secondary", M::discriminant_name());
-        if let Ok(sec_tree) = self.db.open_tree(sec_tree_name) {
-            let mut composite_key =
-                bincode::encode_to_vec(secondary_key, bincode::config::standard())
-                    .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
-            let prim_key_bytes = bincode::encode_to_vec(primary_key, bincode::config::standard())
-                .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
-            composite_key.extend_from_slice(&prim_key_bytes);
-
-            let _: Option<sled::IVec> = sec_tree.remove(composite_key)?;
-        }
+        let composite_key = self.build_composite_key(secondary_key, primary_key)?;
+        let _: Option<sled::IVec> = self.secondary_tree.remove(composite_key)?;
         Ok(())
     }
 
@@ -1049,9 +1088,11 @@ where
     /// ```rust
     /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     /// # use netabase_store::databases::sled_store::SledStore;
+    /// # use netabase_store::traits::model::NetabaseModelTrait;
     /// # #[netabase_definition_module(AppDef, AppKeys)]
     /// # mod app {
     /// #     use super::*;
+    /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
     /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq, bincode::Encode, bincode::Decode,
     /// #              serde::Serialize, serde::Deserialize)]
     /// #     #[netabase(AppDef)]
@@ -1091,14 +1132,11 @@ where
     where
         M::PrimaryKey: bincode::Decode<()>,
     {
-        let sec_tree_name = format!("{}_secondary", M::discriminant_name());
-        let sec_tree = self.db.open_tree(sec_tree_name)?;
-
         let sec_key_bytes = bincode::encode_to_vec(&secondary_key, bincode::config::standard())
             .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
 
         let mut results = Vec::new();
-        for item in sec_tree.scan_prefix(&sec_key_bytes) {
+        for item in self.secondary_tree.scan_prefix(&sec_key_bytes) {
             let (composite_key, _) = item?;
             // Extract primary key from composite key (skip secondary key bytes)
             let prim_key_start = sec_key_bytes.len();

@@ -185,12 +185,12 @@ where
 
     /// Open a tree for a specific model type
     /// This creates a tree abstraction that wraps redb table operations
+    /// Stores models directly without Definition enum wrapping for optimal performance
     pub fn open_tree<M>(&self) -> RedbStoreTree<D, M>
     where
-        M: NetabaseModelTrait<D> + TryFrom<D> + Into<D>,
+        M: NetabaseModelTrait<D> + Debug + bincode::Decode<()>,
         M::PrimaryKey: Debug + bincode::Decode<()> + Ord,
         M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq,
-        D: TryFrom<M> + ToIVec + Debug,
     {
         RedbStoreTree::new(Arc::clone(&self.db), M::DISCRIMINANT)
     }
@@ -256,14 +256,18 @@ where
 {
     db: Arc<Database>,
     discriminant: D::Discriminant,
+    /// Cached table name string with 'static lifetime (leaked once)
+    table_name: &'static str,
+    /// Cached secondary table name string with 'static lifetime (leaked once)
+    secondary_table_name: &'static str,
     _phantom_d: PhantomData<D>,
     _phantom_m: PhantomData<M>,
 }
 
 impl<D, M> RedbStoreTree<D, M>
 where
-    D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + Debug,
-    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D>,
+    D: NetabaseDefinitionTrait,
+    M: NetabaseModelTrait<D> + Debug + bincode::Decode<()>,
     M::PrimaryKey: Debug + bincode::Decode<()> + Ord,
     M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq,
     <D as IntoDiscriminant>::Discriminant: Clone
@@ -291,26 +295,36 @@ where
 {
     /// Create a new RedbStoreTree with shared database access
     /// Uses discriminant directly instead of string conversion
+    /// Caches table names to avoid memory leaks on every operation
     fn new(db: Arc<Database>, discriminant: D::Discriminant) -> Self {
+        // Leak the table name strings once during construction
+        let table_name = discriminant.to_string();
+        let table_name_static: &'static str = Box::leak(table_name.into_boxed_str());
+
+        let sec_name = format!("{}_secondary", discriminant.as_ref());
+        let sec_name_static: &'static str = Box::leak(sec_name.into_boxed_str());
+
         Self {
             db,
             discriminant,
+            table_name: table_name_static,
+            secondary_table_name: sec_name_static,
             _phantom_d: PhantomData,
             _phantom_m: PhantomData,
         }
     }
 
     /// Get the table definition for this tree using typed keys and values
+    /// Uses cached table name to avoid allocations and memory leaks
+    /// Stores model M directly instead of Definition enum D for better performance
     fn table_def(
         &self,
-    ) -> TableDefinition<'static, BincodeWrapper<M::PrimaryKey>, BincodeWrapper<D>> {
-        // Leak the discriminant string to get 'static lifetime - acceptable for table definitions
-        let table_name = self.discriminant.to_string();
-        let static_name: &'static str = Box::leak(table_name.into_boxed_str());
-        TableDefinition::new(static_name)
+    ) -> TableDefinition<'static, BincodeWrapper<M::PrimaryKey>, BincodeWrapper<M>> {
+        TableDefinition::new(self.table_name)
     }
 
     /// Get the table definition for secondary keys
+    /// Uses cached table name to avoid allocations and memory leaks
     fn secondary_table_def(
         &self,
     ) -> TableDefinition<
@@ -318,20 +332,14 @@ where
         BincodeWrapper<(M::SecondaryKeys, M::PrimaryKey)>,
         BincodeWrapper<()>,
     > {
-        // Use discriminant-based naming for secondary tables
-        // Leak the string to get 'static lifetime - this is acceptable for table definitions
-        let sec_name = format!("{}_secondary", self.discriminant.as_ref());
-        let static_name: &'static str = Box::leak(sec_name.into_boxed_str());
-        TableDefinition::new(static_name)
+        TableDefinition::new(self.secondary_table_name)
     }
 
     /// Insert or update a model in the tree
-    pub fn put(&self, model: M) -> Result<(), NetabaseError>
-    where
-        D: From<M>,
-    {
+    /// Stores model directly without Definition enum wrapper for optimal performance
+    pub fn put(&self, model: M) -> Result<(), NetabaseError> {
         let primary_key = model.primary_key();
-        let definition: D = model.clone().into();
+        let secondary_keys = model.secondary_keys();
 
         let table_def = self.table_def();
         let sec_table_def = self.secondary_table_def();
@@ -339,11 +347,10 @@ where
         // Begin write transaction
         let write_txn = self.db.as_ref().begin_write()?;
 
-        // Handle secondary keys in the same transaction
-        let secondary_keys = model.secondary_keys();
+        // Store model directly (no enum wrapping, no clone needed)
         {
             let mut table = write_txn.open_table(table_def)?;
-            table.insert(&primary_key, &definition)?;
+            table.insert(&primary_key, &model)?;
 
             if !secondary_keys.is_empty() {
                 let mut sec_table = write_txn.open_table(sec_table_def)?;
@@ -368,6 +375,7 @@ where
     }
 
     /// Get a model by its primary key
+    /// Reads model directly without Definition enum unwrapping
     pub fn get(&self, key: M::PrimaryKey) -> Result<Option<M>, NetabaseError> {
         let table_def = self.table_def();
 
@@ -381,12 +389,9 @@ where
         };
 
         match table.get(&key)? {
-            Some(definition_guard) => {
-                let definition: D = definition_guard.value();
-                match M::try_from(definition) {
-                    Ok(model) => Ok(Some(model)),
-                    Err(_) => Ok(None),
-                }
+            Some(model_guard) => {
+                let model: M = model_guard.value();
+                Ok(Some(model))
             }
             None => Ok(None),
         }
@@ -446,15 +451,7 @@ where
             let (key_guard, value_guard) = item?;
 
             let key: M::PrimaryKey = key_guard.value();
-            let definition: D = value_guard.value();
-
-            let model = M::try_from(definition).map_err(|_| {
-                crate::error::NetabaseError::Conversion(
-                    crate::error::EncodingDecodingError::Decoding(
-                        bincode::error::DecodeError::Other("Type conversion failed"),
-                    ),
-                )
-            })?;
+            let model: M = value_guard.value();
 
             results.push((key, model));
         }
@@ -570,8 +567,8 @@ where
 // Implement the unified NetabaseTreeSync trait for RedbStoreTree
 impl<D, M> NetabaseTreeSync<D, M> for RedbStoreTree<D, M>
 where
-    D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + Debug + From<M>,
-    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone,
+    D: NetabaseDefinitionTrait,
+    M: NetabaseModelTrait<D> + Debug + bincode::Decode<()>,
     M::PrimaryKey: Debug + bincode::Decode<()> + Ord + Clone,
     M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq,
     <D as IntoDiscriminant>::Discriminant: Clone

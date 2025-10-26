@@ -40,7 +40,7 @@ mod visitors;
 ///
 /// ## Basic Model with Primary Key Only
 ///
-/// ```ignore
+/// ```
 /// use netabase_store::NetabaseModel;
 ///
 /// #[derive(NetabaseModel, Clone, Debug,
@@ -59,7 +59,7 @@ mod visitors;
 ///
 /// ## Model with Secondary Keys
 ///
-/// ```ignore
+/// ```
 /// #[derive(NetabaseModel, Clone, Debug,
 ///          bincode::Encode, bincode::Decode,
 ///          serde::Serialize, serde::Deserialize)]
@@ -115,7 +115,7 @@ pub fn netabase_model_derive(input: TokenStream) -> TokenStream {
 ///
 /// # Usage
 ///
-/// ```ignore
+/// ```
 /// #[derive(NetabaseModel, ...)]
 /// #[netabase(MyDefinition)]  // Links this model to MyDefinition
 /// pub struct MyModel {
@@ -143,7 +143,7 @@ pub fn netabase(defs: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// # Syntax
 ///
-/// ```ignore
+/// ```
 /// #[netabase_definition_module(DefinitionName, KeysEnumName)]
 /// mod my_schema {
 ///     use super::*;  // Import NetabaseModel, netabase
@@ -162,13 +162,13 @@ pub fn netabase(defs: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// For a module with models `User` and `Post`, this generates:
 ///
-/// ```ignore
-/// pub enum MyDefinition {
+/// ```
+/// pub enum DefinitionName {
 ///     User(User),
 ///     Post(Post),
 /// }
 ///
-/// pub enum MyKeys {
+/// pub enum KeysEnumName {
 ///     UserPrimary(UserPrimaryKey),
 ///     UserSecondary(UserSecondaryKeys),
 ///     PostPrimary(PostPrimaryKey),
@@ -181,7 +181,7 @@ pub fn netabase(defs: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// # Complete Example
 ///
-/// ```ignore
+/// ```
 /// use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
 ///
 /// #[netabase_definition_module(BlogSchema, BlogKeys)]
