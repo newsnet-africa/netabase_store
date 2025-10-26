@@ -8,6 +8,7 @@ pub struct ModelKeyInfo<'ast> {
     pub secondary_keys: Vec<&'ast Field>,
 }
 
+#[allow(dead_code)]
 pub struct ModelLinkInfo<'ast> {
     pub link_path: Punctuated<PathSegment, Token![::]>,
     pub link_field: &'ast Field,

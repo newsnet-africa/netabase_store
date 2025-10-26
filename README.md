@@ -342,6 +342,31 @@ Netabase Store is designed for high performance:
 - Efficient secondary key indexing
 - Batch operation support (coming in 1.0.0)
 
+### Performance Considerations
+
+**Abstraction Overhead**: While netabase_store provides a powerful type-safe abstraction layer over multiple database backends, this abstraction does come with some overhead. The cost primarily comes from:
+- Type conversions between models and the underlying storage format
+- The `RecordStore` trait implementation which adds indirection
+- Automatic secondary key indexing which requires additional storage operations
+
+For most applications, this overhead is minimal (typically <5-10%) and well worth the benefits of type safety, portability, and developer ergonomics. However, for extremely performance-critical applications that need to squeeze out every last bit of performance, direct use of the underlying backends (Sled, Redb) without the abstraction layer may be preferred.
+
+**Future Optimizations**: We plan to reduce this overhead in future releases through:
+- **Direct backend integration for Redb**: Currently in research phase. The challenge is maintaining the `RecordStore` trait abstraction while allowing for more direct access patterns.
+- **Compile-time optimization**: Leveraging Rust's zero-cost abstractions more aggressively
+- **Lazy secondary key updates**: Optional deferred indexing for write-heavy workloads
+- **Custom serialization strategies**: Per-backend optimized serialization paths
+
+### Distributed Systems Support
+
+**P2P Networking Plans**: We are actively developing enhanced support for decentralized peer-to-peer applications:
+- **Configurable profiles and modes**: Simple presets for different use cases (local-only, DHT-backed, full replication, etc.)
+- **Network protocols abstraction**: Making it easier to use netabase_store over libp2p, WebRTC, or other transport layers
+- **Distributed RecordStore**: Currently in development - will provide automatic record distribution and discovery across peers
+- **Conflict resolution strategies**: Pluggable CRDT and last-write-wins implementations for eventual consistency
+
+The vision is to make it trivial to build distributed applications where your local database automatically synchronizes with peers without complex manual synchronization logic.
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.

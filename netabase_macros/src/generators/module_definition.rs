@@ -2,7 +2,6 @@ use syn::{Ident, ItemEnum};
 
 use crate::{
     generators::module_definition::def_gen::{generate_enums, generate_into_inner},
-    util::append_ident,
     visitors::definitions_visitor::DefinitionsVisitor,
 };
 
@@ -45,11 +44,11 @@ impl<'a> DefinitionsVisitor<'a> {
 
 pub mod def_gen {
     use syn::{
-        Arm, ExprMatch, Ident, ItemEnum, ItemStruct, PathSegment, Token, Variant, parse_quote,
+        Arm, Ident, ItemEnum, ItemStruct, PathSegment, Token, Variant, parse_quote,
         punctuated::Punctuated,
     };
 
-    use crate::{item_info::netabase_definitions::ModuleInfo, util::append_ident};
+    use crate::item_info::netabase_definitions::ModuleInfo;
 
     pub fn generate_model_variants(
         structs: &Vec<&ItemStruct>,

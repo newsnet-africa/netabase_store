@@ -1,11 +1,13 @@
 use thiserror::Error;
 
+#[allow(dead_code)]
 #[derive(Error, Debug)]
 pub enum MacroError {
     #[error("There was an error parsing a derive Macro: {0:?}")]
     Derive(#[from] DeriveError),
 }
 
+#[allow(dead_code)]
 #[derive(Error, Debug)]
 pub enum DeriveError {
     #[error("Failed to parse Netabase Model")]

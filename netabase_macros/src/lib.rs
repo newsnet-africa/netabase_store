@@ -129,7 +129,7 @@ pub fn netabase_model_derive(input: TokenStream) -> TokenStream {
 /// - [`netabase_definition_module`] - The macro that processes this attribute
 /// - [`NetabaseModel`] - Must be derived on the same struct
 #[proc_macro_attribute]
-pub fn netabase(defs: TokenStream, input: TokenStream) -> TokenStream {
+pub fn netabase(_defs: TokenStream, input: TokenStream) -> TokenStream {
     input
 }
 

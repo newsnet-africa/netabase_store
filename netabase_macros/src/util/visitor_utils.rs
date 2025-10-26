@@ -69,7 +69,7 @@ impl<'a> DefinitionsVisitor<'a> {
         i.attrs.iter().any(|att| {
             if att.path().is_ident("derive") {
                 let mut result = false;
-                att.parse_nested_meta(|meta| {
+                let _ = att.parse_nested_meta(|meta| {
                     if meta.path.is_ident(contains) {
                         result = true;
                         return Ok(());

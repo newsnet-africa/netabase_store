@@ -25,21 +25,29 @@ use crate::{MaybeSend, MaybeSync};
 /// # Examples
 ///
 /// ```
-/// use netabase_store::NetabaseModel;
+/// use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+/// use netabase_store::traits::model::NetabaseModelTrait;
 ///
-/// #[derive(NetabaseModel, Clone, Debug, PartialEq,
-///          bincode::Encode, bincode::Decode,
-///          serde::Serialize, serde::Deserialize)]
-/// #[netabase(MyDefinition)]
-/// pub struct User {
-///     #[primary_key]
-///     pub id: u64,           // Unique identifier
-///     pub name: String,       // Regular field
-///     #[secondary_key]
-///     pub email: String,      // Can query by email
-///     #[secondary_key]
-///     pub age: u32,           // Can query by age
+/// #[netabase_definition_module(MyDefinition, MyKeys)]
+/// mod my_models {
+///     use super::*;
+///     use netabase_store::{NetabaseModel, netabase};
+///
+///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+///              bincode::Encode, bincode::Decode,
+///              serde::Serialize, serde::Deserialize)]
+///     #[netabase(MyDefinition)]
+///     pub struct User {
+///         #[primary_key]
+///         pub id: u64,           // Unique identifier
+///         pub name: String,       // Regular field
+///         #[secondary_key]
+///         pub email: String,      // Can query by email
+///         #[secondary_key]
+///         pub age: u32,           // Can query by age
+///     }
 /// }
+/// use my_models::*;
 ///
 /// // Usage
 /// let user = User { id: 1, name: "Alice".into(), email: "alice@example.com".into(), age: 30 };

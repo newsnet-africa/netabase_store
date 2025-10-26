@@ -18,7 +18,7 @@ pub mod definitions {
 }
 
 fn main() {
-    let mut db = netabase_store::databases::sled_store::SledStore::<ExampleDefs>::temp()
+    let db = netabase_store::databases::sled_store::SledStore::<ExampleDefs>::temp()
         .expect("The store failed to open");
     let user_tree = db.open_tree::<User>();
     let user = User {

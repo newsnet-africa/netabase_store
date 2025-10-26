@@ -75,11 +75,34 @@
 //! ### Using Sled Backend (Native)
 //!
 //! ```rust
+//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
 //! use netabase_store::databases::sled_store::SledStore;
 //! use netabase_store::traits::tree::NetabaseTreeSync;
+//! use netabase_store::traits::model::NetabaseModelTrait;
+//!
+//! // Define schema for this example
+//! #[netabase_definition_module(BlogDefinition, BlogKeys)]
+//! mod blog {
+//!     use super::*;
+//!     use netabase_store::{NetabaseModel, netabase};
+//!
+//!     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+//!              bincode::Encode, bincode::Decode,
+//!              serde::Serialize, serde::Deserialize)]
+//!     #[netabase(BlogDefinition)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: u64,
+//!         pub username: String,
+//!         #[secondary_key]
+//!         pub email: String,
+//!         pub age: u32,
+//!     }
+//! }
+//! use blog::*;
 //!
 //! // Open a database
-//! let store = SledStore::<BlogDefinition>::new("./my_database").unwrap();
+//! let store = SledStore::<BlogDefinition>::temp().unwrap();
 //!
 //! // Get a type-safe tree for the User model
 //! let user_tree = store.open_tree::<User>();
@@ -96,14 +119,12 @@
 //! user_tree.put(alice.clone()).unwrap();
 //!
 //! // Retrieve by primary key
-//! let retrieved = user_tree.get(UserPrimaryKey(1)).unwrap().unwrap();
+//! let retrieved = user_tree.get(alice.primary_key()).unwrap().unwrap();
 //! assert_eq!(retrieved, alice);
 //!
 //! // Query by secondary key (email)
 //! let users_by_email = user_tree
-//!     .get_by_secondary_key(UserSecondaryKeys::EmailKey(
-//!         "alice@example.com".to_string()
-//!     ))
+//!     .get_by_secondary_key(alice.secondary_keys()[0].clone())
 //!     .unwrap();
 //! assert_eq!(users_by_email.len(), 1);
 //!
@@ -113,12 +134,14 @@
 //! user_tree.put(alice_updated).unwrap();
 //!
 //! // Remove the user
-//! user_tree.remove(UserPrimaryKey(1)).unwrap();
+//! user_tree.remove(alice.primary_key()).unwrap();
 //! ```
 //!
 //! ### Using Redb Backend (Native)
 //!
-//! ```rust
+//! ```rust,no_run
+//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//!
 //! // Define your schema with the definition module macro
 //! #[netabase_definition_module(BlogDefinition, BlogKeys)]
 //! mod blog {
@@ -182,19 +205,46 @@
 //!
 //! ### Using IndexedDB Backend (WASM)
 //!
-//! ```rust
-//! use netabase_store::databases::indexeddb_store::IndexedDBStore;
-//! use netabase_store::traits::tree::NetabaseTreeAsync;
-//!
+//! ```rust,no_run
+//! # // This example requires the 'wasm' feature and can only run in a browser
+//! # #[cfg(all(target_arch = "wasm32", feature = "wasm"))]
+//! # async fn example() {
+//! # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//! # use netabase_store::databases::indexeddb_store::IndexedDBStore;
+//! # use netabase_store::traits::tree::NetabaseTreeAsync;
+//! # use netabase_store::traits::model::NetabaseModelTrait;
+//! #
+//! # #[netabase_definition_module(BlogDefinition, BlogKeys)]
+//! # mod blog {
+//! #     use super::*;
+//! #     use netabase_store::{NetabaseModel, netabase};
+//! #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+//! #              bincode::Encode, bincode::Decode,
+//! #              serde::Serialize, serde::Deserialize)]
+//! #     #[netabase(BlogDefinition)]
+//! #     pub struct User {
+//! #         #[primary_key]
+//! #         pub id: u64,
+//! #         pub username: String,
+//! #         #[secondary_key]
+//! #         pub email: String,
+//! #     }
+//! # }
+//! # use blog::*;
+//! #
 //! // Open a database in the browser
 //! let store = IndexedDBStore::<BlogDefinition>::new("my_app_db").await.unwrap();
 //!
 //! // Get an async tree (WASM uses async API)
 //! let user_tree = store.open_tree::<User>().await.unwrap();
 //!
+//! // Create a user
+//! let alice = User { id: 1, username: "alice".into(), email: "alice@example.com".into() };
+//!
 //! // Async operations
-//! user_tree.put(alice).await.unwrap();
-//! let retrieved = user_tree.get(UserPrimaryKey(1)).await.unwrap().unwrap();
+//! user_tree.put(alice.clone()).await.unwrap();
+//! let retrieved = user_tree.get(alice.primary_key()).await.unwrap().unwrap();
+//! # }
 //! ```
 //!
 //! ## Architecture
@@ -227,11 +277,38 @@
 //! Secondary keys enable efficient querying by non-primary fields:
 //!
 //! ```rust
+//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//! use netabase_store::databases::sled_store::SledStore;
+//! use netabase_store::traits::tree::NetabaseTreeSync;
+//! use netabase_store::traits::model::NetabaseModelTrait;
+//!
+//! #[netabase_definition_module(BlogDefinition, BlogKeys)]
+//! mod blog {
+//!     use super::*;
+//!     use netabase_store::{NetabaseModel, netabase};
+//!     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+//!              bincode::Encode, bincode::Decode,
+//!              serde::Serialize, serde::Deserialize)]
+//!     #[netabase(BlogDefinition)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: u64,
+//!         pub username: String,
+//!         #[secondary_key]
+//!         pub email: String,
+//!     }
+//! }
+//! use blog::*;
+//!
+//! let store = SledStore::<BlogDefinition>::temp().unwrap();
+//! let user_tree = store.open_tree::<User>();
+//!
+//! let user = User { id: 1, username: "alice".into(), email: "alice@example.com".into() };
+//! user_tree.put(user.clone()).unwrap();
+//!
 //! // Query by email (secondary key)
 //! let users = user_tree
-//!     .get_by_secondary_key(UserSecondaryKeys::EmailKey(
-//!         "alice@example.com".to_string()
-//!     ))
+//!     .get_by_secondary_key(user.secondary_keys()[0].clone())
 //!     .unwrap();
 //!
 //! // Multiple users can have the same secondary key value
@@ -245,9 +322,33 @@
 //! Iterate over all records in a tree:
 //!
 //! ```rust
+//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//! use netabase_store::databases::sled_store::SledStore;
+//!
+//! #[netabase_definition_module(BlogDefinition, BlogKeys)]
+//! mod blog {
+//!     use super::*;
+//!     use netabase_store::{NetabaseModel, netabase};
+//!     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+//!              bincode::Encode, bincode::Decode,
+//!              serde::Serialize, serde::Deserialize)]
+//!     #[netabase(BlogDefinition)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: u64,
+//!         pub username: String,
+//!         #[secondary_key]
+//!         pub email: String,
+//!     }
+//! }
+//! use blog::*;
+//!
+//! let store = SledStore::<BlogDefinition>::temp().unwrap();
+//! let user_tree = store.open_tree::<User>();
+//!
 //! // Iterate over all users
 //! for result in user_tree.iter() {
-//!     let user = result.unwrap();
+//!     let (_key, user) = result.unwrap();
 //!     println!("User: {} ({})", user.username, user.email);
 //! }
 //! ```
@@ -257,11 +358,32 @@
 //! Use temporary databases for testing:
 //!
 //! ```rust
+//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//! use netabase_store::databases::sled_store::SledStore;
+//! use netabase_store::traits::tree::NetabaseTreeSync;
+//!
+//! #[netabase_definition_module(BlogDefinition, BlogKeys)]
+//! mod blog {
+//!     use super::*;
+//!     use netabase_store::{NetabaseModel, netabase};
+//!     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+//!              bincode::Encode, bincode::Decode,
+//!              serde::Serialize, serde::Deserialize)]
+//!     #[netabase(BlogDefinition)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: u64,
+//!         pub username: String,
+//!     }
+//! }
+//! use blog::*;
+//!
 //! // Create an in-memory database for testing
 //! let store = SledStore::<BlogDefinition>::temp().unwrap();
 //! let user_tree = store.open_tree::<User>();
 //!
 //! // Perform test operations
+//! let test_user = User { id: 1, username: "test".into() };
 //! user_tree.put(test_user).unwrap();
 //! // ... assertions
 //! ```
@@ -270,11 +392,27 @@
 //!
 //! When using the `libp2p` feature, stores can be used as record stores for Kademlia DHT:
 //!
-//! ```rust
-//! use libp2p::kad::{Behaviour, RecordStore};
-//!
+//! ```rust,no_run
+//! # // This example requires the 'libp2p' feature
+//! # #[cfg(feature = "libp2p")]
+//! # fn example() {
+//! # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//! # use netabase_store::databases::sled_store::SledStore;
+//! # use libp2p::kad::{Behaviour, RecordStore};
+//! # use libp2p::identity::Keypair;
+//! # #[netabase_definition_module(MyDefinition, MyKeys)]
+//! # mod my { use super::*; use netabase_store::{NetabaseModel, netabase};
+//! #   #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode,
+//! #            serde::Serialize, serde::Deserialize)]
+//! #   #[netabase(MyDefinition)]
+//! #   pub struct MyModel { #[primary_key] pub id: u64 }
+//! # }
+//! # use my::*;
 //! let store = SledStore::<MyDefinition>::new("./dht_store").unwrap();
+//! let keypair = Keypair::generate_ed25519();
+//! let peer_id = keypair.public().to_peer_id();
 //! let kad_behaviour = Behaviour::new(peer_id, store);
+//! # }
 //! ```
 //!
 //! ## Performance Considerations
@@ -296,7 +434,32 @@
 //! All operations return `Result<T, NetabaseError>`:
 //!
 //! ```rust
-//! match user_tree.get(UserPrimaryKey(1)) {
+//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//! use netabase_store::databases::sled_store::SledStore;
+//! use netabase_store::traits::tree::NetabaseTreeSync;
+//! use netabase_store::traits::model::NetabaseModelTrait;
+//!
+//! #[netabase_definition_module(BlogDefinition, BlogKeys)]
+//! mod blog {
+//!     use super::*;
+//!     use netabase_store::{NetabaseModel, netabase};
+//!     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+//!              bincode::Encode, bincode::Decode,
+//!              serde::Serialize, serde::Deserialize)]
+//!     #[netabase(BlogDefinition)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: u64,
+//!         pub username: String,
+//!     }
+//! }
+//! use blog::*;
+//!
+//! let store = SledStore::<BlogDefinition>::temp().unwrap();
+//! let user_tree = store.open_tree::<User>();
+//!
+//! let user = User { id: 1, username: "alice".into() };
+//! match user_tree.get(user.primary_key()) {
 //!     Ok(Some(user)) => println!("Found: {}", user.username),
 //!     Ok(None) => println!("User not found"),
 //!     Err(e) => eprintln!("Database error: {}", e),

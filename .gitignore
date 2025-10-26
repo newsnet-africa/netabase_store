@@ -1,4 +1,5 @@
 */target/*
 target
-target
-target
+*_database
+*_data
+*.db

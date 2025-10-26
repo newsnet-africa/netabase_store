@@ -27,7 +27,27 @@ use crate::error::NetabaseError;
 /// ## Writing Backend-Agnostic Code
 ///
 /// ```
+/// use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+/// use netabase_store::databases::sled_store::SledStore;
 /// use netabase_store::traits::tree::NetabaseTreeSync;
+/// use netabase_store::error::NetabaseError;
+///
+/// #[netabase_definition_module(MyDefinition, MyKeys)]
+/// mod my_models {
+///     use super::*;
+///     use netabase_store::{NetabaseModel, netabase};
+///
+///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+///              bincode::Encode, bincode::Decode,
+///              serde::Serialize, serde::Deserialize)]
+///     #[netabase(MyDefinition)]
+///     pub struct User {
+///         #[primary_key]
+///         pub id: u64,
+///         pub name: String,
+///     }
+/// }
+/// use my_models::*;
 ///
 /// // This function works with ANY backend
 /// fn count_users<T>(tree: &T) -> Result<usize, NetabaseError>
@@ -38,14 +58,10 @@ use crate::error::NetabaseError;
 /// }
 ///
 /// // Use with Sled
-/// let sled_store = SledStore::temp()?;
+/// let sled_store = SledStore::<MyDefinition>::temp().unwrap();
 /// let sled_tree = sled_store.open_tree::<User>();
-/// let count1 = count_users(&sled_tree)?;
-///
-/// // Use with Redb
-/// let redb_store = RedbStore::new("./db")?;
-/// let redb_tree = redb_store.open_tree::<User>();
-/// let count2 = count_users(&redb_tree)?;
+/// let count1 = count_users(&sled_tree).unwrap();
+/// assert_eq!(count1, 0);
 /// ```
 ///
 /// # See Also
