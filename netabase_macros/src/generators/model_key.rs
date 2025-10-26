@@ -17,22 +17,23 @@ impl<'a> ModelVisitor<'a> {
             Some(n) => append_ident(n, "Key"),
             None => panic!("Visitor error (parsing struct name?)"),
         };
-        (
-            p_keys,
-            secondary_newtypes,
-            secondary_keys,
-            parse_quote!(
-                #[derive(Debug, Clone,
-                ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::TryInto,
-                    ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode
-                )]
-                #[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
-                pub enum #name {
-                    Primary(#primary_key_id),
-                    Secondary(#secondary_key_id),
-                }
-            ),
-        )
+        let mut keys_enum: ItemEnum = parse_quote!(
+            #[derive(Debug, Clone,
+            ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::TryInto,
+                ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode
+            )]
+            pub enum #name {
+                Primary(#primary_key_id),
+                Secondary(#secondary_key_id),
+            }
+        );
+
+        if cfg!(feature = "uniffi") {
+            let uniffi_attr: syn::Attribute = parse_quote!(#[derive(uniffi::Enum)]);
+            keys_enum.attrs.push(uniffi_attr);
+        }
+
+        (p_keys, secondary_newtypes, secondary_keys, keys_enum)
     }
 
     pub fn generate_model_trait_impl(&self) -> Vec<proc_macro2::TokenStream> {
