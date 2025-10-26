@@ -5,7 +5,7 @@ edition = "2024"
 license = "GPL-3.0-only"
 licence-file = "LICENCE"
 repository = "https://github.com/newsnet-africa/netabase_store.git"
-keywords = ["kv", "key-value", "storage", "wrapper", "redb", "libp2p", "wasm"]
+keywords = ["key-value", "storage", "wrapper", "libp2p", "wasm"]
 categories = ["databases"]
 
 [lib]
