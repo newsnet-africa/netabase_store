@@ -28,11 +28,6 @@ impl<'a> ModelVisitor<'a> {
             }
         );
 
-        if cfg!(feature = "uniffi") {
-            let uniffi_attr: syn::Attribute = parse_quote!(#[derive(uniffi::Enum)]);
-            keys_enum.attrs.push(uniffi_attr);
-        }
-
         (p_keys, secondary_newtypes, secondary_keys, keys_enum)
     }
 
@@ -133,7 +128,6 @@ mod key_gen {
                 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::Into,
                     ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode
                 )]
-                #[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
                 pub struct #name(pub #ty);
             )
         }
@@ -196,7 +190,6 @@ mod key_gen {
                     ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::TryInto,
                     ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode
                 )]
-                #[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
                 #[strum_discriminants(derive(::netabase_deps::strum::Display,
                 ::netabase_deps::strum::AsRefStr ))]
                 pub enum #name {
