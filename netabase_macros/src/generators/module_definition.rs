@@ -125,6 +125,11 @@ pub mod def_gen {
             }
         };
 
+        if cfg!(feature = "uniffi") {
+            let uniffi_attr: syn::Attribute = parse_quote!(#[derive(uniffi::Enum)]);
+            def_enum.attrs.push(uniffi_attr);
+        }
+
         let mut def_key_enum: ItemEnum = parse_quote! {
             #[derive(Debug, Clone, ::netabase_deps::strum::EnumDiscriminants,
                 ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::TryInto,
@@ -137,6 +142,11 @@ pub mod def_gen {
                 #(#keys),*
             }
         };
+
+        if cfg!(feature = "uniffi") {
+            let uniffi_attr: syn::Attribute = parse_quote!(#[derive(uniffi::Enum)]);
+            def_key_enum.attrs.push(uniffi_attr);
+        }
 
         (def_enum, def_key_enum)
     }
