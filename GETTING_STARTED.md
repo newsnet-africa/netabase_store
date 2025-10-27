@@ -7,83 +7,32 @@ Add these to your `Cargo.toml`:
 ```toml
 [dependencies]
 # The main library
-netabase_store = { version = "0.1", features = ["native"] }
+netabase_store = "0.0.1"
+netabase_deps = "0.0.1"
 
 # Required for the macros to work
-bincode = "2.0.1"
+bincode = { version = "2.0", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 strum = { version = "0.27.2", features = ["derive"] }
-derive_more = "2.0.1"
+derive_more = { version = "2.0.1", features = ["from", "try_into", "into"] }
 anyhow = "1.0"  # For error handling
 ```
 
-For GitHub-hosted versions, use:
-
-```toml
-[dependencies]
-netabase_store = { git = "https://github.com/newsnet-africa/netabase_store.git", features = ["native"] }
-netabase_deps = { git = "https://github.com/newsnet-africa/netabase_store.git" }
-bincode = "2.0.1"
-serde = { version = "1.0", features = ["derive"] }
-strum = { version = "0.27.2", features = ["derive"] }
-derive_more = "2.0.1"
-anyhow = "1.0"
-```
-
-## Required Imports
-
-**IMPORTANT**: Inside your definition module, you MUST import the `netabase` attribute:
-
-```rust
-use netabase_store::{netabase_definition_module, NetabaseModel};
-
-#[netabase_definition_module(AppDefinition, AppKeys)]
-mod app {
-    use super::*;
-    use netabase_store::netabase;  // ⚠️  REQUIRED!
-
-    #[derive(
-        NetabaseModel,
-        Clone,
-        Debug,
-        bincode::Encode,
-        bincode::Decode,
-        serde::Serialize,
-        serde::Deserialize,
-    )]
-    #[netabase(AppDefinition)]  // Uses the imported attribute
-    pub struct User {
-        #[primary_key]
-        pub id: u64,
-        pub username: String,
-        #[secondary_key]
-        pub email: String,
-    }
-}
-
-use app::*;
-```
+**Why so many dependencies?** The macros generate code that uses `bincode`, `serde`, `strum`, and `derive_more`. Due to Rust's macro hygiene rules, these must be in your `Cargo.toml`. The `netabase_deps` crate provides internal dependencies used by the macros.
 
 ## Complete Working Example
 
+Here's a minimal, complete example that you can copy and paste:
+
 ```rust
-use netabase_store::{netabase_definition_module, NetabaseModel};
+use netabase_store::netabase_definition_module;
+use netabase_store::traits::model::NetabaseModelTrait;
 
 #[netabase_definition_module(AppDefinition, AppKeys)]
-mod app {
-    use super::*;
-    use netabase_store::netabase;  // Required!
+pub mod app {
+    use netabase_store::{NetabaseModel, netabase};
 
-    #[derive(
-        NetabaseModel,
-        Clone,
-        Debug,
-        PartialEq,
-        bincode::Encode,
-        bincode::Decode,
-        serde::Serialize,
-        serde::Deserialize,
-    )]
+    #[derive(NetabaseModel, bincode::Encode, bincode::Decode, Clone, Debug)]
     #[netabase(AppDefinition)]
     pub struct User {
         #[primary_key]
@@ -91,7 +40,6 @@ mod app {
         pub username: String,
         #[secondary_key]
         pub email: String,
-        pub age: u32,
     }
 }
 
@@ -102,38 +50,32 @@ fn main() -> anyhow::Result<()> {
 
     // Create temporary database
     let store = SledStore::<AppDefinition>::temp()?;
-    
+
     // Open a tree for the User model
     let user_tree = store.open_tree::<User>();
-    
+
     // Create and insert a user
     let alice = User {
         id: 1,
         username: "alice".to_string(),
         email: "alice@example.com".to_string(),
-        age: 30,
     };
     user_tree.put(alice.clone())?;
-    
+
     // Retrieve by primary key
-    let retrieved = user_tree.get(UserPrimaryKey(1))?.unwrap();
-    assert_eq!(retrieved, alice);
-    
+    let retrieved = user_tree.get(alice.primary_key())?.unwrap();
+    println!("Retrieved: {:?}", retrieved);
+
     // Query by secondary key
     let users = user_tree.get_by_secondary_key(
-        UserSecondaryKeys::Email(EmailSecondaryKey("alice@example.com".to_string()))
+        alice.secondary_keys().first().unwrap().clone()
     )?;
-    assert_eq!(users.len(), 1);
-    
-    // Iterate (returns Result<(Key, Model)> tuples)
-    for result in user_tree.iter() {
-        let (_key, user) = result?;
-        println!("User: {} ({})", user.username, user.email);
-    }
-    
+    println!("Found {} users with that email", users.len());
+
     Ok(())
 }
 ```
+
 
 ## Common Mistakes
 
@@ -155,7 +97,16 @@ error: cannot find derive macro `Encode` in this scope
 
 **Fix:** Add all required dependencies to your `Cargo.toml` as shown above.
 
-### 3. Incorrect iteration pattern
+### 3. Missing `netabase_deps`
+
+**Error:**
+```
+error: failed to resolve: could not find `netabase_deps` in the list of imported crates
+```
+
+**Fix:** Add `netabase_deps = "0.0.1"` to your `Cargo.toml`.
+
+### 4. Incorrect iteration pattern
 
 **Error:**
 ```
