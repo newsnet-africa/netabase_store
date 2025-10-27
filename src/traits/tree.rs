@@ -1,7 +1,7 @@
-///! Unified trait interface for tree operations across different backends
-///!
-///! This module provides a uniform API for CRUD operations on netabase store trees,
-///! abstracting away the differences between SledStore, RedbStore, and IndexedDBStore.
+//! Unified trait interface for tree operations across different backends
+//!
+//! This module provides a uniform API for CRUD operations on netabase store trees,
+//! abstracting away the differences between SledStore, RedbStore, and IndexedDBStore.
 use crate::error::NetabaseError;
 
 /// Synchronous tree operations trait for native backends (SledStore, RedbStore).
@@ -66,9 +66,9 @@ use crate::error::NetabaseError;
 ///
 /// # See Also
 ///
-/// - [`SledStoreTree`](netabase_store::databases::sled_store::SledStoreTree) - Sled implementation
-/// - [`RedbStoreTree`](netabase_store::databases::redb_store::RedbStoreTree) - Redb implementation
-/// - [`NetabaseTreeAsync`] - Async version for WASM backends
+/// - [`crate::databases::sled_store::SledStoreTree`] - Sled implementation
+/// - [`crate::databases::redb_store::RedbStoreTree`] - Redb implementation
+#[cfg_attr(feature = "wasm", doc = "- [`NetabaseTreeAsync`] - Async version for WASM backends")]
 pub trait NetabaseTreeSync<D, M> {
     /// Insert or update a model in the tree
     ///

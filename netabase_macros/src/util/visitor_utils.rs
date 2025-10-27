@@ -72,7 +72,7 @@ impl<'a> DefinitionsVisitor<'a> {
                 let _ = att.parse_nested_meta(|meta| {
                     if meta.path.is_ident(contains) {
                         result = true;
-                        return Ok(());
+                        Ok(())
                     } else {
                         Err(meta.error("attribute is not derive"))
                     }

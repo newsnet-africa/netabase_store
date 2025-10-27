@@ -16,12 +16,12 @@ pub struct ModelVisitor<'ast> {
 impl<'a> Visit<'a> for ModelVisitor<'a> {
     fn visit_derive_input(&mut self, i: &'a syn::DeriveInput) {
         self.name = Some(&i.ident);
-        self.key = match ModelKeyInfo::find_keys(&extract_fields(&i)) {
+        self.key = match ModelKeyInfo::find_keys(extract_fields(i)) {
             Ok(k) => Some(k),
             Err(e) => panic!("Error parsing Model: {e}"),
         };
         self.definitions = Self::find_definitions(i);
-        self.links = ModelLinkInfo::find_link(&extract_fields(&i)).collect();
+        self.links = ModelLinkInfo::find_link(extract_fields(i)).collect();
     }
 }
 

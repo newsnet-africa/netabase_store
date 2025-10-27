@@ -51,7 +51,7 @@ pub mod def_gen {
     use crate::item_info::netabase_definitions::ModuleInfo;
 
     pub fn generate_model_variants(
-        structs: &Vec<&ItemStruct>,
+        structs: &[&ItemStruct],
         path: Punctuated<PathSegment, Token![::]>,
     ) -> Vec<Variant> {
         structs
@@ -86,7 +86,7 @@ pub mod def_gen {
     }
 
     pub fn generate_model_key_variants(
-        keys: &Vec<Ident>,
+        keys: &[Ident],
         path: Punctuated<PathSegment, Token![::]>,
     ) -> Vec<Variant> {
         keys.iter()

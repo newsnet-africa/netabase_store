@@ -551,11 +551,10 @@ where
                 composite_key_guard.value();
 
             // Check if the secondary key matches
-            if sec_key == secondary_key {
-                if let Some(model) = self.get(prim_key)? {
+            if sec_key == secondary_key
+                && let Some(model) = self.get(prim_key)? {
                     results.push(model);
                 }
-            }
         }
 
         Ok(results)

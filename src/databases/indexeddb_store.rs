@@ -179,6 +179,7 @@ where
     }
 
     /// Get the secondary store name using discriminant-based naming
+    #[allow(dead_code)]
     fn secondary_store_name(&self) -> String {
         format!("{}_secondary", self.discriminant.as_ref())
     }
@@ -197,7 +198,7 @@ where
     {
         let primary_key = model.primary_key();
         let key_bytes = bincode::encode_to_vec(&primary_key, bincode::config::standard())
-            .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+            .map_err(crate::error::EncodingDecodingError::from)?;
 
         let definition: D = model.clone().into();
         let value_bytes = definition.to_ivec()?;
@@ -225,7 +226,7 @@ where
             .map_err(|e| NetabaseError::Storage(format!("Failed to put value: {:?}", e)))?;
 
         // Wait for transaction to complete
-        let _ = tx
+        tx
             .await
             .into_result()
             .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
@@ -242,7 +243,7 @@ where
     /// Get a model by its primary key
     pub async fn get(&self, key: M::PrimaryKey) -> Result<Option<M>, NetabaseError> {
         let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())
-            .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+            .map_err(crate::error::EncodingDecodingError::from)?;
 
         let key_js = js_sys::Uint8Array::from(&key_bytes[..]);
 
@@ -294,7 +295,7 @@ where
         }
 
         let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())
-            .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+            .map_err(crate::error::EncodingDecodingError::from)?;
         let key_js = js_sys::Uint8Array::from(&key_bytes[..]);
 
         let store_name = self.store_name();
@@ -316,7 +317,7 @@ where
             .await
             .map_err(|e| NetabaseError::Storage(format!("Delete request failed: {:?}", e)))?;
 
-        let _ = tx
+        tx
             .await
             .into_result()
             .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
@@ -379,7 +380,7 @@ where
             .await
             .map_err(|e| NetabaseError::Storage(format!("Clear request failed: {:?}", e)))?;
 
-        let _ = tx
+        tx
             .await
             .into_result()
             .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
@@ -432,7 +433,7 @@ where
                     &key_bytes,
                     bincode::config::standard(),
                 )
-                .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+                .map_err(crate::error::EncodingDecodingError::from)?;
 
                 // Convert value
                 let value_array = js_sys::Uint8Array::new(&value_js);
@@ -482,9 +483,9 @@ where
         let sec_tree = self.open_secondary_tree("secondary");
 
         let mut composite_key = bincode::encode_to_vec(secondary_key, bincode::config::standard())
-            .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+            .map_err(crate::error::EncodingDecodingError::from)?;
         let prim_key_bytes = bincode::encode_to_vec(primary_key, bincode::config::standard())
-            .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+            .map_err(crate::error::EncodingDecodingError::from)?;
 
         composite_key.extend_from_slice(&prim_key_bytes);
 
@@ -503,9 +504,9 @@ where
         let sec_tree = self.open_secondary_tree("secondary");
 
         let mut composite_key = bincode::encode_to_vec(secondary_key, bincode::config::standard())
-            .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+            .map_err(crate::error::EncodingDecodingError::from)?;
         let prim_key_bytes = bincode::encode_to_vec(primary_key, bincode::config::standard())
-            .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+            .map_err(crate::error::EncodingDecodingError::from)?;
         composite_key.extend_from_slice(&prim_key_bytes);
 
         sec_tree.remove(&composite_key).await?;
@@ -524,7 +525,7 @@ where
         let sec_tree = self.open_secondary_tree("secondary");
 
         let sec_key_bytes = bincode::encode_to_vec(&secondary_key, bincode::config::standard())
-            .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+            .map_err(crate::error::EncodingDecodingError::from)?;
 
         let mut results = Vec::new();
 
@@ -536,7 +537,7 @@ where
                     &composite_key[prim_key_start..],
                     bincode::config::standard(),
                 )
-                .map_err(|e| crate::error::EncodingDecodingError::from(e))?;
+                .map_err(crate::error::EncodingDecodingError::from)?;
 
                 if let Some(model) = self.get(primary_key).await? {
                     results.push(model);
@@ -650,7 +651,7 @@ impl IndexedDBTree {
             .put_key_val(&key_js, &value_js)
             .map_err(|e| NetabaseError::Storage(format!("Failed to put value: {:?}", e)))?;
 
-        let _ = tx
+        tx
             .await
             .into_result()
             .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
@@ -710,7 +711,7 @@ impl IndexedDBTree {
             .await
             .map_err(|e| NetabaseError::Storage(format!("Delete request failed: {:?}", e)))?;
 
-        let _ = tx
+        tx
             .await
             .into_result()
             .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
@@ -796,7 +797,7 @@ impl IndexedDBTree {
             .await
             .map_err(|e| NetabaseError::Storage(format!("Clear request failed: {:?}", e)))?;
 
-        let _ = tx
+        tx
             .await
             .into_result()
             .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
