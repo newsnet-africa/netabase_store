@@ -71,60 +71,46 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-netabase_store = { version = "0.1", features = ["native"] }
+netabase_store = "0.0.1"
+netabase_deps = "0.0.1"
 
 # Required dependencies for macros to work
-bincode = "2.0.1"
+bincode = { version = "2.0", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 strum = { version = "0.27.2", features = ["derive"] }
-derive_more = "2.0.1"
+derive_more = { version = "2.0.1", features = ["from", "try_into", "into"] }
 anyhow = "1.0"  # For error handling
 
 # For WASM
-# netabase_store = { version = "0.1", features = ["wasm"] }
+# netabase_store = { version = "0.0.1", features = ["wasm"] }
+# netabase_deps = "0.0.1"
 ```
+
+**Why so many dependencies?** The procedural macros generate code that uses these crates. Due to Rust's macro hygiene rules, they must be available in your dependency list.
 
 ## Quick Start
 
 ### Define Your Schema
 
 ```rust
-use netabase_store::*;
+use netabase_store::netabase_definition_module;
+use netabase_store::traits::model::NetabaseModelTrait;
 
 #[netabase_definition_module(BlogDefinition, BlogKeys)]
-mod blog_schema {
-    use netabase_deps::{bincode, serde};
-    use netabase_macros::NetabaseModel;
-    use netabase_store::netabase;
+pub mod blog_schema {
+    use netabase_store::{NetabaseModel, netabase};
 
-    #[derive(
-        NetabaseModel,
-        Clone,
-        Debug,
-        bincode::Encode,
-        bincode::Decode,
-        serde::Serialize,
-        serde::Deserialize,
-    )]
+    #[derive(NetabaseModel, bincode::Encode, bincode::Decode, Clone, Debug)]
     #[netabase(BlogDefinition)]
     pub struct User {
         #[primary_key]
-        pub id: String,
+        pub id: u64,
         pub username: String,
-        pub email: String,
         #[secondary_key]
-        pub age: u32,
+        pub email: String,
     }
 
-    #[derive(
-        NetabaseModel,
-        Clone,
-        Debug,
-        bincode::Encode,
-        bincode::Decode,
-        serde::Serialize,
-        serde::Deserialize,
-    )]
+    #[derive(NetabaseModel, bincode::Encode, bincode::Decode, Clone, Debug)]
     #[netabase(BlogDefinition)]
     pub struct Post {
         #[primary_key]
@@ -132,7 +118,7 @@ mod blog_schema {
         pub title: String,
         pub content: String,
         #[secondary_key]
-        pub author_id: String,
+        pub author_id: u64,
     }
 }
 
@@ -144,29 +130,30 @@ use blog_schema::*;
 ```rust
 use netabase_store::databases::sled_store::SledStore;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a store
-    let store = SledStore::<BlogDefinition>::new("my_database")?;
+fn main() -> anyhow::Result<()> {
+    // Create a temporary store (or use ::new("path") for persistent)
+    let store = SledStore::<BlogDefinition>::temp()?;
 
     // Open a tree for users
     let user_tree = store.open_tree::<User>();
 
     // Insert a user
     let user = User {
-        id: "user123".to_string(),
+        id: 1,
         username: "alice".to_string(),
         email: "alice@example.com".to_string(),
-        age: 30,
     };
     user_tree.put(user.clone())?;
 
     // Get by primary key
-    let retrieved = user_tree.get(UserPrimaryKey(user.id.clone()))?.unwrap();
+    let retrieved = user_tree.get(user.primary_key())?.unwrap();
     assert_eq!(retrieved.username, "alice");
 
     // Query by secondary key
-    let users_age_30 = user_tree.get_by_secondary_key(UserSecondaryKeys::Age(AgeSecondaryKey(30)))?;
-    assert_eq!(users_age_30.len(), 1);
+    let users_by_email = user_tree.get_by_secondary_key(
+        user.secondary_keys().first().unwrap().clone()
+    )?;
+    assert_eq!(users_by_email.len(), 1);
 
     // Iterate over all users (iter() returns Result tuples)
     for result in user_tree.iter() {
@@ -183,18 +170,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```rust
 use netabase_store::databases::redb_store::RedbStore;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a store
+fn main() -> anyhow::Result<()> {
+    // Create a store (or use ::temp() for temporary)
     let store = RedbStore::<BlogDefinition>::new("my_database.redb")?;
 
     // API is identical to SledStore
     let user_tree = store.open_tree::<User>();
 
     let user = User {
-        id: "user456".to_string(),
+        id: 2,
         username: "bob".to_string(),
         email: "bob@example.com".to_string(),
-        age: 25,
     };
     user_tree.put(user)?;
 
