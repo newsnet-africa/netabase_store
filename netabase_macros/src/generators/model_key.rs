@@ -4,7 +4,7 @@ use crate::{util::append_ident, visitors::model_visitor::ModelVisitor};
 
 impl<'a> ModelVisitor<'a> {
     pub fn generate_keys(&self) -> (ItemStruct, Vec<ItemStruct>, ItemEnum, ItemEnum) {
-        let p_keys = match Self::generate_primary_key(&self) {
+        let p_keys = match Self::generate_primary_key(self) {
             Ok(k) => k,
             Err(e) => panic!("{}", e),
         };
@@ -36,7 +36,7 @@ impl<'a> ModelVisitor<'a> {
             Some(n) => n,
             None => panic!("Visitor error (parsing struct name?)"),
         };
-        let primary_key_ty = match Self::generate_primary_key(&self) {
+        let primary_key_ty = match Self::generate_primary_key(self) {
             Ok(k) => k.ident,
             Err(e) => panic!("{}", e),
         };
@@ -122,7 +122,7 @@ mod key_gen {
     };
 
     impl<'a> ModelVisitor<'a> {
-        fn generate_newtype<'ast>(field: &'ast Field, name: &Ident) -> ItemStruct {
+        fn generate_newtype(field: &Field, name: &Ident) -> ItemStruct {
             let ty = &field.ty;
             parse_quote!(
                 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::Into,
@@ -179,7 +179,7 @@ mod key_gen {
         }
 
         pub fn generate_secondary_keys(&self, keys: &Vec<(ItemStruct, Ident)>) -> ItemEnum {
-            let list = keys.iter().map(|f| Self::generate_variant(f));
+            let list = keys.iter().map(Self::generate_variant);
             let name = match &self.name {
                 Some(n) => &append_ident(n, "SecondaryKeys"),
                 None => panic!("Visitor not initialised"),

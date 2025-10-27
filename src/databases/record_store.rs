@@ -303,11 +303,9 @@ where
             .get(&key_bytes)
             .map_err(|_| Error::MaxRecords)?
             .is_none()
-        {
-            if self.record_count() >= config.max_records {
+            && self.record_count() >= config.max_records {
                 return Err(Error::MaxRecords);
             }
-        }
 
         tree.insert(key_bytes, record_bytes)
             .map_err(|_| Error::MaxRecords)?;
@@ -439,11 +437,10 @@ impl<'a> Iterator for RecordsIter<'a> {
             // Try to get next item from current iterator
             match self.tree_iters[self.current_index].next() {
                 Some(result) => {
-                    if let Ok((_, v)) = result {
-                        if let Ok(record) = dummy_util::decode_record(&v) {
+                    if let Ok((_, v)) = result
+                        && let Ok(record) = dummy_util::decode_record(&v) {
                             return Some(Cow::Owned(record));
                         }
-                    }
                     // Continue to next item on error
                     continue;
                 }
@@ -607,11 +604,10 @@ where
         // Try each table to find which one contains this key
         for disc in D::Discriminant::iter() {
             let table_def = Self::table_def_for_disc(&disc);
-            if let Ok(table) = read_txn.open_table(table_def) {
-                if table.get(key_bytes.as_slice()).ok().flatten().is_some() {
+            if let Ok(table) = read_txn.open_table(table_def)
+                && table.get(key_bytes.as_slice()).ok().flatten().is_some() {
                     return Ok(disc.to_string());
                 }
-            }
         }
 
         // If not found in any table, return the first table (for new inserts)
@@ -919,14 +915,13 @@ impl<'a> Iterator for RedbRecordsIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             // Try to get next item from current range
-            if let Some(range) = &mut self.current_range {
-                if let Some(Ok((_, v))) = range.next() {
+            if let Some(range) = &mut self.current_range
+                && let Some(Ok((_, v))) = range.next() {
                     if let Ok(record) = dummy_util::decode_record(v.value()) {
                         return Some(Cow::Owned(record));
                     }
                     continue;
                 }
-            }
 
             // Current range exhausted or doesn't exist, move to next table
             self.current_range = None;
@@ -950,14 +945,13 @@ impl<'a> Iterator for RedbRecordsIter<'a> {
                 TableDefinition::new(static_name)
             };
 
-            if let Ok(table) = read_txn.open_table(table_def) {
-                if let Ok(iter) = table.iter() {
+            if let Ok(table) = read_txn.open_table(table_def)
+                && let Ok(iter) = table.iter() {
                     self.current_read_txn = Some(read_txn);
                     // SAFETY: We're storing the transaction and the range has the same lifetime
                     self.current_range = Some(unsafe { std::mem::transmute(iter) });
                     continue;
                 }
-            }
         }
     }
 }

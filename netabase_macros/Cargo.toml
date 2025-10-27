@@ -4,7 +4,6 @@ version = "0.0.2"
 edition = "2024"
 description = "Macro crate for use by the netabase_store crate"
 license = "GPL-3.0-only"
-licence-file = "LICENCE"
 repository = "https://github.com/newsnet-africa/netabase_store.git"
 keywords = ["key-value", "storage", "wrapper", "libp2p", "wasm"]
 categories = ["database"]

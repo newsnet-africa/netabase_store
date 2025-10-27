@@ -6,9 +6,10 @@
 //!
 //! This crate is an implementation detail and should not be used directly by end users.
 
-/// Re-exports of all dependencies used by generated macro code.
-/// This ensures macro hygiene - users don't need to manually import these dependencies.
 pub mod __private {
+    //! Re-exports of all dependencies used by generated macro code.
+    //! This ensures macro hygiene - users don't need to manually import these dependencies.
+    //!
     //! Private re-exports for macro hygiene. Do not use directly.
     //!
     //! All Netabase macros automatically use these dependencies, making them completely
