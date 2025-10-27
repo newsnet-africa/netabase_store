@@ -1,3 +1,5 @@
+![crates.io](https://img.shields.io/crates/v/netabase_store.svg)
+
 # Netabase Store
 
 A type-safe, multi-backend key-value storage library for Rust with support for native (Sled, Redb) and WASM (IndexedDB) environments.
