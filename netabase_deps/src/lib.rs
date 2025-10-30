@@ -30,6 +30,12 @@ pub mod __private {
     /// Enum utilities and derive macros
     pub use strum;
 
+    /// Paxos consensus library
+    pub use paxakos;
+
+    /// Blake3 cryptographic hash function
+    pub use blake3;
+
     /// Standard library re-exports
     pub use std;
 }
@@ -40,3 +46,5 @@ pub use derive_more;
 pub use serde;
 pub use sled;
 pub use strum;
+pub use paxakos;
+pub use blake3;

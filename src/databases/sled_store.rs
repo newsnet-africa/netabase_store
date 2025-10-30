@@ -1,4 +1,6 @@
+use crate::definition::DynDefinition;
 use crate::error::NetabaseError;
+use crate::model::DynModel;
 use crate::traits::convert::ToIVec;
 use crate::traits::definition::NetabaseDefinitionTrait;
 use crate::traits::model::NetabaseModelTrait;
@@ -428,12 +430,11 @@ where
         SledStoreTree::new(&self.db, M::DISCRIMINANT)
     }
 
-    // pub fn open_tree_discriminant(
-    //     &self,
-    //     tree_discriminant: D::Discriminant,
-    // ) -> SledStoreTree<D, impl NetabaseModelTrait<D> + TryFrom<D> + Into<D>> {
-
-    // }
+    pub fn open_t(&self, _key: D::Keys) {
+        // TODO: Implement this method properly
+        // let _inner = key.inner();
+        // let _ = self.open_tree::<M>();
+    }
 
     /// Get all model discriminants (tree names) in the database schema.
     ///
@@ -1279,6 +1280,313 @@ where
 
     fn clear(&self) -> Result<(), NetabaseError> {
         self.clear()
+    }
+}
+
+// Implement StoreOps trait for SledStoreTree
+impl<D, M> crate::traits::store_ops::StoreOps<D, M> for SledStoreTree<D, M>
+where
+    D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
+    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + bincode::Decode<()>,
+    M::PrimaryKey: bincode::Decode<()> + Clone,
+    M::SecondaryKeys: bincode::Decode<()>,
+    <D as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
+{
+    fn put_raw(&self, model: M) -> Result<(), NetabaseError> {
+        // Store the model directly, not wrapped in Definition
+        let primary_key = model.primary_key();
+        let secondary_keys = model.secondary_keys();
+
+        let key_bytes = bincode::encode_to_vec(&primary_key, bincode::config::standard())
+            .map_err(crate::error::EncodingDecodingError::from)?;
+
+        // Store raw model directly (not wrapped in Definition)
+        let value_bytes = bincode::encode_to_vec(&model, bincode::config::standard())
+            .map_err(crate::error::EncodingDecodingError::from)?;
+
+        // Use batch for atomic operations
+        let mut batch = sled::Batch::default();
+        batch.insert(key_bytes, value_bytes);
+        self.tree.apply_batch(batch)?;
+
+        // Batch secondary key inserts
+        if !secondary_keys.is_empty() {
+            let mut sec_batch = sled::Batch::default();
+            for sec_key in secondary_keys {
+                let composite_key = self.build_composite_key(&sec_key, &primary_key)?;
+                sec_batch.insert(composite_key, &[] as &[u8]);
+            }
+            self.secondary_tree.apply_batch(sec_batch)?;
+        }
+
+        Ok(())
+    }
+
+    fn get_raw(&self, key: M::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+        // Get the model directly (not wrapped in Definition)
+        let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())
+            .map_err(crate::error::EncodingDecodingError::from)?;
+
+        match self.tree.get(key_bytes)? {
+            Some(ivec) => {
+                // Decode directly as model (not Definition)
+                let (model, _) =
+                    bincode::decode_from_slice::<M, _>(&ivec, bincode::config::standard())
+                        .map_err(crate::error::EncodingDecodingError::from)?;
+                Ok(Some(model))
+            }
+            None => Ok(None),
+        }
+    }
+
+    fn remove_raw(&self, key: M::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+        let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())
+            .map_err(crate::error::EncodingDecodingError::from)?;
+
+        match self.tree.remove(key_bytes)? {
+            Some(ivec) => {
+                // Decode directly as model (not Definition)
+                let (model, _) =
+                    bincode::decode_from_slice::<M, _>(&ivec, bincode::config::standard())
+                        .map_err(crate::error::EncodingDecodingError::from)?;
+
+                // Clean up secondary keys using batch
+                let secondary_keys = model.secondary_keys();
+                if !secondary_keys.is_empty() {
+                    let mut sec_batch = sled::Batch::default();
+                    for sec_key in &secondary_keys {
+                        let composite_key = self.build_composite_key(sec_key, &key)?;
+                        sec_batch.remove(composite_key);
+                    }
+                    self.secondary_tree.apply_batch(sec_batch)?;
+                }
+                Ok(Some(model))
+            }
+            None => Ok(None),
+        }
+    }
+
+    fn discriminant(&self) -> &str {
+        M::discriminant_name()
+    }
+}
+
+// Implement StoreOpsSecondary trait for SledStoreTree
+impl<D, M> crate::traits::store_ops::StoreOpsSecondary<D, M> for SledStoreTree<D, M>
+where
+    D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
+    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + bincode::Decode<()>,
+    M::PrimaryKey: bincode::Decode<()> + Clone,
+    M::SecondaryKeys: bincode::Decode<()>,
+    <D as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
+{
+    fn get_by_secondary_key_raw(
+        &self,
+        secondary_key: M::SecondaryKeys,
+    ) -> Result<Vec<M>, NetabaseError> {
+        // Use existing get_by_secondary_key which already returns raw models
+        self.get_by_secondary_key(secondary_key)
+    }
+}
+
+// Batch builder for Sled
+pub struct SledBatchBuilder<D, M>
+where
+    D: NetabaseDefinitionTrait,
+    M: NetabaseModelTrait<D>,
+    <D as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
+{
+    tree: sled::Tree,
+    secondary_tree: sled::Tree,
+    primary_batch: sled::Batch,
+    secondary_batch: sled::Batch,
+    _phantom_d: PhantomData<D>,
+    _phantom_m: PhantomData<M>,
+}
+
+impl<D, M> crate::traits::batch::BatchBuilder<D, M> for SledBatchBuilder<D, M>
+where
+    D: NetabaseDefinitionTrait + From<M> + ToIVec,
+    M: NetabaseModelTrait<D> + Clone,
+    <D as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
+{
+    fn put(&mut self, model: M) -> Result<(), NetabaseError> {
+        let primary_key = model.primary_key();
+        let secondary_keys = model.secondary_keys();
+
+        let key_bytes = bincode::encode_to_vec(&primary_key, bincode::config::standard())
+            .map_err(crate::error::EncodingDecodingError::from)?;
+
+        // Store raw model directly
+        let value_bytes = bincode::encode_to_vec(&model, bincode::config::standard())
+            .map_err(crate::error::EncodingDecodingError::from)?;
+
+        self.primary_batch.insert(key_bytes.clone(), value_bytes);
+
+        // Add secondary key entries
+        if !secondary_keys.is_empty() {
+            for sec_key in secondary_keys {
+                let sec_key_bytes =
+                    bincode::encode_to_vec(&sec_key, bincode::config::standard())
+                        .map_err(crate::error::EncodingDecodingError::from)?;
+                let prim_key_bytes =
+                    bincode::encode_to_vec(&primary_key, bincode::config::standard())
+                        .map_err(crate::error::EncodingDecodingError::from)?;
+
+                let mut composite_key = sec_key_bytes;
+                composite_key.extend_from_slice(&prim_key_bytes);
+
+                self.secondary_batch.insert(composite_key, &[] as &[u8]);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn remove(&mut self, key: M::PrimaryKey) -> Result<(), NetabaseError> {
+        let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())
+            .map_err(crate::error::EncodingDecodingError::from)?;
+
+        self.primary_batch.remove(key_bytes);
+
+        // Note: We can't clean up secondary keys in the batch without knowing them
+        // This is a limitation of the batch API - ideally we'd fetch the model first
+
+        Ok(())
+    }
+
+    fn commit(self) -> Result<(), NetabaseError> {
+        self.tree.apply_batch(self.primary_batch)?;
+        self.secondary_tree.apply_batch(self.secondary_batch)?;
+        Ok(())
+    }
+}
+
+// Implement Batchable trait for SledStoreTree
+impl<D, M> crate::traits::batch::Batchable<D, M> for SledStoreTree<D, M>
+where
+    D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
+    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone,
+    M::PrimaryKey: bincode::Decode<()> + Clone,
+    M::SecondaryKeys: bincode::Decode<()>,
+    <D as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
+{
+    type Batch = SledBatchBuilder<D, M>;
+
+    fn create_batch(&self) -> Result<Self::Batch, NetabaseError> {
+        Ok(SledBatchBuilder {
+            tree: self.tree.clone(),
+            secondary_tree: self.secondary_tree.clone(),
+            primary_batch: sled::Batch::default(),
+            secondary_batch: sled::Batch::default(),
+            _phantom_d: PhantomData,
+            _phantom_m: PhantomData,
+        })
     }
 }
 

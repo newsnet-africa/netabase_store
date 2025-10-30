@@ -65,7 +65,7 @@ use crate::{MaybeSend, MaybeSync};
 /// - [`netabase_definition_module`](crate::netabase_definition_module) - Groups models into a schema
 /// - [`NetabaseTreeSync`](crate::traits::tree::NetabaseTreeSync) - CRUD operations on models
 pub trait NetabaseModelTrait<D: NetabaseDefinitionTrait>:
-    bincode::Encode + Sized + Clone + MaybeSend + MaybeSync + 'static
+    bincode::Encode + Sized + Clone + MaybeSend + MaybeSync + 'static + DynModel
 where
     <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
@@ -98,6 +98,8 @@ where
     /// Get the discriminant name for this model (used for tree names)
     fn discriminant_name() -> &'static str;
 }
+
+pub trait DynModel {}
 
 /// Marker trait for key types (both primary and secondary).
 ///
