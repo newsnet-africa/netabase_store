@@ -625,3 +625,374 @@ where
         self.clear()
     }
 }
+
+// Implement StoreOps trait for RedbStoreTree
+impl<D, M> crate::traits::store_ops::StoreOps<D, M> for RedbStoreTree<D, M>
+where
+    D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
+    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + Debug + bincode::Encode + bincode::Decode<()>,
+    M::PrimaryKey: Debug + bincode::Decode<()> + Ord + Clone + bincode::Encode,
+    M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq + bincode::Encode,
+    <D as IntoDiscriminant>::Discriminant: AsRef<str>
+        + Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+{
+    fn put_raw(&self, model: M) -> Result<(), NetabaseError> {
+        // Store raw model directly (not wrapped in Definition)
+        self.put(model)
+    }
+
+    fn get_raw(&self, key: M::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+        // Retrieve raw model directly
+        self.get(key)
+    }
+
+    fn remove_raw(&self, key: M::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+        // Remove and return raw model directly
+        self.remove(key)
+    }
+
+    fn discriminant(&self) -> &str {
+        self.discriminant.as_ref()
+    }
+}
+
+// Implement StoreOpsSecondary trait for RedbStoreTree
+impl<D, M> crate::traits::store_ops::StoreOpsSecondary<D, M> for RedbStoreTree<D, M>
+where
+    D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
+    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + Debug + bincode::Encode + bincode::Decode<()>,
+    M::PrimaryKey: Debug + bincode::Decode<()> + Ord + Clone + bincode::Encode,
+    M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq + bincode::Encode,
+    <D as IntoDiscriminant>::Discriminant: AsRef<str>
+        + Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+{
+    fn get_by_secondary_key_raw(&self, secondary_key: M::SecondaryKeys) -> Result<Vec<M>, NetabaseError> {
+        self.get_by_secondary_key(secondary_key)
+    }
+}
+
+// Simple iterator wrapper for redb results
+pub struct RedbIter<M> {
+    items: std::vec::IntoIter<M>,
+}
+
+impl<M> Iterator for RedbIter<M> {
+    type Item = Result<M, NetabaseError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.items.next().map(Ok)
+    }
+}
+
+// Implement StoreOpsIter trait for RedbStoreTree
+impl<D, M> crate::traits::store_ops::StoreOpsIter<D, M> for RedbStoreTree<D, M>
+where
+    D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
+    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + Debug + bincode::Encode + bincode::Decode<()>,
+    M::PrimaryKey: Debug + bincode::Decode<()> + Ord + Clone + bincode::Encode,
+    M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq + bincode::Encode,
+    <D as IntoDiscriminant>::Discriminant: AsRef<str>
+        + Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+{
+    type Iter = RedbIter<M>;
+
+    fn iter(&self) -> Result<Self::Iter, NetabaseError> {
+        // Inline the iteration logic to avoid name conflicts
+        let table_def = self.table_def();
+        let read_txn = self.db.as_ref().begin_read()?;
+
+        let table = match read_txn.open_table(table_def) {
+            Ok(table) => table,
+            Err(redb::TableError::TableDoesNotExist(_)) => {
+                return Ok(RedbIter { items: Vec::new().into_iter() });
+            }
+            Err(e) => return Err(NetabaseError::RedbTableError(e)),
+        };
+
+        let mut models = Vec::new();
+        for item in table.iter()? {
+            let (_, value_guard) = item?;
+            let model: M = value_guard.value();
+            models.push(model);
+        }
+
+        Ok(RedbIter {
+            items: models.into_iter(),
+        })
+    }
+
+    fn len(&self) -> Result<usize, NetabaseError> {
+        // Inline the len logic to avoid name conflicts
+        let table_def = self.table_def();
+        let read_txn = self.db.as_ref().begin_read()?;
+
+        match read_txn.open_table(table_def) {
+            Ok(table) => Ok(table.len()? as usize),
+            Err(redb::TableError::TableDoesNotExist(_)) => Ok(0),
+            Err(e) => Err(NetabaseError::RedbTableError(e)),
+        }
+    }
+}
+
+// BatchBuilder implementation for Redb
+pub struct RedbBatchBuilder<D, M>
+where
+    D: NetabaseDefinitionTrait,
+    M: NetabaseModelTrait<D>,
+    <D as IntoDiscriminant>::Discriminant: AsRef<str>
+        + Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+{
+    db: Arc<Database>,
+    table_name: &'static str,
+    secondary_table_name: &'static str,
+    operations: Vec<RedbBatchOp<D, M>>,
+    _phantom_d: PhantomData<D>,
+}
+
+enum RedbBatchOp<D, M>
+where
+    D: NetabaseDefinitionTrait,
+    M: NetabaseModelTrait<D>,
+    <D as IntoDiscriminant>::Discriminant: AsRef<str>
+        + Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+{
+    Put(M),
+    Remove(M::PrimaryKey),
+}
+
+impl<D, M> RedbBatchBuilder<D, M>
+where
+    D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
+    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + Debug + bincode::Encode + bincode::Decode<()>,
+    M::PrimaryKey: Debug + bincode::Decode<()> + Ord + Clone + bincode::Encode,
+    M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq + bincode::Encode,
+    <D as IntoDiscriminant>::Discriminant: AsRef<str>
+        + Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+{
+    fn new(db: Arc<Database>, table_name: &'static str, secondary_table_name: &'static str) -> Self {
+        Self {
+            db,
+            table_name,
+            secondary_table_name,
+            operations: Vec::new(),
+            _phantom_d: PhantomData,
+        }
+    }
+
+    fn table_def(&self) -> TableDefinition<'static, BincodeWrapper<M::PrimaryKey>, BincodeWrapper<M>> {
+        TableDefinition::new(self.table_name)
+    }
+
+    fn secondary_table_def(&self) -> TableDefinition<'static, BincodeWrapper<(M::SecondaryKeys, M::PrimaryKey)>, BincodeWrapper<()>> {
+        TableDefinition::new(self.secondary_table_name)
+    }
+}
+
+impl<D, M> crate::traits::batch::BatchBuilder<D, M> for RedbBatchBuilder<D, M>
+where
+    D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
+    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + Debug + bincode::Encode + bincode::Decode<()>,
+    M::PrimaryKey: Debug + bincode::Decode<()> + Ord + Clone + bincode::Encode,
+    M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq + bincode::Encode,
+    <D as IntoDiscriminant>::Discriminant: AsRef<str>
+        + Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
+{
+    fn put(&mut self, model: M) -> Result<(), NetabaseError> {
+        self.operations.push(RedbBatchOp::Put(model));
+        Ok(())
+    }
+
+    fn remove(&mut self, key: M::PrimaryKey) -> Result<(), NetabaseError> {
+        self.operations.push(RedbBatchOp::Remove(key));
+        Ok(())
+    }
+
+    fn commit(self) -> Result<(), NetabaseError> {
+        if self.operations.is_empty() {
+            return Ok(());
+        }
+
+        let table_def = self.table_def();
+        let sec_table_def = self.secondary_table_def();
+
+        // Begin write transaction
+        let write_txn = self.db.as_ref().begin_write()?;
+
+        {
+            let mut table = write_txn.open_table(table_def)?;
+            let mut sec_table = write_txn.open_table(sec_table_def)?;
+
+            for op in self.operations {
+                match op {
+                    RedbBatchOp::Put(model) => {
+                        let primary_key = model.primary_key();
+                        let secondary_keys = model.secondary_keys();
+
+                        // Insert model into primary table
+                        table.insert(&primary_key, &model)?;
+
+                        // Insert secondary key entries
+                        if !secondary_keys.is_empty() {
+                            for sec_key in secondary_keys {
+                                let composite_key = (sec_key, primary_key.clone());
+                                sec_table.insert(&composite_key, &())?;
+                            }
+                        }
+                    }
+                    RedbBatchOp::Remove(key) => {
+                        // First get the model to extract secondary keys
+                        let secondary_keys = if let Some(model_guard) = table.get(&key)? {
+                            let model: M = model_guard.value();
+                            model.secondary_keys()
+                        } else {
+                            Vec::new()
+                        };
+
+                        // Remove from primary table
+                        table.remove(&key)?;
+
+                        // Remove secondary key entries
+                        if !secondary_keys.is_empty() {
+                            for sec_key in secondary_keys {
+                                let composite_key = (sec_key, key.clone());
+                                sec_table.remove(&composite_key)?;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        write_txn.commit()?;
+        Ok(())
+    }
+}
+
+// Implement Batchable trait for RedbStoreTree
+impl<D, M> crate::traits::batch::Batchable<D, M> for RedbStoreTree<D, M>
+where
+    D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
+    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + Debug + bincode::Encode + bincode::Decode<()>,
+    M::PrimaryKey: Debug + bincode::Decode<()> + Ord + Clone + bincode::Encode,
+    M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq + bincode::Encode,
+    <D as IntoDiscriminant>::Discriminant: AsRef<str>
+        + Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + IntoEnumIterator
+        + Send
+        + Sync
+        + 'static
+        + FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
+{
+    type Batch = RedbBatchBuilder<D, M>;
+
+    fn create_batch(&self) -> Result<Self::Batch, NetabaseError> {
+        Ok(RedbBatchBuilder::new(
+            Arc::clone(&self.db),
+            self.table_name,
+            self.secondary_table_name,
+        ))
+    }
+}

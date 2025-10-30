@@ -7,5 +7,6 @@ pub mod sled_store;
 #[cfg(feature = "wasm")]
 pub mod indexeddb_store;
 
+// libp2p RecordStore implementation module
 #[cfg(feature = "libp2p")]
 pub mod record_store;
