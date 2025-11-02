@@ -74,8 +74,34 @@ mod visitors;
 ///     pub department: String,
 /// }
 /// // Generates: UserPrimaryKey(u64)
-/// // Generates: UserSecondaryKeys { EmailKey(String), DepartmentKey(String) }
+/// // Generates: UserEmailSecondaryKey(String)         <- Note: Model-prefixed!
+/// // Generates: UserDepartmentSecondaryKey(String)    <- Note: Model-prefixed!
+/// // Generates: UserSecondaryKeys { Email(UserEmailSecondaryKey), Department(UserDepartmentSecondaryKey) }
 /// // Generates: UserKeys { Primary(UserPrimaryKey), Secondary(UserSecondaryKeys) }
+/// ```
+///
+/// **Important:** Secondary key types are **model-prefixed** to avoid naming conflicts
+/// when multiple models have fields with the same name. For example:
+///
+/// ```
+/// // Both models have an 'email' field
+/// pub struct User {
+///     #[secondary_key]
+///     pub email: String,  // → UserEmailSecondaryKey
+/// }
+///
+/// pub struct Admin {
+///     #[secondary_key]
+///     pub email: String,  // → AdminEmailSecondaryKey (no conflict!)
+/// }
+/// ```
+///
+/// Query syntax:
+/// ```
+/// // Use the model-prefixed type name
+/// tree.get_by_secondary_key(
+///     UserSecondaryKeys::Email(UserEmailSecondaryKey("user@example.com".to_string()))
+/// )?;
 /// ```
 ///
 /// ## Supported Primary Key Types

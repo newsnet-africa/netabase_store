@@ -66,9 +66,9 @@ fn main() -> anyhow::Result<()> {
     let retrieved = user_tree.get(alice.primary_key())?.unwrap();
     println!("Retrieved: {:?}", retrieved);
 
-    // Query by secondary key
+    // Query by secondary key (using the model-prefixed type name)
     let users = user_tree.get_by_secondary_key(
-        alice.secondary_keys().first().unwrap().clone()
+        UserSecondaryKeys::Email(UserEmailSecondaryKey("alice@example.com".to_string()))
     )?;
     println!("Found {} users with that email", users.len());
 
@@ -121,9 +121,48 @@ for result in tree.iter() {
 }
 ```
 
+### 5. Understanding Secondary Key Types
+
+When you mark a field with `#[secondary_key]`, the macro generates a **model-prefixed** type for type safety:
+
+```rust
+#[derive(NetabaseModel, ...)]
+#[netabase(AppDefinition)]
+pub struct User {
+    #[primary_key]
+    pub id: u64,
+    #[secondary_key]
+    pub email: String,  // Generates: UserEmailSecondaryKey
+}
+```
+
+The naming pattern is: `{ModelName}{FieldName}SecondaryKey`
+
+**Why model-prefixed?** If you have multiple models with the same field name:
+```rust
+pub struct User {
+    #[secondary_key]
+    pub email: String,  // → UserEmailSecondaryKey
+}
+
+pub struct Admin {
+    #[secondary_key]
+    pub email: String,  // → AdminEmailSecondaryKey
+}
+```
+
+Without prefixing, both would generate `EmailSecondaryKey` causing a type conflict!
+
+**Pro tip:** To see exactly what gets generated, use `cargo expand`:
+```bash
+cargo install cargo-expand
+cargo expand > expanded.rs  # See all generated code
+```
+
 ## Next Steps
 
-- Read the [README](./README.md) for full API documentation
-- Check [ARCHITECTURE.md](./ARCHITECTURE.md) to understand how it works
-- See [examples/](./examples/) for more examples
+- **[Macro Guide](./MACRO_GUIDE.md)** - Learn what happens behind the scenes with macros
+- **[README](./README.md)** - Full API documentation and advanced features
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Understand the internal design
+- **[examples/](./examples/)** - Complete working examples
 - Run tests: `cargo test --features native`

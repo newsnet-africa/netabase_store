@@ -151,9 +151,9 @@ fn main() -> anyhow::Result<()> {
     let retrieved = user_tree.get(user.primary_key())?.unwrap();
     assert_eq!(retrieved.username, "alice");
 
-    // Query by secondary key
+    // Query by secondary key (using the generated secondary key type)
     let users_by_email = user_tree.get_by_secondary_key(
-        user.secondary_keys().first().unwrap().clone()
+        UserSecondaryKeys::Email(UserEmailSecondaryKey("alice@example.com".to_string()))
     )?;
     assert_eq!(users_by_email.len(), 1);
 
@@ -236,12 +236,12 @@ pub struct Article {
     pub published: bool,
 }
 
-// Query by secondary key
+// Query by secondary key (note the model-prefixed type names)
 let published_articles = article_tree
-    .get_by_secondary_key(ArticleSecondaryKeys::Published(PublishedSecondaryKey(true)))?;
+    .get_by_secondary_key(ArticleSecondaryKeys::Published(ArticlePublishedSecondaryKey(true)))?;
 
 let tech_articles = article_tree
-    .get_by_secondary_key(ArticleSecondaryKeys::Category(CategorySecondaryKey("tech".to_string())))?;
+    .get_by_secondary_key(ArticleSecondaryKeys::Category(ArticleCategorySecondaryKey("tech".to_string())))?;
 ```
 
 ### Multiple Models in One Store
@@ -364,6 +364,12 @@ This project is licensed under the GNU Apache License - see the LICENSE file for
 ## Contributing
 
 Contributions are welcome! Please see CONTRIBUTING.md for guidelines (coming in 1.0.0).
+
+## Documentation
+
+- **[Macro Guide](./MACRO_GUIDE.md)**: Comprehensive guide to what happens behind the scenes with macros, what code gets generated, and why
+- **[Getting Started](./GETTING_STARTED.md)**: Step-by-step tutorial for new users
+- **[Architecture](./ARCHITECTURE.md)**: Deep dive into the library's design and architecture
 
 ## Links
 
