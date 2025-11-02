@@ -278,7 +278,7 @@ fn bench_redb_secondary_key_lookup(c: &mut Criterion) {
             b.iter(|| {
                 // Query for author_id = 5 (should have ~10% of records)
                 let results = article_tree
-                    .get_by_secondary_key(ArticleSecondaryKeys::AuthorId(AuthorIdSecondaryKey(5)))
+                    .get_by_secondary_key(ArticleSecondaryKeys::AuthorId(ArticleAuthorIdSecondaryKey(5)))
                     .unwrap();
                 black_box(results.len());
             });

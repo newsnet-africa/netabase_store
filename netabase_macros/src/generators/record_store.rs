@@ -38,7 +38,7 @@ pub fn generate_helper_functions(
             key: &::libp2p::kad::RecordKey
         ) -> Option<(<D as ::netabase_deps::strum::IntoDiscriminant>::Discriminant, Vec<u8>)>
         where
-            D: ::netabase_store::traits::definition::NetabaseDefinitionTrait,
+            D: ::netabase_deps::strum::IntoDiscriminant,
             <D as ::netabase_deps::strum::IntoDiscriminant>::Discriminant: ::netabase_deps::bincode::Decode<()>,
         {
             let bytes = key.to_vec();

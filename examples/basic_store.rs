@@ -30,8 +30,10 @@ fn main() {
     let put_result = user_tree.put(user.clone());
 
     let get_result = user_tree.get(user.primary_key());
+
+    // Query by secondary key using the model-prefixed type
     let get_secondary_result =
-        user_tree.get_by_secondary_key(user.secondary_keys().first().unwrap().clone());
+        user_tree.get_by_secondary_key(UserSecondaryKeys::Email(UserEmailSecondaryKey("some@email.com".to_string())));
 
     println!("Get Result: {get_result:?}");
     println!("Get Secondary Result: {get_secondary_result:?}");
