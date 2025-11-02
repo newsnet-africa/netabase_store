@@ -39,19 +39,7 @@ pub trait StoreOps<D, M>
 where
     D: NetabaseDefinitionTrait,
     M: NetabaseModelTrait<D>,
-    <D as strum::IntoDiscriminant>::Discriminant: AsRef<str>
-        + Clone
-        + Copy
-        + std::fmt::Debug
-        + std::fmt::Display
-        + PartialEq
-        + Eq
-        + std::hash::Hash
-        + strum::IntoEnumIterator
-        + Send
-        + Sync
-        + 'static
-        + std::str::FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
 {
     /// Insert or update a raw model in the tree
     ///
@@ -128,19 +116,7 @@ pub trait StoreOpsSecondary<D, M>: StoreOps<D, M>
 where
     D: NetabaseDefinitionTrait,
     M: NetabaseModelTrait<D>,
-    <D as strum::IntoDiscriminant>::Discriminant: AsRef<str>
-        + Clone
-        + Copy
-        + std::fmt::Debug
-        + std::fmt::Display
-        + PartialEq
-        + Eq
-        + std::hash::Hash
-        + strum::IntoEnumIterator
-        + Send
-        + Sync
-        + 'static
-        + std::str::FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
 {
     /// Find models by secondary key
     ///
@@ -166,19 +142,7 @@ pub trait StoreOpsIter<D, M>: StoreOps<D, M>
 where
     D: NetabaseDefinitionTrait,
     M: NetabaseModelTrait<D>,
-    <D as strum::IntoDiscriminant>::Discriminant: AsRef<str>
-        + Clone
-        + Copy
-        + std::fmt::Debug
-        + std::fmt::Display
-        + PartialEq
-        + Eq
-        + std::hash::Hash
-        + strum::IntoEnumIterator
-        + Send
-        + Sync
-        + 'static
-        + std::str::FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
 {
     /// Iterate over all models in the tree
     ///
@@ -213,4 +177,51 @@ where
     fn is_empty(&self) -> Result<bool, NetabaseError> {
         Ok(self.len()? == 0)
     }
+}
+
+/// Trait for stores that can open trees/tables/object-stores for specific model types
+///
+/// This trait provides a unified interface for opening tree-like structures across
+/// different backend store implementations:
+/// - Sled: trees
+/// - Redb: tables
+/// - IndexedDB: object stores
+/// - Memory: in-memory trees
+///
+/// The returned type must implement `StoreOps<D, M>` to provide the actual
+/// storage operations.
+///
+/// # Type Parameters
+///
+/// * `D` - The definition type (wraps all models in the schema)
+/// * `M` - The model type to create a tree for
+///
+/// # Design
+///
+/// This trait enables generic code (like RecordStore implementations) to work
+/// with any backend store type without knowing the specific implementation details.
+pub trait OpenTree<D, M>
+where
+    D: NetabaseDefinitionTrait,
+    M: NetabaseModelTrait<D>,
+    <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
+{
+    /// The tree/table type returned by `open_tree`
+    ///
+    /// This type must implement `StoreOps<D, M>` to provide storage operations
+    type Tree: StoreOps<D, M>;
+
+    /// Open a tree/table/object-store for the given model type
+    ///
+    /// # Returns
+    ///
+    /// A tree instance that provides `StoreOps` for the model type `M`
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let tree = store.open_tree::<User>();
+    /// tree.put_raw(user)?;
+    /// ```
+    fn open_tree(&self) -> Self::Tree;
 }

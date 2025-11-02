@@ -6,7 +6,7 @@ use netabase_store::netabase_definition_module;
 pub mod definitions {
     use netabase_store::{NetabaseModel, netabase};
 
-    #[derive(NetabaseModel, bincode::Encode, bincode::Decode, Clone, Debug)]
+    #[derive(NetabaseModel, bincode::Encode, bincode::Decode, Clone, Debug, serde::Serialize, serde::Deserialize)]
     #[netabase(ExampleDefs)]
     pub struct User {
         #[primary_key]

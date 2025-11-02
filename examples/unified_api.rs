@@ -14,7 +14,7 @@ use crate::definitions::*;
 pub mod definitions {
     use netabase_store::{NetabaseModel, netabase};
 
-    #[derive(NetabaseModel, bincode::Encode, bincode::Decode, Clone, Debug, PartialEq)]
+    #[derive(NetabaseModel, bincode::Encode, bincode::Decode, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
     #[netabase(Definition)]
     pub struct User {
         #[primary_key]
@@ -48,7 +48,7 @@ where
 
     // Query by secondary key (email)
     let by_email = tree.get_by_secondary_key(UserSecondaryKeys::Email(
-        EmailSecondaryKey("alice@example.com".to_string()),
+        UserEmailSecondaryKey("alice@example.com".to_string()),
     ))?;
     assert_eq!(by_email.len(), 1);
     println!("  ✓ Found user by email: {:?}", by_email[0]);

@@ -1,3 +1,4 @@
+use bincode::Decode;
 use strum::IntoDiscriminant;
 
 use crate::definition::NetabaseDefinitionTrait;
@@ -65,18 +66,10 @@ use crate::{MaybeSend, MaybeSync};
 /// - [`netabase_definition_module`](crate::netabase_definition_module) - Groups models into a schema
 /// - [`NetabaseTreeSync`](crate::traits::tree::NetabaseTreeSync) - CRUD operations on models
 pub trait NetabaseModelTrait<D: NetabaseDefinitionTrait>:
-    bincode::Encode + Sized + Clone + MaybeSend + MaybeSync + 'static + DynModel
+    bincode::Encode + Sized + Clone + MaybeSend + MaybeSync + 'static
 where
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
-    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
-    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
-    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
-    <D as strum::IntoDiscriminant>::Discriminant: MaybeSend,
-    <D as strum::IntoDiscriminant>::Discriminant: MaybeSync,
-    <D as strum::IntoDiscriminant>::Discriminant: std::str::FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
+    <D as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
+    <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseKeyDiscriminant,
 {
     const DISCRIMINANT: <D as IntoDiscriminant>::Discriminant;
 
@@ -99,33 +92,14 @@ where
     fn discriminant_name() -> &'static str;
 }
 
-pub trait DynModel {}
-
 /// Marker trait for key types (both primary and secondary).
 ///
 /// This trait is automatically implemented by the macro-generated key types.
 pub trait NetabaseModelTraitKey<D: NetabaseDefinitionTrait>:
-    bincode::Encode + std::fmt::Debug + Clone + MaybeSend + MaybeSync + 'static
+    bincode::Encode + Decode<()> + std::fmt::Debug + Clone + MaybeSend + MaybeSync + 'static
 where
-    <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant: Clone
-        + Copy
-        + std::fmt::Debug
-        + PartialEq
-        + Eq
-        + std::hash::Hash
-        + MaybeSend
-        + MaybeSync
-        + 'static,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
-    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
-    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
-    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
-    <D as strum::IntoDiscriminant>::Discriminant: MaybeSend,
-    <D as strum::IntoDiscriminant>::Discriminant: MaybeSync,
-    <D as strum::IntoDiscriminant>::Discriminant: std::str::FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
+    <D as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
+    <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseKeyDiscriminant,
 {
     const DISCRIMINANT: <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant;
 }
