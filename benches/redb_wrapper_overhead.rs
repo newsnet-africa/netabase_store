@@ -82,7 +82,8 @@ fn bench_redb_insert(c: &mut Criterion) {
                             content: format!("Content {}", i),
                             author_id: i % 10,
                         };
-                        let encoded = bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
+                        let encoded =
+                            bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
                         table.insert(i, encoded.as_slice()).unwrap();
                         index_table.insert((article.author_id, i), ()).unwrap();
                     }
@@ -146,7 +147,8 @@ fn bench_redb_get(c: &mut Criterion) {
                         content: format!("Content {}", i),
                         author_id: i % 10,
                     };
-                    let encoded = bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
+                    let encoded =
+                        bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
                     table.insert(i, encoded.as_slice()).unwrap();
                     index_table.insert((article.author_id, i), ()).unwrap();
                 }
@@ -161,7 +163,10 @@ fn bench_redb_get(c: &mut Criterion) {
 
                 for i in 0u64..size {
                     let encoded = table.get(i).unwrap().unwrap();
-                    let article: Article = bincode::decode_from_slice(encoded.value(), bincode::config::standard()).unwrap().0;
+                    let article: Article =
+                        bincode::decode_from_slice(encoded.value(), bincode::config::standard())
+                            .unwrap()
+                            .0;
                     black_box(article);
                 }
             });
@@ -216,7 +221,8 @@ fn bench_redb_iteration(c: &mut Criterion) {
                         content: format!("Content {}", i),
                         author_id: i % 10,
                     };
-                    let encoded = bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
+                    let encoded =
+                        bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
                     table.insert(i, encoded.as_slice()).unwrap();
                     index_table.insert((article.author_id, i), ()).unwrap();
                 }
@@ -232,8 +238,12 @@ fn bench_redb_iteration(c: &mut Criterion) {
                 let mut count = 0;
                 let iter = table.iter().unwrap();
                 for result in iter {
-                    let (_key, value): (redb::AccessGuard<u64>, redb::AccessGuard<&[u8]>) = result.unwrap();
-                    let _article: Article = bincode::decode_from_slice(value.value(), bincode::config::standard()).unwrap().0;
+                    let (_key, value): (redb::AccessGuard<u64>, redb::AccessGuard<&[u8]>) =
+                        result.unwrap();
+                    let _article: Article =
+                        bincode::decode_from_slice(value.value(), bincode::config::standard())
+                            .unwrap()
+                            .0;
                     count += 1;
                 }
                 black_box(count);
@@ -292,7 +302,8 @@ fn bench_redb_secondary_key_lookup(c: &mut Criterion) {
                         content: format!("Content {}", i),
                         author_id: i % 10,
                     };
-                    let encoded = bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
+                    let encoded =
+                        bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
                     table.insert(i, encoded.as_slice()).unwrap();
                     index_table.insert((article.author_id, i), ()).unwrap();
                 }
@@ -311,13 +322,17 @@ fn bench_redb_secondary_key_lookup(c: &mut Criterion) {
                 let range = index_table.range((5u64, 0u64)..(5u64, u64::MAX)).unwrap();
 
                 for result in range {
-                    let (key, _): (redb::AccessGuard<(u64, u64)>, redb::AccessGuard<()>) = result.unwrap();
+                    let (key, _): (redb::AccessGuard<(u64, u64)>, redb::AccessGuard<()>) =
+                        result.unwrap();
                     let key_tuple = key.value();
                     if key_tuple.0 != 5 {
                         break;
                     }
                     let encoded = table.get(&key_tuple.1).unwrap().unwrap();
-                    let article: Article = bincode::decode_from_slice(encoded.value(), bincode::config::standard()).unwrap().0;
+                    let article: Article =
+                        bincode::decode_from_slice(encoded.value(), bincode::config::standard())
+                            .unwrap()
+                            .0;
                     results.push(article);
                 }
                 black_box(results.len());

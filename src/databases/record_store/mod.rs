@@ -49,6 +49,10 @@ pub mod sled_impl;
 #[cfg(all(feature = "libp2p", feature = "redb"))]
 pub mod redb_impl;
 
+// Generic RecordStore implementations (use macro-generated helper methods)
+#[cfg(feature = "libp2p")]
+pub mod generic_impl;
+
 /// Serializable version of libp2p::kad::Record
 /// Note: expires is always None since Instant is not serializable
 #[cfg(feature = "libp2p")]

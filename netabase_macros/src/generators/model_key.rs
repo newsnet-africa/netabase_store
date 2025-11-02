@@ -18,7 +18,7 @@ impl<'a> ModelVisitor<'a> {
             None => panic!("Visitor error (parsing struct name?)"),
         };
         let keys_enum: ItemEnum = parse_quote!(
-            #[derive(Debug, Clone,
+            #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash,
             ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::TryInto,
                 ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode
             )]
@@ -70,6 +70,16 @@ impl<'a> ModelVisitor<'a> {
         };
 
         let discriminant_name = model_name.to_string();
+
+        // Generics support removed - not yet implemented
+        // Extract generics information
+        // let (impl_generics, ty_generics, where_clause) = match self.generics {
+        //     Some(g) => {
+        //         let (ig, tg, wc) = g.split_for_impl();
+        //         (quote::quote! { #ig }, quote::quote! { #tg }, quote::quote! { #wc })
+        //     }
+        //     None => (quote::quote! {}, quote::quote! {}, quote::quote! {}),
+        // };
 
         self.definitions.iter().map(|def_path| {
             quote::quote! {
@@ -125,7 +135,7 @@ mod key_gen {
         fn generate_newtype(field: &Field, name: &Ident) -> ItemStruct {
             let ty = &field.ty;
             parse_quote!(
-                #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::Into,
+                #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::Into,
                     ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode
                 )]
                 pub struct #name(pub #ty);
@@ -153,6 +163,11 @@ mod key_gen {
                 None => return vec![],
             };
 
+            let model_name = match self.name {
+                Some(n) => n,
+                None => panic!("Model name not found"),
+            };
+
             key.secondary_keys
                 .iter()
                 .map(|f| {
@@ -162,8 +177,11 @@ mod key_gen {
                     } else {
                         panic!("Struct fields must be named")
                     };
+                    // Prefix secondary key type with model name to avoid conflicts
+                    let type_name = format!("{}{}", model_name, append_ident(&ident, "SecondaryKey"));
+                    let type_ident = Ident::new(&type_name, proc_macro2::Span::call_site());
                     (
-                        Self::generate_newtype(f, &append_ident(&ident, "SecondaryKey")),
+                        Self::generate_newtype(f, &type_ident),
                         ident,
                     )
                 })
@@ -185,7 +203,7 @@ mod key_gen {
                 None => panic!("Visitor not initialised"),
             };
             parse_quote!(
-                #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, ::netabase_deps::strum::EnumDiscriminants,
+                #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, ::netabase_deps::strum::EnumDiscriminants,
                     ::netabase_deps::strum::Display,
                     ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::TryInto,
                     ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode

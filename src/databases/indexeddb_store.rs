@@ -883,3 +883,18 @@ impl IndexedDBTree {
         Ok(self.len().await? == 0)
     }
 }
+
+// Implement OpenTree trait for IndexedDBStore
+#[cfg(target_arch = "wasm32")]
+impl<D, M> crate::traits::store_ops::OpenTree<D, M> for IndexedDBStore<D>
+where
+    D: NetabaseDefinitionTrait,
+    M: NetabaseModelTrait<D>,
+    <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
+{
+    type Tree = IndexedDBStoreTree<D, M>;
+
+    fn open_tree(&self) -> Self::Tree {
+        IndexedDBStoreTree::new(&self.db, M::DISCRIMINANT)
+    }
+}

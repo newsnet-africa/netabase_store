@@ -11,11 +11,15 @@ pub struct ModelVisitor<'ast> {
     pub key: Option<ModelKeyInfo<'ast>>,
     pub links: Vec<ModelLinkInfo<'ast>>,
     pub definitions: Vec<Path>,
+    // Generics support removed - not yet implemented
+    // pub generics: Option<&'ast Generics>,
 }
 
 impl<'a> Visit<'a> for ModelVisitor<'a> {
     fn visit_derive_input(&mut self, i: &'a syn::DeriveInput) {
         self.name = Some(&i.ident);
+        // Generics support removed - not yet implemented
+        // self.generics = Some(&i.generics);
         self.key = match ModelKeyInfo::find_keys(extract_fields(i)) {
             Ok(k) => Some(k),
             Err(e) => panic!("Error parsing Model: {e}"),

@@ -2,13 +2,12 @@
 use blog::*;
 use databases::sled_store::*;
 use netabase_store::model::NetabaseModelTrait;
-use netabase_store::{NetabaseModel, convert, netabase_definition_module, *};
+use netabase_store::{NetabaseModel, netabase_definition_module, *};
 
 // Test schema
 #[netabase_definition_module(BlogDefinition, BlogKeys)]
 mod blog {
     use super::*;
-    use strum::IntoDiscriminant;
 
     #[derive(
         NetabaseModel,
@@ -72,8 +71,6 @@ mod blog {
         pub content: String,
     }
 }
-
-use blog::*;
 
 #[test]
 fn test_sled_store_creation() {
@@ -272,7 +269,7 @@ fn test_secondary_key_lookup() {
 
     // Look up by secondary key (email)
     let results = user_tree
-        .get_by_secondary_key(UserSecondaryKeys::Email(EmailSecondaryKey(
+        .get_by_secondary_key(UserSecondaryKeys::Email(UserEmailSecondaryKey(
             "alice@example.com".to_string(),
         )))
         .unwrap();
@@ -314,7 +311,7 @@ fn test_secondary_key_multiple_results() {
 
     // Look up posts by author_id = 1
     let results = post_tree
-        .get_by_secondary_key(PostSecondaryKeys::AuthorId(AuthorIdSecondaryKey(1)))
+        .get_by_secondary_key(PostSecondaryKeys::AuthorId(PostAuthorIdSecondaryKey(1)))
         .unwrap();
 
     // Should find 2 posts

@@ -7,7 +7,6 @@
 
 use netabase_store::{netabase, netabase_definition_module, NetabaseModel};
 use netabase_store::databases::sled_store::SledStore;
-use netabase_store::traits::tree::NetabaseTreeSync;
 use netabase_store::traits::model::NetabaseModelTrait;
 
 /// Test definition module with multiple models
@@ -215,7 +214,7 @@ fn test_secondary_key_query_single_result() {
 
     // Query by secondary key
     let results = tree
-        .get_by_secondary_key(UserSecondaryKeys::Email(EmailSecondaryKey(
+        .get_by_secondary_key(UserSecondaryKeys::Email(UserEmailSecondaryKey(
             "alice@example.com".to_string(),
         )))
         .unwrap();
@@ -243,7 +242,7 @@ fn test_secondary_key_query_multiple_results() {
 
     // Query all posts by author
     let results = tree
-        .get_by_secondary_key(PostSecondaryKeys::AuthorId(AuthorIdSecondaryKey(1)))
+        .get_by_secondary_key(PostSecondaryKeys::AuthorId(PostAuthorIdSecondaryKey(1)))
         .unwrap();
 
     assert_eq!(results.len(), 5);
@@ -261,7 +260,7 @@ fn test_secondary_key_query_no_results() {
 
     // Query non-existent email
     let results = tree
-        .get_by_secondary_key(UserSecondaryKeys::Email(EmailSecondaryKey(
+        .get_by_secondary_key(UserSecondaryKeys::Email(UserEmailSecondaryKey(
             "nonexistent@example.com".to_string(),
         )))
         .unwrap();
@@ -305,13 +304,13 @@ fn test_multiple_secondary_keys() {
 
     // Query by post_id
     let post_comments = tree
-        .get_by_secondary_key(CommentSecondaryKeys::PostId(PostIdSecondaryKey(100)))
+        .get_by_secondary_key(CommentSecondaryKeys::PostId(CommentPostIdSecondaryKey(100)))
         .unwrap();
     assert_eq!(post_comments.len(), 2);
 
     // Query by author_id
     let author_comments = tree
-        .get_by_secondary_key(CommentSecondaryKeys::AuthorId(AuthorIdSecondaryKey(1)))
+        .get_by_secondary_key(CommentSecondaryKeys::AuthorId(CommentAuthorIdSecondaryKey(1)))
         .unwrap();
     assert_eq!(author_comments.len(), 2);
 }
@@ -556,7 +555,7 @@ fn test_comprehensive_workflow() {
     // 4. Query all posts by author
     let posts = db
         .open_tree::<Post>()
-        .get_by_secondary_key(PostSecondaryKeys::AuthorId(AuthorIdSecondaryKey(1)))
+        .get_by_secondary_key(PostSecondaryKeys::AuthorId(PostAuthorIdSecondaryKey(1)))
         .unwrap();
     assert_eq!(posts.len(), 3);
     println!("✅ Queried {} posts by author", posts.len());
@@ -564,7 +563,7 @@ fn test_comprehensive_workflow() {
     // 5. Query comments by post
     let comments = db
         .open_tree::<Comment>()
-        .get_by_secondary_key(CommentSecondaryKeys::PostId(PostIdSecondaryKey(1)))
+        .get_by_secondary_key(CommentSecondaryKeys::PostId(CommentPostIdSecondaryKey(1)))
         .unwrap();
     assert_eq!(comments.len(), 2);
     println!("✅ Queried {} comments for post 1", comments.len());

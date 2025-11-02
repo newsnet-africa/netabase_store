@@ -78,28 +78,7 @@ where
 pub struct RedbStore<D>
 where
     D: NetabaseDefinitionTrait,
-    <D as IntoDiscriminant>::Discriminant: Clone
-        + Copy
-        + std::fmt::Debug
-        + std::fmt::Display
-        + PartialEq
-        + Eq
-        + std::hash::Hash
-        + strum::IntoEnumIterator
-        + Send
-        + Sync
-        + 'static
-        + FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
-    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
-    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
-    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
-    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
-    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
+    <D as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
 {
     pub(crate) db: Arc<Database>,
     pub trees: Vec<D::Discriminant>,
@@ -108,28 +87,7 @@ where
 impl<D> RedbStore<D>
 where
     D: NetabaseDefinitionTrait,
-    <D as IntoDiscriminant>::Discriminant: Clone
-        + Copy
-        + std::fmt::Debug
-        + std::fmt::Display
-        + PartialEq
-        + Eq
-        + std::hash::Hash
-        + strum::IntoEnumIterator
-        + Send
-        + Sync
-        + 'static
-        + FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
-    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
-    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
-    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
-    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
-    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
+    <D as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
 {
     /// Get direct access to the underlying redb database
     pub fn db(&self) -> &Database {
@@ -140,28 +98,7 @@ where
 impl<D> RedbStore<D>
 where
     D: NetabaseDefinitionTrait + ToIVec,
-    <D as IntoDiscriminant>::Discriminant: Clone
-        + Copy
-        + std::fmt::Debug
-        + std::fmt::Display
-        + PartialEq
-        + Eq
-        + std::hash::Hash
-        + strum::IntoEnumIterator
-        + Send
-        + Sync
-        + 'static
-        + FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
-    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
-    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
-    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
-    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
-    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
+    <D as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
 {
     /// Create a new RedbStore at the given path
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, NetabaseError> {
@@ -994,5 +931,21 @@ where
             self.table_name,
             self.secondary_table_name,
         ))
+    }
+}
+
+// Implement OpenTree trait for RedbStore
+impl<D, M> crate::traits::store_ops::OpenTree<D, M> for RedbStore<D>
+where
+    D: NetabaseDefinitionTrait + TryFrom<M> + crate::traits::convert::ToIVec + From<M>,
+    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + Debug + bincode::Encode + bincode::Decode<()>,
+    M::PrimaryKey: Debug + bincode::Decode<()> + Ord + Clone + bincode::Encode,
+    M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq + bincode::Encode,
+    <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
+{
+    type Tree = RedbStoreTree<D, M>;
+
+    fn open_tree(&self) -> Self::Tree {
+        RedbStoreTree::new(Arc::clone(&self.db), M::DISCRIMINANT)
     }
 }
