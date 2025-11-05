@@ -1,557 +1,721 @@
 # Netabase Store Architecture
 
-This document describes the internal architecture of the Netabase Store type-safe multi-backend storage library.
+This document provides a comprehensive technical overview of the netabase_store architecture, explaining how the macro system generates type-safe database code, how storage backends are implemented, and how data flows through the system.
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Macro System Deep Dive](#macro-system-deep-dive)
+3. [Backend Implementation](#backend-implementation)
+4. [Type System and Traits](#type-system-and-traits)
+5. [Data Serialization Flow](#data-serialization-flow)
+6. [Tree-Based Access Pattern](#tree-based-access-pattern)
+7. [libp2p Integration](#libp2p-integration)
+
+---
 
 ## Overview
 
-Netabase Store is a type-safe key-value storage abstraction that provides a unified API across multiple database backends (Sled, Redb, IndexedDB). It uses procedural macros to generate compile-time verified schemas with automatic primary and secondary key indexing.
+Netabase Store is a type-safe, macro-driven database abstraction layer that supports multiple storage backends (Sled, Redb, IndexedDB) and integrates seamlessly with libp2p's Kademlia DHT for distributed storage.
 
-## High-Level Architecture
+### Key Design Principles
+
+1. **Type Safety:** Compile-time guarantees for data models and queries
+2. **Zero-Cost Abstractions:** Macros generate optimal code with no runtime overhead
+3. **Backend Agnostic:** Same API works across Sled, Redb, and IndexedDB
+4. **libp2p Compatible:** Direct integration with Kademlia RecordStore trait
+5. **Deterministic Serialization:** Consistent binary format using bincode
+
+### Architecture Layers
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                   Application Code                            │
-│        (User-defined models with derive macros)              │
-└─────────────────────┬────────────────────────────────────────┘
-                      │
-           ┌──────────┴──────────┐
-           │ Procedural Macros   │
-           │ (Compile Time)      │
-           │                     │
-           │ - NetabaseModel     │
-           │ - Definition Module │
-           └──────────┬──────────┘
-                      │ (generates)
-                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│           Generated Type-Safe Schema                         │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │  DefinitionEnum: MyModel1 | MyModel2 | ...         │   │
-│  │  KeysEnum: MyModel1Keys | MyModel2Keys | ...        │   │
-│  │  PrimaryKeys: MyModel1PrimaryKey, ...               │   │
-│  │  SecondaryKeys: MyModel1SecondaryKeys, ...          │   │
-│  └──────────────────────────────────────────────────────┘   │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  Trait Layer                                 │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │  NetabaseModelTrait                                  │   │
-│  │  NetabaseDefinitionTrait                             │   │
-│  │  NetabaseTreeSync (native)                           │   │
-│  │  NetabaseTreeAsync (WASM)                            │   │
-│  └──────────────────────────────────────────────────────┘   │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-            ┌─────────┴─────────┐
-            │                   │
-            ▼                   ▼
-┌──────────────────┐  ┌──────────────────┐
-│   SledStore<D>   │  │   RedbStore<D>   │  [IndexedDBStore<D>]
-│                  │  │                  │
-│  open_tree()     │  │  open_tree()     │
-│  temp()          │  │  temp()          │
-│  new(path)       │  │  new(path)       │
-└────────┬─────────┘  └────────┬─────────┘
-         │                     │
-         ▼                     ▼
-┌──────────────────┐  ┌──────────────────┐
-│ SledStoreTree<M> │  │ RedbStoreTree<M> │
-│                  │  │                  │
-│  put(model)      │  │  put(model)      │
-│  get(key)        │  │  get(key)        │
-│  remove(key)     │  │  remove(key)     │
-│  get_by_sec_key()│  │  get_by_sec_key()│
-│  iter()          │  │  iter()          │
-└────────┬─────────┘  └────────┬─────────┘
-         │                     │
-         ▼                     ▼
-┌──────────────────┐  ┌──────────────────┐
-│   sled::Db       │  │  redb::Database  │
-│  (Embedded DB)   │  │  (Embedded DB)   │
-└──────────────────┘  └──────────────────┘
+┌─────────────────────────────────────────────────────┐
+│            User-Defined Models                      │
+│  #[derive(NetabaseModel)]                          │
+│  struct User { #[primary_key] id: String, ... }    │
+└────────────────────┬────────────────────────────────┘
+                     │ Macro Expansion
+                     ▼
+┌─────────────────────────────────────────────────────┐
+│         Generated Definition & Keys Enums           │
+│  enum MyDefinition { User(User), Post(Post) }      │
+│  enum MyKeys { User(UserKey), Post(PostKey) }      │
+└────────────────────┬────────────────────────────────┘
+                     │ Implements Traits
+                     ▼
+┌─────────────────────────────────────────────────────┐
+│              Trait Layer                            │
+│  • NetabaseDefinitionTrait                         │
+│  • NetabaseModelTrait                              │
+│  • ToIVec / FromIVec (Serialization)               │
+│  • RecordStoreExt (libp2p integration)             │
+└────────────────────┬────────────────────────────────┘
+                     │ Uses
+                     ▼
+┌─────────────────────────────────────────────────────┐
+│         NetabaseTreeSync<D, M> Trait               │
+│  • put(model) / get(key) / remove(key)             │
+│  • get_by_secondary_key(secondary_key)             │
+└────────────────────┬────────────────────────────────┘
+                     │ Implemented by
+        ┌────────────┴────────────┬──────────────┐
+        ▼                         ▼              ▼
+┌──────────────┐         ┌──────────────┐  ┌────────────┐
+│  SledStore   │         │  RedbStore   │  │ IndexedDB  │
+│  (Native)    │         │  (Native)    │  │   (WASM)   │
+└──────────────┘         └──────────────┘  └────────────┘
 ```
 
-## Core Components
+---
 
-### 1. Procedural Macros (`netabase_macros/`)
+## Macro System Deep Dive
 
-**Purpose**: Generate type-safe schema code at compile time.
+The macro system consists of two main procedural macros that work together to generate type-safe database code.
 
-#### `#[netabase_definition_module]` Macro
+### 1. `#[derive(NetabaseModel)]` Macro
 
-**Input**:
+**File:** `netabase_macros/src/lib.rs`
+
+This macro is applied to individual struct definitions and generates the `NetabaseModelTrait` implementation and associated key types.
+
+#### Input
+
 ```rust
-#[netabase_definition_module(MyDefinition, MyKeys)]
-mod my_schema {
-    #[derive(NetabaseModel, ...)]
-    #[netabase(MyDefinition)]
-    pub struct Model1 {
-        #[primary_key]
-        pub id: u64,
-        #[secondary_key]
-        pub name: String,
+#[derive(NetabaseModel, Clone, bincode::Encode, bincode::Decode,
+         serde::Serialize, serde::Deserialize)]
+#[netabase(MyDefinition)]
+pub struct User {
+    #[primary_key]
+    pub id: u64,
+    pub name: String,
+    #[secondary_key]
+    pub email: String,
+    #[secondary_key]
+    pub age: u32,
+}
+```
+
+#### Generated Types
+
+The macro generates several key-related types:
+
+**1. Primary Key Newtype:**
+```rust
+#[derive(Clone, Debug, bincode::Encode, bincode::Decode)]
+pub struct UserPrimaryKey(pub u64);
+```
+
+**2. Secondary Key Types:**
+```rust
+#[derive(Clone, Debug, bincode::Encode, bincode::Decode)]
+pub struct UserEmailSecondaryKey(pub String);
+
+#[derive(Clone, Debug, bincode::Encode, bincode::Decode)]
+pub struct UserAgeSecondaryKey(pub u32);
+```
+
+**3. Secondary Keys Enum:**
+```rust
+#[derive(Clone, Debug, bincode::Encode, bincode::Decode)]
+pub enum UserSecondaryKeys {
+    Email(UserEmailSecondaryKey),
+    Age(UserAgeSecondaryKey),
+}
+```
+
+**4. Combined Keys Enum:**
+```rust
+#[derive(Clone, Debug, bincode::Encode, bincode::Decode)]
+pub enum UserKey {
+    Primary(UserPrimaryKey),
+    Secondary(UserSecondaryKeys),
+}
+```
+
+#### NetabaseModelTrait Implementation
+
+```rust
+impl NetabaseModelTrait<MyDefinition> for User {
+    const DISCRIMINANT: MyDefinitionDiscriminant = MyDefinitionDiscriminant::User;
+
+    type PrimaryKey = UserPrimaryKey;
+    type SecondaryKeys = UserSecondaryKeys;
+    type Keys = UserKey;
+
+    fn primary_key(&self) -> Self::PrimaryKey {
+        UserPrimaryKey(self.id)
+    }
+
+    fn secondary_keys(&self) -> Vec<Self::SecondaryKeys> {
+        vec![
+            UserSecondaryKeys::Email(UserEmailSecondaryKey(self.email.clone())),
+            UserSecondaryKeys::Age(UserAgeSecondaryKey(self.age)),
+        ]
+    }
+
+    fn discriminant_name() -> &'static str {
+        "User"
     }
 }
 ```
 
-**Generates**:
-1. **Definition Enum**: Wraps all models
-   ```rust
-   pub enum MyDefinition {
-       Model1(Model1),
-       // ... other models
-   }
-   ```
+### 2. `#[netabase_definition_module]` Macro
 
-2. **Keys Enum**: Union of all model keys
-   ```rust
-   pub enum MyKeys {
-       Model1(Model1Key),
-       // ... other model keys
-   }
-   ```
+**File:** `netabase_macros/src/lib.rs`
 
-3. **Trait Implementations**: `NetabaseDefinitionTrait`, conversion traits, etc.
+This macro wraps a module containing multiple model definitions and generates the complete database schema.
 
-#### `#[derive(NetabaseModel)]` Macro
-
-**Generates for each model**:
-1. **Primary Key Type**:
-   ```rust
-   pub struct Model1PrimaryKey(pub u64);
-   ```
-
-2. **Secondary Keys Enum**:
-   ```rust
-   pub enum Model1SecondaryKeys {
-       Name(NameSecondaryKey),
-       // ... other secondary keys
-   }
-   ```
-
-3. **Model Key Enum**:
-   ```rust
-   pub enum Model1Key {
-       Primary(Model1PrimaryKey),
-       Secondary(Model1SecondaryKeys),
-   }
-   ```
-
-4. **Trait Implementations**: `NetabaseModelTrait` with methods like:
-   - `primary_key()` - Extract primary key
-   - `secondary_keys()` - Extract all secondary keys
-   - `DISCRIMINANT` - Model identifier
-
-### 2. Trait Layer (`src/traits/`)
-
-**Purpose**: Define common interfaces for all storage operations.
-
-#### Core Traits
-
-**`NetabaseModelTrait<D>`**:
-- Associated types for keys
-- Methods to extract primary/secondary keys
-- Model discriminant (type identifier)
-
-**`NetabaseDefinitionTrait`**:
-- Schema-level enum trait
-- Keys enum association
-- Conversion methods
-
-**`NetabaseTreeSync<D, M>`** (Native):
-- `put(model)` - Insert or update
-- `get(key)` - Retrieve by primary key
-- `remove(key)` - Delete
-- `get_by_secondary_key(key)` - Query by secondary key
-- `iter()` - Iterate all records
-- `len()`, `is_empty()`, `clear()` - Utility methods
-
-**`NetabaseTreeAsync<D, M>`** (WASM):
-- Same methods as `NetabaseTreeSync` but async
-
-**`ToIVec`**:
-- Conversion to/from byte vectors
-- Used for database serialization
-
-### 3. Storage Backends (`src/databases/`)
-
-#### Sled Backend (`sled_store.rs`)
-
-**SledStore<D>**:
-- Wrapper around `sled::Db`
-- Generic over definition type `D`
-- Methods:
-  - `new(path)` - Open database at path
-  - `temp()` - Create temporary in-memory database
-  - `open_tree::<M>()` - Get type-safe tree for model
-  - `tree_names()` - List all discriminants
-  - `db()` - Access underlying sled::Db
-  - `flush()` - Persist to disk
-
-**SledStoreTree<D, M>**:
-- Type-safe wrapper around `sled::Tree`
-- Generic over definition `D` and model `M`
-- Implements `NetabaseTreeSync<D, M>`
-- Manages:
-  - Primary key → model mapping
-  - Secondary key → primary key index
-- Methods handle serialization automatically
-
-**Key Storage Structure**:
-```
-Tree: "<ModelDiscriminant>"
-  ├─ primary:<primary_key> → <serialized_model>
-  ├─ secondary:email:<email> → <primary_key>
-  └─ secondary:age:<age> → <primary_key>
-```
-
-#### Redb Backend (`redb_store.rs`)
-
-**BincodeWrapper<T>**:
-- Implements redb's `Key` and `Value` traits
-- Uses bincode for serialization
-- Allows arbitrary Rust types as keys/values
-
-**RedbStore<D>**:
-- Wrapper around `redb::Database`
-- Similar API to `SledStore`
-- Uses `Arc<Database>` for thread-safety
-
-**RedbStoreTree<D, M>**:
-- Type-safe wrapper for redb tables
-- Similar to `SledStoreTree`
-- Uses transactions for writes
-
-**Differences from Sled**:
-- ACID guarantees with full transaction support
-- More memory-efficient
-- Different trade-offs (slightly slower writes, better consistency)
-
-#### IndexedDB Backend (`indexeddb_store.rs`) - WASM Only
-
-**IndexedDBStore<D>**:
-- Wrapper around browser's IndexedDB API
-- Async operations (browser requirement)
-- Uses `indexed_db_futures` crate
-
-**IndexedDBStoreTree<D, M>**:
-- Implements `NetabaseTreeAsync<D, M>`
-- All operations are async
-- Uses IndexedDB object stores
-
-### 4. libp2p Integration (`record_store.rs`)
-
-**Purpose**: Allow stores to be used as Kademlia DHT record stores.
-
-**Implementation**:
-- `SledStore` and `RedbStore` implement libp2p's `RecordStore` trait
-- Stores DHT records as special entries in the database
-- Manages provider records for content discovery
-- Separate from model storage (different key namespace)
-
-**RecordStore Methods**:
-- `get(key)` - Retrieve a DHT record
-- `put(record)` - Store a DHT record
-- `remove(key)` - Delete a DHT record
-- `records()` - Iterate all DHT records
-- `add_provider()` - Add a provider record
-- `providers(key)` - Get providers for a key
-- `provided()` - Get all locally provided records
-- `remove_provider()` - Remove a provider record
-
-**Storage Layout**:
-```
-Tree: "__libp2p_records__"
-  ├─ record:<key> → <Record>
-  ├─ provider:<key>:<peer_id> → <ProviderRecord>
-  └─ provided:<peer_id>:<key> → <ProviderRecord>
-```
-
-## Data Flow
-
-### Put Operation
-
-```
-1. Application: tree.put(model)
-        ↓
-2. Tree: Extract primary key from model
-        ↓
-3. Tree: Serialize model with bincode
-        ↓
-4. Tree: Store primary_key → serialized_model
-        ↓
-5. Tree: For each secondary key:
-        Extract key value
-        Store secondary_key → primary_key
-        ↓
-6. Backend: Persist to disk/IndexedDB
-        ↓
-7. Return: Result<()>
-```
-
-### Get by Primary Key
-
-```
-1. Application: tree.get(primary_key)
-        ↓
-2. Tree: Convert key to bytes
-        ↓
-3. Backend: Lookup in database
-        ↓
-4. Tree: Deserialize if found
-        ↓
-5. Return: Result<Option<Model>>
-```
-
-### Get by Secondary Key
-
-```
-1. Application: tree.get_by_secondary_key(secondary_key)
-        ↓
-2. Tree: Convert secondary key to bytes
-        ↓
-3. Backend: Lookup secondary_key → primary_key
-        ↓
-4. Tree: For each primary key found:
-        Lookup primary_key → model
-        Deserialize model
-        ↓
-5. Return: Result<Vec<Model>>
-```
-
-### Remove Operation
-
-```
-1. Application: tree.remove(primary_key)
-        ↓
-2. Tree: Get model by primary key (to extract secondary keys)
-        ↓
-3. Tree: Remove primary_key → model mapping
-        ↓
-4. Tree: For each secondary key in the model:
-        Remove secondary_key → primary_key mapping
-        ↓
-5. Backend: Persist changes
-        ↓
-6. Return: Result<Option<Model>> (the removed model)
-```
-
-## Secondary Key Indexing
-
-### Index Maintenance
-
-**On Insert/Update**:
-1. If updating, get old model and remove old secondary key entries
-2. For each `#[secondary_key]` field:
-   - Generate index key: `secondary:<field_name>:<value>`
-   - Store: index_key → primary_key
-3. This allows reverse lookups
-
-**On Delete**:
-1. Get model to extract secondary keys
-2. Remove all secondary key → primary key mappings
-3. Remove primary key → model mapping
-
-### Index Structure
-
-```
-Model:
-  User { id: 1, email: "alice@example.com", age: 30 }
-
-Storage:
-  primary:1 → User{id:1, email:"alice@example.com", age:30}
-  secondary:email:alice@example.com → 1
-  secondary:age:30 → 1
-```
-
-### Query Performance
-
-- **Primary Key**: O(log n) - Direct lookup
-- **Secondary Key**: O(log n + m) where m = matching records
-  1. O(log n) to find secondary key index
-  2. O(m) to fetch m matching primary keys
-  3. O(m log n) to fetch m models
-- **Full Iteration**: O(n) - Scan all records
-
-## Type Safety Mechanism
-
-### Compile-Time Guarantees
-
-1. **Key Type Matching**: Can't use Model1's key with Model2's tree
-   ```rust
-   let user_tree = store.open_tree::<User>();
-   let post_tree = store.open_tree::<Post>();
-
-   user_tree.get(UserPrimaryKey(1)); // ✓ OK
-   user_tree.get(PostPrimaryKey(1)); // ✗ Compile error!
-   ```
-
-2. **Secondary Key Existence**: Can only query keys that exist
-   ```rust
-   user_tree.get_by_secondary_key(UserSecondaryKeys::Email(...)); // ✓ OK
-   user_tree.get_by_secondary_key(UserSecondaryKeys::Phone(...)); // ✗ Compile error if Phone not defined!
-   ```
-
-3. **Definition Matching**: Trees must match store definition
-   ```rust
-   let store = SledStore::<BlogDefinition>::new("db")?;
-   let user_tree = store.open_tree::<User>(); // ✓ OK if User in BlogDefinition
-   let article_tree = store.open_tree::<Article>(); // ✗ Compile error if Article not in BlogDefinition!
-   ```
-
-### Runtime Invariants
-
-1. **Primary Key Uniqueness**: Enforced by database backend
-2. **Index Consistency**: Secondary key indices always match stored models
-3. **Serialization**: All models must be bincode-serializable
-4. **Tree Isolation**: Different model types use different database trees
-
-## Error Handling
-
-### Error Types
-
-**`NetabaseError`**:
-- `Sled(sled::Error)` - Sled backend errors
-- `Redb(redb::Error)` - Redb backend errors
-- `IndexedDB(String)` - IndexedDB errors (WASM)
-- `Encoding(EncodingDecodingError)` - Serialization errors
-- `StoreError(StoreError)` - General store errors
-
-**`EncodingDecodingError`**:
-- `BincodeEncode` - Failed to serialize
-- `BincodeDecode` - Failed to deserialize
-
-### Error Propagation
-
-```
-Backend Error
-    ↓
-NetabaseError wrapper
-    ↓
-Tree method Result
-    ↓
-Application
-```
-
-## Performance Optimizations
-
-### Zero-Copy Where Possible
-
-- Sled allows zero-copy reads with `IVec`
-- Bincode provides efficient serialization
-- Secondary key lookups minimize data copying
-
-### Caching
-
-- Backends (Sled, Redb) have their own caching
-- No additional caching layer (keep it simple)
-
-### Batch Operations
-
-- Not yet implemented, but planned
-- Will use backend-specific transaction support
-
-## Testing Strategy
-
-### Unit Tests
-
-- `tests/backend_crud_tests.rs`: Comprehensive CRUD tests for all backends
-- `tests/sled_store_tests.rs`: Sled-specific tests
-- `tests/record_store_tests.rs`: libp2p integration tests
-- `tests/cross_store_compat_tests.rs`: Cross-backend compatibility
-
-### Integration Tests
-
-- Real database operations
-- Multi-model scenarios
-- Secondary key queries
-
-### Benchmarks
-
-- `benches/sled_wrapper_overhead.rs`: Measure overhead vs raw Sled
-- `benches/redb_wrapper_overhead.rs`: Measure overhead vs raw Redb
-- Comparison of different backends
-
-## Cross-Platform Support
-
-### Native (Rust std)
-
-- Full feature set
-- Synchronous API (`NetabaseTreeSync`)
-- Sled and Redb backends
-
-### WASM (Browser)
-
-- Async API only (`NetabaseTreeAsync`)
-- IndexedDB backend
-- Limited to browser capabilities
-
-### Feature Flags
-
-```toml
-[features]
-default = ["sled"]
-native = ["sled", "redb"]
-wasm = ["indexed_db_futures"]
-libp2p = ["libp2p-kad"]
-```
-
-## Future Enhancements
-
-1. **Transactions**: Multi-operation ACID transactions
-2. **Range Queries**: Query ranges of ordered keys
-3. **Composite Keys**: Multiple-field primary keys
-4. **Migrations**: Schema version management
-5. **Compression**: Optional transparent compression
-6. **Encryption**: At-rest encryption support
-7. **Query Builder**: Fluent API for complex queries
-8. **Async Native**: Async API for native platforms
-
-## Debugging Tips
-
-### Inspect Database Structure
+#### Input
 
 ```rust
-// List all trees
-let trees = store.tree_names();
-println!("Trees: {:?}", trees);
+#[netabase_definition_module(BlogDefinition, BlogKeys)]
+mod blog {
+    use netabase_store::{NetabaseModel, netabase};
 
-// Count records in a tree
-let count = user_tree.len()?;
-println!("Users: {}", count);
+    #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode,
+             serde::Serialize, serde::Deserialize)]
+    #[netabase(BlogDefinition)]
+    pub struct User {
+        #[primary_key]
+        pub id: u64,
+        pub name: String,
+        #[secondary_key]
+        pub email: String,
+    }
 
-// Iterate and inspect
-for result in user_tree.iter() {
-    let (key, user) = result?;
-    println!("{:?} => {:?}", key, user);
+    #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode,
+             serde::Serialize, serde::Deserialize)]
+    #[netabase(BlogDefinition)]
+    pub struct Post {
+        #[primary_key]
+        pub id: u64,
+        pub title: String,
+        #[secondary_key]
+        pub author_id: u64,
+    }
 }
 ```
 
-### Check Secondary Keys
+#### Generated Definition Enum
 
 ```rust
+#[derive(Clone, Debug, bincode::Encode, bincode::Decode,
+         serde::Serialize, serde::Deserialize)]
+#[derive(strum::EnumDiscriminants, strum::IntoStaticStr)]
+#[strum_discriminants(derive(strum::EnumIter, strum::Display,
+                             Hash, PartialOrd, Ord, PartialEq, Eq))]
+#[strum_discriminants(name(BlogDefinitionDiscriminant))]
+pub enum BlogDefinition {
+    User(User),
+    Post(Post),
+}
+```
+
+#### Generated Keys Enum
+
+```rust
+#[derive(Clone, Debug, bincode::Encode, bincode::Decode)]
+#[derive(strum::EnumDiscriminants, strum::IntoStaticStr)]
+#[strum_discriminants(derive(strum::EnumIter, strum::Display,
+                             Hash, PartialOrd, Ord))]
+#[strum_discriminants(name(BlogKeysDiscriminant))]
+pub enum BlogKeys {
+    User(UserKey),
+    Post(PostKey),
+}
+```
+
+#### NetabaseDefinitionTrait Implementation
+
+```rust
+impl NetabaseDefinitionTrait for BlogDefinition {
+    type Keys = BlogKeys;
+
+    fn to_key(&self) -> Result<Self::Keys, NetabaseError> {
+        match self {
+            BlogDefinition::User(model) => {
+                Ok(BlogKeys::User(UserKey::Primary(model.primary_key())))
+            }
+            BlogDefinition::Post(model) => {
+                Ok(BlogKeys::Post(PostKey::Primary(model.primary_key())))
+            }
+        }
+    }
+
+    fn discriminant_name(&self) -> &'static str {
+        match self {
+            BlogDefinition::User(_) => "User",
+            BlogDefinition::Post(_) => "Post",
+        }
+    }
+}
+```
+
+#### Conversion Traits (ToIVec/FromIVec)
+
+```rust
+impl ToIVec for BlogDefinition {
+    fn to_ivec(&self) -> Result<IVec, NetabaseError> {
+        let bytes = bincode::encode_to_vec(self, bincode::config::standard())
+            .map_err(|e| NetabaseError::Serialization(e.to_string()))?;
+        Ok(bytes.into())
+    }
+}
+
+impl FromIVec for BlogDefinition {
+    fn from_ivec(ivec: &IVec) -> Result<Self, NetabaseError> {
+        let (decoded, _) = bincode::decode_from_slice(
+            ivec.as_ref(),
+            bincode::config::standard()
+        ).map_err(|e| NetabaseError::Deserialization(e.to_string()))?;
+        Ok(decoded)
+    }
+}
+
+// Same implementations for BlogKeys, UserKey, PostKey, etc.
+```
+
+---
+
+## Backend Implementation
+
+Netabase Store supports multiple storage backends through the `NetabaseTreeSync` trait interface.
+
+### Tree-Based API: `NetabaseTreeSync<D, M>`
+
+**File:** `src/traits/tree.rs`
+
+The core trait for database operations is `NetabaseTreeSync`, which provides type-safe access to individual model trees:
+
+```rust
+pub trait NetabaseTreeSync<D, M> {
+    type PrimaryKey;
+    type SecondaryKeys;
+
+    /// Insert or update a model
+    fn put(&self, model: M) -> Result<(), NetabaseError>;
+
+    /// Get a model by its primary key
+    fn get(&self, key: Self::PrimaryKey) -> Result<Option<M>, NetabaseError>;
+
+    /// Delete a model by its primary key
+    fn remove(&self, key: Self::PrimaryKey) -> Result<Option<M>, NetabaseError>;
+
+    /// Query models by a secondary key
+    fn get_by_secondary_key(&self, key: Self::SecondaryKeys)
+        -> Result<Vec<M>, NetabaseError>;
+}
+```
+
+### Sled Backend Implementation
+
+**File:** `src/databases/sled_store.rs`
+
+#### Structure
+
+```rust
+pub struct SledStore<D: NetabaseDefinitionTrait> {
+    db: sled::Db,
+    _phantom: PhantomData<D>,
+}
+
+pub struct SledTree<'a, D: NetabaseDefinitionTrait, M: NetabaseModelTrait<D>> {
+    store: &'a SledStore<D>,
+    _phantom: PhantomData<M>,
+}
+```
+
+#### Creating a Store
+
+```rust
+impl<D> SledStore<D>
+where
+    D: NetabaseDefinitionTrait,
+{
+    pub fn new(path: impl AsRef<Path>) -> Result<Self, NetabaseError> {
+        let db = sled::open(path)
+            .map_err(|e| NetabaseError::Database(e.to_string()))?;
+        Ok(SledStore { db, _phantom: PhantomData })
+    }
+
+    pub fn temp() -> Result<Self, NetabaseError> {
+        let config = sled::Config::new().temporary(true);
+        let db = config.open()
+            .map_err(|e| NetabaseError::Database(e.to_string()))?;
+        Ok(SledStore { db, _phantom: PhantomData })
+    }
+
+    /// Open a type-safe tree for a specific model
+    pub fn open_tree<M>(&self) -> SledTree<D, M>
+    where
+        M: NetabaseModelTrait<D>,
+    {
+        SledTree {
+            store: self,
+            _phantom: PhantomData,
+        }
+    }
+}
+```
+
+#### NetabaseTreeSync Implementation
+
+```rust
+impl<'a, D, M> NetabaseTreeSync<D, M> for SledTree<'a, D, M>
+where
+    D: NetabaseDefinitionTrait + From<M>,
+    M: NetabaseModelTrait<D>,
+{
+    type PrimaryKey = M::PrimaryKey;
+    type SecondaryKeys = M::SecondaryKeys;
+
+    fn put(&self, model: M) -> Result<(), NetabaseError> {
+        let tree_name = M::discriminant_name();
+        let tree = self.store.db.open_tree(tree_name)?;
+
+        let primary_key = model.primary_key();
+        let key_bytes = bincode::encode_to_vec(&primary_key, bincode::config::standard())?;
+        let value_bytes = bincode::encode_to_vec(&model, bincode::config::standard())?;
+
+        tree.insert(key_bytes, value_bytes)?;
+
+        // Index secondary keys
+        for secondary_key in model.secondary_keys() {
+            let sk_bytes = bincode::encode_to_vec(&secondary_key, bincode::config::standard())?;
+            let pk_bytes = bincode::encode_to_vec(&primary_key, bincode::config::standard())?;
+
+            let index_tree = self.store.db.open_tree(
+                format!("{}__index", tree_name)
+            )?;
+            index_tree.insert(sk_bytes, pk_bytes)?;
+        }
+
+        Ok(())
+    }
+
+    fn get(&self, key: Self::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+        let tree_name = M::discriminant_name();
+        let tree = self.store.db.open_tree(tree_name)?;
+
+        let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())?;
+
+        match tree.get(key_bytes)? {
+            Some(value_ivec) => {
+                let (model, _) = bincode::decode_from_slice(
+                    value_ivec.as_ref(),
+                    bincode::config::standard()
+                )?;
+                Ok(Some(model))
+            }
+            None => Ok(None),
+        }
+    }
+
+    fn remove(&self, key: Self::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+        let tree_name = M::discriminant_name();
+        let tree = self.store.db.open_tree(tree_name)?;
+
+        let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())?;
+
+        match tree.remove(key_bytes)? {
+            Some(value_ivec) => {
+                let (model, _) = bincode::decode_from_slice::<M>(
+                    value_ivec.as_ref(),
+                    bincode::config::standard()
+                )?;
+
+                // Remove secondary key indexes
+                for secondary_key in model.secondary_keys() {
+                    let sk_bytes = bincode::encode_to_vec(&secondary_key, bincode::config::standard())?;
+                    let index_tree = self.store.db.open_tree(
+                        format!("{}__index", tree_name)
+                    )?;
+                    index_tree.remove(sk_bytes)?;
+                }
+
+                Ok(Some(model))
+            }
+            None => Ok(None),
+        }
+    }
+
+    fn get_by_secondary_key(&self, key: Self::SecondaryKeys)
+        -> Result<Vec<M>, NetabaseError>
+    {
+        let tree_name = M::discriminant_name();
+        let tree = self.store.db.open_tree(tree_name)?;
+        let index_tree = self.store.db.open_tree(format!("{}__index", tree_name))?;
+
+        let sk_bytes = bincode::encode_to_vec(&key, bincode::config::standard())?;
+
+        let mut results = Vec::new();
+
+        // Find all primary keys with this secondary key
+        for item in index_tree.scan_prefix(sk_bytes) {
+            let (_, pk_bytes) = item?;
+
+            if let Some(value_ivec) = tree.get(pk_bytes)? {
+                let (model, _) = bincode::decode_from_slice(
+                    value_ivec.as_ref(),
+                    bincode::config::standard()
+                )?;
+                results.push(model);
+            }
+        }
+
+        Ok(results)
+    }
+}
+```
+
+---
+
+## Type System and Traits
+
+### Core Trait Hierarchy
+
+```
+NetabaseModelTrait<D> (user-defined structs)
+    ├── const DISCRIMINANT
+    ├── type PrimaryKey
+    ├── type SecondaryKeys
+    ├── type Keys
+    ├── fn primary_key() -> PrimaryKey
+    ├── fn secondary_keys() -> Vec<SecondaryKeys>
+    └── fn discriminant_name() -> &'static str
+
+NetabaseDefinitionTrait (generated enum)
+    ├── type Keys
+    ├── fn to_key() -> Result<Keys>
+    └── fn discriminant_name() -> &'static str
+
+ToIVec + FromIVec (serialization)
+    ├── fn to_ivec() -> Result<IVec>
+    └── fn from_ivec(&IVec) -> Result<Self>
+
+NetabaseTreeSync<D, M> (backend operations)
+    ├── type PrimaryKey
+    ├── type SecondaryKeys
+    ├── fn put(model: M)
+    ├── fn get(key: PrimaryKey)
+    ├── fn remove(key: PrimaryKey)
+    └── fn get_by_secondary_key(key: SecondaryKeys)
+
+RecordStoreExt (libp2p integration)
+    ├── fn to_record() -> Result<libp2p::kad::Record>
+    └── fn from_record(&Record) -> Result<Self>
+```
+
+---
+
+## Data Serialization Flow
+
+### Encoding Path (Write)
+
+```
+User Model (struct User)
+    │ .primary_key()
+    ▼
+Primary Key (UserPrimaryKey(1))
+    │ bincode::encode
+    ▼
+Binary Key (Vec<u8>)
+    │
+    ├─→ (with bincode::encode(model))
+    │
+    ▼
+Binary Value (Vec<u8>)
+    │
+    ▼
+Backend Storage (Sled tree)
+```
+
+### Decoding Path (Read)
+
+```
+Backend Storage
+    │ returns key_bytes, value_bytes
+    ▼
+Binary Value (Vec<u8>)
+    │ bincode::decode
+    ▼
+User Model (struct User)
+```
+
+---
+
+## Tree-Based Access Pattern
+
+The central pattern for database access is through typed trees:
+
+### Basic Usage
+
+```rust
+use netabase_store::databases::sled_store::SledStore;
+use netabase_store::traits::tree::NetabaseTreeSync;
+use netabase_store::traits::model::NetabaseModelTrait;
+
+// Open database
+let db = SledStore::<BlogDefinition>::new("./data")?;
+
+// Open type-safe tree for User model
+let user_tree = db.open_tree::<User>();
+
+// Create a user
+let user = User {
+    id: 1,
+    name: "Alice".to_string(),
+    email: "alice@example.com".to_string(),
+};
+
+// Insert
+user_tree.put(user.clone())?;
+
+// Retrieve by primary key
+let retrieved = user_tree.get(UserPrimaryKey(1))?;
+assert_eq!(retrieved, Some(user));
+
 // Query by secondary key
-let users = user_tree.get_by_secondary_key(
-    UserSecondaryKeys::Age(AgeSecondaryKey(30))
+let users_by_email = user_tree.get_by_secondary_key(
+    UserSecondaryKeys::Email(UserEmailSecondaryKey("alice@example.com".to_string()))
 )?;
-println!("Users with age 30: {:?}", users);
+
+// Delete
+user_tree.remove(UserPrimaryKey(1))?;
 ```
 
-### Backend-Specific Tools
+### Multiple Model Types
 
-**Sled**:
-```bash
-# View database with sled command-line tool
-sled dump ./my_database
+```rust
+let db = SledStore::<BlogDefinition>::new("./data")?;
+
+// Work with users
+let user_tree = db.open_tree::<User>();
+user_tree.put(user)?;
+
+// Work with posts (completely separate tree)
+let post_tree = db.open_tree::<Post>();
+post_tree.put(post)?;
+
+// Query posts by author
+let posts = post_tree.get_by_secondary_key(
+    PostSecondaryKeys::AuthorId(PostAuthorIdSecondaryKey(1))
+)?;
 ```
 
-**Redb**:
-- Use redb's built-in inspection tools
+---
 
-## Related Documentation
+## libp2p Integration
 
-- [README.md](./README.md): User guide and examples
-- [netabase/ARCHITECTURE.md](../netabase/ARCHITECTURE.md): Networking layer
-- [examples/](./examples/): Working code examples
+### RecordStoreExt Trait
+
+**File:** `src/traits/record_store.rs`
+
+The `RecordStoreExt` trait provides conversion between netabase types and libp2p Kademlia records:
+
+```rust
+pub trait RecordStoreExt: NetabaseDefinitionTrait {
+    fn to_record(&self) -> Result<libp2p::kad::Record, NetabaseError>;
+    fn from_record(record: &libp2p::kad::Record) -> Result<Self, NetabaseError>;
+}
+```
+
+### Implementation
+
+```rust
+impl RecordStoreExt for BlogDefinition {
+    fn to_record(&self) -> Result<libp2p::kad::Record, NetabaseError> {
+        let key = self.to_key()?;
+        let key_bytes = key.to_ivec()?.to_vec();
+        let value_bytes = self.to_ivec()?.to_vec();
+
+        Ok(libp2p::kad::Record {
+            key: libp2p::kad::RecordKey::new(&key_bytes),
+            value: value_bytes,
+            publisher: None,
+            expires: None,
+        })
+    }
+
+    fn from_record(record: &libp2p::kad::Record) -> Result<Self, NetabaseError> {
+        let ivec: IVec = record.value.clone().into();
+        Self::from_ivec(&ivec)
+    }
+}
+```
+
+### libp2p RecordStore Implementation
+
+**File:** `src/databases/record_store/sled_impl.rs`
+
+SledStore also implements libp2p's `RecordStore` trait for direct Kademlia integration:
+
+```rust
+impl<D> libp2p::kad::store::RecordStore for SledStore<D>
+where
+    D: NetabaseDefinitionTrait + RecordStoreExt,
+{
+    type RecordsIter<'a> = SledRecordsIterator<'a>;
+    type ProvidedIter<'a> = std::iter::Empty<Cow<'a, ProviderRecord>>;
+
+    fn get(&self, key: &RecordKey) -> Option<Cow<'_, Record>> {
+        let key_bytes = key.as_ref();
+
+        self.db.get(key_bytes).ok()?.map(|value| {
+            Cow::Owned(Record {
+                key: key.clone(),
+                value: value.to_vec(),
+                publisher: None,
+                expires: None,
+            })
+        })
+    }
+
+    fn put(&mut self, record: Record) -> libp2p::kad::store::Result<()> {
+        let key_bytes = record.key.as_ref();
+        let value_bytes = &record.value;
+
+        self.db.insert(key_bytes, value_bytes)
+            .map_err(|_| libp2p::kad::store::Error::MaxRecords)?;
+
+        Ok(())
+    }
+
+    fn remove(&mut self, key: &RecordKey) {
+        let _ = self.db.remove(key.as_ref());
+    }
+
+    fn records(&self) -> Self::RecordsIter<'_> {
+        SledRecordsIterator {
+            inner: self.db.iter(),
+        }
+    }
+
+    fn provided(&self) -> Self::ProvidedIter<'_> {
+        std::iter::empty()
+    }
+}
+```
+
+---
+
+## Summary
+
+Netabase Store provides:
+
+1. **Type-Safe Storage:** Compile-time guarantees through macro-generated types
+2. **Tree-Based API:** Clean separation of model types via `open_tree::<Model>()`
+3. **Multi-Backend Support:** Sled, Redb, and IndexedDB with same API
+4. **Secondary Key Indexing:** Automatic indexing and querying by secondary keys
+5. **libp2p Integration:** Direct Kademlia DHT storage with type safety
+6. **Deterministic Serialization:** Consistent binary format using bincode
+
+The architecture enables developers to define data models once and get:
+- Local database operations via typed trees
+- Primary and secondary key queries
+- Type-safe CRUD operations
+- Automatic key type generation
+- Backend flexibility
+- libp2p Kademlia integration
+
+All while maintaining Rust's safety guarantees and zero-cost abstractions.

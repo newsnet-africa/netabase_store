@@ -159,6 +159,46 @@ pub fn netabase(_defs: TokenStream, input: TokenStream) -> TokenStream {
     input
 }
 
+/// Derive macro for NetabaseDiscriminant trait.
+///
+/// This is a marker trait implementation that confirms a type satisfies all
+/// the bounds required by NetabaseDiscriminant. The type must already
+/// implement all the required traits (Clone, Copy, Debug, etc.).
+///
+/// This macro is automatically applied by `#[netabase_definition_module]` to
+/// generated discriminant enums, but can also be used manually if needed.
+///
+/// # Example
+///
+/// ```ignore
+/// #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Display, AsRefStr, EnumIter, EnumString)]
+/// #[derive(NetabaseDiscriminant)]
+/// enum MyDiscriminant {
+///     Variant1,
+///     Variant2,
+/// }
+/// ```
+#[proc_macro_derive(NetabaseDiscriminant)]
+pub fn netabase_discriminant_derive(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = &input.ident;
+
+    // Generate the implementation
+    // This is a marker trait, so we just need to confirm the type satisfies the bounds
+    quote! {
+        // NetabaseDiscriminant is a blanket implementation, so implementing it
+        // just requires that all the bounds are satisfied.
+        // We use a const assertion to verify at compile time that the type implements the trait.
+        const _: () = {
+            fn assert_netabase_discriminant<T: ::netabase_store::traits::definition::NetabaseDiscriminant>() {}
+            fn assert_impl() {
+                assert_netabase_discriminant::<#name>();
+            }
+        };
+    }
+    .into()
+}
+
 /// Groups multiple models into a unified database schema (definition).
 ///
 /// This macro processes a module containing models and generates:
@@ -274,9 +314,26 @@ pub fn netabase_definition_module(name: TokenStream, input: TokenStream) -> Toke
     let (defin, def_key) = visitor.generate_definitions(definition, definition_key);
     let trait_impls = visitor.generate_definition_trait_impls(definition, definition_key);
 
+    // Generate discriminant type names for compile-time assertions
+    let discriminant_name = syn::Ident::new(&format!("{}Discriminant", definition), definition.span());
+    let key_discriminant_name = syn::Ident::new(&format!("{}Discriminant", definition_key), definition_key.span());
+
+    // Generate compile-time assertions for discriminant trait bounds
+    let discriminant_assertions: syn::Item = syn::parse_quote! {
+        const _: () = {
+            fn assert_discriminant<T: ::netabase_store::traits::definition::NetabaseDiscriminant>() {}
+            fn assert_key_discriminant<T: ::netabase_store::traits::definition::NetabaseKeyDiscriminant>() {}
+            fn _check() {
+                assert_discriminant::<#discriminant_name>();
+                assert_key_discriminant::<#key_discriminant_name>();
+            }
+        };
+    };
+
     if let Some((_, c)) = &mut def_module.content {
         c.push(syn::Item::Enum(defin));
         c.push(syn::Item::Enum(def_key));
+        c.push(discriminant_assertions);
     };
 
     quote! {

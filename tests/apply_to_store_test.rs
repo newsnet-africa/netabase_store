@@ -1,3 +1,5 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 //! Test for the macro-generated apply_to_store method
 //!
 //! This test verifies that the apply_to_store method is correctly generated

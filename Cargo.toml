@@ -20,8 +20,12 @@ crate-type = ["cdylib", "rlib"]
 default = ["native"]
 native = ["sled", "redb"]
 wasm = ["web-sys", "js-sys", "wasm-bindgen", "wasm-bindgen-futures", "indexed_db_futures"]
+sled = ["dep:sled"]
+redb = ["dep:redb", "netabase_deps/redb"]
+# libp2p is native-only (uses mio which doesn't support WASM)
 libp2p = ["dep:libp2p"]
 record-store = ["libp2p"]
+# paxos is native-only (uses threading/networking)
 paxos = ["dep:paxakos"]
 uniffi = ["netabase_macros/uniffi"]
 
@@ -30,23 +34,27 @@ anyhow = "1.0.100"
 bincode = { version = "2.0", features = ["derive", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 derive_more = { version = "2.0.1", features = ["from", "try_into", "into"] }
-libp2p = { version = "0.56.0", features = ["kad", "wasm-bindgen"], optional = true }
 netabase_deps = { version = "0.0.2", path = "netabase_deps" }
 netabase_macros = { version = "0.0.2", path = "netabase_macros" }
 serde = { version = "1.0", features = ["derive"] }
-sled = { version = "0.34.7", optional = true }
-redb = { version = "3.1.0", optional = true }
 strum = { version = "0.27.2", features = ["derive", "strum_macros"] }
 thiserror = "2.0.17"
+getrandom = { version = "0.2", features = ["js"] }
 
-# WASM-only dependencies
+# Native-only dependencies (not compatible with WASM)
+sled = { version = "0.34.7", optional = true }
+redb = { version = "3.1.0", optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+libp2p = { version = "0.56.0", features = ["kad"], optional = true }
+paxakos = { version = "0.13.0", optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { version = "0.3", optional = true, features = ["IdbDatabase", "IdbObjectStore", "IdbTransaction", "IdbRequest", "IdbCursorWithValue", "IdbKeyRange", "IdbTransactionMode", "IdbCursorDirection", "IdbOpenDbRequest", "IdbVersionChangeEvent", "DomException"] }
 js-sys = { version = "0.3", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
 indexed_db_futures = { version = "0.5", optional = true }
-getrandom = { version = "0.2", features = ["js"] }
-paxakos = { version = "0.13.0", optional = true }
 
 [dev-dependencies]
 tempfile = "3.0"

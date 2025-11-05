@@ -884,17 +884,5 @@ impl IndexedDBTree {
     }
 }
 
-// Implement OpenTree trait for IndexedDBStore
-#[cfg(target_arch = "wasm32")]
-impl<D, M> crate::traits::store_ops::OpenTree<D, M> for IndexedDBStore<D>
-where
-    D: NetabaseDefinitionTrait,
-    M: NetabaseModelTrait<D>,
-    <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
-{
-    type Tree = IndexedDBStoreTree<D, M>;
-
-    fn open_tree(&self) -> Self::Tree {
-        IndexedDBStoreTree::new(&self.db, M::DISCRIMINANT)
-    }
-}
+// Note: IndexedDBStore does not implement OpenTree because it uses an async API.
+// Use the async open_tree method on IndexedDBStore directly, or use NetabaseTreeAsync trait.

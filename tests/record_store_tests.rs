@@ -1,9 +1,11 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 #![cfg(all(feature = "libp2p", feature = "native"))]
 
 use libp2p::kad::store::RecordStore;
 use libp2p::kad::{ProviderRecord, Record, RecordKey as Key};
 use libp2p::{multihash::Multihash, PeerId};
-use netabase_macros::netabase_definition_module;
+use netabase_macros::{netabase, netabase_definition_module};
 use netabase_store::databases::sled_store::SledStore;
 use std::time::Instant;
 
@@ -11,7 +13,7 @@ use std::time::Instant;
 #[netabase_definition_module(TestDefinition, TestKeys)]
 mod test_schema {
     use netabase_deps::{bincode, serde};
-    use netabase_macros::NetabaseModel;
+    use netabase_macros::{netabase, NetabaseModel};
 
     #[derive(
         NetabaseModel,
@@ -24,6 +26,7 @@ mod test_schema {
         serde::Serialize,
         serde::Deserialize,
     )]
+    #[netabase(TestDefinition)]
     pub struct TestModel {
         #[primary_key]
         pub id: u64,

@@ -27,6 +27,10 @@ pub mod __private {
     /// Embedded database
     pub use sled;
 
+    /// Embedded database (alternative)
+    #[cfg(feature = "redb")]
+    pub use redb;
+
     /// Enum utilities and derive macros
     pub use strum;
 
@@ -45,6 +49,8 @@ pub use bincode;
 pub use derive_more;
 pub use serde;
 pub use sled;
+#[cfg(feature = "redb")]
+pub use redb;
 pub use strum;
 pub use paxakos;
 pub use blake3;

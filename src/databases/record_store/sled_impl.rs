@@ -77,8 +77,25 @@ where
     }
 
     /// Add a provider record (internal helper for generated RecordStore impl)
-    pub(crate) fn add_provider_internal(&mut self, record: ProviderRecord) -> Result<()> {
+    pub fn add_provider_internal(&mut self, record: ProviderRecord) -> Result<()> {
+        let config = self.record_store_config();
         let tree = self.providers_tree();
+        let provided_tree = self.provided_tree();
+        let key_bytes = utils::encode_key(&record.key);
+
+        // Check max_provided_keys limit - count unique keys in provided tree
+        let is_new_key = !provided_tree.contains_key(&key_bytes).map_err(|_| Error::MaxRecords)?;
+        if is_new_key && provided_tree.len() >= config.max_provided_keys {
+            return Err(Error::MaxProvidedKeys);
+        }
+
+        // Check max_providers_per_key limit - count providers for this key
+        let providers_count = tree.scan_prefix(&key_bytes).count();
+        if providers_count >= config.max_providers_per_key {
+            // Silently ignore if limit reached (as per libp2p spec)
+            return Ok(());
+        }
+
         let composite_key = Self::provider_composite_key(&record.key, &record.provider);
         let value_bytes = utils::encode_provider(&record)?;
 
@@ -86,8 +103,6 @@ where
             .map_err(|_| Error::MaxRecords)?;
 
         // Also track in provided tree
-        let provided_tree = self.provided_tree();
-        let key_bytes = utils::encode_key(&record.key);
         provided_tree.insert(key_bytes, value_bytes)
             .map_err(|_| Error::MaxRecords)?;
 
@@ -95,16 +110,24 @@ where
     }
 
     /// Get providers for a key (internal helper for generated RecordStore impl)
-    pub(crate) fn providers_internal(&self, key: &Key) -> Result<Vec<ProviderRecord>> {
+    pub fn providers_internal(&self, key: &Key) -> Result<Vec<ProviderRecord>> {
         self.get_providers_for_key(key)
     }
 
     /// Remove a provider record (internal helper for generated RecordStore impl)
-    pub(crate) fn remove_provider_internal(&mut self, key: &Key, provider: &PeerId) {
+    pub fn remove_provider_internal(&mut self, key: &Key, provider: &PeerId) {
         let tree = self.providers_tree();
         let composite_key = Self::provider_composite_key(key, provider);
         let _ = tree.remove(composite_key);
 
-        // Note: We don't remove from provided_tree here because other peers may still provide this key
+        // Check if there are any remaining providers for this key
+        let key_bytes = utils::encode_key(key);
+        let has_providers = tree.scan_prefix(&key_bytes).next().is_some();
+
+        // If no providers remain, remove from provided tree
+        if !has_providers {
+            let provided_tree = self.provided_tree();
+            let _ = provided_tree.remove(key_bytes);
+        }
     }
 }
