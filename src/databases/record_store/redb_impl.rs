@@ -1,11 +1,12 @@
 //! RedbStore implementation of libp2p Kademlia RecordStore
 
-use super::{utils, RecordStoreConfig, PROVIDER_TREE_NAME, PROVIDED_TREE_NAME};
+use super::{PROVIDED_TREE_NAME, PROVIDER_TREE_NAME, RecordStoreConfig, utils};
 use crate::databases::redb_store::RedbStore;
 use crate::traits::definition::NetabaseDefinitionTrait;
+use crate::{NetabaseModelTrait, NetabaseModelTraitKey};
+use libp2p::PeerId;
 use libp2p::kad::store::{Error, Result};
 use libp2p::kad::{ProviderRecord, RecordKey as Key};
-use libp2p::PeerId;
 use redb::{ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition};
 use std::str::FromStr;
 use strum::IntoDiscriminant;
@@ -104,7 +105,7 @@ where
     }
 
     /// Add a provider record (internal helper for generated RecordStore impl)
-    pub(crate) fn add_provider_internal(&mut self, record: ProviderRecord) -> Result<()> {
+    pub fn add_provider_internal(&mut self, record: ProviderRecord) -> Result<()> {
         let write_txn = self.db.begin_write().map_err(|_| Error::MaxRecords)?;
         let composite_key = Self::provider_composite_key(&record.key, &record.provider);
         let value_bytes = utils::encode_provider(&record)?;
@@ -134,12 +135,12 @@ where
     }
 
     /// Get providers for a key (internal helper for generated RecordStore impl)
-    pub(crate) fn providers_internal(&self, key: &Key) -> Result<Vec<ProviderRecord>> {
+    pub fn providers_internal(&self, key: &Key) -> Result<Vec<ProviderRecord>> {
         self.get_providers_for_key(key)
     }
 
     /// Remove a provider record (internal helper for generated RecordStore impl)
-    pub(crate) fn remove_provider_internal(&mut self, key: &Key, provider: &PeerId) {
+    pub fn remove_provider_internal(&mut self, key: &Key, provider: &PeerId) {
         if let Ok(write_txn) = self.db.begin_write() {
             let composite_key = Self::provider_composite_key(key, provider);
             if let Ok(mut table) = write_txn.open_table(Self::providers_table_def()) {

@@ -1,3 +1,5 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 #![cfg(feature = "native")]
 use blog::*;
 use databases::sled_store::*;
@@ -63,6 +65,7 @@ mod blog {
         serde::Serialize,
         serde::Deserialize,
     )]
+    #[netabase(BlogDefinition)]
     pub struct Comment {
         #[primary_key]
         pub id: u64,

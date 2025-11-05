@@ -1,15 +1,17 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 #![cfg(all(feature = "libp2p", feature = "native"))]
 
 use libp2p::kad::store::RecordStore;
 use libp2p::kad::{Record, RecordKey as Key};
-use netabase_macros::netabase_definition_module;
+use netabase_macros::{netabase, netabase_definition_module};
 use netabase_store::databases::sled_store::SledStore;
 
 // Test schema
 #[netabase_definition_module(DhtDefinition, DhtKeys)]
 mod dht_schema {
     use netabase_deps::{bincode, serde};
-    use netabase_macros::NetabaseModel;
+    use netabase_macros::{netabase, NetabaseModel};
 
     #[derive(
         NetabaseModel,
@@ -22,6 +24,7 @@ mod dht_schema {
         serde::Serialize,
         serde::Deserialize,
     )]
+    #[netabase(DhtDefinition)]
     pub struct Article {
         #[primary_key]
         pub id: u64,
@@ -44,6 +47,7 @@ mod dht_schema {
         serde::Serialize,
         serde::Deserialize,
     )]
+    #[netabase(DhtDefinition)]
     pub struct Counter {
         #[primary_key]
         pub id: String,

@@ -21,7 +21,7 @@ use std::borrow::Cow;
 /// 1. Deserializing Record values as the Definition enum
 /// 2. Calling the instance method `handle_record_store_put` which dispatches based on the variant
 /// 3. Storing the inner model type (not the enum wrapper)
-#[cfg(all(feature = "libp2p", feature = "sled"))]
+#[cfg(all(feature = "libp2p", feature = "sled", not(target_arch = "wasm32")))]
 impl<D> RecordStore for SledStore<D>
 where
     D: NetabaseDefinitionTrait + RecordStoreExt,
@@ -55,32 +55,40 @@ where
     }
 
     fn records(&self) -> Self::RecordsIter<'_> {
-        // TODO: Implement records iterator using the generated helper
-        Box::new(std::iter::empty())
+        eprintln!("[GENERIC_IMPL] SledStore::records() called, delegating to D::handle_sled_records");
+        D::handle_sled_records(self)
     }
 
-    fn add_provider(&mut self, _record: ProviderRecord) -> RecordStoreResult<()> {
-        // TODO: Implement provider records
-        Ok(())
+    fn add_provider(&mut self, record: ProviderRecord) -> RecordStoreResult<()> {
+        self.add_provider_internal(record)
     }
 
-    fn providers(&self, _key: &RecordKey) -> Vec<ProviderRecord> {
-        // TODO: Implement provider lookup
-        Vec::new()
+    fn providers(&self, key: &RecordKey) -> Vec<ProviderRecord> {
+        self.providers_internal(key).unwrap_or_default()
     }
 
     fn provided(&self) -> Self::ProvidedIter<'_> {
-        // TODO: Implement provided iterator
-        Box::new(std::iter::empty())
+        use super::utils;
+
+        // Get the provided iterator from the provided tree
+        let tree = self.db().open_tree("__libp2p_provided")
+            .expect("Failed to open provided tree");
+
+        Box::new(tree.iter().filter_map(|result| {
+            result.ok().and_then(|(_k, v)| {
+                // Decode provider record from value
+                utils::decode_provider(&v).ok().map(std::borrow::Cow::Owned)
+            })
+        }))
     }
 
-    fn remove_provider(&mut self, _key: &RecordKey, _provider: &libp2p::PeerId) {
-        // TODO: Implement provider removal
+    fn remove_provider(&mut self, key: &RecordKey, provider: &libp2p::PeerId) {
+        self.remove_provider_internal(key, provider)
     }
 }
 
 /// Generic RecordStore implementation for RedbStore<D>
-#[cfg(all(feature = "libp2p", feature = "redb"))]
+#[cfg(all(feature = "libp2p", feature = "redb", not(target_arch = "wasm32")))]
 impl<D> RecordStore for RedbStore<D>
 where
     D: NetabaseDefinitionTrait + RecordStoreExt,
@@ -114,21 +122,48 @@ where
     }
 
     fn records(&self) -> Self::RecordsIter<'_> {
-        Box::new(std::iter::empty())
+        D::handle_redb_records(self)
     }
 
-    fn add_provider(&mut self, _record: ProviderRecord) -> RecordStoreResult<()> {
-        Ok(())
+    fn add_provider(&mut self, record: ProviderRecord) -> RecordStoreResult<()> {
+        self.add_provider_internal(record)
     }
 
-    fn providers(&self, _key: &RecordKey) -> Vec<ProviderRecord> {
-        Vec::new()
+    fn providers(&self, key: &RecordKey) -> Vec<ProviderRecord> {
+        self.providers_internal(key).unwrap_or_default()
     }
 
     fn provided(&self) -> Self::ProvidedIter<'_> {
-        Box::new(std::iter::empty())
+        use redb::{ReadableDatabase, ReadableTable, TableDefinition};
+        use super::utils;
+
+        let table_def: TableDefinition<'static, &'static [u8], &'static [u8]> =
+            TableDefinition::new("__libp2p_provided");
+
+        // Read all provided records
+        let records: Vec<ProviderRecord> = if let Ok(read_txn) = self.db.begin_read() {
+            if let Ok(table) = read_txn.open_table(table_def) {
+                table.iter()
+                    .ok()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|result| {
+                        result.ok().and_then(|(_k, v)| {
+                            utils::decode_provider(v.value()).ok()
+                        })
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            }
+        } else {
+            Vec::new()
+        };
+
+        Box::new(records.into_iter().map(std::borrow::Cow::Owned))
     }
 
-    fn remove_provider(&mut self, _key: &RecordKey, _provider: &libp2p::PeerId) {
+    fn remove_provider(&mut self, key: &RecordKey, provider: &libp2p::PeerId) {
+        self.remove_provider_internal(key, provider)
     }
 }

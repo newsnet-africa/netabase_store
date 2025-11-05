@@ -1,3 +1,5 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 //! Comprehensive tests for netabase_store
 //!
 //! These tests verify that netabase_store works correctly as a standalone

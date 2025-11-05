@@ -19,8 +19,8 @@ impl<'a> ModelVisitor<'a> {
         };
         let keys_enum: ItemEnum = parse_quote!(
             #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash,
-            ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::TryInto,
-                ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode
+            ::netabase_store::derive_more::From, ::netabase_store::derive_more::TryInto,
+                ::netabase_store::bincode::Encode, ::netabase_store::bincode::Decode
             )]
             pub enum #name {
                 Primary(#primary_key_id),
@@ -88,8 +88,8 @@ impl<'a> ModelVisitor<'a> {
                     type SecondaryKeys = #secondary_keys_ty;
                     type Keys = #keys_ty;
 
-                    const DISCRIMINANT:<#def_path as ::netabase_deps::strum::IntoDiscriminant>::Discriminant
-                        = <#def_path as ::netabase_deps::strum::IntoDiscriminant>::Discriminant::#model_name;
+                    const DISCRIMINANT:<#def_path as ::netabase_store::strum::IntoDiscriminant>::Discriminant
+                        = <#def_path as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#model_name;
 
                     fn primary_key(&self) -> Self::PrimaryKey {
                         #primary_key_ty(self.#primary_field.clone())
@@ -106,18 +106,18 @@ impl<'a> ModelVisitor<'a> {
 
                 impl ::netabase_store::traits::model::NetabaseModelTraitKey<#def_path> for #primary_key_ty {
 
-                    const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_deps::strum::IntoDiscriminant>::Discriminant
-                        = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_deps::strum::IntoDiscriminant>::Discriminant::#keys_ty;
+                    const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant
+                        = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#keys_ty;
                 }
                 impl ::netabase_store::traits::model::NetabaseModelTraitKey<#def_path> for #secondary_keys_ty {
 
-                    const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_deps::strum::IntoDiscriminant>::Discriminant
-                        = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_deps::strum::IntoDiscriminant>::Discriminant::#keys_ty;
+                    const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant
+                        = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#keys_ty;
                 }
                 impl ::netabase_store::traits::model::NetabaseModelTraitKey<#def_path> for #keys_ty {
 
-                    const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_deps::strum::IntoDiscriminant>::Discriminant
-                        = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_deps::strum::IntoDiscriminant>::Discriminant::#keys_ty;
+                    const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant
+                        = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#keys_ty;
                 }
             }
         }).collect::<Vec<proc_macro2::TokenStream>>()
@@ -135,8 +135,8 @@ mod key_gen {
         fn generate_newtype(field: &Field, name: &Ident) -> ItemStruct {
             let ty = &field.ty;
             parse_quote!(
-                #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::Into,
-                    ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode
+                #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, ::netabase_store::derive_more::From, ::netabase_store::derive_more::Into,
+                    ::netabase_store::bincode::Encode, ::netabase_store::bincode::Decode
                 )]
                 pub struct #name(pub #ty);
             )
@@ -203,13 +203,13 @@ mod key_gen {
                 None => panic!("Visitor not initialised"),
             };
             parse_quote!(
-                #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, ::netabase_deps::strum::EnumDiscriminants,
-                    ::netabase_deps::strum::Display,
-                    ::netabase_deps::derive_more::From, ::netabase_deps::derive_more::TryInto,
-                    ::netabase_deps::bincode::Encode, ::netabase_deps::bincode::Decode
+                #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, ::netabase_store::strum::EnumDiscriminants,
+                    ::netabase_store::strum::Display,
+                    ::netabase_store::derive_more::From, ::netabase_store::derive_more::TryInto,
+                    ::netabase_store::bincode::Encode, ::netabase_store::bincode::Decode
                 )]
-                #[strum_discriminants(derive(::netabase_deps::strum::Display,
-                ::netabase_deps::strum::AsRefStr ))]
+                #[strum_discriminants(derive(::netabase_store::strum::Display,
+                ::netabase_store::strum::AsRefStr ))]
                 pub enum #name {
                     #(#list),*
                 }

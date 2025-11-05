@@ -1,3 +1,5 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 /// Comprehensive CRUD and secondary key tests for all three backends:
 /// - SledStore (native)
 /// - RedbStore (native)

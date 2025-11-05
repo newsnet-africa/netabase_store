@@ -20,40 +20,78 @@
 //!
 //! This allows us to route to the correct tree without decoding the value.
 
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::Ident;
 
 use crate::item_info::netabase_definitions::ModuleInfo;
 
 /// Generate helper functions needed by RecordStoreExt trait methods
 ///
-/// These are free functions that need to be in scope when the trait methods are called
+/// These are scoped to the specific definition to avoid conflicts when multiple definitions exist
+/// Uses a declarative macro to avoid generic type parameter issues
 pub fn generate_helper_functions(
+    modules: &[ModuleInfo],
     definition: &Ident,
+    definition_key: &Ident,
 ) -> proc_macro2::TokenStream {
+    let helper_mod_name = syn::Ident::new(&format!("__{}_helpers", definition.to_string().to_lowercase()), definition.span());
+
+    // Generate match arms for extracting discriminant from NetabaseDefinitionKeys
+    let decode_discriminant_arms: Vec<_> = modules
+        .iter()
+        .flat_map(|module| {
+            module.models.iter().map(|model| {
+                let model_name = &model.ident;
+                let model_key_name = syn::Ident::new(&format!("{}Key", model_name), model_name.span());
+
+                quote! {
+                    #definition_key::#model_key_name(_) => stringify!(#model_name)
+                }
+            })
+        })
+        .collect();
+
     quote! {
-        // Helper function to decode record key format: <discriminant_bytes>:<key_bytes>
         #[cfg(feature = "libp2p")]
-        fn decode_record_key<D>(
-            key: &::libp2p::kad::RecordKey
-        ) -> Option<(<D as ::netabase_deps::strum::IntoDiscriminant>::Discriminant, Vec<u8>)>
-        where
-            D: ::netabase_deps::strum::IntoDiscriminant,
-            <D as ::netabase_deps::strum::IntoDiscriminant>::Discriminant: ::netabase_deps::bincode::Decode<()>,
-        {
-            let bytes = key.to_vec();
-            let separator_pos = bytes.iter().position(|&b| b == b':')?;
+        mod #helper_mod_name {
+            use super::*;
 
-            // Decode discriminant
-            let disc_bytes = &bytes[..separator_pos];
-            let (discriminant, _): (<D as ::netabase_deps::strum::IntoDiscriminant>::Discriminant, _) =
-                ::netabase_deps::bincode::decode_from_slice(
-                    disc_bytes,
-                    ::netabase_deps::bincode::config::standard()
-                ).ok()?;
+            /// Declarative macro to decode record key for the concrete definition type
+            /// RecordKeys contain NetabaseDefinitionKeys, which we need to unwrap to get
+            /// the inner NetabaseModelKeys for storing to disk
+            /// Returns Option<(Discriminant, Vec<u8> /* encoded def keys for further processing */)>
+            macro_rules! decode_record_key {
+                ($key:expr, $def_type:ty, $key_type:ty) => {{
+                    (|| -> Option<(<$def_type as ::netabase_store::strum::IntoDiscriminant>::Discriminant, Vec<u8>)> {
+                        let bytes = $key.to_vec();
 
-            let key_bytes = bytes[separator_pos + 1..].to_vec();
-            Some((discriminant, key_bytes))
+                        // Decode as NetabaseDefinitionKeys
+                        let (def_keys, _): ($key_type, _) = ::netabase_store::bincode::decode_from_slice(
+                            &bytes,
+                            ::netabase_store::bincode::config::standard()
+                        ).ok()?;
+
+                        // Extract discriminant by matching on the variant
+                        let disc_str = match &def_keys {
+                            #(#decode_discriminant_arms),*
+                        };
+
+                        // Parse discriminant string into the actual discriminant type
+                        let discriminant: <$def_type as ::netabase_store::strum::IntoDiscriminant>::Discriminant =
+                            disc_str.parse().ok()?;
+
+                        // Re-encode the def_keys for further processing
+                        let key_bytes = ::netabase_store::bincode::encode_to_vec(
+                            &def_keys,
+                            ::netabase_store::bincode::config::standard()
+                        ).ok()?;
+
+                        Some((discriminant, key_bytes))
+                    })()
+                }};
+            }
+
+            pub(super) use decode_record_key;
         }
     }
 }
@@ -68,13 +106,17 @@ pub fn generate_helper_functions(
 pub fn generate_trait_methods(
     modules: &[ModuleInfo],
     definition: &Ident,
+    definition_key: &Ident,
 ) -> proc_macro2::TokenStream {
     let instance_put_match_arms = generate_instance_put_match_arms(modules);
-    let instance_get_match_arms = generate_instance_get_match_arms(modules, definition);
-    let remove_match_arms = generate_remove_match_arms(modules);
+    let instance_get_match_arms = generate_instance_get_match_arms(modules, definition, definition_key);
+    let remove_match_arms = generate_remove_match_arms(modules, definition_key);
 
     // Generate OpenTree bounds for all model types
     let open_tree_bounds = generate_open_tree_bounds(modules, definition);
+
+    // Generate helper module name for decode_record_key
+    let helper_mod_name = syn::Ident::new(&format!("__{}_helpers", definition.to_string().to_lowercase()), definition.span());
 
     quote! {
         // Sled store methods
@@ -99,10 +141,10 @@ pub fn generate_trait_methods(
         {
             use ::netabase_store::traits::definition::NetabaseDefinitionTrait;
             use ::netabase_store::traits::store_ops::StoreOps;
-            use ::netabase_deps::strum::IntoDiscriminant;
+            use ::netabase_store::strum::IntoDiscriminant;
 
             // Decode key to get discriminant and primary key bytes
-            let (discriminant, key_bytes) = decode_record_key::<#definition>(key)?;
+            let (discriminant, key_bytes) = #helper_mod_name::decode_record_key!(key, #definition, #definition_key)?;
 
             // Match discriminant to route to correct tree and wrap in Definition
             #instance_get_match_arms
@@ -117,13 +159,21 @@ pub fn generate_trait_methods(
         {
             use ::netabase_store::traits::definition::NetabaseDefinitionTrait;
             use ::netabase_store::traits::store_ops::StoreOps;
-            use ::netabase_deps::strum::IntoDiscriminant;
+            use ::netabase_store::strum::IntoDiscriminant;
 
             // Decode key to get discriminant and primary key bytes
-            if let Some((discriminant, key_bytes)) = decode_record_key::<#definition>(key) {
+            if let Some((discriminant, key_bytes)) = #helper_mod_name::decode_record_key!(key, #definition, #definition_key) {
                 // Match discriminant to route to correct tree
                 #remove_match_arms
             }
+        }
+
+        #[cfg(feature = "sled")]
+        fn handle_sled_records<'a>(store: &'a ::netabase_store::databases::sled_store::SledStore<Self>) -> Box<dyn Iterator<Item = std::borrow::Cow<'a, ::libp2p::kad::Record>> + 'a>
+        where
+            #open_tree_bounds
+        {
+            Box::new(RecordsIterGenerated::new(store))
         }
 
         // Redb store methods
@@ -148,10 +198,10 @@ pub fn generate_trait_methods(
         {
             use ::netabase_store::traits::definition::NetabaseDefinitionTrait;
             use ::netabase_store::traits::store_ops::StoreOps;
-            use ::netabase_deps::strum::IntoDiscriminant;
+            use ::netabase_store::strum::IntoDiscriminant;
 
             // Decode key to get discriminant and primary key bytes
-            let (discriminant, key_bytes) = decode_record_key::<#definition>(key)?;
+            let (discriminant, key_bytes) = #helper_mod_name::decode_record_key!(key, #definition, #definition_key)?;
 
             // Match discriminant to route to correct tree and wrap in Definition
             #instance_get_match_arms
@@ -166,13 +216,21 @@ pub fn generate_trait_methods(
         {
             use ::netabase_store::traits::definition::NetabaseDefinitionTrait;
             use ::netabase_store::traits::store_ops::StoreOps;
-            use ::netabase_deps::strum::IntoDiscriminant;
+            use ::netabase_store::strum::IntoDiscriminant;
 
             // Decode key to get discriminant and primary key bytes
-            if let Some((discriminant, key_bytes)) = decode_record_key::<#definition>(key) {
+            if let Some((discriminant, key_bytes)) = #helper_mod_name::decode_record_key!(key, #definition, #definition_key) {
                 // Match discriminant to route to correct tree
                 #remove_match_arms
             }
+        }
+
+        #[cfg(feature = "redb")]
+        fn handle_redb_records<'a>(store: &'a ::netabase_store::databases::redb_store::RedbStore<Self>) -> Box<dyn Iterator<Item = std::borrow::Cow<'a, ::libp2p::kad::Record>> + 'a>
+        where
+            #open_tree_bounds
+        {
+            Box::new(RecordsIterRedb::new(store))
         }
 
         // Memory store methods
@@ -197,10 +255,10 @@ pub fn generate_trait_methods(
         {
             use ::netabase_store::traits::definition::NetabaseDefinitionTrait;
             use ::netabase_store::traits::store_ops::StoreOps;
-            use ::netabase_deps::strum::IntoDiscriminant;
+            use ::netabase_store::strum::IntoDiscriminant;
 
             // Decode key to get discriminant and primary key bytes
-            let (discriminant, key_bytes) = decode_record_key::<#definition>(key)?;
+            let (discriminant, key_bytes) = #helper_mod_name::decode_record_key!(key, #definition, #definition_key)?;
 
             // Match discriminant to route to correct tree and wrap in Definition
             #instance_get_match_arms
@@ -215,10 +273,10 @@ pub fn generate_trait_methods(
         {
             use ::netabase_store::traits::definition::NetabaseDefinitionTrait;
             use ::netabase_store::traits::store_ops::StoreOps;
-            use ::netabase_deps::strum::IntoDiscriminant;
+            use ::netabase_store::strum::IntoDiscriminant;
 
             // Decode key to get discriminant and primary key bytes
-            if let Some((discriminant, key_bytes)) = decode_record_key::<#definition>(key) {
+            if let Some((discriminant, key_bytes)) = #helper_mod_name::decode_record_key!(key, #definition, #definition_key) {
                 // Match discriminant to route to correct tree
                 #remove_match_arms
             }
@@ -246,10 +304,10 @@ pub fn generate_trait_methods(
         {
             use ::netabase_store::traits::definition::NetabaseDefinitionTrait;
             use ::netabase_store::traits::store_ops::StoreOps;
-            use ::netabase_deps::strum::IntoDiscriminant;
+            use ::netabase_store::strum::IntoDiscriminant;
 
             // Decode key to get discriminant and primary key bytes
-            let (discriminant, key_bytes) = decode_record_key::<#definition>(key)?;
+            let (discriminant, key_bytes) = #helper_mod_name::decode_record_key!(key, #definition, #definition_key)?;
 
             // Match discriminant to route to correct tree and wrap in Definition
             #instance_get_match_arms
@@ -264,10 +322,10 @@ pub fn generate_trait_methods(
         {
             use ::netabase_store::traits::definition::NetabaseDefinitionTrait;
             use ::netabase_store::traits::store_ops::StoreOps;
-            use ::netabase_deps::strum::IntoDiscriminant;
+            use ::netabase_store::strum::IntoDiscriminant;
 
             // Decode key to get discriminant and primary key bytes
-            if let Some((discriminant, key_bytes)) = decode_record_key::<#definition>(key) {
+            if let Some((discriminant, key_bytes)) = #helper_mod_name::decode_record_key!(key, #definition, #definition_key) {
                 // Match discriminant to route to correct tree
                 #remove_match_arms
             }
@@ -301,12 +359,12 @@ fn generate_open_tree_bounds(
 pub fn generate_record_store_impl(
     modules: &[ModuleInfo],
     definition: &Ident,
-    _definition_key: &Ident,
+    definition_key: &Ident,
 ) -> proc_macro2::TokenStream {
-    let records_iter_impl = generate_records_iter_impl(modules, definition);
+    let records_iter_impl = generate_records_iter_impl(modules, definition, definition_key);
 
     // Generate RedbStore-specific implementations
-    let redb_impl = generate_redb_record_store_impl(modules, definition);
+    let redb_impl = generate_redb_record_store_impl(modules, definition, definition_key);
 
     quote! {
 
@@ -314,7 +372,7 @@ pub fn generate_record_store_impl(
             #[cfg(feature = "sled")]
             pub fn record_store_records_sled(
                 store: &::netabase_store::databases::sled_store::SledStore<#definition>
-            ) -> RecordsIterGenerated<'_, #definition> {
+            ) -> RecordsIterGenerated<'_> {
                 RecordsIterGenerated::new(store)
             }
 
@@ -394,7 +452,7 @@ pub fn generate_record_store_impl(
             #[cfg(feature = "redb")]
             pub fn record_store_records_redb(
                 store: &::netabase_store::databases::redb_store::RedbStore<#definition>
-            ) -> RecordsIterRedb<'_, #definition> {
+            ) -> RecordsIterRedb<'_> {
                 RecordsIterRedb::new(store)
             }
 
@@ -402,63 +460,37 @@ pub fn generate_record_store_impl(
         // instead of being generated for each concrete Definition type
         // The helper methods above (handle_record_store_put, etc.) support the generic implementations
 
-        // Helper function to encode record key format: <discriminant_bytes>:<key_bytes>
-        fn encode_record_key<D>(
-            discriminant: <D as ::netabase_deps::strum::IntoDiscriminant>::Discriminant,
-            key_bytes: &[u8]
-        ) -> ::libp2p::kad::RecordKey
-        where
-            D: ::netabase_store::traits::definition::NetabaseDefinitionTrait,
-        {
-            // Encode discriminant as bytes
-            let disc_bytes = ::netabase_deps::bincode::encode_to_vec(
-                &discriminant,
-                ::netabase_deps::bincode::config::standard()
-            ).expect("Discriminant encoding should not fail");
+        // Declarative macro to encode record key format: <discriminant_bytes>:<key_bytes>
+        // Uses the concrete definition type to avoid generic parameter issues
+        macro_rules! encode_record_key {
+            ($discriminant:expr, $key_bytes:expr, $def_type:ty) => {{
+                // Encode discriminant as bytes
+                let disc_bytes = ::netabase_store::bincode::encode_to_vec(
+                    &$discriminant,
+                    ::netabase_store::bincode::config::standard()
+                ).expect("Discriminant encoding should not fail");
 
-            // Combine: <discriminant_bytes>:<key_bytes>
-            let mut combined = disc_bytes;
-            combined.push(b':');
-            combined.extend_from_slice(key_bytes);
+                // Combine: <discriminant_bytes>:<key_bytes>
+                let mut combined = disc_bytes;
+                combined.push(b':');
+                combined.extend_from_slice($key_bytes);
 
-            ::libp2p::kad::RecordKey::from(combined)
-        }
-
-        // Helper function to decode record key format: <discriminant_bytes>:<key_bytes>
-        fn decode_record_key<D>(
-            key: &::libp2p::kad::RecordKey
-        ) -> Option<(<D as ::netabase_deps::strum::IntoDiscriminant>::Discriminant, Vec<u8>)>
-        where
-            D: ::netabase_store::traits::definition::NetabaseDefinitionTrait,
-        {
-            let bytes = key.to_vec();
-            let separator_pos = bytes.iter().position(|&b| b == b':')?;
-
-            // Decode discriminant
-            let disc_bytes = &bytes[..separator_pos];
-            let (discriminant, _): (<D as ::netabase_deps::strum::IntoDiscriminant>::Discriminant, _) =
-                ::netabase_deps::bincode::decode_from_slice(
-                    disc_bytes,
-                    ::netabase_deps::bincode::config::standard()
-                ).ok()?;
-
-            let key_bytes = bytes[separator_pos + 1..].to_vec();
-            Some((discriminant, key_bytes))
+                ::libp2p::kad::RecordKey::from(combined)
+            }};
         }
 
         #records_iter_impl
 
         // Provider records iterator
+        #[cfg(feature = "sled")]
         pub struct ProvidedIterGenerated<'a> {
             inner: ::sled::Iter,
             _phantom: std::marker::PhantomData<&'a ()>,
         }
 
+        #[cfg(feature = "sled")]
         impl<'a> ProvidedIterGenerated<'a> {
-            fn new<D>(store: &'a ::netabase_store::databases::sled_store::SledStore<D>) -> Self
-            where
-                D: ::netabase_store::traits::definition::NetabaseDefinitionTrait,
-            {
+            fn new(store: &'a ::netabase_store::databases::sled_store::SledStore<#definition>) -> Self {
                 let tree = store.db().open_tree("__libp2p_provided")
                     .expect("Failed to open provided tree");
                 ProvidedIterGenerated {
@@ -468,6 +500,7 @@ pub fn generate_record_store_impl(
             }
         }
 
+        #[cfg(feature = "sled")]
         impl<'a> Iterator for ProvidedIterGenerated<'a> {
             type Item = std::borrow::Cow<'a, ::libp2p::kad::ProviderRecord>;
 
@@ -525,27 +558,46 @@ fn generate_instance_put_match_arms(modules: &[ModuleInfo]) -> proc_macro2::Toke
 
 /// Generate match arms for instance get operations
 /// Returns both the Definition and the Record for the Kad network
-fn generate_instance_get_match_arms(modules: &[ModuleInfo], definition: &Ident) -> proc_macro2::TokenStream {
+fn generate_instance_get_match_arms(modules: &[ModuleInfo], definition: &Ident, definition_key: &Ident) -> proc_macro2::TokenStream {
     let arms: Vec<_> = modules
         .iter()
         .flat_map(|module| {
             module.models.iter().map(|model| {
                 let model_name = &model.ident;
+                let model_key_name = syn::Ident::new(&format!("{}Key", model_name), model_name.span());
                 let model_path = if module.path.is_empty() {
                     quote! { #model_name }
                 } else {
                     let path = &module.path;
                     quote! { #path::#model_name }
                 };
+                let model_key_path = if module.path.is_empty() {
+                    quote! { #model_key_name }
+                } else {
+                    let path = &module.path;
+                    quote! { #path::#model_key_name }
+                };
 
                 quote! {
                     disc if disc.to_string() == stringify!(#model_name) => {
-                        // Decode the primary key from key_bytes
-                        let (primary_key, _): (<#model_path as ::netabase_store::traits::model::NetabaseModelTrait<#definition>>::PrimaryKey, _) =
-                            ::netabase_deps::bincode::decode_from_slice(
+                        // Decode the NetabaseDefinitionKeys from key_bytes
+                        let (def_keys, _): (#definition_key, _) =
+                            ::netabase_store::bincode::decode_from_slice(
                                 &key_bytes,
-                                ::netabase_deps::bincode::config::standard()
+                                ::netabase_store::bincode::config::standard()
                             ).ok()?;
+
+                        // Extract the inner model key
+                        let model_key = match def_keys {
+                            #definition_key::#model_key_name(k) => k,
+                            _ => return None,
+                        };
+
+                        // Extract primary key from model key
+                        let primary_key = match model_key {
+                            #model_key_path::Primary(pk) => pk,
+                            _ => return None,
+                        };
 
                         // Open the tree for this model
                         let tree = store.open_tree::<#model_path>();
@@ -557,9 +609,9 @@ fn generate_instance_get_match_arms(modules: &[ModuleInfo], definition: &Ident) 
                         let definition = #definition::#model_name(model);
 
                         // Encode as Definition for the Record value
-                        let value = ::netabase_deps::bincode::encode_to_vec(
+                        let value = ::netabase_store::bincode::encode_to_vec(
                             &definition,
-                            ::netabase_deps::bincode::config::standard()
+                            ::netabase_store::bincode::config::standard()
                         ).ok()?;
 
                         // Return Definition and Record
@@ -602,9 +654,9 @@ fn generate_put_match_arms(modules: &[ModuleInfo], definition: &Ident) -> proc_m
                 quote! {
                     disc if disc.to_string() == stringify!(#model_name) => {
                         // Decode the value directly as the model
-                        let (model, _): (#model_path, _) = ::netabase_deps::bincode::decode_from_slice(
+                        let (model, _): (#model_path, _) = ::netabase_store::bincode::decode_from_slice(
                             &record.value,
-                            ::netabase_deps::bincode::config::standard()
+                            ::netabase_store::bincode::config::standard()
                         ).map_err(|_| Error::ValueTooLarge)?;
 
                         // Open the tree for this model
@@ -648,9 +700,9 @@ fn generate_get_match_arms(modules: &[ModuleInfo], definition: &Ident) -> proc_m
                     disc if disc.to_string() == stringify!(#model_name) => {
                         // Decode the primary key from key_bytes
                         let (primary_key, _): (<#model_path as ::netabase_store::traits::model::NetabaseModelTrait<#definition>>::PrimaryKey, _) =
-                            ::netabase_deps::bincode::decode_from_slice(
+                            ::netabase_store::bincode::decode_from_slice(
                                 &key_bytes,
-                                ::netabase_deps::bincode::config::standard()
+                                ::netabase_store::bincode::config::standard()
                             ).ok()?;
 
                         // Open the tree for this model
@@ -663,9 +715,9 @@ fn generate_get_match_arms(modules: &[ModuleInfo], definition: &Ident) -> proc_m
                         let definition = #definition::#model_name(model);
 
                         // Encode as Definition for the Record value
-                        let value = ::netabase_deps::bincode::encode_to_vec(
+                        let value = ::netabase_store::bincode::encode_to_vec(
                             &definition,
-                            ::netabase_deps::bincode::config::standard()
+                            ::netabase_store::bincode::config::standard()
                         ).ok()?;
 
                         // Return as Record
@@ -692,31 +744,44 @@ fn generate_get_match_arms(modules: &[ModuleInfo], definition: &Ident) -> proc_m
 /// Generate match arms for remove operations
 ///
 /// Routes to correct tree based on discriminant and uses StoreOps::remove_raw
-fn generate_remove_match_arms(modules: &[ModuleInfo]) -> proc_macro2::TokenStream {
+fn generate_remove_match_arms(modules: &[ModuleInfo], definition_key: &Ident) -> proc_macro2::TokenStream {
     let arms: Vec<_> = modules
         .iter()
         .flat_map(|module| {
             module.models.iter().map(|model| {
                 let model_name = &model.ident;
+                let model_key_name = syn::Ident::new(&format!("{}Key", model_name), model_name.span());
                 let model_path = if module.path.is_empty() {
                     quote! { #model_name }
                 } else {
                     let path = &module.path;
                     quote! { #path::#model_name }
                 };
+                let model_key_path = if module.path.is_empty() {
+                    quote! { #model_key_name }
+                } else {
+                    let path = &module.path;
+                    quote! { #path::#model_key_name }
+                };
 
                 quote! {
                     disc if disc.to_string() == stringify!(#model_name) => {
-                        // Decode the primary key from key_bytes
-                        if let Ok((primary_key, _)) = ::netabase_deps::bincode::decode_from_slice::<
-                            <#model_path as ::netabase_store::traits::model::NetabaseModelTrait<_>>::PrimaryKey,
-                            _
-                        >(&key_bytes, ::netabase_deps::bincode::config::standard()) {
-                            // Open the tree for this model
-                            let tree = store.open_tree::<#model_path>();
+                        // Decode the NetabaseDefinitionKeys from key_bytes
+                        if let Ok((def_keys, _)) = ::netabase_store::bincode::decode_from_slice::<#definition_key, _>(
+                            &key_bytes,
+                            ::netabase_store::bincode::config::standard()
+                        ) {
+                            // Extract the inner model key
+                            if let #definition_key::#model_key_name(model_key) = def_keys {
+                                // Extract primary key from model key
+                                if let #model_key_path::Primary(primary_key) = model_key {
+                                    // Open the tree for this model
+                                    let tree = store.open_tree::<#model_path>();
 
-                            // Use StoreOps::remove_raw to delete the model
-                            let _ = tree.remove_raw(primary_key);
+                                    // Use StoreOps::remove_raw to delete the model
+                                    let _ = tree.remove_raw(primary_key);
+                                }
+                            }
                         }
                     }
                 }
@@ -735,7 +800,7 @@ fn generate_remove_match_arms(modules: &[ModuleInfo]) -> proc_macro2::TokenStrea
 /// Generate records iterator implementation
 ///
 /// Iterates over all trees and wraps models in Definition
-fn generate_records_iter_impl(modules: &[ModuleInfo], definition: &Ident) -> proc_macro2::TokenStream {
+fn generate_records_iter_impl(modules: &[ModuleInfo], definition: &Ident, definition_key: &Ident) -> proc_macro2::TokenStream {
     // Generate match arms for decoding based on discriminant
     let decode_arms: Vec<_> = modules
         .iter()
@@ -749,39 +814,49 @@ fn generate_records_iter_impl(modules: &[ModuleInfo], definition: &Ident) -> pro
                     quote! { #path::#model_name }
                 };
 
-                quote! {
-                    disc if disc.to_string() == stringify!(#model_name) => {
-                        // Decode the model directly
-                        if let Ok((model, _)) = ::netabase_deps::bincode::decode_from_slice::<#model_path, _>(
-                            &value_bytes,
-                            ::netabase_deps::bincode::config::standard()
-                        ) {
-                            // Get the primary key to build the record key
-                            use ::netabase_store::traits::model::NetabaseModelTrait;
-                            let primary_key = model.primary_key();
-                            let key_bytes = ::netabase_deps::bincode::encode_to_vec(
-                                &primary_key,
-                                ::netabase_deps::bincode::config::standard()
-                            ).ok()?;
+                {
+                    let model_key_type = format_ident!("{}Key", model_name);
+                    let keys_variant = format_ident!("{}Key", model_name);
 
-                            // Wrap in Definition
-                            let definition = #definition::#model_name(model);
+                    quote! {
+                        disc if disc.to_string() == stringify!(#model_name) => {
+                            // Decode the model directly
+                            if let Ok((model, _)) = ::netabase_store::bincode::decode_from_slice::<#model_path, _>(
+                                &value_bytes,
+                                ::netabase_store::bincode::config::standard()
+                            ) {
+                                // Get the primary key to build the record key
+                                use ::netabase_store::traits::model::NetabaseModelTrait;
+                                let primary_key = model.primary_key();
 
-                            // Encode as Definition for the Record value
-                            let value = ::netabase_deps::bincode::encode_to_vec(
-                                &definition,
-                                ::netabase_deps::bincode::config::standard()
-                            ).ok()?;
+                                // Create the ModelKey::Primary wrapper
+                                let model_key = #model_key_type::Primary(primary_key);
 
-                            // Build record key
-                            let record_key = encode_record_key::<#definition>(disc.clone(), &key_bytes);
+                                // Wrap in DefinitionKeys enum
+                                let def_keys = #definition_key::#keys_variant(model_key);
 
-                            return Some(std::borrow::Cow::Owned(::libp2p::kad::Record {
-                                key: record_key,
-                                value,
-                                publisher: None,
-                                expires: None,
-                            }));
+                                // Encode the full Keys enum as the record key
+                                if let Ok(key_bytes) = ::netabase_store::bincode::encode_to_vec(
+                                    &def_keys,
+                                    ::netabase_store::bincode::config::standard()
+                                ) {
+                                    // Wrap model in Definition
+                                    let definition = #definition::#model_name(model);
+
+                                    // Encode as Definition for the Record value
+                                    if let Ok(value) = ::netabase_store::bincode::encode_to_vec(
+                                        &definition,
+                                        ::netabase_store::bincode::config::standard()
+                                    ) {
+                                        return Some(std::borrow::Cow::Owned(::libp2p::kad::Record {
+                                            key: ::libp2p::kad::RecordKey::from(key_bytes),
+                                            value,
+                                            publisher: None,
+                                            expires: None,
+                                        }));
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -791,22 +866,20 @@ fn generate_records_iter_impl(modules: &[ModuleInfo], definition: &Ident) -> pro
 
     quote! {
         // Iterator over all records, wrapping models in Definition
-        pub struct RecordsIterGenerated<'a, D> {
-            discriminants: Vec<<D as ::netabase_deps::strum::IntoDiscriminant>::Discriminant>,
+        #[cfg(feature = "sled")]
+        pub struct RecordsIterGenerated<'a> {
+            discriminants: Vec<<#definition as ::netabase_store::strum::IntoDiscriminant>::Discriminant>,
             current_discriminant_index: usize,
             current_tree_iter: Option<::sled::Iter>,
-            store: &'a ::netabase_store::databases::sled_store::SledStore<D>,
-            _phantom: std::marker::PhantomData<D>,
+            store: &'a ::netabase_store::databases::sled_store::SledStore<#definition>,
         }
 
-        impl<'a, D> RecordsIterGenerated<'a, D>
-        where
-            D: ::netabase_store::traits::definition::NetabaseDefinitionTrait,
-        {
-            fn new(store: &'a ::netabase_store::databases::sled_store::SledStore<D>) -> Self {
-                use ::netabase_deps::strum::IntoEnumIterator;
+        #[cfg(feature = "sled")]
+        impl<'a> RecordsIterGenerated<'a> {
+            fn new(store: &'a ::netabase_store::databases::sled_store::SledStore<#definition>) -> Self {
+                use ::netabase_store::strum::IntoEnumIterator;
 
-                let discriminants: Vec<_> = <<D as ::netabase_deps::strum::IntoDiscriminant>::Discriminant as IntoEnumIterator>::iter()
+                let discriminants: Vec<_> = <<#definition as ::netabase_store::strum::IntoDiscriminant>::Discriminant as IntoEnumIterator>::iter()
                     .collect();
 
                 RecordsIterGenerated {
@@ -814,16 +887,16 @@ fn generate_records_iter_impl(modules: &[ModuleInfo], definition: &Ident) -> pro
                     current_discriminant_index: 0,
                     current_tree_iter: None,
                     store,
-                    _phantom: std::marker::PhantomData,
                 }
             }
         }
 
-        impl<'a> Iterator for RecordsIterGenerated<'a, #definition> {
+        #[cfg(feature = "sled")]
+        impl<'a> Iterator for RecordsIterGenerated<'a> {
             type Item = std::borrow::Cow<'a, ::libp2p::kad::Record>;
 
             fn next(&mut self) -> Option<Self::Item> {
-                use ::netabase_deps::strum::IntoDiscriminant;
+                use ::netabase_store::strum::IntoDiscriminant;
 
                 loop {
                     // If we don't have a current iterator, try to get the next tree
@@ -844,12 +917,15 @@ fn generate_records_iter_impl(modules: &[ModuleInfo], definition: &Ident) -> pro
                     // Try to get next item from current iterator
                     if let Some(ref mut iter) = self.current_tree_iter {
                         match iter.next() {
-                            Some(Ok((key_bytes, value_bytes))) => {
+                            Some(Ok((_key_bytes, value_bytes))) => {
                                 // Get current discriminant
                                 let disc = &self.discriminants[self.current_discriminant_index];
 
                                 // Decode and wrap based on discriminant
-                                #(#decode_arms)*
+                                match disc {
+                                    #(#decode_arms)*
+                                    _ => {}
+                                }
                             }
                             Some(Err(_)) => continue,
                             None => {
@@ -872,15 +948,16 @@ fn generate_records_iter_impl(modules: &[ModuleInfo], definition: &Ident) -> pro
 fn generate_redb_record_store_impl(
     modules: &[ModuleInfo],
     definition: &Ident,
+    definition_key: &Ident,
 ) -> proc_macro2::TokenStream {
-    let put_match_arms = generate_put_match_arms(modules, definition);
-    let get_match_arms = generate_get_match_arms(modules, definition);
-    let remove_match_arms = generate_remove_match_arms(modules);
-    let redb_records_iter_impl = generate_redb_records_iter_impl(modules, definition);
+    let _put_match_arms = generate_put_match_arms(modules, definition);
+    let _get_match_arms = generate_get_match_arms(modules, definition);
+    let _remove_match_arms = generate_remove_match_arms(modules, definition_key);
+    let redb_records_iter_impl = generate_redb_records_iter_impl(modules, definition, definition_key);
 
     quote! {
         // RecordStore implementation removed - should be implemented generically in netabase
-
+        // All redb-specific code is wrapped in the redb_records_iter_impl with proper cfg guards
         #redb_records_iter_impl
     }
 }
@@ -888,8 +965,8 @@ fn generate_redb_record_store_impl(
 /// Generate RedbStore-specific records iterator implementation
 ///
 /// RedbStore requires collecting records into a Vec first due to transaction constraints
-fn generate_redb_records_iter_impl(modules: &[ModuleInfo], definition: &Ident) -> proc_macro2::TokenStream {
-    // Generate match arms for decoding based on discriminant  
+fn generate_redb_records_iter_impl(modules: &[ModuleInfo], definition: &Ident, definition_key: &Ident) -> proc_macro2::TokenStream {
+    // Generate match arms for decoding based on discriminant
     let decode_arms: Vec<_> = modules
         .iter()
         .flat_map(|module| {
@@ -902,39 +979,49 @@ fn generate_redb_records_iter_impl(modules: &[ModuleInfo], definition: &Ident) -
                     quote! { #path::#model_name }
                 };
 
-                quote! {
-                    disc if disc.to_string() == stringify!(#model_name) => {
-                        // Decode the model directly
-                        if let Ok((model, _)) = ::netabase_deps::bincode::decode_from_slice::<#model_path, _>(
-                            &value_bytes,
-                            ::netabase_deps::bincode::config::standard()
-                        ) {
-                            // Get the primary key to build the record key
-                            use ::netabase_store::traits::model::NetabaseModelTrait;
-                            let primary_key = model.primary_key();
-                            let key_bytes = ::netabase_deps::bincode::encode_to_vec(
-                                &primary_key,
-                                ::netabase_deps::bincode::config::standard()
-                            ).ok()?;
+                {
+                    let model_key_type = format_ident!("{}Key", model_name);
+                    let keys_variant = format_ident!("{}Key", model_name);
 
-                            // Wrap in Definition
-                            let definition = #definition::#model_name(model);
+                    quote! {
+                        disc if disc.to_string() == stringify!(#model_name) => {
+                            // Decode the model directly
+                            if let Ok((model, _)) = ::netabase_store::bincode::decode_from_slice::<#model_path, _>(
+                                &value_bytes,
+                                ::netabase_store::bincode::config::standard()
+                            ) {
+                                // Get the primary key to build the record key
+                                use ::netabase_store::traits::model::NetabaseModelTrait;
+                                let primary_key = model.primary_key();
 
-                            // Encode as Definition for the Record value
-                            let value = ::netabase_deps::bincode::encode_to_vec(
-                                &definition,
-                                ::netabase_deps::bincode::config::standard()
-                            ).ok()?;
+                                // Create the ModelKey::Primary wrapper
+                                let model_key = #model_key_type::Primary(primary_key);
 
-                            // Build record key
-                            let record_key = encode_record_key::<#definition>(disc.clone(), &key_bytes);
+                                // Wrap in DefinitionKeys enum
+                                let def_keys = #definition_key::#keys_variant(model_key);
 
-                            records.push(::libp2p::kad::Record {
-                                key: record_key,
-                                value,
-                                publisher: None,
-                                expires: None,
-                            });
+                                // Encode the full Keys enum as the record key
+                                if let Ok(key_bytes) = ::netabase_store::bincode::encode_to_vec(
+                                    &def_keys,
+                                    ::netabase_store::bincode::config::standard()
+                                ) {
+                                    // Wrap model in Definition
+                                    let definition = #definition::#model_name(model);
+
+                                    // Encode as Definition for the Record value
+                                    if let Ok(value) = ::netabase_store::bincode::encode_to_vec(
+                                        &definition,
+                                        ::netabase_store::bincode::config::standard()
+                                    ) {
+                                        records.push(::libp2p::kad::Record {
+                                            key: ::libp2p::kad::RecordKey::from(key_bytes),
+                                            value,
+                                            publisher: None,
+                                            expires: None,
+                                        });
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -944,23 +1031,23 @@ fn generate_redb_records_iter_impl(modules: &[ModuleInfo], definition: &Ident) -
 
     quote! {
         // RedbStore iterator over all records
-        pub struct RecordsIterRedb<'a, D> {
+        #[cfg(feature = "redb")]
+        pub struct RecordsIterRedb<'a> {
             records: std::vec::IntoIter<::libp2p::kad::Record>,
-            _phantom: std::marker::PhantomData<&'a D>,
+            _phantom: std::marker::PhantomData<&'a ()>,
         }
 
-        impl<'a, D> RecordsIterRedb<'a, D>
-        where
-            D: ::netabase_store::traits::definition::NetabaseDefinitionTrait,
-        {
-            fn new(store: &'a ::netabase_store::databases::redb_store::RedbStore<D>) -> Self {
-                use ::netabase_deps::strum::IntoEnumIterator;
-                use ::netabase_deps::strum::IntoDiscriminant;
+        #[cfg(feature = "redb")]
+        impl<'a> RecordsIterRedb<'a> {
+            fn new(store: &'a ::netabase_store::databases::redb_store::RedbStore<#definition>) -> Self {
+                use ::netabase_store::strum::IntoEnumIterator;
+                use ::netabase_store::strum::IntoDiscriminant;
+                use ::netabase_store::redb::{ReadableDatabase, ReadableTable};
 
                 let mut records = Vec::new();
 
                 // Iterate through all discriminants
-                let discriminants: Vec<_> = <<D as ::netabase_deps::strum::IntoDiscriminant>::Discriminant as IntoEnumIterator>::iter()
+                let discriminants: Vec<_> = <<#definition as ::netabase_store::strum::IntoDiscriminant>::Discriminant as IntoEnumIterator>::iter()
                     .collect();
 
                 // Open read transaction
@@ -969,7 +1056,7 @@ fn generate_redb_records_iter_impl(modules: &[ModuleInfo], definition: &Ident) -
                         // Get table name from discriminant
                         let table_name = disc.to_string();
                         let static_name: &'static str = Box::leak(table_name.into_boxed_str());
-                        let table_def = ::redb::TableDefinition::<&[u8], &[u8]>::new(static_name);
+                        let table_def = ::netabase_store::redb::TableDefinition::<&[u8], &[u8]>::new(static_name);
 
                         // Try to open table
                         if let Ok(table) = read_txn.open_table(table_def) {
@@ -981,7 +1068,10 @@ fn generate_redb_records_iter_impl(modules: &[ModuleInfo], definition: &Ident) -
                                         let value_bytes = v.value();
 
                                         // Decode and wrap based on discriminant
-                                        #(#decode_arms)*
+                                        match disc {
+                                            #(#decode_arms)*
+                                            _ => {}
+                                        }
                                     }
                                 }
                             }
@@ -996,7 +1086,8 @@ fn generate_redb_records_iter_impl(modules: &[ModuleInfo], definition: &Ident) -
             }
         }
 
-        impl<'a> Iterator for RecordsIterRedb<'a, #definition> {
+        #[cfg(feature = "redb")]
+        impl<'a> Iterator for RecordsIterRedb<'a> {
             type Item = std::borrow::Cow<'a, ::libp2p::kad::Record>;
 
             fn next(&mut self) -> Option<Self::Item> {
@@ -1005,21 +1096,22 @@ fn generate_redb_records_iter_impl(modules: &[ModuleInfo], definition: &Ident) -
         }
 
         // RedbStore provider records iterator
+        #[cfg(feature = "redb")]
         pub struct ProvidedIterRedb<'a> {
             records: std::vec::IntoIter<::libp2p::kad::ProviderRecord>,
             _phantom: std::marker::PhantomData<&'a ()>,
         }
 
+        #[cfg(feature = "redb")]
         impl<'a> ProvidedIterRedb<'a> {
-            fn new<D>(store: &'a ::netabase_store::databases::redb_store::RedbStore<D>) -> Self
-            where
-                D: ::netabase_store::traits::definition::NetabaseDefinitionTrait,
-            {
+            fn new(store: &'a ::netabase_store::databases::redb_store::RedbStore<#definition>) -> Self {
+                use ::netabase_store::redb::{ReadableDatabase, ReadableTable};
+
                 let mut records = Vec::new();
 
                 // Open read transaction
                 if let Ok(read_txn) = store.db().begin_read() {
-                    let table_def = ::redb::TableDefinition::<&[u8], &[u8]>::new("__libp2p_provided");
+                    let table_def = ::netabase_store::redb::TableDefinition::<&[u8], &[u8]>::new("__libp2p_provided");
 
                     // Try to open provided table
                     if let Ok(table) = read_txn.open_table(table_def) {
@@ -1043,6 +1135,7 @@ fn generate_redb_records_iter_impl(modules: &[ModuleInfo], definition: &Ident) -
             }
         }
 
+        #[cfg(feature = "redb")]
         impl<'a> Iterator for ProvidedIterRedb<'a> {
             type Item = std::borrow::Cow<'a, ::libp2p::kad::ProviderRecord>;
 

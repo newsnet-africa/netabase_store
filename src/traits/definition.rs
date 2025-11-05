@@ -24,6 +24,8 @@ pub trait NetabaseDiscriminant:
     + MaybeSync
     + 'static
     + FromStr
+    + bincode::Encode
+    + bincode::Decode<()>
 {
 }
 
@@ -42,6 +44,8 @@ impl<T> NetabaseDiscriminant for T where
         + MaybeSync
         + 'static
         + FromStr
+        + bincode::Encode
+        + bincode::Decode<()>
 {
 }
 
@@ -51,12 +55,14 @@ impl<T> NetabaseDiscriminant for T where
 /// since key discriminants don't need string conversion capabilities.
 pub trait NetabaseKeyDiscriminant:
     Clone + Copy + std::fmt::Debug + PartialEq + Eq + std::hash::Hash + MaybeSend + MaybeSync + 'static
+    + bincode::Encode + bincode::Decode<()>
 {
 }
 
 // Blanket implementation for any type that satisfies the bounds
 impl<T> NetabaseKeyDiscriminant for T where
     T: Clone + Copy + std::fmt::Debug + PartialEq + Eq + std::hash::Hash + MaybeSend + MaybeSync + 'static
+        + bincode::Encode + bincode::Decode<()>
 {
 }
 
@@ -85,20 +91,17 @@ pub trait NetabaseDefinitionTrait:
     + MaybeSend
     + MaybeSync
     + 'static
-    + IntoDiscriminant
+    + IntoDiscriminant<Discriminant: NetabaseDiscriminant>
     + LogEntry
-where
-    <Self as IntoDiscriminant>::Discriminant: NetabaseDiscriminant,
-    <<Self as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant: NetabaseKeyDiscriminant,
 {
-    type Keys: NetabaseDefinitionTraitKey;
+    type Keys: NetabaseDefinitionTraitKey<Discriminant: NetabaseKeyDiscriminant>;
     /// Get the discriminant name as a string (for tree names)
     fn discriminant_name(&self) -> String {
         self.discriminant().to_string()
     }
 
-    /// Convert this definition to a libp2p kad::Record
-    #[cfg(feature = "libp2p")]
+    /// Convert this definition to a libp2p kad::Record (native-only)
+    #[cfg(all(feature = "libp2p", not(target_arch = "wasm32")))]
     fn to_record(&self) -> Result<libp2p::kad::Record, bincode::error::EncodeError> {
         let key_bytes = bincode::encode_to_vec(self, bincode::config::standard())?;
         let record_key = libp2p::kad::RecordKey::new(&key_bytes);
@@ -120,7 +123,7 @@ where
     /// # Phase 3 Integration
     /// This trait method declaration makes apply_to_store available on the generic
     /// NetabaseDefinitionTrait bound, while the macro provides the actual implementation.
-    #[cfg(all(feature = "paxos", feature = "libp2p"))]
+    #[cfg(all(feature = "paxos", feature = "libp2p", not(target_arch = "wasm32")))]
     fn apply_to_store<S>(&self, store: &mut S) -> Result<(), String>
     where
         S: libp2p::kad::store::RecordStore;
@@ -136,7 +139,8 @@ where
 /// Instead of using a generic `S` parameter (which would cause trait bound issues),
 /// we use separate methods for each store backend. This allows each backend to have
 /// its own specific OpenTree bounds without violating Rust's trait implementation rules.
-#[cfg(feature = "libp2p")]
+/// Note: libp2p requires native networking (mio) and is not available on WASM.
+#[cfg(all(feature = "libp2p", not(target_arch = "wasm32")))]
 pub trait RecordStoreExt: NetabaseDefinitionTrait
 where
     <Self as IntoDiscriminant>::Discriminant: NetabaseDiscriminant,
@@ -154,6 +158,10 @@ where
     #[cfg(feature = "sled")]
     fn handle_sled_remove(store: &crate::databases::sled_store::SledStore<Self>, key: &libp2p::kad::RecordKey);
 
+    /// Get all records from a Sled store as an iterator
+    #[cfg(feature = "sled")]
+    fn handle_sled_records<'a>(store: &'a crate::databases::sled_store::SledStore<Self>) -> Box<dyn Iterator<Item = std::borrow::Cow<'a, libp2p::kad::Record>> + 'a>;
+
     /// Put this Definition into a Redb store
     #[cfg(feature = "redb")]
     fn handle_redb_put(&self, store: &crate::databases::redb_store::RedbStore<Self>) -> libp2p::kad::store::Result<()>;
@@ -165,6 +173,10 @@ where
     /// Remove from a Redb store using a RecordKey
     #[cfg(feature = "redb")]
     fn handle_redb_remove(store: &crate::databases::redb_store::RedbStore<Self>, key: &libp2p::kad::RecordKey);
+
+    /// Get all records from a Redb store as an iterator
+    #[cfg(feature = "redb")]
+    fn handle_redb_records<'a>(store: &'a crate::databases::redb_store::RedbStore<Self>) -> Box<dyn Iterator<Item = std::borrow::Cow<'a, libp2p::kad::Record>> + 'a>;
 
     /// Put this Definition into a Memory store
     #[cfg(feature = "memory")]
@@ -200,19 +212,16 @@ pub trait NetabaseDefinitionTrait:
     + MaybeSend
     + MaybeSync
     + 'static
-    + IntoDiscriminant
-where
-    <Self as IntoDiscriminant>::Discriminant: NetabaseDiscriminant,
-    <<Self as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant: NetabaseKeyDiscriminant,
+    + IntoDiscriminant<Discriminant: NetabaseDiscriminant>
 {
-    type Keys: NetabaseDefinitionTraitKey;
+    type Keys: NetabaseDefinitionTraitKey<Discriminant: NetabaseKeyDiscriminant>;
     /// Get the discriminant name as a string (for tree names)
     fn discriminant_name(&self) -> String {
         self.discriminant().to_string()
     }
 
-    /// Convert this definition to a libp2p kad::Record
-    #[cfg(feature = "libp2p")]
+    /// Convert this definition to a libp2p kad::Record (native-only)
+    #[cfg(all(feature = "libp2p", not(target_arch = "wasm32")))]
     fn to_record(&self) -> Result<libp2p::kad::Record, bincode::error::EncodeError> {
         let key_bytes = bincode::encode_to_vec(self, bincode::config::standard())?;
         let record_key = libp2p::kad::RecordKey::new(&key_bytes);
@@ -243,20 +252,10 @@ pub trait NetabaseDefinitionTraitKey:
     + MaybeSend
     + MaybeSync
     + 'static
-    + strum::IntoDiscriminant
-where
-    <Self as IntoDiscriminant>::Discriminant: Clone
-        + Copy
-        + std::fmt::Debug
-        + PartialEq
-        + Eq
-        + std::hash::Hash
-        + MaybeSend
-        + MaybeSync
-        + 'static,
+    + strum::IntoDiscriminant<Discriminant: NetabaseKeyDiscriminant>
 {
     /// Convert this key to a libp2p kad::RecordKey
-    #[cfg(feature = "libp2p")]
+    #[cfg(all(feature = "libp2p", not(target_arch = "wasm32")))]
     fn to_record_key(&self) -> Result<libp2p::kad::RecordKey, bincode::error::EncodeError> {
         let key_bytes = bincode::encode_to_vec(self, bincode::config::standard())?;
         Ok(libp2p::kad::RecordKey::new(&key_bytes))

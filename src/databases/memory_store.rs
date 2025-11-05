@@ -3,6 +3,7 @@ use crate::traits::convert::ToIVec;
 use crate::traits::definition::NetabaseDefinitionTrait;
 use crate::traits::model::NetabaseModelTrait;
 use crate::traits::tree::NetabaseTreeSync;
+use crate::{MaybeSend, MaybeSync};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::str::FromStr;
@@ -84,8 +85,8 @@ where
         + Eq
         + std::hash::Hash
         + strum::IntoEnumIterator
-        + Send
-        + Sync
+        + MaybeSend
+        + MaybeSync
         + 'static
         + FromStr,
     <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
@@ -94,8 +95,8 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
     <D as strum::IntoDiscriminant>::Discriminant: FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSync,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSend,
     <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
@@ -115,8 +116,8 @@ where
         + Eq
         + std::hash::Hash
         + strum::IntoEnumIterator
-        + Send
-        + Sync
+        + MaybeSend
+        + MaybeSync
         + 'static
         + FromStr,
     <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
@@ -125,8 +126,8 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
     <D as strum::IntoDiscriminant>::Discriminant: FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSync,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSend,
     <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
@@ -208,8 +209,8 @@ where
         + Eq
         + std::hash::Hash
         + strum::IntoEnumIterator
-        + Send
-        + Sync
+        + MaybeSend
+        + MaybeSync
         + 'static
         + FromStr,
     <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
@@ -218,8 +219,8 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
     <D as strum::IntoDiscriminant>::Discriminant: FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSync,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSend,
     <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
@@ -252,8 +253,8 @@ where
         + Eq
         + std::hash::Hash
         + strum::IntoEnumIterator
-        + Send
-        + Sync
+        + MaybeSend
+        + MaybeSync
         + 'static
         + FromStr,
     <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
@@ -262,8 +263,8 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
     <D as strum::IntoDiscriminant>::Discriminant: FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSync,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSend,
     <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
@@ -286,8 +287,8 @@ where
         + Eq
         + std::hash::Hash
         + strum::IntoEnumIterator
-        + Send
-        + Sync
+        + MaybeSend
+        + MaybeSync
         + 'static
         + FromStr,
     <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
@@ -296,8 +297,8 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
     <D as strum::IntoDiscriminant>::Discriminant: FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSync,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSend,
     <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
@@ -537,8 +538,8 @@ where
         + Eq
         + std::hash::Hash
         + strum::IntoEnumIterator
-        + Send
-        + Sync
+        + MaybeSend
+        + MaybeSync
         + 'static
         + FromStr,
     <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
@@ -547,8 +548,8 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
     <D as strum::IntoDiscriminant>::Discriminant: FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSync,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSend,
     <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
@@ -571,8 +572,8 @@ where
         + Eq
         + std::hash::Hash
         + strum::IntoEnumIterator
-        + Send
-        + Sync
+        + MaybeSend
+        + MaybeSync
         + 'static
         + FromStr,
     <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
@@ -581,8 +582,8 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
     <D as strum::IntoDiscriminant>::Discriminant: FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSync,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSend,
     <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
@@ -634,8 +635,8 @@ where
         + Eq
         + std::hash::Hash
         + strum::IntoEnumIterator
-        + Send
-        + Sync
+        + MaybeSend
+        + MaybeSync
         + 'static
         + FromStr,
     <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
@@ -644,8 +645,8 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
     <D as strum::IntoDiscriminant>::Discriminant: FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSync,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSend,
     <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
@@ -699,8 +700,8 @@ where
         + Eq
         + std::hash::Hash
         + strum::IntoEnumIterator
-        + Send
-        + Sync
+        + MaybeSend
+        + MaybeSync
         + 'static
         + FromStr,
     <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
@@ -709,8 +710,8 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
     <D as strum::IntoDiscriminant>::Discriminant: FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSync,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSend,
     <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
@@ -820,8 +821,8 @@ where
         + Eq
         + std::hash::Hash
         + strum::IntoEnumIterator
-        + Send
-        + Sync
+        + MaybeSend
+        + MaybeSync
         + 'static
         + FromStr,
     <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
@@ -830,8 +831,8 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
     <D as strum::IntoDiscriminant>::Discriminant: FromStr,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
-    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSync,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSend,
     <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {

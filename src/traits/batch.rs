@@ -4,6 +4,7 @@
 //! backend implementations. Batching is crucial for performance when inserting
 //! or updating multiple records.
 
+use crate::{MaybeSend, MaybeSync};
 use crate::error::NetabaseError;
 use crate::traits::model::NetabaseModelTrait;
 use crate::traits::definition::NetabaseDefinitionTrait;
@@ -49,8 +50,8 @@ where
         + Eq
         + std::hash::Hash
         + strum::IntoEnumIterator
-        + Send
-        + Sync
+        + MaybeSend
+        + MaybeSync
         + 'static
         + std::str::FromStr,
 {
@@ -135,8 +136,8 @@ where
         + Eq
         + std::hash::Hash
         + strum::IntoEnumIterator
-        + Send
-        + Sync
+        + MaybeSend
+        + MaybeSync
         + 'static
         + std::str::FromStr,
 {
@@ -169,8 +170,8 @@ where
         + Eq
         + std::hash::Hash
         + strum::IntoEnumIterator
-        + Send
-        + Sync
+        + MaybeSend
+        + MaybeSync
         + 'static
         + std::str::FromStr,
     Self: Sized,
@@ -243,8 +244,8 @@ where
         + Eq
         + std::hash::Hash
         + strum::IntoEnumIterator
-        + Send
-        + Sync
+        + MaybeSend
+        + MaybeSync
         + 'static
         + std::str::FromStr,
 {
