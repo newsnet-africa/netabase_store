@@ -11,7 +11,7 @@ wasm_bindgen_test_configure!(run_in_browser);
 #[cfg(all(feature = "wasm", test))]
 mod wasm_store_tests {
     use super::*;
-    use netabase_macros::{NetabaseModel, netabase_definition_module};
+    use netabase_macros::netabase_definition_module;
     use netabase_store::databases::indexeddb_store::IndexedDBStore;
 
     // Define test schema
@@ -105,7 +105,7 @@ mod wasm_store_tests {
 
         // Query by secondary key
         let books = tree
-            .get_by_secondary_key(TestModelSecondaryKeys::Category(CategorySecondaryKey("books".to_string())))
+            .get_by_secondary_key(TestModelSecondaryKeys::Category(TestModelCategorySecondaryKey("books".to_string())))
             .await
             .expect("Failed to query by secondary key");
 

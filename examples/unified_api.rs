@@ -1,20 +1,28 @@
+use crate::definitions::*;
+use netabase_store::databases::redb_store::RedbStore;
 ///! Example demonstrating the unified trait API for netabase_store
 ///!
 ///! This example shows how to use the NetabaseTreeSync trait to write
 ///! backend-agnostic code that works with both SledStore and RedbStore.
-
 use netabase_store::databases::sled_store::SledStore;
-use netabase_store::databases::redb_store::RedbStore;
-use netabase_store::traits::tree::NetabaseTreeSync;
 use netabase_store::netabase_definition_module;
-use crate::definitions::*;
+use netabase_store::traits::tree::NetabaseTreeSync;
 
 // Define a simple data model
 #[netabase_definition_module(Definition, DefinitionKeys)]
 pub mod definitions {
-    use netabase_store::{NetabaseModel, netabase};
+    use netabase_store::{netabase, NetabaseModel};
 
-    #[derive(NetabaseModel, bincode::Encode, bincode::Decode, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+    #[derive(
+        NetabaseModel,
+        bincode::Encode,
+        bincode::Decode,
+        Clone,
+        Debug,
+        PartialEq,
+        serde::Serialize,
+        serde::Deserialize,
+    )]
     #[netabase(Definition)]
     pub struct User {
         #[primary_key]
@@ -28,7 +36,12 @@ pub mod definitions {
 // Generic function that works with any backend implementing NetabaseTreeSync
 fn perform_crud_operations<T>(tree: &T) -> Result<(), Box<dyn std::error::Error>>
 where
-    T: NetabaseTreeSync<Definition, User, PrimaryKey = UserPrimaryKey, SecondaryKeys = UserSecondaryKeys>,
+    T: NetabaseTreeSync<
+        Definition,
+        User,
+        PrimaryKey = UserPrimaryKey,
+        SecondaryKeys = UserSecondaryKeys,
+    >,
 {
     println!("Testing unified API with generic function...");
 
@@ -47,9 +60,9 @@ where
     println!("  ✓ Retrieved user: {:?}", retrieved.unwrap());
 
     // Query by secondary key (email)
-    let by_email = tree.get_by_secondary_key(UserSecondaryKeys::Email(
-        UserEmailSecondaryKey("alice@example.com".to_string()),
-    ))?;
+    let by_email = tree.get_by_secondary_key(UserSecondaryKeys::Email(UserEmailSecondaryKey(
+        "alice@example.com".to_string(),
+    )))?;
     assert_eq!(by_email.len(), 1);
     println!("  ✓ Found user by email: {:?}", by_email[0]);
 

@@ -201,7 +201,7 @@ where
             .map_err(crate::error::EncodingDecodingError::from)?;
 
         let definition: D = model.clone().into();
-        let value_bytes = definition.to_ivec()?;
+        let value_bytes = definition.to_vec()?;
 
         // Convert bytes to JsValue
         let key_js = js_sys::Uint8Array::from(&key_bytes[..]);
@@ -270,12 +270,7 @@ where
                 let mut bytes = vec![0u8; uint8_array.length() as usize];
                 uint8_array.copy_to(&mut bytes);
 
-                #[cfg(all(feature = "wasm", not(feature = "native")))]
                 let definition = D::from_vec(&bytes)?;
-                #[cfg(all(feature = "native", feature = "wasm"))]
-                let definition = D::from_ivec(&sled::IVec::from(bytes.clone()))?;
-                #[cfg(all(feature = "native", not(feature = "wasm")))]
-                let definition = D::from_ivec(&sled::IVec::from(bytes.clone()))?;
                 match M::try_from(definition) {
                     Ok(model) => Ok(Some(model)),
                     Err(_) => Ok(None),
@@ -440,12 +435,7 @@ where
                 let mut value_bytes = vec![0u8; value_array.length() as usize];
                 value_array.copy_to(&mut value_bytes);
 
-                #[cfg(all(feature = "wasm", not(feature = "native")))]
                 let definition = D::from_vec(&value_bytes)?;
-                #[cfg(all(feature = "native", feature = "wasm"))]
-                let definition = D::from_ivec(&sled::IVec::from(value_bytes.clone()))?;
-                #[cfg(all(feature = "native", not(feature = "wasm")))]
-                let definition = D::from_ivec(&sled::IVec::from(value_bytes.clone()))?;
                 let model = M::try_from(definition).map_err(|_| {
                     crate::error::NetabaseError::Conversion(
                         crate::error::EncodingDecodingError::Decoding(
