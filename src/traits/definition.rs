@@ -125,6 +125,15 @@ pub trait NetabaseDefinitionTrait:
             NetabaseError::Conversion(crate::error::EncodingDecodingError::Encoding(e))
         })
     }
+    fn from_vec(vec: &[u8]) -> Result<Self, NetabaseError> {
+        Ok(
+            bincode::decode_from_slice::<Self, _>(&vec, bincode::config::standard())
+                .map_err(|e| {
+                    NetabaseError::Conversion(crate::error::EncodingDecodingError::Decoding(e))
+                })?
+                .0,
+        )
+    }
 
     /// Convert this definition to a libp2p kad::Record (native-only)
     #[cfg(all(feature = "libp2p", not(target_arch = "wasm32")))]
