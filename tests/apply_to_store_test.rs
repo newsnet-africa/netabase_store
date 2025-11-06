@@ -1,4 +1,5 @@
 #![cfg(not(target_arch = "wasm32"))]
+#![cfg(not(feature = "paxos"))]
 
 //! Test for the macro-generated apply_to_store method
 //!

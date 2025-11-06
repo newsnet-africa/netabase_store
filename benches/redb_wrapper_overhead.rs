@@ -1,9 +1,11 @@
 #![cfg(feature = "native")]
+#![cfg(not(feature = "paxos"))]
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use netabase_macros::netabase_definition_module;
 use netabase_store::databases::redb_store::RedbStore;
 use redb::{Database, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition};
+use pprof::criterion::PProfProfiler;
 
 // Test schema
 #[netabase_definition_module(BenchDefinition, BenchKeys)]
@@ -343,11 +345,15 @@ fn bench_redb_secondary_key_lookup(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(
-    benches,
-    bench_redb_insert,
-    bench_redb_get,
-    bench_redb_iteration,
-    bench_redb_secondary_key_lookup
-);
+// Configure criterion with profiler support
+fn configure_criterion() -> Criterion {
+    Criterion::default()
+        .with_profiler(pprof::criterion::PProfProfiler::new(100, pprof::criterion::Output::Flamegraph(None)))
+}
+
+criterion_group! {
+    name = benches;
+    config = configure_criterion();
+    targets = bench_redb_insert, bench_redb_get, bench_redb_iteration, bench_redb_secondary_key_lookup
+}
 criterion_main!(benches);

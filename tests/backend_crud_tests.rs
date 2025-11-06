@@ -1,4 +1,5 @@
 #![cfg(not(target_arch = "wasm32"))]
+#![cfg(not(feature = "paxos"))]
 
 /// Comprehensive CRUD and secondary key tests for all three backends:
 /// - SledStore (native)

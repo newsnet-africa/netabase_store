@@ -638,7 +638,7 @@ fn generate_instance_get_match_arms(modules: &[ModuleInfo], definition: &Ident, 
 /// Generate match arms for put operations (legacy - being phased out)
 ///
 /// Routes to correct tree based on discriminant and uses StoreOps::put_raw
-fn generate_put_match_arms(modules: &[ModuleInfo], definition: &Ident) -> proc_macro2::TokenStream {
+fn generate_put_match_arms(modules: &[ModuleInfo], _definition: &Ident) -> proc_macro2::TokenStream {
     let arms: Vec<_> = modules
         .iter()
         .flat_map(|module| {

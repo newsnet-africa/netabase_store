@@ -1,4 +1,5 @@
 #![cfg(not(target_arch = "wasm32"))]
+#![cfg(not(feature = "paxos"))]
 
 //! Comprehensive tests for netabase_store
 //!

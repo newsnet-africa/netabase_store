@@ -1,8 +1,10 @@
 #![cfg(feature = "native")]
+#![cfg(not(feature = "paxos"))]
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use netabase_macros::netabase_definition_module;
 use netabase_store::databases::sled_store::SledStore;
+use pprof::criterion::PProfProfiler;
 
 // Test schema
 #[netabase_definition_module(BenchDefinition, BenchKeys)]
@@ -202,10 +204,15 @@ fn bench_raw_sled_iteration(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(
-    benches,
-    bench_raw_sled_insert,
-    bench_raw_sled_get,
-    bench_raw_sled_iteration
-);
+// Configure criterion with profiler support
+fn configure_criterion() -> Criterion {
+    Criterion::default()
+        .with_profiler(pprof::criterion::PProfProfiler::new(100, pprof::criterion::Output::Flamegraph(None)))
+}
+
+criterion_group! {
+    name = benches;
+    config = configure_criterion();
+    targets = bench_raw_sled_insert, bench_raw_sled_get, bench_raw_sled_iteration
+}
 criterion_main!(benches);
