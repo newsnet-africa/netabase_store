@@ -2,6 +2,8 @@
 use paxakos::LogEntry;
 use std::str::FromStr;
 
+#[cfg(feature = "paxos")]
+use crate::error::NetabaseError;
 use crate::{MaybeSend, MaybeSync};
 use strum::IntoDiscriminant;
 
@@ -54,15 +56,33 @@ impl<T> NetabaseDiscriminant for T where
 /// Similar to `NetabaseDiscriminant` but with fewer bounds (no AsRef<str>, Display, or FromStr)
 /// since key discriminants don't need string conversion capabilities.
 pub trait NetabaseKeyDiscriminant:
-    Clone + Copy + std::fmt::Debug + PartialEq + Eq + std::hash::Hash + MaybeSend + MaybeSync + 'static
-    + bincode::Encode + bincode::Decode<()>
+    Clone
+    + Copy
+    + std::fmt::Debug
+    + PartialEq
+    + Eq
+    + std::hash::Hash
+    + MaybeSend
+    + MaybeSync
+    + 'static
+    + bincode::Encode
+    + bincode::Decode<()>
 {
 }
 
 // Blanket implementation for any type that satisfies the bounds
 impl<T> NetabaseKeyDiscriminant for T where
-    T: Clone + Copy + std::fmt::Debug + PartialEq + Eq + std::hash::Hash + MaybeSend + MaybeSync + 'static
-        + bincode::Encode + bincode::Decode<()>
+    T: Clone
+        + Copy
+        + std::fmt::Debug
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + MaybeSend
+        + MaybeSync
+        + 'static
+        + bincode::Encode
+        + bincode::Decode<()>
 {
 }
 
@@ -98,6 +118,12 @@ pub trait NetabaseDefinitionTrait:
     /// Get the discriminant name as a string (for tree names)
     fn discriminant_name(&self) -> String {
         self.discriminant().to_string()
+    }
+
+    fn to_vec(&self) -> Result<Vec<u8>, NetabaseError> {
+        bincode::encode_to_vec(&self, bincode::config::standard()).map_err(|e| {
+            NetabaseError::Conversion(crate::error::EncodingDecodingError::Encoding(e))
+        })
     }
 
     /// Convert this definition to a libp2p kad::Record (native-only)
@@ -144,63 +170,104 @@ pub trait NetabaseDefinitionTrait:
 pub trait RecordStoreExt: NetabaseDefinitionTrait
 where
     <Self as IntoDiscriminant>::Discriminant: NetabaseDiscriminant,
-    <<Self as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant: NetabaseKeyDiscriminant,
+    <<Self as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant:
+        NetabaseKeyDiscriminant,
 {
     /// Put this Definition into a Sled store
     #[cfg(feature = "sled")]
-    fn handle_sled_put(&self, store: &crate::databases::sled_store::SledStore<Self>) -> libp2p::kad::store::Result<()>;
+    fn handle_sled_put(
+        &self,
+        store: &crate::databases::sled_store::SledStore<Self>,
+    ) -> libp2p::kad::store::Result<()>;
 
     /// Get a Definition from a Sled store using a RecordKey
     #[cfg(feature = "sled")]
-    fn handle_sled_get(store: &crate::databases::sled_store::SledStore<Self>, key: &libp2p::kad::RecordKey) -> Option<(Self, libp2p::kad::Record)>;
+    fn handle_sled_get(
+        store: &crate::databases::sled_store::SledStore<Self>,
+        key: &libp2p::kad::RecordKey,
+    ) -> Option<(Self, libp2p::kad::Record)>;
 
     /// Remove from a Sled store using a RecordKey
     #[cfg(feature = "sled")]
-    fn handle_sled_remove(store: &crate::databases::sled_store::SledStore<Self>, key: &libp2p::kad::RecordKey);
+    fn handle_sled_remove(
+        store: &crate::databases::sled_store::SledStore<Self>,
+        key: &libp2p::kad::RecordKey,
+    );
 
     /// Get all records from a Sled store as an iterator
     #[cfg(feature = "sled")]
-    fn handle_sled_records<'a>(store: &'a crate::databases::sled_store::SledStore<Self>) -> Box<dyn Iterator<Item = std::borrow::Cow<'a, libp2p::kad::Record>> + 'a>;
+    fn handle_sled_records<'a>(
+        store: &'a crate::databases::sled_store::SledStore<Self>,
+    ) -> Box<dyn Iterator<Item = std::borrow::Cow<'a, libp2p::kad::Record>> + 'a>;
 
     /// Put this Definition into a Redb store
     #[cfg(feature = "redb")]
-    fn handle_redb_put(&self, store: &crate::databases::redb_store::RedbStore<Self>) -> libp2p::kad::store::Result<()>;
+    fn handle_redb_put(
+        &self,
+        store: &crate::databases::redb_store::RedbStore<Self>,
+    ) -> libp2p::kad::store::Result<()>;
 
     /// Get a Definition from a Redb store using a RecordKey
     #[cfg(feature = "redb")]
-    fn handle_redb_get(store: &crate::databases::redb_store::RedbStore<Self>, key: &libp2p::kad::RecordKey) -> Option<(Self, libp2p::kad::Record)>;
+    fn handle_redb_get(
+        store: &crate::databases::redb_store::RedbStore<Self>,
+        key: &libp2p::kad::RecordKey,
+    ) -> Option<(Self, libp2p::kad::Record)>;
 
     /// Remove from a Redb store using a RecordKey
     #[cfg(feature = "redb")]
-    fn handle_redb_remove(store: &crate::databases::redb_store::RedbStore<Self>, key: &libp2p::kad::RecordKey);
+    fn handle_redb_remove(
+        store: &crate::databases::redb_store::RedbStore<Self>,
+        key: &libp2p::kad::RecordKey,
+    );
 
     /// Get all records from a Redb store as an iterator
     #[cfg(feature = "redb")]
-    fn handle_redb_records<'a>(store: &'a crate::databases::redb_store::RedbStore<Self>) -> Box<dyn Iterator<Item = std::borrow::Cow<'a, libp2p::kad::Record>> + 'a>;
+    fn handle_redb_records<'a>(
+        store: &'a crate::databases::redb_store::RedbStore<Self>,
+    ) -> Box<dyn Iterator<Item = std::borrow::Cow<'a, libp2p::kad::Record>> + 'a>;
 
     /// Put this Definition into a Memory store
     #[cfg(feature = "memory")]
-    fn handle_memory_put(&self, store: &crate::databases::memory_store::MemoryStore<Self>) -> libp2p::kad::store::Result<()>;
+    fn handle_memory_put(
+        &self,
+        store: &crate::databases::memory_store::MemoryStore<Self>,
+    ) -> libp2p::kad::store::Result<()>;
 
     /// Get a Definition from a Memory store using a RecordKey
     #[cfg(feature = "memory")]
-    fn handle_memory_get(store: &crate::databases::memory_store::MemoryStore<Self>, key: &libp2p::kad::RecordKey) -> Option<(Self, libp2p::kad::Record)>;
+    fn handle_memory_get(
+        store: &crate::databases::memory_store::MemoryStore<Self>,
+        key: &libp2p::kad::RecordKey,
+    ) -> Option<(Self, libp2p::kad::Record)>;
 
     /// Remove from a Memory store using a RecordKey
     #[cfg(feature = "memory")]
-    fn handle_memory_remove(store: &crate::databases::memory_store::MemoryStore<Self>, key: &libp2p::kad::RecordKey);
+    fn handle_memory_remove(
+        store: &crate::databases::memory_store::MemoryStore<Self>,
+        key: &libp2p::kad::RecordKey,
+    );
 
     /// Put this Definition into an IndexedDB store
     #[cfg(all(feature = "indexeddb", target_arch = "wasm32"))]
-    fn handle_indexeddb_put(&self, store: &crate::databases::indexeddb_store::IndexedDBStore<Self>) -> libp2p::kad::store::Result<()>;
+    fn handle_indexeddb_put(
+        &self,
+        store: &crate::databases::indexeddb_store::IndexedDBStore<Self>,
+    ) -> libp2p::kad::store::Result<()>;
 
     /// Get a Definition from an IndexedDB store using a RecordKey
     #[cfg(all(feature = "indexeddb", target_arch = "wasm32"))]
-    fn handle_indexeddb_get(store: &crate::databases::indexeddb_store::IndexedDBStore<Self>, key: &libp2p::kad::RecordKey) -> Option<(Self, libp2p::kad::Record)>;
+    fn handle_indexeddb_get(
+        store: &crate::databases::indexeddb_store::IndexedDBStore<Self>,
+        key: &libp2p::kad::RecordKey,
+    ) -> Option<(Self, libp2p::kad::Record)>;
 
     /// Remove from an IndexedDB store using a RecordKey
     #[cfg(all(feature = "indexeddb", target_arch = "wasm32"))]
-    fn handle_indexeddb_remove(store: &crate::databases::indexeddb_store::IndexedDBStore<Self>, key: &libp2p::kad::RecordKey);
+    fn handle_indexeddb_remove(
+        store: &crate::databases::indexeddb_store::IndexedDBStore<Self>,
+        key: &libp2p::kad::RecordKey,
+    );
 }
 
 #[cfg(not(feature = "paxos"))]
