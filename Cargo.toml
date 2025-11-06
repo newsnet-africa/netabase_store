@@ -18,7 +18,7 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["native"]
-native = ["sled", "redb"]
+native = ["sled", "redb", "libp2p"]
 wasm = ["web-sys", "js-sys", "wasm-bindgen", "wasm-bindgen-futures", "indexed_db_futures"]
 sled = ["dep:sled"]
 redb = ["dep:redb", "netabase_deps/redb"]
@@ -64,7 +64,8 @@ log = "0.4"
 env_logger = "0.10"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-criterion = "0.5"
+criterion = { version = "0.5", features = ["html_reports"] }
+pprof = { version = "0.13", features = ["flamegraph", "criterion"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "0.3"
@@ -72,12 +73,12 @@ wasm-bindgen-test = "0.3"
 [[bench]]
 name = "sled_wrapper_overhead"
 harness = false
-required-features = ["native"]
+required-features = ["native", "libp2p"]
 
 [[bench]]
 name = "redb_wrapper_overhead"
 harness = false
-required-features = ["native"]
+required-features = ["native", "libp2p"]
 
 [[example]]
 name = "basic_store"

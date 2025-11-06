@@ -1,0 +1,15 @@
+[profile.default]
+# Run tests serially by default to avoid resource conflicts
+test-threads = 1
+
+# Timeout for individual tests (2 minutes)
+slow-timeout = { period = "120s", terminate-after = 3 }
+
+[profile.ci]
+# CI-specific settings with retries for flaky tests
+retries = 2
+slow-timeout = { period = "180s", terminate-after = 3 }
+test-threads = 1
+
+# Fail fast in CI to save time
+fail-fast = false
