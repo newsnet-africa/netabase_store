@@ -331,7 +331,10 @@ where
             .map_err(crate::error::EncodingDecodingError::from)?;
 
         let definition: D = model.into();
+        #[cfg(all(feature = "native", not(feature = "wasm")))]
         let value_bytes = definition.to_ivec()?;
+        #[cfg(all(feature = "wasm", not(feature = "native")))]
+        let value_bytes = definition.to_vec()?;
 
         // Insert into primary tree
         {
@@ -373,7 +376,10 @@ where
 
         if let Some(tree) = data.get(&self.tree_name) {
             if let Some(value_bytes) = tree.get(&key_bytes) {
+                #[cfg(all(feature = "native", not(feature = "wasm")))]
                 let definition = D::from_ivec(&value_bytes.as_slice().into())?;
+                #[cfg(all(feature = "wasm", not(feature = "native")))]
+                let definition = D::from_vec(value_bytes.as_slice())?;
                 match M::try_from(definition) {
                     Ok(model) => return Ok(Some(model)),
                     Err(_) => return Ok(None),
@@ -604,7 +610,10 @@ where
             )
             .map_err(crate::error::EncodingDecodingError::from)?;
 
+            #[cfg(all(feature = "native", not(feature = "wasm")))]
             let definition = D::from_ivec(&value_bytes.as_slice().into())?;
+            #[cfg(all(feature = "wasm", not(feature = "native")))]
+            let definition = D::from_vec(value_bytes.as_slice())?;
             let model = M::try_from(definition).map_err(|_| {
                 crate::error::NetabaseError::Conversion(
                     crate::error::EncodingDecodingError::Decoding(

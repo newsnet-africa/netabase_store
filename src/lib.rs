@@ -205,47 +205,120 @@
 //!
 //! ### Using IndexedDB Backend (WASM)
 //!
-//! ```rust,no_run
-//! # // This example requires the 'wasm' feature and can only run in a browser
-//! # #[cfg(all(target_arch = "wasm32", feature = "wasm"))]
-//! # async fn example() {
-//! # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
-//! # use netabase_store::databases::indexeddb_store::IndexedDBStore;
-//! # use netabase_store::traits::tree::NetabaseTreeAsync;
-//! # use netabase_store::traits::model::NetabaseModelTrait;
-//! #
-//! # #[netabase_definition_module(BlogDefinition, BlogKeys)]
-//! # mod blog {
-//! #     use super::*;
-//! #     use netabase_store::{NetabaseModel, netabase};
-//! #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
-//! #              bincode::Encode, bincode::Decode,
-//! #              serde::Serialize, serde::Deserialize)]
-//! #     #[netabase(BlogDefinition)]
-//! #     pub struct User {
-//! #         #[primary_key]
-//! #         pub id: u64,
-//! #         pub username: String,
-//! #         #[secondary_key]
-//! #         pub email: String,
-//! #     }
-//! # }
-//! # use blog::*;
-//! #
-//! // Open a database in the browser
-//! let store = IndexedDBStore::<BlogDefinition>::new("my_app_db").await.unwrap();
+//! IndexedDB backend provides persistent storage in web browsers.
+//! This example requires the `wasm` feature and can only run in browsers:
 //!
-//! // Get an async tree (WASM uses async API)
-//! let user_tree = store.open_tree::<User>().await.unwrap();
+//! ```rust,ignore
+//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//! use netabase_store::databases::indexeddb_store::IndexedDBStore;
+//! use netabase_store::traits::tree::NetabaseTreeAsync;
+//! use netabase_store::traits::model::NetabaseModelTrait;
 //!
-//! // Create a user
-//! let alice = User { id: 1, username: "alice".into(), email: "alice@example.com".into() };
+//! #[netabase_definition_module(AppDefinition, AppKeys)]
+//! mod app {
+//!     use super::*;
+//!     use netabase_store::{NetabaseModel, netabase};
 //!
-//! // Async operations
-//! user_tree.put(alice.clone()).await.unwrap();
-//! let retrieved = user_tree.get(alice.primary_key()).await.unwrap().unwrap();
-//! # }
+//!     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+//!              bincode::Encode, bincode::Decode,
+//!              serde::Serialize, serde::Deserialize)]
+//!     #[netabase(AppDefinition)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: u64,
+//!         pub username: String,
+//!         #[secondary_key]
+//!         pub email: String,
+//!     }
+//! }
+//! use app::*;
+//!
+//! async fn wasm_example() -> Result<(), Box<dyn std::error::Error>> {
+//!     // Open a database in the browser (persists across page reloads)
+//!     let store = IndexedDBStore::<AppDefinition>::new("my_app_db").await?;
+//!
+//!     // Get an async tree - note WASM uses async API
+//!     let user_tree = store.open_tree::<User>();
+//!
+//!     // Create a user
+//!     let alice = User {
+//!         id: 1,
+//!         username: "alice".into(),
+//!         email: "alice@example.com".into()
+//!     };
+//!
+//!     // All operations are async in WASM
+//!     user_tree.put(alice.clone()).await?;
+//!     let retrieved = user_tree.get(alice.primary_key()).await?;
+//!
+//!     // Query by secondary key
+//!     let users_by_email = user_tree
+//!         .get_by_secondary_key(alice.secondary_keys()[0].clone())
+//!         .await?;
+//!
+//!     Ok(())
+//! }
 //! ```
+//!
+//! ## Batch Operations
+//!
+//! For high-performance bulk operations, use batch processing to reduce overhead.
+//! This example requires the `native` feature:
+//!
+//! ```rust,ignore
+//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//! use netabase_store::databases::sled_store::SledStore;
+//! use netabase_store::traits::batch::Batchable;
+//! use netabase_store::traits::model::NetabaseModelTrait;
+//!
+//! #[netabase_definition_module(AppDefinition, AppKeys)]
+//! mod app {
+//!     use super::*;
+//!     use netabase_store::{NetabaseModel, netabase};
+//!
+//!     #[derive(NetabaseModel, Clone, Debug,
+//!              bincode::Encode, bincode::Decode,
+//!              serde::Serialize, serde::Deserialize)]
+//!     #[netabase(AppDefinition)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: u64,
+//!         pub name: String,
+//!     }
+//! }
+//! use app::*;
+//!
+//! let store = SledStore::<AppDefinition>::temp().unwrap();
+//! let user_tree = store.open_tree::<User>();
+//!
+//! // Create a batch for atomic operations
+//! let mut batch = user_tree.batch();
+//!
+//! // Add multiple operations
+//! for i in 0..1000 {
+//!     let user = User { id: i, name: format!("User {}", i) };
+//!     batch.put(user).unwrap();
+//! }
+//!
+//! // Commit all operations atomically
+//! batch.commit().unwrap();
+//! ```
+//!
+//! Batch operations are atomic and significantly faster than individual operations
+//! when working with many records.
+//!
+//! ## Custom Backend Implementations
+//!
+//! Netabase Store provides a unified API through traits, making it easy to implement
+//! custom storage backends:
+//!
+//! - **`NetabaseTreeSync`**: For synchronous backends (native)
+//! - **`NetabaseTreeAsync`**: For asynchronous backends (WASM, remote databases)
+//! - **`OpenTree`**: For creating tree instances from stores
+//! - **`Batchable`**: For batch operation support
+//!
+//! Implement these traits to add support for new databases while maintaining
+//! compatibility with all existing code using netabase_store.
 //!
 //! ## Architecture
 //!

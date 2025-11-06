@@ -1430,18 +1430,21 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
-    fn put(&mut self, model: M) -> Result<(), NetabaseError> {
+    fn put(&mut self, model: M) -> Result<(), NetabaseError>
+    where
+        D: From<M>,
+    {
         let primary_key = model.primary_key();
         let secondary_keys = model.secondary_keys();
 
         let key_bytes = bincode::encode_to_vec(&primary_key, bincode::config::standard())
             .map_err(crate::error::EncodingDecodingError::from)?;
 
-        // Store raw model directly
-        let value_bytes = bincode::encode_to_vec(&model, bincode::config::standard())
-            .map_err(crate::error::EncodingDecodingError::from)?;
+        // Store as Definition (same format as regular put)
+        let definition: D = model.into();
+        let value_bytes = definition.to_ivec()?;
 
-        self.primary_batch.insert(key_bytes.clone(), value_bytes);
+        self.primary_batch.insert(key_bytes.clone(), value_bytes.as_ref());
 
         // Add secondary key entries
         if !secondary_keys.is_empty() {
