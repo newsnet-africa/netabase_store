@@ -72,7 +72,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-netabase_store = "0.0.2"
+netabase_store = "0.0.3"
 
 # Required dependencies for macros to work
 bincode = { version = "2.0", features = ["serde"] }

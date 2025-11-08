@@ -1,6 +1,6 @@
 [package]
 name = "netabase_store"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2024"
 description = "A type-safe, multi-backend key-value storage library for Rust with support for native (Sled, Redb) and WASM (IndexedDB) environments."
 license = "GPL-3.0-only"
@@ -34,8 +34,8 @@ anyhow = "1.0.100"
 bincode = { version = "2.0", features = ["derive", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 derive_more = { version = "2.0.1", features = ["from", "try_into", "into"] }
-netabase_deps = { version = "0.0.2", path = "netabase_deps" }
-netabase_macros = { version = "0.0.2", path = "netabase_macros" }
+netabase_deps = { version = "0.0.3", path = "netabase_deps" }
+netabase_macros = { version = "0.0.3", path = "netabase_macros" }
 serde = { version = "1.0", features = ["derive"] }
 strum = { version = "0.27.2", features = ["derive", "strum_macros"] }
 thiserror = "2.0.17"
