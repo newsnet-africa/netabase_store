@@ -201,7 +201,8 @@ where
             .map_err(crate::error::EncodingDecodingError::from)?;
 
         let definition: D = model.clone().into();
-        let value_bytes = definition.to_vec()?;
+        let value_bytes = bincode::encode_to_vec(&definition, bincode::config::standard())
+            .map_err(crate::error::EncodingDecodingError::from)?;
 
         // Convert bytes to JsValue
         let key_js = js_sys::Uint8Array::from(&key_bytes[..]);
@@ -270,7 +271,11 @@ where
                 let mut bytes = vec![0u8; uint8_array.length() as usize];
                 uint8_array.copy_to(&mut bytes);
 
-                let definition = D::from_vec(&bytes)?;
+                let (definition, _) = bincode::decode_from_slice::<D, _>(
+                    &bytes,
+                    bincode::config::standard(),
+                )
+                .map_err(crate::error::EncodingDecodingError::from)?;
                 match M::try_from(definition) {
                     Ok(model) => Ok(Some(model)),
                     Err(_) => Ok(None),
@@ -435,7 +440,11 @@ where
                 let mut value_bytes = vec![0u8; value_array.length() as usize];
                 value_array.copy_to(&mut value_bytes);
 
-                let definition = D::from_vec(&value_bytes)?;
+                let (definition, _) = bincode::decode_from_slice::<D, _>(
+                    &value_bytes,
+                    bincode::config::standard(),
+                )
+                .map_err(crate::error::EncodingDecodingError::from)?;
                 let model = M::try_from(definition).map_err(|_| {
                     crate::error::NetabaseError::Conversion(
                         crate::error::EncodingDecodingError::Decoding(
