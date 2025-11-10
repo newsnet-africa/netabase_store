@@ -122,6 +122,7 @@ pub fn netabase_model_derive(input: TokenStream) -> TokenStream {
     visitor.visit_derive_input(&input);
     let (p, sl, s, k) = visitor.generate_keys();
     let trait_impl = visitor.generate_model_trait_impl();
+    let borrow_impls = visitor.generate_borrow_impls();
 
     quote! {
         #p
@@ -129,6 +130,7 @@ pub fn netabase_model_derive(input: TokenStream) -> TokenStream {
         #s
         #k
         #(#trait_impl)*
+        #(#borrow_impls)*
     }
     .into()
 }

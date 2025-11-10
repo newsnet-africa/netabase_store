@@ -163,7 +163,11 @@ where
 /// encoding/decoding via redb's Key/Value traits and secondary key management.
 ///
 /// This is similar to SledStoreTree but leverages redb's native type safety.
-pub struct RedbStoreTree<D, M>
+///
+/// The lifetime parameter `'db` ensures that trees cannot outlive their parent database.
+pub struct RedbStoreTree<'db, D, M>
+// TODO: 1) PhantomData is not completely necessary here. 2) generate macros for the stores to add user defined datastructures (Like a list of tables etc.) 3) Open transaction before opening table means we can just use a reference to the TABLE instead of ARCing
+// Literally no need for the arc as the write would be blocking. BUT, this would need documentation as fuck
 where
     D: NetabaseDefinitionTrait,
     M: NetabaseModelTrait<D>,
@@ -198,9 +202,10 @@ where
     secondary_table_name: &'static str,
     _phantom_d: PhantomData<D>,
     _phantom_m: PhantomData<M>,
+    _phantom_db: PhantomData<&'db ()>,
 }
 
-impl<D, M> RedbStoreTree<D, M>
+impl<'db, D, M> RedbStoreTree<'db, D, M>
 where
     D: NetabaseDefinitionTrait,
     M: NetabaseModelTrait<D> + Debug + bincode::Decode<()>,
@@ -247,6 +252,7 @@ where
             secondary_table_name: sec_name_static,
             _phantom_d: PhantomData,
             _phantom_m: PhantomData,
+            _phantom_db: PhantomData,
         }
     }
 
@@ -490,9 +496,10 @@ where
 
             // Check if the secondary key matches
             if sec_key == secondary_key
-                && let Some(model) = self.get(prim_key)? {
-                    results.push(model);
-                }
+                && let Some(model) = self.get(prim_key)?
+            {
+                results.push(model);
+            }
         }
 
         Ok(results)
@@ -500,7 +507,7 @@ where
 }
 
 // Implement the unified NetabaseTreeSync trait for RedbStoreTree
-impl<D, M> NetabaseTreeSync<D, M> for RedbStoreTree<D, M>
+impl<'db, D, M> NetabaseTreeSync<'db, D, M> for RedbStoreTree<'db, D, M>
 where
     D: NetabaseDefinitionTrait,
     M: NetabaseModelTrait<D> + Debug + bincode::Decode<()>,
@@ -565,10 +572,16 @@ where
 }
 
 // Implement StoreOps trait for RedbStoreTree
-impl<D, M> crate::traits::store_ops::StoreOps<D, M> for RedbStoreTree<D, M>
+impl<'db, D, M> crate::traits::store_ops::StoreOps<D, M> for RedbStoreTree<'db, D, M>
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
-    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + Debug + bincode::Encode + bincode::Decode<()>,
+    M: NetabaseModelTrait<D>
+        + TryFrom<D>
+        + Into<D>
+        + Clone
+        + Debug
+        + bincode::Encode
+        + bincode::Decode<()>,
     M::PrimaryKey: Debug + bincode::Decode<()> + Ord + Clone + bincode::Encode,
     M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq + bincode::Encode,
     <D as IntoDiscriminant>::Discriminant: AsRef<str>
@@ -606,10 +619,16 @@ where
 }
 
 // Implement StoreOpsSecondary trait for RedbStoreTree
-impl<D, M> crate::traits::store_ops::StoreOpsSecondary<D, M> for RedbStoreTree<D, M>
+impl<'db, D, M> crate::traits::store_ops::StoreOpsSecondary<D, M> for RedbStoreTree<'db, D, M>
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
-    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + Debug + bincode::Encode + bincode::Decode<()>,
+    M: NetabaseModelTrait<D>
+        + TryFrom<D>
+        + Into<D>
+        + Clone
+        + Debug
+        + bincode::Encode
+        + bincode::Decode<()>,
     M::PrimaryKey: Debug + bincode::Decode<()> + Ord + Clone + bincode::Encode,
     M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq + bincode::Encode,
     <D as IntoDiscriminant>::Discriminant: AsRef<str>
@@ -626,7 +645,10 @@ where
         + 'static
         + FromStr,
 {
-    fn get_by_secondary_key_raw(&self, secondary_key: M::SecondaryKeys) -> Result<Vec<M>, NetabaseError> {
+    fn get_by_secondary_key_raw(
+        &self,
+        secondary_key: M::SecondaryKeys,
+    ) -> Result<Vec<M>, NetabaseError> {
         self.get_by_secondary_key(secondary_key)
     }
 }
@@ -645,10 +667,16 @@ impl<M> Iterator for RedbIter<M> {
 }
 
 // Implement StoreOpsIter trait for RedbStoreTree
-impl<D, M> crate::traits::store_ops::StoreOpsIter<D, M> for RedbStoreTree<D, M>
+impl<'db, D, M> crate::traits::store_ops::StoreOpsIter<D, M> for RedbStoreTree<'db, D, M>
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
-    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + Debug + bincode::Encode + bincode::Decode<()>,
+    M: NetabaseModelTrait<D>
+        + TryFrom<D>
+        + Into<D>
+        + Clone
+        + Debug
+        + bincode::Encode
+        + bincode::Decode<()>,
     M::PrimaryKey: Debug + bincode::Decode<()> + Ord + Clone + bincode::Encode,
     M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq + bincode::Encode,
     <D as IntoDiscriminant>::Discriminant: AsRef<str>
@@ -675,7 +703,9 @@ where
         let table = match read_txn.open_table(table_def) {
             Ok(table) => table,
             Err(redb::TableError::TableDoesNotExist(_)) => {
-                return Ok(RedbIter { items: Vec::new().into_iter() });
+                return Ok(RedbIter {
+                    items: Vec::new().into_iter(),
+                });
             }
             Err(e) => return Err(NetabaseError::RedbTableError(e)),
         };
@@ -725,10 +755,10 @@ where
         + FromStr,
 {
     db: Arc<Database>,
-    table_name: &'static str,
-    secondary_table_name: &'static str,
+    table_name: &'static str, // TODO: Reference the table/tree that they are being built from
+    secondary_table_name: &'static str, // TODO: Reference the table that they are being built from
     operations: Vec<RedbBatchOp<D, M>>,
-    _phantom_d: PhantomData<D>,
+    _phantom_d: PhantomData<D>, // TODO: No need for this
 }
 
 enum RedbBatchOp<D, M>
@@ -756,7 +786,13 @@ where
 impl<D, M> RedbBatchBuilder<D, M>
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
-    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + Debug + bincode::Encode + bincode::Decode<()>,
+    M: NetabaseModelTrait<D>
+        + TryFrom<D>
+        + Into<D>
+        + Clone
+        + Debug
+        + bincode::Encode
+        + bincode::Decode<()>,
     M::PrimaryKey: Debug + bincode::Decode<()> + Ord + Clone + bincode::Encode,
     M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq + bincode::Encode,
     <D as IntoDiscriminant>::Discriminant: AsRef<str>
@@ -773,7 +809,11 @@ where
         + 'static
         + FromStr,
 {
-    fn new(db: Arc<Database>, table_name: &'static str, secondary_table_name: &'static str) -> Self {
+    fn new(
+        db: Arc<Database>,
+        table_name: &'static str,
+        secondary_table_name: &'static str,
+    ) -> Self {
         Self {
             db,
             table_name,
@@ -783,11 +823,19 @@ where
         }
     }
 
-    fn table_def(&self) -> TableDefinition<'static, BincodeWrapper<M::PrimaryKey>, BincodeWrapper<M>> {
+    fn table_def(
+        &self,
+    ) -> TableDefinition<'static, BincodeWrapper<M::PrimaryKey>, BincodeWrapper<M>> {
         TableDefinition::new(self.table_name)
     }
 
-    fn secondary_table_def(&self) -> TableDefinition<'static, BincodeWrapper<(M::SecondaryKeys, M::PrimaryKey)>, BincodeWrapper<()>> {
+    fn secondary_table_def(
+        &self,
+    ) -> TableDefinition<
+        'static,
+        BincodeWrapper<(M::SecondaryKeys, M::PrimaryKey)>,
+        BincodeWrapper<()>,
+    > {
         TableDefinition::new(self.secondary_table_name)
     }
 }
@@ -795,7 +843,13 @@ where
 impl<D, M> crate::traits::batch::BatchBuilder<D, M> for RedbBatchBuilder<D, M>
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
-    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + Debug + bincode::Encode + bincode::Decode<()>,
+    M: NetabaseModelTrait<D>
+        + TryFrom<D>
+        + Into<D>
+        + Clone
+        + Debug
+        + bincode::Encode
+        + bincode::Decode<()>,
     M::PrimaryKey: Debug + bincode::Decode<()> + Ord + Clone + bincode::Encode,
     M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq + bincode::Encode,
     <D as IntoDiscriminant>::Discriminant: AsRef<str>
@@ -894,10 +948,16 @@ where
 }
 
 // Implement Batchable trait for RedbStoreTree
-impl<D, M> crate::traits::batch::Batchable<D, M> for RedbStoreTree<D, M>
+impl<'db, D, M> crate::traits::batch::Batchable<D, M> for RedbStoreTree<'db, D, M>
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
-    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + Debug + bincode::Encode + bincode::Decode<()>,
+    M: NetabaseModelTrait<D>
+        + TryFrom<D>
+        + Into<D>
+        + Clone
+        + Debug
+        + bincode::Encode
+        + bincode::Decode<()>,
     M::PrimaryKey: Debug + bincode::Decode<()> + Ord + Clone + bincode::Encode,
     M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq + bincode::Encode,
     <D as IntoDiscriminant>::Discriminant: AsRef<str>
@@ -939,14 +999,23 @@ where
 impl<D, M> crate::traits::store_ops::OpenTree<D, M> for RedbStore<D>
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + crate::traits::convert::ToIVec + From<M>,
-    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + Debug + bincode::Encode + bincode::Decode<()>,
+    M: NetabaseModelTrait<D>
+        + TryFrom<D>
+        + Into<D>
+        + Clone
+        + Debug
+        + bincode::Encode
+        + bincode::Decode<()>,
     M::PrimaryKey: Debug + bincode::Decode<()> + Ord + Clone + bincode::Encode,
     M::SecondaryKeys: Debug + bincode::Decode<()> + Ord + PartialEq + bincode::Encode,
     <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
 {
-    type Tree = RedbStoreTree<D, M>;
+    type Tree<'a>
+        = RedbStoreTree<'a, D, M>
+    where
+        Self: 'a;
 
-    fn open_tree(&self) -> Self::Tree {
+    fn open_tree(&self) -> Self::Tree<'_> {
         RedbStoreTree::new(Arc::clone(&self.db), M::DISCRIMINANT)
     }
 }
