@@ -208,14 +208,16 @@ where
 {
     /// The tree/table type returned by `open_tree`
     ///
-    /// This type must implement `StoreOps<D, M>` to provide storage operations
-    type Tree: StoreOps<D, M>;
+    /// This type must implement `StoreOps<D, M>` to provide storage operations.
+    /// The lifetime parameter ensures that trees cannot outlive their parent store.
+    type Tree<'a>: StoreOps<D, M> where Self: 'a;
 
     /// Open a tree/table/object-store for the given model type
     ///
     /// # Returns
     ///
-    /// A tree instance that provides `StoreOps` for the model type `M`
+    /// A tree instance that provides `StoreOps` for the model type `M`.
+    /// The returned tree is bound to the lifetime of this store, ensuring it cannot outlive the database.
     ///
     /// # Example
     ///
@@ -223,5 +225,5 @@ where
     /// let tree = store.open_tree::<User>();
     /// tree.put_raw(user)?;
     /// ```
-    fn open_tree(&self) -> Self::Tree;
+    fn open_tree(&self) -> Self::Tree<'_>;
 }

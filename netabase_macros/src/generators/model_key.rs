@@ -31,6 +31,101 @@ impl<'a> ModelVisitor<'a> {
         (p_keys, secondary_newtypes, secondary_keys, keys_enum)
     }
 
+    pub fn generate_borrow_impls(&self) -> Vec<proc_macro2::TokenStream> {
+        let model_name = match self.name {
+            Some(n) => n,
+            None => panic!("Visitor error (parsing struct name?)"),
+        };
+
+        let mut impls = Vec::new();
+
+        // Get primary key info
+        let key = match &self.key {
+            Some(k) => k,
+            None => return impls,
+        };
+
+        let primary_key_ty = append_ident(model_name, "PrimaryKey");
+        let primary_inner_ty = &key.primary_keys.ty;
+
+        // 1. Primary key newtype implements Borrow<InnerType>
+        impls.push(quote::quote! {
+            impl ::std::borrow::Borrow<#primary_inner_ty> for #primary_key_ty {
+                fn borrow(&self) -> &#primary_inner_ty {
+                    &self.0
+                }
+            }
+        });
+
+        // 2. Each secondary key newtype implements Borrow<InnerType>
+        let secondary_newtypes = self.generate_secondary_keys_newtypes();
+        for (newtype_struct, _variant_name) in &secondary_newtypes {
+            let newtype_ty = &newtype_struct.ident;
+            // Extract inner type from the newtype struct
+            if let syn::Fields::Unnamed(fields) = &newtype_struct.fields {
+                if let Some(field) = fields.unnamed.first() {
+                    let inner_ty = &field.ty;
+                    impls.push(quote::quote! {
+                        impl ::std::borrow::Borrow<#inner_ty> for #newtype_ty {
+                            fn borrow(&self) -> &#inner_ty {
+                                &self.0
+                            }
+                        }
+                    });
+                }
+            }
+        }
+
+        // 3. SecondaryKeys enum implements Borrow<VariantType> for each variant
+        let secondary_keys_ty = append_ident(model_name, "SecondaryKeys");
+        for (newtype_struct, variant_name) in &secondary_newtypes {
+            let newtype_ty = &newtype_struct.ident;
+            impls.push(quote::quote! {
+                impl ::std::borrow::Borrow<#newtype_ty> for #secondary_keys_ty {
+                    fn borrow(&self) -> &#newtype_ty {
+                        match self {
+                            Self::#variant_name(inner) => inner,
+                            _ => panic!(
+                                "Attempted to borrow {} from wrong SecondaryKeys variant. Use pattern matching for safe access.",
+                                stringify!(#newtype_ty)
+                            ),
+                        }
+                    }
+                }
+            });
+        }
+
+        // 4. Main Keys enum implements Borrow<PrimaryKey> and Borrow<SecondaryKeys>
+        let keys_ty = append_ident(model_name, "Key");
+        impls.push(quote::quote! {
+            impl ::std::borrow::Borrow<#primary_key_ty> for #keys_ty {
+                fn borrow(&self) -> &#primary_key_ty {
+                    match self {
+                        Self::Primary(key) => key,
+                        _ => panic!(
+                            "Attempted to borrow PrimaryKey from Secondary variant. Use pattern matching for safe access."
+                        ),
+                    }
+                }
+            }
+        });
+
+        impls.push(quote::quote! {
+            impl ::std::borrow::Borrow<#secondary_keys_ty> for #keys_ty {
+                fn borrow(&self) -> &#secondary_keys_ty {
+                    match self {
+                        Self::Secondary(keys) => keys,
+                        _ => panic!(
+                            "Attempted to borrow SecondaryKeys from Primary variant. Use pattern matching for safe access."
+                        ),
+                    }
+                }
+            }
+        });
+
+        impls
+    }
+
     pub fn generate_model_trait_impl(&self) -> Vec<proc_macro2::TokenStream> {
         let model_name = match self.name {
             Some(n) => n,
@@ -69,7 +164,11 @@ impl<'a> ModelVisitor<'a> {
             None => vec![],
         };
 
+        // Use discriminant name for both trait implementation and redb TypeName
+        // This ensures consistency when models are used across different definition enums
         let discriminant_name = model_name.to_string();
+        let primary_key_name_str = format!("{}::PrimaryKey", discriminant_name);
+        let secondary_keys_name_str = format!("{}::SecondaryKeys", discriminant_name);
 
         // Generics support removed - not yet implemented
         // Extract generics information
@@ -119,6 +218,145 @@ impl<'a> ModelVisitor<'a> {
                     const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant
                         = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#keys_ty;
                 }
+
+                // redb trait implementations (only when redb feature is enabled)
+                // For redb, we use owned types for SelfType since bincode requires ownership
+                // and we implement Borrow<Self> which is automatic for all types
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::netabase_deps::redb::Value for #model_name {
+                    type SelfType<'a> = #model_name where Self: 'a;
+                    type AsBytes<'a> = Vec<u8> where Self: 'a;
+
+                    fn fixed_width() -> Option<usize> {
+                        None
+                    }
+
+                    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+                    where
+                        Self: 'a,
+                    {
+                        ::netabase_store::bincode::decode_from_slice(data, ::netabase_store::bincode::config::standard())
+                            .unwrap()
+                            .0
+                    }
+
+                    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+                    where
+                        Self: 'a,
+                        Self: 'b,
+                    {
+                        ::netabase_store::bincode::encode_to_vec(value, ::netabase_store::bincode::config::standard()).unwrap()
+                    }
+
+                    fn type_name() -> ::netabase_store::netabase_deps::redb::TypeName {
+                        ::netabase_store::netabase_deps::redb::TypeName::new(#discriminant_name)
+                    }
+                }
+
+                // Implement FromRedbValue trait for safe conversion
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::databases::redb_store::FromRedbValue for #model_name {
+                    #[inline]
+                    fn from_redb_value(value: &<Self as ::netabase_store::netabase_deps::redb::Value>::SelfType<'_>) -> Self {
+                        value.clone()
+                    }
+                }
+
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::netabase_deps::redb::Value for #primary_key_ty {
+                    type SelfType<'a> = #primary_key_ty where Self: 'a;
+                    type AsBytes<'a> = Vec<u8> where Self: 'a;
+
+                    fn fixed_width() -> Option<usize> {
+                        None
+                    }
+
+                    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+                    where
+                        Self: 'a,
+                    {
+                        ::netabase_store::bincode::decode_from_slice(data, ::netabase_store::bincode::config::standard())
+                            .unwrap()
+                            .0
+                    }
+
+                    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+                    where
+                        Self: 'a,
+                        Self: 'b,
+                    {
+                        ::netabase_store::bincode::encode_to_vec(value, ::netabase_store::bincode::config::standard()).unwrap()
+                    }
+
+                    fn type_name() -> ::netabase_store::netabase_deps::redb::TypeName {
+                        ::netabase_store::netabase_deps::redb::TypeName::new(#primary_key_name_str)
+                    }
+                }
+
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::netabase_deps::redb::Key for #primary_key_ty {
+                    fn compare(data1: &[u8], data2: &[u8]) -> ::std::cmp::Ordering {
+                        Self::from_bytes(data1).cmp(&Self::from_bytes(data2))
+                    }
+                }
+
+                // Implement FromRedbValue trait for PrimaryKey
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::databases::redb_store::FromRedbValue for #primary_key_ty {
+                    #[inline]
+                    fn from_redb_value(value: &<Self as ::netabase_store::netabase_deps::redb::Value>::SelfType<'_>) -> Self {
+                        value.clone()
+                    }
+                }
+
+
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::netabase_deps::redb::Value for #secondary_keys_ty {
+                    type SelfType<'a> = #secondary_keys_ty where Self: 'a;
+                    type AsBytes<'a> = Vec<u8> where Self: 'a;
+
+                    fn fixed_width() -> Option<usize> {
+                        None
+                    }
+
+                    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+                    where
+                        Self: 'a,
+                    {
+                        ::netabase_store::bincode::decode_from_slice(data, ::netabase_store::bincode::config::standard())
+                            .unwrap()
+                            .0
+                    }
+
+                    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+                    where
+                        Self: 'a,
+                        Self: 'b,
+                    {
+                        ::netabase_store::bincode::encode_to_vec(value, ::netabase_store::bincode::config::standard()).unwrap()
+                    }
+
+                    fn type_name() -> ::netabase_store::netabase_deps::redb::TypeName {
+                        ::netabase_store::netabase_deps::redb::TypeName::new(#secondary_keys_name_str)
+                    }
+                }
+
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::netabase_deps::redb::Key for #secondary_keys_ty {
+                    fn compare(data1: &[u8], data2: &[u8]) -> ::std::cmp::Ordering {
+                        Self::from_bytes(data1).cmp(&Self::from_bytes(data2))
+                    }
+                }
+
+                // Implement FromRedbValue trait for SecondaryKeys
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::databases::redb_store::FromRedbValue for #secondary_keys_ty {
+                    #[inline]
+                    fn from_redb_value(value: &<Self as ::netabase_store::netabase_deps::redb::Value>::SelfType<'_>) -> Self {
+                        value.clone()
+                    }
+                }
+
             }
         }).collect::<Vec<proc_macro2::TokenStream>>()
     }

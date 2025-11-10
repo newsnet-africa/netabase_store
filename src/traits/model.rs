@@ -1,4 +1,5 @@
 use bincode::Decode;
+use redb::Value;
 use strum::IntoDiscriminant;
 
 use crate::definition::NetabaseDefinitionTrait;
@@ -68,8 +69,10 @@ use crate::{MaybeSend, MaybeSync};
 pub trait NetabaseModelTrait<D: NetabaseDefinitionTrait>:
     bincode::Encode + Sized + Clone + MaybeSend + MaybeSync + 'static
 where
+    Self: Value,
     <D as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
-    <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseKeyDiscriminant,
+    <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant:
+        crate::traits::definition::NetabaseKeyDiscriminant,
 {
     const DISCRIMINANT: <D as IntoDiscriminant>::Discriminant;
 
@@ -99,7 +102,8 @@ pub trait NetabaseModelTraitKey<D: NetabaseDefinitionTrait>:
     bincode::Encode + Decode<()> + std::fmt::Debug + Clone + MaybeSend + MaybeSync + 'static
 where
     <D as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
-    <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseKeyDiscriminant,
+    <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant:
+        crate::traits::definition::NetabaseKeyDiscriminant,
 {
     const DISCRIMINANT: <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant;
 }
