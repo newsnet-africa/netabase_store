@@ -104,7 +104,10 @@ where
     type BorrowedType<'a>;
 
     /// The keys enum that wraps both primary and secondary keys
-    type Keys: NetabaseModelTraitKey<D, PrimaryKey = Self::PrimaryKey, SecondaryKey = Self::SecondaryKeys>;
+    /// The Keys type must support conversion from both PrimaryKey and SecondaryKey
+    type Keys: NetabaseModelTraitKey<D, PrimaryKey = Self::PrimaryKey, SecondaryKey = Self::SecondaryKeys>
+        + From<Self::PrimaryKey>
+        + From<Self::SecondaryKeys>;
 
     /// Primary key type (for backwards compatibility)
     type PrimaryKey: InnerKey + bincode::Encode + Decode<()> + Clone + Ord;
