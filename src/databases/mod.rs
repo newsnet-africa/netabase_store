@@ -1,6 +1,9 @@
 #[cfg(feature = "redb")]
 pub mod redb_store;
 
+#[cfg(feature = "redb")]
+pub mod redb_zerocopy;
+
 #[cfg(feature = "sled")]
 pub mod sled_store;
 

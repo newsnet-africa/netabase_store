@@ -72,7 +72,58 @@
 //! use blog::*;
 //! ```
 //!
-//! ### Using Sled Backend (Native)
+//! ### Using the Unified NetabaseStore (Recommended)
+//!
+//! ```rust,no_run
+//! use netabase_store::{NetabaseStore, netabase_definition_module, NetabaseModel, netabase};
+//!
+//! // Define your schema
+//! #[netabase_definition_module(BlogDefinition, BlogKeys)]
+//! mod blog {
+//!     use netabase_store::{NetabaseModel, netabase};
+//!
+//!     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+//!              bincode::Encode, bincode::Decode,
+//!              serde::Serialize, serde::Deserialize)]
+//!     #[netabase(BlogDefinition)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: u64,
+//!         pub username: String,
+//!         #[secondary_key]
+//!         pub email: String,
+//!         pub age: u32,
+//!     }
+//! }
+//! use blog::*;
+//!
+//! // Create a store with any backend - Sled example
+//! let store = NetabaseStore::<BlogDefinition, _>::sled("./my_db")?;
+//!
+//! // Or use Redb
+//! // let store = NetabaseStore::<BlogDefinition, _>::redb("./my_db.redb")?;
+//!
+//! // Open a tree for the User model - works with any backend!
+//! let user_tree = store.open_tree::<User>();
+//!
+//! // Standard operations work the same across all backends
+//! let alice = User {
+//!     id: 1,
+//!     username: "alice".to_string(),
+//!     email: "alice@example.com".to_string(),
+//!     age: 30,
+//! };
+//!
+//! user_tree.put(alice.clone())?;
+//! let retrieved = user_tree.get(UserPrimaryKey(1))?.unwrap();
+//! assert_eq!(retrieved, alice);
+//!
+//! // Backend-specific features still available
+//! store.flush()?; // Sled-specific
+//! # Ok::<(), netabase_store::error::NetabaseError>(())
+//! ```
+//!
+//! ### Using Sled Backend (Direct)
 //!
 //! ```rust
 //! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
@@ -514,7 +565,12 @@
 
 pub mod databases;
 pub mod error;
+// NOTE: Phase 4 - guards module re-enabled with proper architecture
+// Guard-based API now works with proper lifetime management
+#[cfg(all(feature = "redb", feature = "redb-zerocopy"))]
+pub mod guards;
 pub mod store;
+pub mod transaction;
 pub mod traits;
 
 // Re-export netabase_deps for users of the macros
@@ -524,6 +580,7 @@ pub use netabase_deps::*;
 // Re-export macros for convenience
 pub use netabase_macros::*;
 pub use store::NetabaseStore;
+pub use transaction::{ReadOnly, ReadWrite, TxnGuard, TreeView};
 pub use traits::*;
 
 // Conditional Send + Sync bounds for WASM compatibility

@@ -18,6 +18,7 @@ impl<'a> DefinitionsVisitor<'a> {
         &self,
         definition: &Ident,
         definition_key: &Ident,
+        tables_name: &Ident,
     ) -> proc_macro2::TokenStream {
         let models = self
             .modules
@@ -57,6 +58,13 @@ impl<'a> DefinitionsVisitor<'a> {
 
             impl ::netabase_store::traits::definition::NetabaseDefinitionTrait for #definition {
                 type Keys = #definition_key;
+                #[cfg(feature = "redb")]
+                type Tables = #tables_name;
+
+                #[cfg(feature = "redb")]
+                fn tables() -> Self::Tables {
+                    #tables_name::new()
+                }
             }
 
             // Implement RecordStoreExt trait for RecordStore helper methods

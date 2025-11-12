@@ -51,9 +51,9 @@ use crate::error::NetabaseError;
 /// use my_models::*;
 ///
 /// // This function works with ANY backend
-/// fn count_users<T>(tree: &T) -> Result<usize, NetabaseError>
+/// fn count_users<'a, T>(tree: &T) -> Result<usize, NetabaseError>
 /// where
-///     T: NetabaseTreeSync<MyDefinition, User>
+///     T: NetabaseTreeSync<'a, MyDefinition, User>
 /// {
 ///     tree.len()
 /// }

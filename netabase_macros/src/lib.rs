@@ -201,6 +201,90 @@ pub fn netabase_discriminant_derive(input: TokenStream) -> TokenStream {
     .into()
 }
 
+/// Attribute macro for zero-copy redb optimization.
+///
+/// This macro modifies the struct to inject a cached borrowed reference field and
+/// generates borrowed reference types (`*Ref<'a>`) that enable zero-copy reads
+/// from redb by using tuple-based serialization and borrowed string slices.
+///
+/// # Requirements
+///
+/// - Must be used with `#[cfg_attr(feature = "redb-zerocopy", redb_zerocopy)]`
+/// - Model fields must use only [redb-native types](../REDB_ZEROCOPY.md#supported-types)
+/// - Struct must also derive `NetabaseModel`
+///
+/// # Supported Types
+///
+/// - **Primitives** (Copy): `u8`-`u128`, `i8`-`i128`, `f32`, `f64`, `bool`, `char`
+/// - **Zero-copy**: `String` → `&'a str`, `Vec<u8>` → `&'a [u8]`
+/// - **Compound**: `Option<T>`, `[T; N]`, tuples
+///
+/// See [`REDB_ZEROCOPY.md`](../REDB_ZEROCOPY.md) for complete documentation.
+///
+/// # Example
+///
+/// ```ignore
+/// #[derive(NetabaseModel, Clone, bincode::Encode, bincode::Decode)]
+/// #[cfg_attr(feature = "redb-zerocopy", redb_zerocopy)]
+/// #[netabase(BlogDefinition)]
+/// struct User {
+///     #[primary_key]
+///     id: u64,
+///     name: String,      // Borrowed as &str
+///     email: String,     // Borrowed as &str
+/// }
+/// ```
+///
+/// This modifies the struct to add:
+/// ```ignore
+/// #[cfg(feature = "redb-zerocopy")]
+/// _borrowed_ref: std::cell::OnceCell<UserBorrowed>
+/// ```
+///
+/// And generates:
+/// - `UserRef<'a>` - Borrowed type with `name: &'a str`, `email: &'a str`
+/// - `UserBorrowed` - Ouroboros self-referential wrapper
+/// - `impl User { fn as_ref(&self) -> UserRef<'_> }` - Convert to borrowed
+/// - `impl Borrow<UserRef<'_>> for User` - Proper Borrow trait
+/// - `impl From<UserRef<'a>> for User` - Convert back to owned
+/// - `impl redb::Value for User` - Tuple-based serialization with zero-copy reads
+///
+/// # Performance
+///
+/// With `redb-zerocopy` enabled:
+/// - **Read operations**: ~6.6x faster (68µs → 10µs for 100 items)
+/// - **No string allocations** on reads
+/// - Write operations unchanged
+///
+/// See [`REDB_ZEROCOPY_PHASES.md`](../REDB_ZEROCOPY_PHASES.md) for implementation details.
+#[cfg(feature = "redb-zerocopy")]
+#[proc_macro_attribute]
+pub fn redb_zerocopy(_attr: TokenStream, input: TokenStream) -> TokenStream {
+    let mut item_struct = parse_macro_input!(input as syn::ItemStruct);
+
+    // Inject the cached reference field using VisitMut
+    generators::zerocopy::inject_ref_field(&mut item_struct);
+
+    // Generate all the components
+    let borrowed_type = generators::zerocopy::generate_borrowed_type(&item_struct);
+    let as_ref_method = generators::zerocopy::generate_as_ref_method(&item_struct);
+    let from_borrowed = generators::zerocopy::generate_from_borrowed(&item_struct);
+    let value_impl = generators::zerocopy::generate_value_impl(&item_struct);
+    let ouroboros_wrapper = generators::zerocopy::generate_ouroboros_wrapper(&item_struct);
+    let borrow_impl = generators::zerocopy::generate_borrow_impl(&item_struct);
+
+    quote! {
+        #item_struct
+        #borrowed_type
+        #ouroboros_wrapper
+        #as_ref_method
+        #from_borrowed
+        #borrow_impl
+        #value_impl
+    }
+    .into()
+}
+
 /// Groups multiple models into a unified database schema (definition).
 ///
 /// This macro processes a module containing models and generates:
@@ -314,7 +398,13 @@ pub fn netabase_definition_module(name: TokenStream, input: TokenStream) -> Toke
     let definition = list.first().unwrap();
     let definition_key = list.last().unwrap();
     let (defin, def_key) = visitor.generate_definitions(definition, definition_key);
-    let trait_impls = visitor.generate_definition_trait_impls(definition, definition_key);
+
+    // Generate redb table definitions struct
+    let tables_struct = generators::table_definitions::generate_tables_struct(&visitor.modules, definition);
+    let tables_impl = generators::table_definitions::generate_tables_impl(&visitor.modules, definition);
+    let tables_name = syn::Ident::new(&format!("{}Tables", definition), definition.span());
+
+    let trait_impls = visitor.generate_definition_trait_impls(definition, definition_key, &tables_name);
 
     // Generate discriminant type names for compile-time assertions
     let discriminant_name = syn::Ident::new(&format!("{}Discriminant", definition), definition.span());
@@ -335,12 +425,14 @@ pub fn netabase_definition_module(name: TokenStream, input: TokenStream) -> Toke
     if let Some((_, c)) = &mut def_module.content {
         c.push(syn::Item::Enum(defin));
         c.push(syn::Item::Enum(def_key));
+        c.push(syn::Item::Struct(tables_struct));
         c.push(discriminant_assertions);
     };
 
     quote! {
         #def_module
         #trait_impls
+        #tables_impl
     }
     .into()
 }

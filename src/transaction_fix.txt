@@ -1,0 +1,13 @@
+Lines to fix:
+346: M::PrimaryKey: Ord + redb::Key  -> remove redb::Key
+348: M: bincode::Decode<()>  -> keep for Sled but not needed for generic
+525: BincodeWrapper<M::PrimaryKey>, BincodeWrapper<M> -> M::PrimaryKey, M
+573: bincode::decode -> map_err
+574: bincode::decode -> map_err  
+584: BincodeWrapper -> direct types
+629: M::PrimaryKey: Ord + redb::Key -> remove
+631: M: bincode::Decode<()> -> keep
+725: bincode::encode_to_vec -> map_err
+736: bincode::encode_to_vec -> map_err
+798: BincodeWrapper -> direct types
+800: BincodeWrapper -> direct types

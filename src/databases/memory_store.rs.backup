@@ -369,7 +369,7 @@ where
     }
 
     /// Get a model by its primary key.
-    pub fn get(&self, key: <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+    pub fn get(&self, key: M::PrimaryKey) -> Result<Option<M>, NetabaseError> {
         let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())
             .map_err(crate::error::EncodingDecodingError::from)?;
 
@@ -394,7 +394,7 @@ where
     }
 
     /// Delete a model by its primary key.
-    pub fn remove(&self, key: <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+    pub fn remove(&self, key: M::PrimaryKey) -> Result<Option<M>, NetabaseError> {
         let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())
             .map_err(crate::error::EncodingDecodingError::from)?;
 
@@ -472,8 +472,8 @@ where
     /// Build a composite key from secondary key + primary key
     fn build_composite_key(
         &self,
-        secondary_key: &<M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey,
-        primary_key: &<M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey,
+        secondary_key: &M::SecondaryKeys,
+        primary_key: &M::PrimaryKey,
     ) -> Result<Vec<u8>, NetabaseError> {
         let mut composite_key = bincode::encode_to_vec(secondary_key, bincode::config::standard())
             .map_err(crate::error::EncodingDecodingError::from)?;
@@ -487,10 +487,10 @@ where
     /// Find all models matching a secondary key value.
     pub fn get_by_secondary_key(
         &self,
-        secondary_key: <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey,
+        secondary_key: M::SecondaryKeys,
     ) -> Result<Vec<M>, NetabaseError>
     where
-        <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey: bincode::Decode<()>,
+        M::PrimaryKey: bincode::Decode<()>,
     {
         let sec_key_bytes = bincode::encode_to_vec(&secondary_key, bincode::config::standard())
             .map_err(crate::error::EncodingDecodingError::from)?;
@@ -508,7 +508,7 @@ where
                     if composite_key.starts_with(&sec_key_bytes) {
                         let prim_key_start = sec_key_bytes.len();
                         if composite_key.len() > prim_key_start {
-                            let (primary_key, _) = bincode::decode_from_slice::<<M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey, _>(
+                            let (primary_key, _) = bincode::decode_from_slice::<M::PrimaryKey, _>(
                                 &composite_key[prim_key_start..],
                                 bincode::config::standard(),
                             )
@@ -572,7 +572,7 @@ impl<D, M> Iterator for MemoryIter<D, M>
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec,
     M: NetabaseModelTrait<D> + TryFrom<D>,
-    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey: bincode::Decode<()>,
+    M::PrimaryKey: bincode::Decode<()>,
     <D as IntoDiscriminant>::Discriminant: Clone
         + Copy
         + std::fmt::Debug
@@ -596,7 +596,7 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
-    type Item = Result<(<M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey, M), NetabaseError>;
+    type Item = Result<(M::PrimaryKey, M), NetabaseError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.current >= self.entries.len() {
@@ -607,7 +607,7 @@ where
         self.current += 1;
 
         let result = (|| {
-            let (key, _) = bincode::decode_from_slice::<<M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey, _>(
+            let (key, _) = bincode::decode_from_slice::<M::PrimaryKey, _>(
                 key_bytes,
                 bincode::config::standard(),
             )
@@ -637,8 +637,8 @@ impl<'db, D, M> NetabaseTreeSync<'db, D, M> for MemoryStoreTree<'db, D, M>
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
     M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone,
-    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey: bincode::Decode<()> + Clone,
-    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey: bincode::Decode<()>,
+    M::PrimaryKey: bincode::Decode<()> + Clone,
+    M::SecondaryKeys: bincode::Decode<()>,
     <D as IntoDiscriminant>::Discriminant: Clone
         + Copy
         + std::fmt::Debug
@@ -662,8 +662,8 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
-    type PrimaryKey = <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey;
-    type SecondaryKeys = <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey;
+    type PrimaryKey = M::PrimaryKey;
+    type SecondaryKeys = M::SecondaryKeys;
 
     fn put(&self, model: M) -> Result<(), NetabaseError> {
         self.put(model)
@@ -702,8 +702,8 @@ impl<'db, D, M> crate::traits::store_ops::StoreOps<D, M> for MemoryStoreTree<'db
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
     M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + bincode::Decode<()>,
-    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey: bincode::Decode<()> + Clone,
-    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey: bincode::Decode<()>,
+    M::PrimaryKey: bincode::Decode<()> + Clone,
+    M::SecondaryKeys: bincode::Decode<()>,
     <D as IntoDiscriminant>::Discriminant: Clone
         + Copy
         + std::fmt::Debug
@@ -764,7 +764,7 @@ where
         Ok(())
     }
 
-    fn get_raw(&self, key: <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+    fn get_raw(&self, key: M::PrimaryKey) -> Result<Option<M>, NetabaseError> {
         let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())
             .map_err(crate::error::EncodingDecodingError::from)?;
 
@@ -784,7 +784,7 @@ where
         Ok(None)
     }
 
-    fn remove_raw(&self, key: <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+    fn remove_raw(&self, key: M::PrimaryKey) -> Result<Option<M>, NetabaseError> {
         let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())
             .map_err(crate::error::EncodingDecodingError::from)?;
 
@@ -823,8 +823,8 @@ impl<'db, D, M> crate::traits::store_ops::StoreOpsSecondary<D, M> for MemoryStor
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
     M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + bincode::Decode<()>,
-    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey: bincode::Decode<()> + Clone,
-    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey: bincode::Decode<()>,
+    M::PrimaryKey: bincode::Decode<()> + Clone,
+    M::SecondaryKeys: bincode::Decode<()>,
     <D as IntoDiscriminant>::Discriminant: Clone
         + Copy
         + std::fmt::Debug
@@ -850,7 +850,7 @@ where
 {
     fn get_by_secondary_key_raw(
         &self,
-        secondary_key: <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey,
+        secondary_key: M::SecondaryKeys,
     ) -> Result<Vec<M>, NetabaseError> {
         self.get_by_secondary_key(secondary_key)
     }
@@ -861,8 +861,8 @@ impl<D, M> crate::traits::store_ops::OpenTree<D, M> for MemoryStore<D>
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + crate::traits::convert::ToIVec + From<M>,
     M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + bincode::Decode<()>,
-    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey: bincode::Decode<()> + Clone,
-    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey: bincode::Decode<()>,
+    M::PrimaryKey: bincode::Decode<()> + Clone,
+    M::SecondaryKeys: bincode::Decode<()>,
     <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
 {
     type Tree<'a> = MemoryStoreTree<'a, D, M> where Self: 'a;

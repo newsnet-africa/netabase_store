@@ -1052,7 +1052,7 @@ where
     /// ```
     pub fn get_by_secondary_key(
         &self,
-        secondary_key: <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey,
+        secondary_key: M::SecondaryKeys,
     ) -> Result<Vec<M>, NetabaseError>
     where
         <M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey: bincode::Decode<()>,
@@ -1176,7 +1176,7 @@ where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
     M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone,
     <M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey: bincode::Decode<()> + Clone,
-    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey: bincode::Decode<()>,
+    M::SecondaryKeys: bincode::Decode<()>,
     <D as IntoDiscriminant>::Discriminant: Clone
         + Copy
         + std::fmt::Debug
@@ -1201,7 +1201,7 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
     type PrimaryKey = <M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey;
-    type SecondaryKeys = <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey;
+    type SecondaryKeys = M::SecondaryKeys;
 
     fn put(&self, model: M) -> Result<(), NetabaseError> {
         self.put(model)
@@ -1241,7 +1241,7 @@ where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
     M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + bincode::Decode<()>,
     <M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey: bincode::Decode<()> + Clone,
-    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey: bincode::Decode<()>,
+    M::SecondaryKeys: bincode::Decode<()>,
     <D as IntoDiscriminant>::Discriminant: Clone
         + Copy
         + std::fmt::Debug
@@ -1356,7 +1356,7 @@ where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
     M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + bincode::Decode<()>,
     <M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey: bincode::Decode<()> + Clone,
-    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey: bincode::Decode<()>,
+    M::SecondaryKeys: bincode::Decode<()>,
     <D as IntoDiscriminant>::Discriminant: Clone
         + Copy
         + std::fmt::Debug
@@ -1382,7 +1382,7 @@ where
 {
     fn get_by_secondary_key_raw(
         &self,
-        secondary_key: <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey,
+        secondary_key: M::SecondaryKeys,
     ) -> Result<Vec<M>, NetabaseError> {
         // Use existing get_by_secondary_key which already returns raw models
         self.get_by_secondary_key(secondary_key)
@@ -1516,7 +1516,7 @@ where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
     M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone,
     <M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey: bincode::Decode<()> + Clone,
-    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey: bincode::Decode<()>,
+    M::SecondaryKeys: bincode::Decode<()>,
     <D as IntoDiscriminant>::Discriminant: Clone
         + Copy
         + std::fmt::Debug
@@ -1560,7 +1560,7 @@ where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
     M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + bincode::Decode<()>,
     <M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey: bincode::Decode<()> + Clone,
-    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey: bincode::Decode<()>,
+    M::SecondaryKeys: bincode::Decode<()>,
     <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
 {
     type Tree<'a>

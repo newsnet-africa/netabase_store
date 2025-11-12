@@ -4,9 +4,10 @@
 //! needed for put and get requests at the tree level. This trait is used by
 //! the `NetabaseStore` macro to generate efficient RecordStore implementations.
 
+use crate::NetabaseModelTraitKey;
 use crate::error::NetabaseError;
-use crate::traits::model::NetabaseModelTrait;
 use crate::traits::definition::NetabaseDefinitionTrait;
+use crate::traits::model::NetabaseModelTrait;
 
 /// Core store operations for a single tree/table.
 ///
@@ -75,7 +76,10 @@ where
     /// # Implementation Notes
     ///
     /// - The model should be retrieved directly, not wrapped in a Definition enum
-    fn get_raw(&self, key: M::PrimaryKey) -> Result<Option<M>, NetabaseError>;
+    fn get_raw(
+        &self,
+        key: <M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey,
+    ) -> Result<Option<M>, NetabaseError>;
 
     /// Delete a model by its primary key
     ///
@@ -93,7 +97,10 @@ where
     ///
     /// - The operation should clean up secondary key indexes
     /// - The operation should be atomic
-    fn remove_raw(&self, key: M::PrimaryKey) -> Result<Option<M>, NetabaseError>;
+    fn remove_raw(
+        &self,
+        key: <M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey,
+    ) -> Result<Option<M>, NetabaseError>;
 
     /// Get the discriminant name for this tree
     ///
@@ -130,7 +137,7 @@ where
     /// * `Err(NetabaseError)` if the operation failed
     fn get_by_secondary_key_raw(
         &self,
-        secondary_key: M::SecondaryKeys,
+        secondary_key: <M::Keys as NetabaseModelTraitKey<D>>::SecondaryKey,
     ) -> Result<Vec<M>, NetabaseError>;
 }
 
@@ -210,7 +217,9 @@ where
     ///
     /// This type must implement `StoreOps<D, M>` to provide storage operations.
     /// The lifetime parameter ensures that trees cannot outlive their parent store.
-    type Tree<'a>: StoreOps<D, M> where Self: 'a;
+    type Tree<'a>: StoreOps<D, M>
+    where
+        Self: 'a;
 
     /// Open a tree/table/object-store for the given model type
     ///

@@ -29,6 +29,7 @@ A type-safe, multi-backend key-value storage library for Rust with support for n
   - Seamless switching between backends
 
 - **⚡ High Performance**:
+  - Transaction API with type-state pattern (10-100x faster for bulk ops)
   - Batch operations for bulk inserts/updates
   - Efficient secondary key indexing
   - Minimal overhead (<5-10%) over raw backend operations
@@ -132,17 +133,26 @@ pub mod blog_schema {
 use blog_schema::*;
 ```
 
-### 2. Use with Sled (Native)
+### 2. Use with NetabaseStore (Recommended)
+
+The unified `NetabaseStore` provides a consistent API across all backends:
 
 ```rust
-use netabase_store::databases::sled_store::SledStore;
-use netabase_store::traits::tree::NetabaseTreeSync;
+use netabase_store::NetabaseStore;
 
 fn main() -> anyhow::Result<()> {
-    // Create a temporary store (or use ::new("path") for persistent)
-    let store = SledStore::<BlogDefinition>::temp()?;
+    // Create a store with any backend - easily switch by changing one line!
 
-    // Open a tree for users
+    // Option 1: Sled backend (high-performance)
+    let store = NetabaseStore::<BlogDefinition, _>::sled("./my_db")?;
+
+    // Option 2: Redb backend (memory-efficient, ACID)
+    // let store = NetabaseStore::<BlogDefinition, _>::redb("./my_db.redb")?;
+
+    // Option 3: Temporary store for testing
+    // let store = NetabaseStore::<BlogDefinition, _>::temp()?;
+
+    // Open a tree for users - works identically across all backends
     let user_tree = store.open_tree::<User>();
 
     // Insert a user
@@ -154,12 +164,12 @@ fn main() -> anyhow::Result<()> {
     user_tree.put(user.clone())?;
 
     // Get by primary key
-    let retrieved = user_tree.get(user.primary_key())?.unwrap();
+    let retrieved = user_tree.get(UserPrimaryKey(1))?.unwrap();
     assert_eq!(retrieved.username, "alice");
 
     // Query by secondary key
     let users_by_email = user_tree.get_by_secondary_key(
-        user.secondary_keys()[0].clone()
+        UserSecondaryKeys::Email(UserEmailSecondaryKey("alice@example.com".to_string()))
     )?;
     assert_eq!(users_by_email.len(), 1);
 
@@ -169,31 +179,30 @@ fn main() -> anyhow::Result<()> {
         println!("User: {} - {}", user.username, user.email);
     }
 
+    // Access backend-specific features when needed
+    store.flush()?; // Sled-specific method
+
     Ok(())
 }
 ```
 
-### 3. Use with Redb (Native)
+### 3. Direct Backend Usage (Advanced)
+
+You can also use backends directly for backend-specific features:
 
 ```rust
+use netabase_store::databases::sled_store::SledStore;
 use netabase_store::databases::redb_store::RedbStore;
 
-fn main() -> anyhow::Result<()> {
-    // Create a store
-    let store = RedbStore::<BlogDefinition>::new("my_database.redb")?;
+// Direct Sled usage
+let sled_store = SledStore::<BlogDefinition>::temp()?;
+let user_tree = sled_store.open_tree::<User>();
 
-    // API is identical to SledStore
-    let user_tree = store.open_tree::<User>();
+// Direct Redb usage
+let redb_store = RedbStore::<BlogDefinition>::new("my_database.redb")?;
+let user_tree = redb_store.open_tree::<User>();
 
-    let user = User {
-        id: 2,
-        username: "bob".to_string(),
-        email: "bob@example.com".to_string(),
-    };
-    user_tree.put(user)?;
-
-    Ok(())
-}
+// Both have identical APIs via NetabaseTreeSync trait
 ```
 
 ### 4. Use with IndexedDB (WASM)
@@ -231,13 +240,14 @@ async fn wasm_example() -> Result<(), Box<dyn std::error::Error>> {
 For high-performance bulk operations:
 
 ```rust
+use netabase_store::NetabaseStore;
 use netabase_store::traits::batch::Batchable;
 
-let store = SledStore::<BlogDefinition>::temp()?;
+let store = NetabaseStore::<BlogDefinition, _>::temp()?;
 let user_tree = store.open_tree::<User>();
 
 // Create a batch
-let mut batch = user_tree.batch();
+let mut batch = user_tree.create_batch()?;
 
 // Add many operations
 for i in 0..1000 {
@@ -257,6 +267,56 @@ Batch operations are:
 - ⚡ **Faster**: 10-100x faster than individual operations
 - 🔒 **Atomic**: All succeed or all fail
 - 📦 **Efficient**: Reduced I/O and locking overhead
+
+### Transactions (New!)
+
+For maximum performance and atomicity, use the transaction API to reuse a single transaction across multiple operations:
+
+```rust
+use netabase_store::NetabaseStore;
+
+let store = NetabaseStore::<BlogDefinition, _>::sled("./my_db")?;
+
+// Read-only transaction - multiple concurrent reads allowed
+let txn = store.read();
+let user_tree = txn.open_tree::<User>();
+let user = user_tree.get(UserPrimaryKey(1))?;
+// Transaction auto-closes on drop
+
+// Read-write transaction - exclusive access, atomic commit
+let mut txn = store.write()?;
+let mut user_tree = txn.open_tree::<User>();
+
+// All operations share the same transaction
+for i in 0..1000 {
+    let user = User {
+        id: i,
+        username: format!("user{}", i),
+        email: format!("user{}@example.com", i),
+    };
+    user_tree.put(user)?;
+}
+
+// Bulk helpers also work within transactions
+user_tree.put_many(more_users)?;
+
+// Commit all changes atomically
+txn.commit()?;
+// Or drop without committing to rollback
+```
+
+**Transaction Benefits:**
+- 🚀 **10-100x Faster**: Single transaction for many operations (eliminates per-operation overhead)
+- 🔒 **Type-Safe**: Compile-time enforcement of read-only vs read-write access
+- ⚡ **Zero-Cost**: Phantom types compile away completely
+- 🔄 **ACID**: Full atomicity for write transactions (Redb)
+
+**Compile-Time Safety:**
+```rust
+let txn = store.read();  // ReadOnly transaction
+let tree = txn.open_tree::<User>();
+tree.put(user)?;  // ❌ Compile error: put() not available on ReadOnly!
+```
 
 ### Secondary Keys
 
@@ -295,7 +355,9 @@ let published = article_tree
 ### Multiple Models in One Store
 
 ```rust
-let store = SledStore::<BlogDefinition>::new("blog_db")?;
+use netabase_store::NetabaseStore;
+
+let store = NetabaseStore::<BlogDefinition, _>::sled("blog_db")?;
 
 // Different trees for different models
 let user_tree = store.open_tree::<User>();
@@ -306,13 +368,13 @@ user_tree.put(user)?;
 post_tree.put(post)?;
 ```
 
-### Memory Store for Testing
+### Temporary Store for Testing
 
 ```rust
-use netabase_store::databases::memory_store::MemoryStore;
+use netabase_store::NetabaseStore;
 
 // Perfect for unit tests - no I/O, no cleanup needed
-let store = MemoryStore::<BlogDefinition>::new();
+let store = NetabaseStore::<BlogDefinition, _>::temp()?;
 let user_tree = store.open_tree::<User>();
 
 user_tree.put(user)?;
@@ -567,30 +629,98 @@ All existing code will work with your custom backend once you implement the trai
 
 ## Performance
 
-Netabase Store is designed for high performance while maintaining type safety:
+Netabase Store is designed for high performance while maintaining type safety. The library provides a unified API across multiple backends, with carefully measured overhead characteristics.
 
-- **Minimal Overhead**: Typically 5-10% over raw backend operations
-- **Batch Operations**: Up to 100x faster for bulk inserts
-- **Zero-Copy**: Efficient deserialization with bincode
-- **Smart Indexing**: Secondary keys use composite key approach
+### Performance Characteristics
+
+#### Redb Backend
+
+The Redb backend uses bincode re-serialization on read paths due to Rust's type system limitations with Generic Associated Types (GATs). This affects read operations but not writes:
+
+| Operation | Wrapper Time (100 items) | Raw Time (100 items) | Overhead | Impact |
+|-----------|-------------------------|---------------------|----------|---------|
+| **Insert** | 2.21 ms | 343 µs | ~6.4x | Write operations include transaction overhead |
+| **Get** | 68.2 µs | 10.3 µs | ~6.6x | Read operations include deserialize+serialize |
+| **Iteration** | 15.0 µs | 8.5 µs | ~1.8x | Iteration has lower relative overhead |
+| **Secondary Key** | 14.1 µs | 2.6 µs | ~5.4x | Secondary lookups include index traversal |
+
+**Key Points:**
+- Write operations (`put`, `remove`) use zero-copy serialization
+- Read operations (`get`, `iter`) include re-serialization overhead for type safety
+- The overhead is a safety tradeoff: we prioritize type correctness over unsafe transmutes
+- For bulk operations, use transactions to amortize overhead across many operations
+
+#### Sled Backend
+
+The Sled backend has significantly lower overhead due to different internal data structures:
+
+| Operation | Wrapper Time (100 items) | Raw Time (100 items) | Overhead | Impact |
+|-----------|-------------------------|---------------------|----------|---------|
+| **Insert** | 1.73 ms | 474 µs | ~3.6x | Transaction and index management overhead |
+| **Get** | 23.8 µs | 19.6 µs | ~1.2x | Minimal deserialization overhead |
+| **Iteration** | 21.9 µs | 17.7 µs | ~1.2x | Very efficient iteration |
+
+**Key Points:**
+- Sled has much lower overhead than Redb for read operations (~1.2x vs ~6.6x)
+- Write overhead is moderate due to secondary index management
+- Excellent choice for read-heavy workloads
+
+### Performance Optimization Tips
+
+1. **Use Transactions for Bulk Operations** (10-100x speedup):
+   ```rust
+   let mut txn = store.write()?;
+   let mut tree = txn.open_tree::<User>();
+   for i in 0..1000 {
+       tree.put(user)?;  // Shares single transaction
+   }
+   txn.commit()?;  // Atomic commit
+   ```
+
+2. **Choose Backend Based on Workload**:
+   - **Sled**: Best for read-heavy workloads (1.2x read overhead)
+   - **Redb**: Best for write-heavy workloads with ACID guarantees
+
+3. **Batch Operations**: Use when atomicity is needed:
+   ```rust
+   let mut batch = tree.create_batch()?;
+   batch.put_many(users)?;
+   batch.commit()?;
+   ```
 
 ### Benchmarks
 
-Run benchmarks to compare backend performance:
+Run benchmarks to measure performance on your hardware:
 
 ```bash
 # Sled benchmarks
-cargo bench --bench sled_wrapper_overhead --features native
+cargo bench --bench sled_wrapper_overhead --features "sled,libp2p"
 
 # Redb benchmarks
-cargo bench --bench redb_wrapper_overhead --features native
+cargo bench --bench redb_wrapper_overhead --features "redb,libp2p"
 ```
 
 Benchmark categories:
-- Insert performance (single and batch)
-- Get performance
-- Iteration performance
+- Insert performance (with secondary index management)
+- Get performance (by primary key)
+- Iteration performance (full table scan)
 - Secondary key lookup performance
+
+### Technical Note: Why Re-serialization?
+
+The read-path overhead in Redb comes from a Rust type system limitation with Generic Associated Types (GATs). While we define `type SelfType<'a> = Self` in our `redb::Value` implementations, the compiler cannot prove at call sites that `<T as Value>::SelfType<'_>` equals `T`. This prevents us from using `.clone()` or safe zero-cost coercion.
+
+We explored several alternatives:
+- **Unsafe transmute**: Rejected for safety reasons
+- **Custom trait bounds**: Failed due to trait composition issues
+- **Direct `.clone()` calls**: Compiler cannot prove type equality
+
+The current approach prioritizes safety and correctness over raw performance. For applications where this overhead is significant, we recommend:
+1. Using the Sled backend (1.2x read overhead instead of 6.6x)
+2. Using transactions to amortize overhead across many operations
+3. Profiling your specific workload to verify if the overhead matters in practice
+
+Future work may explore nightly features or upstream redb API changes to eliminate this limitation.
 
 ## Testing
 
@@ -612,30 +742,45 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for a deep dive into the library's desi
 ### High-Level Overview
 
 ```
+┌───────────────────────────────────────────────────┐
+│         Your Application Code                     │
+│      (Type-safe models with macros)              │
+└───────────────────────────────────────────────────┘
+                      │
+                      ↓
+┌───────────────────────────────────────────────────┐
+│         NetabaseStore<D, Backend>                 │
+│    (Unified API layer - Recommended)             │
+└───────────────────────────────────────────────────┘
+                      │
+        ┌─────────────┼─────────────┐
+        ↓             ↓             ↓
+┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+│  SledStore  │ │  RedbStore  │ │IndexedDBStore│
+│   <D>       │ │   <D>       │ │    <D>       │
+└─────────────┘ └─────────────┘ └─────────────┘
+        │             │             │
+        ↓             ↓             ↓
 ┌─────────────────────────────────────────────────┐
-│         Your Application Code                   │
-│  (Type-safe models with macros)                │
-└─────────────────────────────────────────────────┘
-                    │
-                    ↓
-┌─────────────────────────────────────────────────┐
-│         Netabase Store Traits                   │
+│         Trait Layer                             │
 │  (NetabaseTreeSync, NetabaseTreeAsync)         │
+│  (OpenTree, Batchable, StoreOps)               │
 └─────────────────────────────────────────────────┘
-                    │
-        ┌───────────┼───────────┐
-        ↓           ↓           ↓
-    ┌─────┐    ┌──────┐    ┌─────────┐
-    │ Sled│    │ Redb │    │IndexedDB│
-    └─────┘    └──────┘    └─────────┘
-    Native     Native       WASM
+        │             │             │
+        ↓             ↓             ↓
+    ┌─────┐      ┌──────┐     ┌─────────┐
+    │ Sled│      │ Redb │     │IndexedDB│
+    └─────┘      └──────┘     └─────────┘
+    Native       Native        WASM
 ```
 
 ## Roadmap
 
 ### For 1.0.0
 
-- [ ] Transaction support across multiple operations
+- [x] Transaction support across multiple operations (**COMPLETED**)
+- [ ] Zero-copy reads for redb backend (via `redb-zerocopy` feature) - **Phase 1 Complete**
+- [ ] Allow modules to define more than one definition for flexible organization
 - [ ] Migration utilities for schema changes
 - [ ] Query builder for complex queries
 - [ ] Range queries on ordered keys
