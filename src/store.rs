@@ -111,7 +111,7 @@ where
     D: NetabaseDefinitionTrait,
     M: NetabaseModelTrait<D>,
     <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
-    Backend: OpenTree<D, M>,
+    Backend: BackendFor<D> + OpenTree<D, M>,
 {
     type Tree<'a>
         = Backend::Tree<'a>
@@ -120,6 +120,37 @@ where
 
     fn open_tree(&self) -> Self::Tree<'_> {
         self.backend.open_tree()
+    }
+}
+
+// Generic open_tree method for all backends
+impl<D, Backend> NetabaseStore<D, Backend>
+where
+    D: NetabaseDefinitionTrait,
+    Backend: BackendFor<D>,
+{
+    /// Open a tree for a specific model type.
+    ///
+    /// This is a generic method that works with any backend.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `M` - The model type to open a tree for
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let store = NetabaseStore::<MyDefinition, _>::sled("./db")?;
+    /// let user_tree = store.open_tree::<User>();
+    /// ```
+    #[inline]
+    pub fn open_tree<M>(&self) -> Backend::Tree<'_>
+    where
+        M: crate::traits::model::NetabaseModelTrait<D>,
+        Backend: crate::traits::store_ops::OpenTree<D, M>,
+    {
+        use crate::traits::store_ops::OpenTree;
+        OpenTree::open_tree(self)
     }
 }
 
@@ -140,6 +171,22 @@ where
     pub fn sled<P: AsRef<Path>>(path: P) -> Result<Self, NetabaseError> {
         Ok(Self::from_backend(
             crate::databases::sled_store::SledStore::new(path)?,
+        ))
+    }
+
+    /// Create a temporary Sled-backed store (Sled-specific).
+    ///
+    /// The database will be deleted when the store is dropped.
+    /// This is useful for testing and temporary storage.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let store = NetabaseStore::<MyDefinition, _>::temp()?;
+    /// ```
+    pub fn temp() -> Result<Self, NetabaseError> {
+        Ok(Self::from_backend(
+            crate::databases::sled_store::SledStore::temp()?,
         ))
     }
 }
@@ -227,6 +274,38 @@ where
     pub fn generate_id(&self) -> Result<u64, NetabaseError> {
         Ok(self.backend.db().generate_id()?)
     }
+
+    /// Begin a read-only transaction.
+    ///
+    /// Read-only transactions allow multiple concurrent reads without blocking.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let txn = store.read();
+    /// let tree = txn.open_tree::<User>();
+    /// let user = tree.get(UserPrimaryKey(1))?;
+    /// ```
+    pub fn read(&self) -> crate::transaction::TxnGuard<'_, D, crate::transaction::ReadOnly> {
+        crate::transaction::TxnGuard::read_sled(self.backend.db())
+    }
+
+    /// Begin a read-write transaction.
+    ///
+    /// Read-write transactions allow multiple operations to be batched together
+    /// and committed atomically.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let mut txn = store.write();
+    /// let mut tree = txn.open_tree::<User>();
+    /// tree.put(user)?;
+    /// txn.commit()?;
+    /// ```
+    pub fn write(&self) -> crate::transaction::TxnGuard<'_, D, crate::transaction::ReadWrite> {
+        crate::transaction::TxnGuard::write_sled(self.backend.db())
+    }
 }
 
 #[cfg(feature = "redb")]
@@ -258,4 +337,7 @@ where
     pub fn tree_names(&self) -> Vec<D::Discriminant> {
         self.backend.tree_names()
     }
+
+    // TODO: Transaction API for Redb is still being optimized
+    // The Sled backend has a working transaction API - see sled implementation above
 }

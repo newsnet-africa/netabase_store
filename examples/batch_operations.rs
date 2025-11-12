@@ -11,6 +11,8 @@
 //! cargo run --example batch_operations --features native
 //! ```
 
+use netabase_store::NetabaseStore;
+use netabase_store::traits::store_ops::OpenTree;
 use netabase_store::netabase_definition_module;
 use netabase_store::traits::batch::{Batchable, BatchBuilder};
 use std::time::Instant;
@@ -66,7 +68,7 @@ fn main() -> anyhow::Result<()> {
     println!("=== Netabase Store: Batch Operations Example ===\n");
 
     // Create a temporary store
-    let store = netabase_store::databases::sled_store::SledStore::<AppDefinition>::temp()?;
+    let store = NetabaseStore::<AppDefinition, _>::temp()?;
     let product_tree = store.open_tree::<Product>();
 
     // Example 1: Basic Batch Operations
@@ -96,7 +98,7 @@ fn main() -> anyhow::Result<()> {
 
 /// Example 1: Basic batch insert of multiple products
 fn basic_batch_example(
-    product_tree: &netabase_store::databases::sled_store::SledStoreTree<AppDefinition, Product>,
+    product_tree: &netabase_store::databases::sled_store::SledStoreTree<'_, AppDefinition, Product>,
 ) -> anyhow::Result<()> {
     // Create a batch
     let mut batch = product_tree.create_batch()?;
@@ -148,7 +150,7 @@ fn basic_batch_example(
 
 /// Example 2: Performance comparison between individual puts and batch operations
 fn performance_comparison(
-    store: &netabase_store::databases::sled_store::SledStore<AppDefinition>,
+    store: &NetabaseStore<AppDefinition, netabase_store::databases::sled_store::SledStore<AppDefinition>>,
 ) -> anyhow::Result<()> {
     const NUM_ITEMS: u64 = 1000;
 
@@ -205,7 +207,7 @@ fn performance_comparison(
 
 /// Example 3: Mixed batch operations (both puts and removes)
 fn mixed_batch_operations(
-    product_tree: &netabase_store::databases::sled_store::SledStoreTree<AppDefinition, Product>,
+    product_tree: &netabase_store::databases::sled_store::SledStoreTree<'_, AppDefinition, Product>,
 ) -> anyhow::Result<()> {
     // First, add some products
     let mut setup_batch = product_tree.create_batch()?;
@@ -259,7 +261,7 @@ fn mixed_batch_operations(
 
 /// Example 4: Using batches with multiple model types
 fn cross_model_example(
-    store: &netabase_store::databases::sled_store::SledStore<AppDefinition>,
+    store: &NetabaseStore<AppDefinition, netabase_store::databases::sled_store::SledStore<AppDefinition>>,
 ) -> anyhow::Result<()> {
     let product_tree = store.open_tree::<Product>();
     let order_tree = store.open_tree::<Order>();

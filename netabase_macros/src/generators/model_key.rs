@@ -1,6 +1,8 @@
 use syn::{Ident, ItemEnum, ItemStruct, parse_quote};
 
-use crate::{util::append_ident, visitors::model_visitor::ModelVisitor};
+use crate::{
+    generators::type_utils::get_type_width, util::append_ident, visitors::model_visitor::ModelVisitor,
+};
 
 impl<'a> ModelVisitor<'a> {
     pub fn generate_keys(&self) -> (ItemStruct, Vec<ItemStruct>, ItemEnum, ItemEnum) {
@@ -169,6 +171,17 @@ impl<'a> ModelVisitor<'a> {
         let discriminant_name = model_name.to_string();
         let primary_key_name_str = format!("{}::PrimaryKey", discriminant_name);
         let secondary_keys_name_str = format!("{}::SecondaryKeys", discriminant_name);
+        let keys_name_str = format!("{}::Key", discriminant_name);
+
+        // Calculate fixed width for primary key (newtype wrapper)
+        // Primary key is a newtype like UserPrimaryKey(u64), so we check the inner type
+        let primary_key_fixed_width = match &self.key {
+            Some(k) => match get_type_width(&k.primary_keys.ty) {
+                Some(width) => quote::quote! { Some(#width) },
+                None => quote::quote! { None },
+            },
+            None => quote::quote! { None },
+        };
 
         // Generics support removed - not yet implemented
         // Extract generics information
@@ -253,14 +266,6 @@ impl<'a> ModelVisitor<'a> {
                     }
                 }
 
-                // Implement FromRedbValue trait for safe conversion
-                #[cfg(feature = "redb")]
-                impl ::netabase_store::databases::redb_store::FromRedbValue for #model_name {
-                    #[inline]
-                    fn from_redb_value(value: &<Self as ::netabase_store::netabase_deps::redb::Value>::SelfType<'_>) -> Self {
-                        value.clone()
-                    }
-                }
 
                 #[cfg(feature = "redb")]
                 impl ::netabase_store::netabase_deps::redb::Value for #primary_key_ty {
@@ -268,7 +273,7 @@ impl<'a> ModelVisitor<'a> {
                     type AsBytes<'a> = Vec<u8> where Self: 'a;
 
                     fn fixed_width() -> Option<usize> {
-                        None
+                        #primary_key_fixed_width
                     }
 
                     fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
@@ -296,19 +301,10 @@ impl<'a> ModelVisitor<'a> {
                 #[cfg(feature = "redb")]
                 impl ::netabase_store::netabase_deps::redb::Key for #primary_key_ty {
                     fn compare(data1: &[u8], data2: &[u8]) -> ::std::cmp::Ordering {
+                        use ::netabase_store::netabase_deps::redb::Value;
                         Self::from_bytes(data1).cmp(&Self::from_bytes(data2))
                     }
                 }
-
-                // Implement FromRedbValue trait for PrimaryKey
-                #[cfg(feature = "redb")]
-                impl ::netabase_store::databases::redb_store::FromRedbValue for #primary_key_ty {
-                    #[inline]
-                    fn from_redb_value(value: &<Self as ::netabase_store::netabase_deps::redb::Value>::SelfType<'_>) -> Self {
-                        value.clone()
-                    }
-                }
-
 
                 #[cfg(feature = "redb")]
                 impl ::netabase_store::netabase_deps::redb::Value for #secondary_keys_ty {
@@ -344,16 +340,48 @@ impl<'a> ModelVisitor<'a> {
                 #[cfg(feature = "redb")]
                 impl ::netabase_store::netabase_deps::redb::Key for #secondary_keys_ty {
                     fn compare(data1: &[u8], data2: &[u8]) -> ::std::cmp::Ordering {
+                        use ::netabase_store::netabase_deps::redb::Value;
                         Self::from_bytes(data1).cmp(&Self::from_bytes(data2))
                     }
                 }
 
-                // Implement FromRedbValue trait for SecondaryKeys
+                // Keys enum (wrapper for Primary and Secondary) redb implementations
                 #[cfg(feature = "redb")]
-                impl ::netabase_store::databases::redb_store::FromRedbValue for #secondary_keys_ty {
-                    #[inline]
-                    fn from_redb_value(value: &<Self as ::netabase_store::netabase_deps::redb::Value>::SelfType<'_>) -> Self {
-                        value.clone()
+                impl ::netabase_store::netabase_deps::redb::Value for #keys_ty {
+                    type SelfType<'a> = #keys_ty where Self: 'a;
+                    type AsBytes<'a> = Vec<u8> where Self: 'a;
+
+                    fn fixed_width() -> Option<usize> {
+                        None
+                    }
+
+                    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+                    where
+                        Self: 'a,
+                    {
+                        ::netabase_store::bincode::decode_from_slice(data, ::netabase_store::bincode::config::standard())
+                            .unwrap()
+                            .0
+                    }
+
+                    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+                    where
+                        Self: 'a,
+                        Self: 'b,
+                    {
+                        ::netabase_store::bincode::encode_to_vec(value, ::netabase_store::bincode::config::standard()).unwrap()
+                    }
+
+                    fn type_name() -> ::netabase_store::netabase_deps::redb::TypeName {
+                        ::netabase_store::netabase_deps::redb::TypeName::new(#keys_name_str)
+                    }
+                }
+
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::netabase_deps::redb::Key for #keys_ty {
+                    fn compare(data1: &[u8], data2: &[u8]) -> ::std::cmp::Ordering {
+                        use ::netabase_store::netabase_deps::redb::Value;
+                        Self::from_bytes(data1).cmp(&Self::from_bytes(data2))
                     }
                 }
 
@@ -416,12 +444,10 @@ mod key_gen {
                         panic!("Struct fields must be named")
                     };
                     // Prefix secondary key type with model name to avoid conflicts
-                    let type_name = format!("{}{}", model_name, append_ident(&ident, "SecondaryKey"));
+                    let type_name =
+                        format!("{}{}", model_name, append_ident(&ident, "SecondaryKey"));
                     let type_ident = Ident::new(&type_name, proc_macro2::Span::call_site());
-                    (
-                        Self::generate_newtype(f, &type_ident),
-                        ident,
-                    )
+                    (Self::generate_newtype(f, &type_ident), ident)
                 })
                 .collect()
         }

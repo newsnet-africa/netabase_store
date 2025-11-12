@@ -20,8 +20,10 @@ crate-type = ["cdylib", "rlib"]
 default = ["native"]
 native = ["sled", "redb", "libp2p"]
 wasm = ["web-sys", "js-sys", "wasm-bindgen", "wasm-bindgen-futures", "indexed_db_futures"]
-sled = ["dep:sled"]
-redb = ["dep:redb", "netabase_deps/redb"]
+sled = ["dep:sled", "netabase_macros/sled"]
+redb = ["dep:redb", "netabase_deps/redb", "netabase_macros/redb"]
+# Zero-copy optimization for redb (requires redb feature)
+redb-zerocopy = ["redb", "dep:ouroboros", "netabase_macros/redb-zerocopy"]
 # libp2p is native-only (uses mio which doesn't support WASM)
 libp2p = ["dep:libp2p"]
 record-store = ["libp2p"]
@@ -44,6 +46,7 @@ getrandom = { version = "0.2", features = ["js"] }
 # Native-only dependencies (not compatible with WASM)
 sled = { version = "0.34.7", optional = true }
 redb = { version = "3.1.0", optional = true }
+ouroboros = { version = "0.18", optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 libp2p = { version = "0.56.0", features = ["kad"], optional = true }

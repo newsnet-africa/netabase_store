@@ -4,10 +4,10 @@
 //! backend implementations. Batching is crucial for performance when inserting
 //! or updating multiple records.
 
-use crate::{MaybeSend, MaybeSync};
 use crate::error::NetabaseError;
-use crate::traits::model::NetabaseModelTrait;
 use crate::traits::definition::NetabaseDefinitionTrait;
+use crate::traits::model::NetabaseModelTrait;
+use crate::{MaybeSend, MaybeSync, NetabaseModelTraitKey};
 
 /// A batch operation builder for accumulating database operations.
 ///
@@ -87,7 +87,10 @@ where
     ///
     /// - The operation is not immediately executed
     /// - The operation will be executed when `commit()` is called
-    fn remove(&mut self, key: M::PrimaryKey) -> Result<(), NetabaseError>;
+    fn remove(
+        &mut self,
+        key: <M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey,
+    ) -> Result<(), NetabaseError>;
 
     /// Commit all batched operations atomically
     ///
@@ -219,7 +222,7 @@ where
     /// - If any operation fails, all operations are rolled back
     fn remove_batch<I>(&self, keys: I) -> Result<(), NetabaseError>
     where
-        I: IntoIterator<Item = M::PrimaryKey>,
+        I: IntoIterator<Item = <M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey>,
     {
         let mut batch = self.create_batch()?;
         for key in keys {

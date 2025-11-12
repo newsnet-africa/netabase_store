@@ -1,12 +1,9 @@
-use crate::definitions::*;
-use netabase_store::databases::redb_store::RedbStore;
-///! Example demonstrating the unified trait API for netabase_store
+///! Example demonstrating the unified NetabaseStore API
 ///!
-///! This example shows how to use the NetabaseTreeSync trait to write
-///! backend-agnostic code that works with both SledStore and RedbStore.
-use netabase_store::databases::sled_store::SledStore;
-use netabase_store::netabase_definition_module;
-use netabase_store::traits::tree::NetabaseTreeSync;
+///! This example shows how to use NetabaseStore<D, Backend> to write
+///! backend-agnostic code that works with any storage backend.
+
+use netabase_store::{netabase_definition_module, NetabaseStore};
 
 // Define a simple data model
 #[netabase_definition_module(Definition, DefinitionKeys)]
@@ -33,79 +30,69 @@ pub mod definitions {
     }
 }
 
-// Generic function that works with any backend implementing NetabaseTreeSync
-fn perform_crud_operations<T>(tree: &T) -> Result<(), Box<dyn std::error::Error>>
-where
-    T: NetabaseTreeSync<
-        Definition,
-        User,
-        PrimaryKey = UserPrimaryKey,
-        SecondaryKeys = UserSecondaryKeys,
-    >,
-{
-    println!("Testing unified API with generic function...");
+use definitions::*;
 
-    // Insert a user
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("Unified NetabaseStore API Example\n");
+    println!("==================================\n");
+
+    // Create a user to test with
     let user = User {
         id: 1,
         email: "alice@example.com".to_string(),
         name: "Alice".to_string(),
     };
-    tree.put(user.clone())?;
-    println!("  ✓ Inserted user: {:?}", user);
 
-    // Retrieve the user
-    let retrieved = tree.get(UserPrimaryKey(1))?;
+    // Test with SledStore using NetabaseStore wrapper
+    println!("1. Testing with NetabaseStore<Sled>:");
+    let sled_dir = tempfile::tempdir()?;
+    let sled_store = NetabaseStore::<Definition, _>::sled(sled_dir.path())?;
+    let sled_tree = sled_store.open_tree::<User>();
+
+    sled_tree.put(user.clone())?;
+    println!("  ✓ Inserted user");
+
+    let retrieved = sled_tree.get(UserPrimaryKey(1))?;
     assert_eq!(retrieved, Some(user.clone()));
     println!("  ✓ Retrieved user: {:?}", retrieved.unwrap());
 
-    // Query by secondary key (email)
-    let by_email = tree.get_by_secondary_key(UserSecondaryKeys::Email(UserEmailSecondaryKey(
-        "alice@example.com".to_string(),
-    )))?;
+    let by_email = sled_tree.get_by_secondary_key(UserSecondaryKeys::Email(
+        UserEmailSecondaryKey("alice@example.com".to_string()),
+    ))?;
     assert_eq!(by_email.len(), 1);
-    println!("  ✓ Found user by email: {:?}", by_email[0]);
+    println!("  ✓ Found user by email");
 
-    // Check length
-    let len = tree.len()?;
-    assert_eq!(len, 1);
-    println!("  ✓ Tree length: {}", len);
-
-    // Remove the user
-    let removed = tree.remove(UserPrimaryKey(1))?;
-    assert_eq!(removed, Some(user));
-    println!("  ✓ Removed user");
-
-    // Verify it's empty
-    assert!(tree.is_empty()?);
-    println!("  ✓ Tree is empty");
-
-    Ok(())
-}
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Unified API Example\n");
-    println!("===================\n");
-
-    // Test with SledStore
-    println!("1. Testing with SledStore:");
-    let sled_dir = tempfile::tempdir()?;
-    let sled_store = SledStore::<Definition>::new(sled_dir.path())?;
-    let sled_tree = sled_store.open_tree::<User>();
-    perform_crud_operations(&sled_tree)?;
+    // Access Sled-specific features
+    println!("  ℹ Sled-specific: Flushed {} bytes", sled_store.flush()?);
     println!();
 
-    // Test with RedbStore
-    println!("2. Testing with RedbStore:");
+    // Test with RedbStore using NetabaseStore wrapper
+    println!("2. Testing with NetabaseStore<Redb>:");
     let redb_dir = tempfile::tempdir()?;
     let redb_path = redb_dir.path().join("test.redb");
-    let redb_store = RedbStore::<Definition>::new(&redb_path)?;
+    let redb_store = NetabaseStore::<Definition, _>::redb(&redb_path)?;
     let redb_tree = redb_store.open_tree::<User>();
-    perform_crud_operations(&redb_tree)?;
+
+    redb_tree.put(user.clone())?;
+    println!("  ✓ Inserted user");
+
+    let retrieved = redb_tree.get(UserPrimaryKey(1))?;
+    assert_eq!(retrieved, Some(user.clone()));
+    println!("  ✓ Retrieved user: {:?}", retrieved.unwrap());
+
+    let by_email = redb_tree.get_by_secondary_key(UserSecondaryKeys::Email(
+        UserEmailSecondaryKey("alice@example.com".to_string()),
+    ))?;
+    assert_eq!(by_email.len(), 1);
+    println!("  ✓ Found user by email");
+
+    // Access Redb-specific features
+    println!("  ℹ Redb-specific: Tree names: {:?}", redb_store.tree_names());
     println!();
 
     println!("✓ All tests passed!");
-    println!("\nThe same generic code worked with both SledStore and RedbStore!");
+    println!("\nThe same API worked with both backends using NetabaseStore!");
+    println!("Backend-specific features are still accessible when needed.");
 
     Ok(())
 }
