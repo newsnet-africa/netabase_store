@@ -19,16 +19,34 @@ CRITERION_DIR = Path("target/criterion")
 OUTPUT_DIR = Path("docs/benchmarks")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Color scheme
+# Color scheme - using consistent naming
 COLORS = {
-    'raw_sled': '#1f77b4',
-    'wrapper_sled': '#ff7f0e',
-    'raw_redb': '#2ca02c',
-    'wrapper_redb_loop': '#d62728',
-    'wrapper_redb_bulk': '#9467bd',
-    'zerocopy_redb': '#8c564b',
-    'zerocopy_redb_bulk': '#e377c2',
-    'zerocopy_redb_txn': '#7f7f7f',
+    # Sled benchmarks
+    'sled_raw': '#1f77b4',
+    'sled_raw_loop': '#1f77b4',
+    'sled_raw_batch': '#1a5a8a',
+    'sled_wrapper': '#ff7f0e',
+    'sled_wrapper_loop': '#ff7f0e',
+
+    # Redb raw benchmarks
+    'redb_raw': '#2ca02c',
+    'redb_raw_txn': '#2ca02c',
+    'redb_raw_loop': '#2ca02c',
+    'redb_raw_insert': '#2ca02c',
+    'redb_raw_read_per_txn': '#267326',
+    'redb_raw_read_single_txn': '#2ca02c',
+
+    # Redb wrapper benchmarks
+    'redb_wrapper_loop': '#d62728',
+    'redb_wrapper_bulk': '#9467bd',
+
+    # Redb zerocopy benchmarks
+    'redb_zerocopy_loop': '#8c564b',
+    'redb_zerocopy_bulk': '#e377c2',
+    'redb_zerocopy_txn': '#7f7f7f',
+    'redb_zerocopy_insert': '#8c564b',
+    'redb_zerocopy_bulk_insert': '#e377c2',
+    'redb_zerocopy_read': '#7f7f7f',
 }
 
 def load_estimates(benchmark_path: Path) -> Dict:
@@ -110,19 +128,74 @@ def parse_cross_store_benchmarks():
             if estimates:
                 benchmarks['secondary_query'][impl_name] = extract_mean_time_ns(estimates)
 
+    # Parse raw vs zerocopy benchmarks
+    benchmarks['raw_vs_zerocopy'] = {}
+    rawvszc_dir = CRITERION_DIR / "redb_raw_vs_zerocopy"
+    if rawvszc_dir.exists():
+        for impl_dir in rawvszc_dir.iterdir():
+            if not impl_dir.is_dir() or impl_dir.name in ['report']:
+                continue
+            impl_name = impl_dir.name
+
+            # Check if this has size subdirectories
+            has_sizes = False
+            for entry in impl_dir.iterdir():
+                if entry.is_dir() and entry.name.isdigit():
+                    has_sizes = True
+                    break
+
+            if has_sizes:
+                if impl_name not in benchmarks['raw_vs_zerocopy']:
+                    benchmarks['raw_vs_zerocopy'][impl_name] = {}
+
+                for size_dir in impl_dir.iterdir():
+                    if not size_dir.is_dir():
+                        continue
+                    try:
+                        size = int(size_dir.name)
+                        estimates = load_estimates(size_dir)
+                        if estimates:
+                            time_ns = extract_mean_time_ns(estimates)
+                            benchmarks['raw_vs_zerocopy'][impl_name][size] = time_ns
+                    except ValueError:
+                        continue
+            else:
+                # No size subdirectories
+                estimates = load_estimates(impl_dir)
+                if estimates:
+                    benchmarks['raw_vs_zerocopy'][impl_name] = extract_mean_time_ns(estimates)
+
     return benchmarks
 
 def generate_insert_comparison_bar_chart(data: Dict):
     """Generate grouped bar chart comparing insert performance across implementations."""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    # Get all available sizes
+    all_sizes = set()
+    for impl_data in data.values():
+        all_sizes.update(impl_data.keys())
+    sizes = sorted([s for s in all_sizes if isinstance(s, int)])
+
+    # Create subplots based on number of sizes
+    n_sizes = len(sizes)
+    n_cols = min(3, n_sizes)
+    n_rows = (n_sizes + n_cols - 1) // n_cols
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(6*n_cols, 5*n_rows))
     fig.suptitle('Insert Performance Comparison', fontsize=16, fontweight='bold')
 
-    # Extract data for each size
-    sizes = [100, 1000]
+    if n_sizes == 1:
+        axes = [axes]
+    elif n_rows == 1:
+        axes = axes if n_sizes > 1 else [axes]
+    else:
+        axes = axes.flatten()
+
     impl_names = list(data.keys())
 
     for idx, size in enumerate(sizes):
-        ax = ax1 if idx == 0 else ax2
+        if idx >= len(axes):
+            break
+        ax = axes[idx]
 
         # Collect times for this size
         impl_times = []
@@ -154,6 +227,10 @@ def generate_insert_comparison_bar_chart(data: Dict):
             ax.text(bar.get_x() + bar.get_width()/2., height,
                     f'{height:.2f}',
                     ha='center', va='bottom', fontsize=9)
+
+    # Hide unused subplots
+    for idx in range(n_sizes, len(axes)):
+        axes[idx].set_visible(False)
 
     plt.tight_layout()
     plt.savefig(OUTPUT_DIR / 'insert_comparison_bars.png', dpi=300, bbox_inches='tight')
@@ -436,6 +513,112 @@ def generate_absolute_performance_table(data: Dict):
     with open(OUTPUT_DIR / 'benchmark_summary.md', 'w') as f:
         f.write('\n'.join(lines))
 
+def generate_raw_vs_zerocopy_comparison(data: Dict):
+    """Generate charts comparing raw redb vs zerocopy redb."""
+    if not data or len(data) == 0:
+        print("No raw vs zerocopy data found, skipping...")
+        return
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 7))
+    fig.suptitle('Raw Redb vs ZeroCopy Redb Performance', fontsize=16, fontweight='bold')
+
+    # Collect insert data
+    insert_impls = {}
+    for impl_name, impl_data in data.items():
+        if 'insert' in impl_name and isinstance(impl_data, dict):
+            insert_impls[impl_name] = impl_data
+
+    if insert_impls:
+        ax = ax1
+        # Get all sizes
+        all_sizes = set()
+        for impl_data in insert_impls.values():
+            all_sizes.update(impl_data.keys())
+        sizes = sorted(list(all_sizes))
+
+        # Plot lines for each implementation
+        for impl_name, impl_data in sorted(insert_impls.items()):
+            times_ms = []
+            plot_sizes = []
+            for size in sizes:
+                if size in impl_data:
+                    times_ms.append(impl_data[size] / 1_000_000)
+                    plot_sizes.append(size)
+
+            label = impl_name.replace('_', ' ').title()
+            ax.plot(plot_sizes, times_ms, marker='o', linewidth=2, label=label, markersize=8)
+
+        ax.set_xlabel('Dataset Size', fontsize=12)
+        ax.set_ylabel('Time (ms)', fontsize=12)
+        ax.set_title('Insert Performance', fontsize=14)
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+
+    # Collect read data
+    read_impls = {}
+    for impl_name, impl_data in data.items():
+        if 'read' in impl_name and isinstance(impl_data, dict):
+            read_impls[impl_name] = impl_data
+
+    if read_impls:
+        ax = ax2
+        # Get all sizes
+        all_sizes = set()
+        for impl_data in read_impls.values():
+            all_sizes.update(impl_data.keys())
+        sizes = sorted(list(all_sizes))
+
+        # Plot lines for each implementation
+        for impl_name, impl_data in sorted(read_impls.items()):
+            times_us = []
+            plot_sizes = []
+            for size in sizes:
+                if size in impl_data:
+                    times_us.append(impl_data[size] / 1_000)  # Convert to microseconds
+                    plot_sizes.append(size)
+
+            label = impl_name.replace('_', ' ').title().replace('Txn', 'Transaction')
+            ax.plot(plot_sizes, times_us, marker='o', linewidth=2, label=label, markersize=8)
+
+        ax.set_xlabel('Dataset Size', fontsize=12)
+        ax.set_ylabel('Time (µs)', fontsize=12)
+        ax.set_title('Read Performance', fontsize=14)
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+
+    plt.tight_layout()
+    plt.savefig(OUTPUT_DIR / 'raw_vs_zerocopy_comparison.png', dpi=300, bbox_inches='tight')
+    plt.close()
+
+    # Generate overhead table
+    lines = []
+    lines.append("\n## Raw Redb vs ZeroCopy Overhead\n")
+
+    if insert_impls and 'raw_insert' in insert_impls:
+        lines.append("### Insert Operations\n")
+        lines.append("| Size | Raw Redb | ZeroCopy (loop) | ZeroCopy (bulk) | Loop Overhead | Bulk Overhead |")
+        lines.append("|------|----------|-----------------|-----------------|---------------|---------------|")
+
+        raw_data = insert_impls.get('raw_insert', {})
+        zc_data = insert_impls.get('zerocopy_insert', {})
+        zc_bulk_data = insert_impls.get('zerocopy_bulk_insert', {})
+
+        for size in sorted(raw_data.keys()):
+            raw_time = raw_data[size] / 1_000_000
+            zc_time = zc_data.get(size, 0) / 1_000_000
+            zc_bulk_time = zc_bulk_data.get(size, 0) / 1_000_000
+
+            loop_overhead = ((zc_time - raw_time) / raw_time * 100) if raw_time > 0 else 0
+            bulk_overhead = ((zc_bulk_time - raw_time) / raw_time * 100) if raw_time > 0 else 0
+
+            lines.append(f"| {size} | {raw_time:.3f} ms | {zc_time:.3f} ms | {zc_bulk_time:.3f} ms | {loop_overhead:+.1f}% | {bulk_overhead:+.1f}% |")
+
+    return '\n'.join(lines)
+
 def main():
     print("Parsing benchmark data...")
     data = parse_cross_store_benchmarks()
@@ -449,13 +632,22 @@ def main():
     print("Generating speedup comparison charts...")
     generate_speedup_comparison(data)
 
+    print("Generating raw vs zerocopy comparison...")
+    raw_vs_zc_table = generate_raw_vs_zerocopy_comparison(data['raw_vs_zerocopy'])
+
     print("Generating performance summary table...")
     generate_absolute_performance_table(data)
+
+    # Append raw vs zerocopy data to summary
+    if raw_vs_zc_table:
+        with open(OUTPUT_DIR / 'benchmark_summary.md', 'a') as f:
+            f.write('\n' + raw_vs_zc_table)
 
     print(f"\nCharts generated in {OUTPUT_DIR}/")
     print("- insert_comparison_bars.png")
     print("- overhead_percentages.png")
     print("- bulk_api_speedup.png")
+    print("- raw_vs_zerocopy_comparison.png")
     print("- benchmark_summary.md")
 
 if __name__ == "__main__":
