@@ -193,6 +193,13 @@ impl<'a> ModelVisitor<'a> {
         //     None => (quote::quote! {}, quote::quote! {}, quote::quote! {}),
         // };
 
+        // Check if we have secondary keys for has_secondary()
+        let has_secondary_impl = if secondary_fields.is_empty() {
+            quote::quote! { false }
+        } else {
+            quote::quote! { true }
+        };
+
         self.definitions.iter().map(|def_path| {
             quote::quote! {
                 impl ::netabase_store::traits::model::NetabaseModelTrait<#def_path> for #model_name {
@@ -202,6 +209,22 @@ impl<'a> ModelVisitor<'a> {
 
                     const DISCRIMINANT:<#def_path as ::netabase_store::strum::IntoDiscriminant>::Discriminant
                         = <#def_path as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#model_name;
+
+                    // For redb feature: BorrowedType is same as Self for bincode implementation
+                    #[cfg(feature = "redb")]
+                    type BorrowedType<'a> = #model_name;
+
+                    // For redb feature: key() method that returns the full Keys enum
+                    #[cfg(feature = "redb")]
+                    fn key(&self) -> Self::Keys {
+                        #keys_ty::Primary(self.primary_key())
+                    }
+
+                    // For redb feature: has_secondary() check
+                    #[cfg(feature = "redb")]
+                    fn has_secondary(&self) -> bool {
+                        #has_secondary_impl
+                    }
 
                     fn primary_key(&self) -> Self::PrimaryKey {
                         #primary_key_ty(self.#primary_field.clone())
@@ -217,16 +240,18 @@ impl<'a> ModelVisitor<'a> {
                 }
 
                 impl ::netabase_store::traits::model::NetabaseModelTraitKey<#def_path> for #primary_key_ty {
-
                     const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant
                         = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#keys_ty;
                 }
+
                 impl ::netabase_store::traits::model::NetabaseModelTraitKey<#def_path> for #secondary_keys_ty {
-
                     const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant
                         = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#keys_ty;
                 }
+
                 impl ::netabase_store::traits::model::NetabaseModelTraitKey<#def_path> for #keys_ty {
+                    type PrimaryKey = #primary_key_ty;
+                    type SecondaryKey = #secondary_keys_ty;
 
                     const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant
                         = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#keys_ty;
@@ -306,6 +331,10 @@ impl<'a> ModelVisitor<'a> {
                     }
                 }
 
+                // Implement InnerKey marker trait for primary key
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::traits::model::InnerKey for #primary_key_ty {}
+
                 #[cfg(feature = "redb")]
                 impl ::netabase_store::netabase_deps::redb::Value for #secondary_keys_ty {
                     type SelfType<'a> = #secondary_keys_ty where Self: 'a;
@@ -345,6 +374,10 @@ impl<'a> ModelVisitor<'a> {
                     }
                 }
 
+                // Implement InnerKey marker trait for secondary keys
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::traits::model::InnerKey for #secondary_keys_ty {}
+
                 // Keys enum (wrapper for Primary and Secondary) redb implementations
                 #[cfg(feature = "redb")]
                 impl ::netabase_store::netabase_deps::redb::Value for #keys_ty {
@@ -382,6 +415,29 @@ impl<'a> ModelVisitor<'a> {
                     fn compare(data1: &[u8], data2: &[u8]) -> ::std::cmp::Ordering {
                         use ::netabase_store::netabase_deps::redb::Value;
                         Self::from_bytes(data1).cmp(&Self::from_bytes(data2))
+                    }
+                }
+
+                // Implement From<SelfType> for Keys enum
+                // Since SelfType<'a> = Self for bincode implementation, this is identity conversion
+                #[cfg(feature = "redb")]
+                impl<'a> ::std::convert::From<<<#keys_ty as ::netabase_store::netabase_deps::redb::Value>::SelfType<'a>> for #keys_ty {
+                    fn from(value: <#keys_ty as ::netabase_store::netabase_deps::redb::Value>::SelfType<'a>) -> Self {
+                        value
+                    }
+                }
+
+                #[cfg(feature = "redb")]
+                impl<'a> ::std::convert::From<<<#primary_key_ty as ::netabase_store::netabase_deps::redb::Value>::SelfType<'a>> for #keys_ty {
+                    fn from(value: <#primary_key_ty as ::netabase_store::netabase_deps::redb::Value>::SelfType<'a>) -> Self {
+                        #keys_ty::Primary(value)
+                    }
+                }
+
+                #[cfg(feature = "redb")]
+                impl<'a> ::std::convert::From<<<#secondary_keys_ty as ::netabase_store::netabase_deps::redb::Value>::SelfType<'a>> for #keys_ty {
+                    fn from(value: <#secondary_keys_ty as ::netabase_store::netabase_deps::redb::Value>::SelfType<'a>) -> Self {
+                        #keys_ty::Secondary(value)
                     }
                 }
 
