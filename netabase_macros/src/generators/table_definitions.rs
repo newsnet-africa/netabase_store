@@ -61,7 +61,7 @@ pub fn generate_tables_struct(
 
     parse_quote! {
         #[cfg(feature = "redb")]
-        #[derive(Debug, Clone, Copy)]
+        #[derive(Clone, Copy)]
         pub struct #tables_name {
             #(#fields),*
         }

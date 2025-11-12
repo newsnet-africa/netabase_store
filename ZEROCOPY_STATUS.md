@@ -107,15 +107,13 @@ PrimaryKey / Model             (owned data)
 ### ✅ Library Compilation
 ```bash
 $ cargo build --lib --features redb
-   Compiling netabase_macros v0.0.3
-   Compiling netabase_store v0.0.3
-   Finished `dev` profile in 0.79s
+   Finished `dev` profile in 0.63s
 
 $ cargo build --lib --all-features
-   Finished `dev` profile in 3.42s
+   Finished `dev` profile in 1.14s
 ```
 
-**Result**: ✅ SUCCESS - Zero compilation errors
+**Result**: ✅ SUCCESS - Zero compilation errors (only warnings)
 
 ### ⚠️ Test Compilation
 ```bash
@@ -152,14 +150,34 @@ M::Keys  (Keys enum wrapping Primary/Secondary)
 
 1. **Bincode Implementation**: For bincode serialization, `SelfType<'a> = Self`, so "borrowed" is actually owned. This is fine because bincode needs to deserialize anyway.
 
-2. **From<SelfType> Bounds**: Enable seamless conversion from redb guards:
+2. **From Trait Bounds at Type Level**: The key insight is declaring `From` bounds on associated types:
    ```rust
-   let guard = multimap.get(sec_key)?;      // Returns guard
-   let prim_key = guard.value();            // Returns PrimaryKey::SelfType
-   let keys = M::Keys::from(prim_key);      // Converts to Keys enum
+   type Keys: NetabaseModelTraitKey<D, ...>
+       + From<Self::PrimaryKey>
+       + From<Self::SecondaryKeys>;
+   ```
+   This makes the compiler aware that conversions are available.
+
+3. **From<SelfType> Bounds on Impl Blocks**: For methods that need to convert from redb guards:
+   ```rust
+   impl<'db, D, M> NetabaseTreeSync<'db, D, M> for RedbStoreTree<'db, D, M>
+   where
+       M::Keys: for<'a> From<<M::PrimaryKey as redb::Value>::SelfType<'a>>,
+   {
+       // Now M::Keys::from(prim_key) works!
+   }
    ```
 
-3. **Future Zero-Copy**: When implementing true zero-copy:
+4. **Macro-Generated From Impls**: The macro generates the actual implementations:
+   ```rust
+   impl<'a> From<<PrimaryKey as Value>::SelfType<'a>> for Keys {
+       fn from(value: <PrimaryKey as Value>::SelfType<'a>) -> Self {
+           Keys::Primary(value)
+       }
+   }
+   ```
+
+5. **Future Zero-Copy**: When implementing true zero-copy:
    - Change `type BorrowedType<'a> = ModelRef<'a>`
    - Generate `ModelRef` struct with references
    - Keep `From<SelfType>` impls for conversions

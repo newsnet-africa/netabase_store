@@ -581,7 +581,10 @@ where
     }
 
     /// Find models by secondary key using the secondary key index
-    pub fn get_by_secondary_key(&self, secondary_key: <M::Keys as NetabaseModelTraitKey<D>>::SecondaryKey) -> Result<Vec<M>, NetabaseError> {
+    pub fn get_by_secondary_key(&self, secondary_key: <M::Keys as NetabaseModelTraitKey<D>>::SecondaryKey) -> Result<Vec<M>, NetabaseError>
+    where
+        M::Keys: for<'a> From<<M::PrimaryKey as redb::Value>::SelfType<'a>>,
+    {
         let sec_table_def = self.secondary_table_def();
 
         let read_txn = self.db.as_ref().begin_read()?;
@@ -601,9 +604,11 @@ where
             let prim_key_guard = item?;
             let prim_key = prim_key_guard.value();
 
-            // For bincode, SelfType<'a> = Self, so this is just the primary key
-            // We can use get_raw which accepts PrimaryKey directly
-            if let Some(model) = self.get_raw(prim_key)? {
+            // Convert from PrimaryKey::SelfType to M::Keys using From/Into
+            // For bincode, SelfType<'a> = Self, so this is essentially the primary key
+            // Use M::Keys::from() to explicitly invoke the From trait
+            let keys = M::Keys::from(prim_key);
+            if let Some(model) = self.get(keys)? {
                 results.push(model);
             }
         }
@@ -619,6 +624,7 @@ where
     M: NetabaseModelTrait<D> + Debug + bincode::Decode<()>,
     M::Keys: Debug + bincode::Decode<()> + Ord + Clone,
     M::Keys: Debug + bincode::Decode<()> + Ord + PartialEq,
+    M::Keys: for<'a> From<<M::PrimaryKey as redb::Value>::SelfType<'a>>,
     <D as IntoDiscriminant>::Discriminant: Clone
         + Copy
         + std::fmt::Debug
@@ -650,11 +656,11 @@ where
     }
 
     fn get(&self, key: Self::PrimaryKey) -> Result<Option<M>, NetabaseError> {
-        self.get_raw(key)
+        self.get(key.into())
     }
 
     fn remove(&self, key: Self::PrimaryKey) -> Result<Option<M>, NetabaseError> {
-        self.remove_raw(key)
+        self.remove(key.into())
     }
 
     fn get_by_secondary_key(
@@ -743,6 +749,7 @@ where
         + bincode::Decode<()>,
     M::Keys: Debug + bincode::Decode<()> + Ord + Clone + bincode::Encode,
     M::Keys: Debug + bincode::Decode<()> + Ord + PartialEq + bincode::Encode,
+    M::Keys: for<'a> From<<M::PrimaryKey as redb::Value>::SelfType<'a>>,
     <D as IntoDiscriminant>::Discriminant: AsRef<str>
         + Clone
         + Copy

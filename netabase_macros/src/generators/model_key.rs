@@ -239,16 +239,8 @@ impl<'a> ModelVisitor<'a> {
                     }
                 }
 
-                impl ::netabase_store::traits::model::NetabaseModelTraitKey<#def_path> for #primary_key_ty {
-                    const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant
-                        = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#keys_ty;
-                }
-
-                impl ::netabase_store::traits::model::NetabaseModelTraitKey<#def_path> for #secondary_keys_ty {
-                    const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant
-                        = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#keys_ty;
-                }
-
+                // Only the Keys enum implements NetabaseModelTraitKey (with associated types)
+                // PrimaryKey and SecondaryKeys types only implement InnerKey
                 impl ::netabase_store::traits::model::NetabaseModelTraitKey<#def_path> for #keys_ty {
                     type PrimaryKey = #primary_key_ty;
                     type SecondaryKey = #secondary_keys_ty;

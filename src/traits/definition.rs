@@ -116,7 +116,7 @@ pub trait NetabaseDefinitionTrait:
 {
     type Keys: NetabaseDefinitionTraitKey<Discriminant: NetabaseKeyDiscriminant>;
     #[cfg(feature = "redb")]
-    type Tables: Clone + Copy + std::fmt::Debug;
+    type Tables: Clone + Copy;
 
     /// Get the table definitions for this schema (redb only)
     ///
@@ -302,7 +302,7 @@ pub trait NetabaseDefinitionTrait:
 {
     type Keys: NetabaseDefinitionTraitKey<Discriminant: NetabaseKeyDiscriminant>;
     #[cfg(feature = "redb")]
-    type Tables: Clone + Copy + std::fmt::Debug;
+    type Tables: Clone + Copy;
 
     /// Get the table definitions for this schema (redb only)
     ///
