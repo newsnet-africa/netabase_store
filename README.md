@@ -235,38 +235,65 @@ async fn wasm_example() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Advanced Usage
 
-### Batch Operations
+### Batch Operations & Bulk Methods
 
-For high-performance bulk operations:
+For high-performance bulk operations, use the convenient bulk methods:
 
 ```rust
 use netabase_store::NetabaseStore;
-use netabase_store::traits::batch::Batchable;
 
 let store = NetabaseStore::<BlogDefinition, _>::temp()?;
 let user_tree = store.open_tree::<User>();
+
+// Bulk insert - 8-9x faster than loop!
+let users: Vec<User> = (0..1000)
+    .map(|i| User {
+        id: i,
+        username: format!("user{}", i),
+        email: format!("user{}@example.com", i),
+    })
+    .collect();
+
+user_tree.put_many(users)?;  // Single transaction
+
+// Bulk read
+let keys: Vec<UserPrimaryKey> = (0..100).map(UserPrimaryKey).collect();
+let users: Vec<Option<User>> = user_tree.get_many(keys)?;
+
+// Bulk secondary key queries
+let email_keys = vec![
+    UserSecondaryKeys::Email(UserEmailSecondaryKey("alice@example.com".to_string())),
+    UserSecondaryKeys::Email(UserEmailSecondaryKey("bob@example.com".to_string())),
+];
+let results: Vec<Vec<User>> = user_tree.get_many_by_secondary_keys(email_keys)?;
+```
+
+**Bulk Methods:**
+- `put_many(Vec<M>)` - Insert multiple models in one transaction
+- `get_many(Vec<M::Keys>)` - Read multiple models in one transaction
+- `get_many_by_secondary_keys(Vec<SecondaryKey>)` - Query multiple secondary keys in one transaction
+
+**Or use the batch API for more control:**
+
+```rust
+use netabase_store::traits::batch::Batchable;
 
 // Create a batch
 let mut batch = user_tree.create_batch()?;
 
 // Add many operations
 for i in 0..1000 {
-    let user = User {
-        id: i,
-        username: format!("user{}", i),
-        email: format!("user{}@example.com", i),
-    };
-    batch.put(user)?;
+    batch.put(User { /* ... */ })?;
 }
 
 // Commit atomically - all or nothing
 batch.commit()?;
 ```
 
-Batch operations are:
-- ⚡ **Faster**: 10-100x faster than individual operations
+Bulk operations are:
+- ⚡ **Faster**: 8-10x faster than individual operations
 - 🔒 **Atomic**: All succeed or all fail
-- 📦 **Efficient**: Reduced I/O and locking overhead
+- 📦 **Efficient**: Single transaction reduces overhead
 
 ### Transactions (New!)
 
@@ -335,7 +362,7 @@ pub struct Article {
     pub published: bool,
 }
 
-// Query by category
+// Query by single secondary key
 let tech_articles = article_tree
     .get_by_secondary_key(
         ArticleSecondaryKeys::Category(
@@ -343,13 +370,13 @@ let tech_articles = article_tree
         )
     )?;
 
-// Query by published status
-let published = article_tree
-    .get_by_secondary_key(
-        ArticleSecondaryKeys::Published(
-            ArticlePublishedSecondaryKey(true)
-        )
-    )?;
+// Bulk query multiple secondary keys (2-3x faster!)
+let keys = vec![
+    ArticleSecondaryKeys::Category(ArticleCategorySecondaryKey("tech".to_string())),
+    ArticleSecondaryKeys::Category(ArticleCategorySecondaryKey("science".to_string())),
+];
+let results: Vec<Vec<Article>> = article_tree.get_many_by_secondary_keys(keys)?;
+// results[0] = tech articles, results[1] = science articles
 ```
 
 ### Multiple Models in One Store
@@ -629,98 +656,183 @@ All existing code will work with your custom backend once you implement the trai
 
 ## Performance
 
-Netabase Store is designed for high performance while maintaining type safety. The library provides a unified API across multiple backends, with carefully measured overhead characteristics.
+Netabase Store is designed for high performance while maintaining type safety. The library provides multiple APIs optimized for different use cases, with comprehensive benchmarking and profiling support.
 
-### Performance Characteristics
+### API Options for Performance
 
-#### Redb Backend
+The library offers three APIs with different performance characteristics:
 
-The Redb backend uses bincode re-serialization on read paths due to Rust's type system limitations with Generic Associated Types (GATs). This affects read operations but not writes:
+1. **Standard Wrapper API**: Simple, ergonomic API with auto-transaction per operation
+2. **Bulk Methods**: `put_many()`, `get_many()`, `get_many_by_secondary_keys()` - single transaction for multiple items
+3. **ZeroCopy API**: Explicit transaction management for maximum control
 
-| Operation | Wrapper Time (100 items) | Raw Time (100 items) | Overhead | Impact |
-|-----------|-------------------------|---------------------|----------|---------|
-| **Insert** | 2.21 ms | 343 µs | ~6.4x | Write operations include transaction overhead |
-| **Get** | 68.2 µs | 10.3 µs | ~6.6x | Read operations include deserialize+serialize |
-| **Iteration** | 15.0 µs | 8.5 µs | ~1.8x | Iteration has lower relative overhead |
-| **Secondary Key** | 14.1 µs | 2.6 µs | ~5.4x | Secondary lookups include index traversal |
+### Benchmark Results
 
-**Key Points:**
-- Write operations (`put`, `remove`) use zero-copy serialization
-- Read operations (`get`, `iter`) include re-serialization overhead for type safety
-- The overhead is a safety tradeoff: we prioritize type correctness over unsafe transmutes
-- For bulk operations, use transactions to amortize overhead across many operations
+Comprehensive benchmarks comparing all implementations across multiple dataset sizes (10, 100, 500, 1000, 5000 items):
 
-#### Sled Backend
+#### Insert Performance (1000 items)
 
-The Sled backend has significantly lower overhead due to different internal data structures:
+| Implementation | Time | vs Raw | Notes |
+|----------------|------|--------|-------|
+| Raw Redb (baseline) | 1.42 ms | 0% | Single transaction, manual index management |
+| Wrapper Redb (bulk) | 3.10 ms | +118% | `put_many()` - single transaction |
+| Wrapper Redb (loop) | 27.3 ms | +1,822% | Individual `put()` calls - creates N transactions |
+| ZeroCopy (bulk) | 3.51 ms | +147% | `put_many()` with explicit transaction |
+| ZeroCopy (loop) | 4.34 ms | +206% | Loop with single explicit transaction |
 
-| Operation | Wrapper Time (100 items) | Raw Time (100 items) | Overhead | Impact |
-|-----------|-------------------------|---------------------|----------|---------|
-| **Insert** | 1.73 ms | 474 µs | ~3.6x | Transaction and index management overhead |
-| **Get** | 23.8 µs | 19.6 µs | ~1.2x | Minimal deserialization overhead |
-| **Iteration** | 21.9 µs | 17.7 µs | ~1.2x | Very efficient iteration |
+**Key Insights:**
+- **Bulk methods provide 8-9x speedup** over loop-based insertion (27.3ms → 3.10ms)
+- Bulk wrapper API approaches raw performance (118% overhead vs 1,822% for loops)
+- Transaction overhead dominates when creating N transactions vs 1 transaction
 
-**Key Points:**
-- Sled has much lower overhead than Redb for read operations (~1.2x vs ~6.6x)
-- Write overhead is moderate due to secondary index management
-- Excellent choice for read-heavy workloads
+#### Read Performance (1000 items)
 
-### Performance Optimization Tips
+| Implementation | Time | vs Raw | Notes |
+|----------------|------|--------|-------|
+| Raw Redb (baseline) | 164 µs | 0% | Single transaction |
+| Wrapper Redb (bulk) | 382 µs | +133% | `get_many()` - single transaction |
+| Wrapper Redb (loop) | 895 µs | +446% | Individual `get()` calls - creates N transactions |
+| ZeroCopy (single txn) | 692 µs | +322% | Explicit read transaction |
 
-1. **Use Transactions for Bulk Operations** (10-100x speedup):
-   ```rust
-   let mut txn = store.write()?;
-   let mut tree = txn.open_tree::<User>();
-   for i in 0..1000 {
-       tree.put(user)?;  // Shares single transaction
-   }
-   txn.commit()?;  // Atomic commit
-   ```
+**Key Insights:**
+- **Bulk `get_many()` provides 2.3x speedup** over individual gets (895µs → 382µs)
+- Transaction reuse is critical for read performance
+- Even bulk methods have overhead due to transaction and deserialization costs
 
-2. **Choose Backend Based on Workload**:
-   - **Sled**: Best for read-heavy workloads (1.2x read overhead)
-   - **Redb**: Best for write-heavy workloads with ACID guarantees
+#### Secondary Key Queries (10 queries)
 
-3. **Batch Operations**: Use when atomicity is needed:
-   ```rust
-   let mut batch = tree.create_batch()?;
-   batch.put_many(users)?;
-   batch.commit()?;
-   ```
+| Implementation | Time | vs Raw | Notes |
+|----------------|------|--------|-------|
+| Raw Redb (baseline) | 291 µs | 0% | 10 transactions, manual index traversal |
+| Wrapper Redb (bulk) | 470 µs | +61% | `get_many_by_secondary_keys()` - single transaction |
+| Wrapper Redb (loop) | 1.02 ms | +248% | 10 separate `get_by_secondary_key()` calls |
+| ZeroCopy (single txn) | 5.41 µs | **-98%** | Single transaction, optimized index access |
 
-### Benchmarks
+**Key Insights:**
+- **ZeroCopy API is 54x faster** than raw redb for secondary queries (291µs → 5.4µs)
+- Bulk secondary query method provides 2.2x speedup over loops
+- Single transaction + efficient index access = dramatic performance gains
 
-Run benchmarks to measure performance on your hardware:
+### Performance Optimization Guide
 
-```bash
-# Sled benchmarks
-cargo bench --bench sled_wrapper_overhead --features "sled,libp2p"
+#### 1. Use Bulk Methods for Standard API (8-9x faster)
 
-# Redb benchmarks
-cargo bench --bench redb_wrapper_overhead --features "redb,libp2p"
+```rust
+// ❌ Slow: Creates 1000 transactions
+for user in users {
+    tree.put(user)?;  // Each call = new transaction
+}
+
+// ✅ Fast: Single transaction
+tree.put_many(users)?;  // 8-9x faster!
 ```
 
-Benchmark categories:
-- Insert performance (with secondary index management)
-- Get performance (by primary key)
-- Iteration performance (full table scan)
-- Secondary key lookup performance
+**Available Bulk Methods:**
+- `put_many(Vec<M>)` - Bulk insert
+- `get_many(Vec<M::Keys>)` - Bulk read
+- `get_many_by_secondary_keys(Vec<SecondaryKey>)` - Bulk secondary queries
 
-### Technical Note: Why Re-serialization?
+#### 2. Use Explicit Transactions for Maximum Control
 
-The read-path overhead in Redb comes from a Rust type system limitation with Generic Associated Types (GATs). While we define `type SelfType<'a> = Self` in our `redb::Value` implementations, the compiler cannot prove at call sites that `<T as Value>::SelfType<'_>` equals `T`. This prevents us from using `.clone()` or safe zero-cost coercion.
+```rust
+// For write-heavy workloads
+let mut txn = store.write()?;
+let mut tree = txn.open_tree::<User>();
 
-We explored several alternatives:
-- **Unsafe transmute**: Rejected for safety reasons
-- **Custom trait bounds**: Failed due to trait composition issues
-- **Direct `.clone()` calls**: Compiler cannot prove type equality
+for user in users {
+    tree.put(user)?;  // All share same transaction
+}
 
-The current approach prioritizes safety and correctness over raw performance. For applications where this overhead is significant, we recommend:
-1. Using the Sled backend (1.2x read overhead instead of 6.6x)
-2. Using transactions to amortize overhead across many operations
-3. Profiling your specific workload to verify if the overhead matters in practice
+txn.commit()?;  // Single atomic commit
+```
 
-Future work may explore nightly features or upstream redb API changes to eliminate this limitation.
+#### 3. Choose the Right API for Your Use Case
+
+| Use Case | Recommended API | Reason |
+|----------|----------------|--------|
+| Simple CRUD, few operations | Standard wrapper | Simplest API, auto-commit |
+| Bulk inserts/reads (100+ items) | Bulk methods | 8-9x faster than loops |
+| Complex transactions | Explicit transactions | Full control, atomic commits |
+| Read-heavy queries | ZeroCopy API | Up to 54x faster for secondary queries |
+
+### Profiling Support
+
+The benchmarks include full profiling support via pprof and flamegraphs:
+
+```bash
+# Run benchmarks with profiling
+cargo bench --bench cross_store_comparison --features native
+
+# Analyze profiling data
+./scripts/analyze_profiling.sh
+
+# View flamegraphs (SVG files in target/criterion/)
+firefox target/criterion/cross_store_insert/wrapper_redb_bulk/profile/flamegraph.svg
+```
+
+**Flamegraphs show:**
+- Function call stacks and time distribution
+- Serialization overhead (bincode operations)
+- Transaction costs (redb internal operations)
+- Memory allocation patterns
+- Lock contention (if any)
+
+### Running Benchmarks
+
+```bash
+# Cross-store comparison (all backends, multiple sizes)
+cargo bench --bench cross_store_comparison --features native
+
+# Generate visualizations
+python3 scripts/generate_benchmark_charts.py
+
+# View results
+open docs/benchmarks/insert_comparison_bars.png
+open docs/benchmarks/overhead_percentages.png
+open docs/benchmarks/bulk_api_speedup.png
+```
+
+### Backend Comparison
+
+#### Redb
+- **Best for**: Write-heavy workloads, ACID guarantees
+- **Wrapper overhead**: 118-133% for bulk operations
+- **Strengths**: Excellent write performance, full ACID compliance, efficient storage
+- **Use when**: Data integrity is critical, write performance matters
+
+#### Sled
+- **Best for**: Read-heavy workloads
+- **Wrapper overhead**: ~20% for read operations
+- **Strengths**: Very low read overhead, battle-tested
+- **Use when**: Read performance is critical, workload is read-heavy
+
+### Technical Notes
+
+#### Why Transaction Overhead Matters
+
+Creating a new transaction has fixed costs:
+- Lock acquisition
+- MVCC snapshot creation
+- Internal state setup
+
+When you call `put()` in a loop, you pay these costs N times. Using `put_many()` or explicit transactions, you pay once.
+
+#### Type Safety vs Performance
+
+The wrapper APIs prioritize type safety and ergonomics. For applications where the overhead is significant:
+1. **Use bulk methods first** - often solves the problem
+2. **Use explicit transactions** - full control with same safety
+3. **Profile your workload** - measure before optimizing
+4. **Consider ZeroCopy API** - for specialized high-performance scenarios
+
+#### Serialization Overhead
+
+The read-path overhead in Redb comes from type system limitations with Generic Associated Types (GATs). We prioritize safety over unsafe transmutes. For applications where this matters:
+- Use bulk methods to amortize overhead
+- Use explicit transactions for better performance
+- Consider Sled backend for read-heavy workloads
+
+See benchmark results and visualizations in `docs/benchmarks/` for detailed performance analysis.
 
 ## Testing
 
