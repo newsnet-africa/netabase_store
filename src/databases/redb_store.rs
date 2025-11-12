@@ -682,6 +682,69 @@ where
 
         Ok(results)
     }
+
+    /// Bulk query models by multiple secondary keys in a single transaction
+    /// Returns a vector of result sets, one per secondary key queried
+    /// This is significantly faster than calling get_by_secondary_key() in a loop
+    pub fn get_many_by_secondary_keys(
+        &self,
+        secondary_keys: Vec<<M::Keys as NetabaseModelTraitKey<D>>::SecondaryKey>,
+    ) -> Result<Vec<Vec<M>>, NetabaseError>
+    where
+        M::Keys: for<'a> From<<M::PrimaryKey as redb::Value>::SelfType<'a>>,
+    {
+        if secondary_keys.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let table_def = self.table_def();
+        let sec_table_def = self.secondary_table_def();
+
+        let read_txn = self.db.as_ref().begin_read()?;
+
+        // Handle the case where the secondary table doesn't exist yet
+        let sec_table = match read_txn.open_multimap_table(sec_table_def) {
+            Ok(table) => table,
+            Err(redb::TableError::TableDoesNotExist(_)) => {
+                return Ok(vec![Vec::new(); secondary_keys.len()]);
+            }
+            Err(e) => return Err(NetabaseError::RedbTableError(e)),
+        };
+
+        // Open the primary table
+        let table = match read_txn.open_table(table_def) {
+            Ok(table) => table,
+            Err(redb::TableError::TableDoesNotExist(_)) => {
+                return Ok(vec![Vec::new(); secondary_keys.len()]);
+            }
+            Err(e) => return Err(NetabaseError::RedbTableError(e)),
+        };
+
+        let mut all_results = Vec::with_capacity(secondary_keys.len());
+
+        use redb::ReadableMultimapTable;
+        for secondary_key in secondary_keys {
+            let mut results = Vec::new();
+
+            // Get all primary keys for this secondary key from the multimap
+            for item in ReadableMultimapTable::get(&sec_table, secondary_key)? {
+                let prim_key_guard = item?;
+                let prim_key = prim_key_guard.value();
+
+                // Convert from PrimaryKey::SelfType to M::Keys using From/Into
+                let keys = M::Keys::from(prim_key);
+
+                // Get the model directly from the table (same transaction)
+                if let Some(model_guard) = table.get(&keys)? {
+                    results.push(model_guard.value());
+                }
+            }
+
+            all_results.push(results);
+        }
+
+        Ok(all_results)
+    }
 }
 
 // Implement the unified NetabaseTreeSync trait for RedbStoreTree

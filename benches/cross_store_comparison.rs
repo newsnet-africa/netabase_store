@@ -612,6 +612,207 @@ fn bench_cross_store_bulk_ops(c: &mut Criterion) {
     group.finish();
 }
 
+/// Benchmark: Secondary Key Queries
+/// Compares the performance of querying by secondary keys across implementations
+fn bench_cross_store_secondary_query(c: &mut Criterion) {
+    let mut group = c.benchmark_group("cross_store_secondary_query");
+    let size = 1000u64;
+    let num_queries = 10u64; // Query for 10 different author_ids
+
+    // Setup: Pre-populate stores with data
+    // Each store will have 1000 articles with author_ids from 0-9 (100 articles per author)
+
+    // 1. Raw Sled with manual secondary index
+    let temp_dir_sled = tempfile::TempDir::new().unwrap();
+    let db_sled = sled::open(temp_dir_sled.path()).unwrap();
+    let articles_tree_sled = db_sled.open_tree(SLED_ARTICLES_TREE).unwrap();
+    let author_index_sled = db_sled.open_tree(SLED_AUTHOR_INDEX_TREE).unwrap();
+
+    for i in 0..size {
+        let article = Article {
+            id: i,
+            title: format!("Article {}", i),
+            content: format!("Content for article {}", i),
+            author_id: i % 10,
+        };
+        let encoded = bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
+        articles_tree_sled.insert(&i.to_be_bytes(), encoded.as_slice()).unwrap();
+        let index_key = format!("{}:{}", article.author_id, i);
+        author_index_sled.insert(index_key.as_bytes(), &[]).unwrap();
+    }
+
+    group.bench_function("raw_sled_loop", |b| {
+        b.iter(|| {
+            for author_id in 0..num_queries {
+                let prefix = format!("{}:", author_id);
+                let mut results = Vec::new();
+                for item in author_index_sled.scan_prefix(prefix.as_bytes()) {
+                    let (key, _) = item.unwrap();
+                    let key_str = std::str::from_utf8(&key).unwrap();
+                    let article_id: u64 = key_str.split(':').nth(1).unwrap().parse().unwrap();
+                    if let Some(data) = articles_tree_sled.get(&article_id.to_be_bytes()).unwrap() {
+                        let (article, _): (Article, _) = bincode::decode_from_slice(&data, bincode::config::standard()).unwrap();
+                        results.push(article);
+                    }
+                }
+                black_box(results);
+            }
+        });
+    });
+
+    // 2. Wrapper Sled (loop with get_by_secondary_key)
+    let temp_dir_sled_wrapper = tempfile::TempDir::new().unwrap();
+    let store_sled = SledStore::<BenchDefinition>::new(temp_dir_sled_wrapper.path()).unwrap();
+    let article_tree_sled = store_sled.open_tree::<Article>();
+
+    for i in 0..size {
+        article_tree_sled.put(Article {
+            id: i,
+            title: format!("Article {}", i),
+            content: format!("Content for article {}", i),
+            author_id: i % 10,
+        }).unwrap();
+    }
+
+    group.bench_function("wrapper_sled_loop", |b| {
+        b.iter(|| {
+            for author_id in 0..num_queries {
+                let results = article_tree_sled.get_by_secondary_key(
+                    ArticleSecondaryKeys::AuthorId(ArticleAuthorIdSecondaryKey(author_id))
+                ).unwrap();
+                black_box(results);
+            }
+        });
+    });
+
+    // 3. Raw Redb with manual secondary index
+    let temp_dir_redb = tempfile::TempDir::new().unwrap();
+    let db_path_redb = temp_dir_redb.path().join("bench.redb");
+    let db_redb = redb::Database::create(&db_path_redb).unwrap();
+
+    let articles_table: redb::TableDefinition<u64, &[u8]> =
+        redb::TableDefinition::new("articles");
+    let author_index_table: redb::TableDefinition<(u64, u64), ()> =
+        redb::TableDefinition::new("author_index");
+
+    {
+        let write_txn = db_redb.begin_write().unwrap();
+        {
+            let mut table = write_txn.open_table(articles_table).unwrap();
+            let mut index = write_txn.open_table(author_index_table).unwrap();
+
+            for i in 0..size {
+                let article = Article {
+                    id: i,
+                    title: format!("Article {}", i),
+                    content: format!("Content for article {}", i),
+                    author_id: i % 10,
+                };
+                let encoded = bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
+                table.insert(i, encoded.as_slice()).unwrap();
+                index.insert((article.author_id, i), ()).unwrap();
+            }
+        }
+        write_txn.commit().unwrap();
+    }
+
+    group.bench_function("raw_redb_loop", |b| {
+        b.iter(|| {
+            for author_id in 0..num_queries {
+                let read_txn = db_redb.begin_read().unwrap();
+                let table = read_txn.open_table(articles_table).unwrap();
+                let index = read_txn.open_table(author_index_table).unwrap();
+
+                let mut results = Vec::new();
+                let range = (author_id, 0u64)..=(author_id, u64::MAX);
+                for item in index.range(range).unwrap() {
+                    let (key_guard, _) = item.unwrap();
+                    let (_author_id, article_id) = key_guard.value();
+                    if let Some(data) = table.get(article_id).unwrap() {
+                        let (article, _): (Article, _) = bincode::decode_from_slice(data.value(), bincode::config::standard()).unwrap();
+                        results.push(article);
+                    }
+                }
+                black_box(results);
+            }
+        });
+    });
+
+    // 4. Wrapper Redb (loop with get_by_secondary_key - creates N transactions)
+    let temp_dir_redb_wrapper = tempfile::TempDir::new().unwrap();
+    let db_path_redb_wrapper = temp_dir_redb_wrapper.path().join("bench.redb");
+    let store_redb = RedbStore::<BenchDefinition>::new(&db_path_redb_wrapper).unwrap();
+    let article_tree_redb = store_redb.open_tree::<Article>();
+
+    for i in 0..size {
+        article_tree_redb.put(Article {
+            id: i,
+            title: format!("Article {}", i),
+            content: format!("Content for article {}", i),
+            author_id: i % 10,
+        }).unwrap();
+    }
+
+    group.bench_function("wrapper_redb_loop", |b| {
+        b.iter(|| {
+            for author_id in 0..num_queries {
+                let results = article_tree_redb.get_by_secondary_key(
+                    ArticleSecondaryKeys::AuthorId(ArticleAuthorIdSecondaryKey(author_id))
+                ).unwrap();
+                black_box(results);
+            }
+        });
+    });
+
+    // 4b. Wrapper Redb with get_many_by_secondary_keys (single transaction)
+    group.bench_function("wrapper_redb_bulk", |b| {
+        b.iter(|| {
+            let keys: Vec<_> = (0..num_queries)
+                .map(|author_id| ArticleSecondaryKeys::AuthorId(ArticleAuthorIdSecondaryKey(author_id)))
+                .collect();
+            let results = article_tree_redb.get_many_by_secondary_keys(keys).unwrap();
+            black_box(results);
+        });
+    });
+
+    // 5. Zerocopy Redb (single transaction for all queries)
+    let temp_dir_zerocopy = tempfile::TempDir::new().unwrap();
+    let db_path_zerocopy = temp_dir_zerocopy.path().join("bench.redb");
+    let store_zerocopy = RedbStoreZeroCopy::<BenchDefinition>::new(&db_path_zerocopy).unwrap();
+
+    {
+        let mut txn = store_zerocopy.begin_write().unwrap();
+        let mut tree = txn.open_tree::<Article>().unwrap();
+        for i in 0..size {
+            tree.put(Article {
+                id: i,
+                title: format!("Article {}", i),
+                content: format!("Content for article {}", i),
+                author_id: i % 10,
+            }).unwrap();
+        }
+        drop(tree);
+        txn.commit().unwrap();
+    }
+
+    group.bench_function("zerocopy_redb_txn", |b| {
+        b.iter(|| {
+            with_read_transaction(&store_zerocopy, |txn| {
+                let tree = txn.open_tree::<Article>()?;
+                for author_id in 0..num_queries {
+                    let results = tree.get_by_secondary_key(
+                        &ArticleSecondaryKeys::AuthorId(ArticleAuthorIdSecondaryKey(author_id))
+                    )?;
+                    black_box(results);
+                }
+                Ok(())
+            }).unwrap();
+        });
+    });
+
+    group.finish();
+}
+
 // Configure criterion with profiler support
 fn configure_criterion() -> Criterion {
     Criterion::default()
@@ -621,6 +822,6 @@ fn configure_criterion() -> Criterion {
 criterion_group! {
     name = benches;
     config = configure_criterion();
-    targets = bench_cross_store_insert, bench_cross_store_get, bench_cross_store_bulk_ops
+    targets = bench_cross_store_insert, bench_cross_store_get, bench_cross_store_bulk_ops, bench_cross_store_secondary_query
 }
 criterion_main!(benches);
