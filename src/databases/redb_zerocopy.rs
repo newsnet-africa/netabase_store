@@ -675,10 +675,4 @@ where
     Box::leak(name.into_boxed_str())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // TODO: Add comprehensive tests once derive macros are updated
-    // See ZERO_COPY_IMPLEMENTATION.md Phase 5.1 for test structure
-}
+// Tests are in tests/redb_zerocopy_tests.rs

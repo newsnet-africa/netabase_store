@@ -1,9 +1,9 @@
 use crate::error::NetabaseError;
 use crate::traits::convert::ToIVec;
 use crate::traits::definition::NetabaseDefinitionTrait;
-use crate::traits::model::NetabaseModelTrait;
+use crate::traits::model::{NetabaseModelTrait, NetabaseModelTraitKey};
 use crate::traits::tree::NetabaseTreeSync;
-use crate::{MaybeSend, MaybeSync, NetabaseModelTraitKey};
+use crate::{MaybeSend, MaybeSync};
 use redb::{
     Database, Key, MultimapTableDefinition, ReadableDatabase, ReadableTable, ReadableTableMetadata,
     TableDefinition, TypeName, Value,
@@ -581,7 +581,7 @@ where
     }
 
     /// Find models by secondary key using the secondary key index
-    pub fn get_by_secondary_key(&self, secondary_key: M::Keys) -> Result<Vec<M>, NetabaseError> where <M as NetabaseModelTrait<D>>::Keys: for<'a> std::borrow::Borrow<<<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelTraitKey<D>>::SecondaryKey as redb::Value>::SelfType<'a>>, <M as NetabaseModelTrait<D>>::Keys: for<'a> std::convert::From<<<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelTraitKey<D>>::PrimaryKey as redb::Value>::SelfType<'a>>{
+    pub fn get_by_secondary_key(&self, secondary_key: <M::Keys as NetabaseModelTraitKey<D>>::SecondaryKey) -> Result<Vec<M>, NetabaseError> {
         let sec_table_def = self.secondary_table_def();
 
         let read_txn = self.db.as_ref().begin_read()?;
@@ -601,8 +601,9 @@ where
             let prim_key_guard = item?;
             let prim_key = prim_key_guard.value();
 
-            // Get the model using the primary key
-            if let Some(model) = self.get(M::Keys::from(prim_key))? {
+            // For bincode, SelfType<'a> = Self, so this is just the primary key
+            // We can use get_raw which accepts PrimaryKey directly
+            if let Some(model) = self.get_raw(prim_key)? {
                 results.push(model);
             }
         }
@@ -649,18 +650,18 @@ where
     }
 
     fn get(&self, key: Self::PrimaryKey) -> Result<Option<M>, NetabaseError> {
-        self.get(M::Keys::from(key))
+        self.get_raw(key)
     }
 
     fn remove(&self, key: Self::PrimaryKey) -> Result<Option<M>, NetabaseError> {
-        self.remove(M::Keys::from(key))
+        self.remove_raw(key)
     }
 
     fn get_by_secondary_key(
         &self,
         secondary_key: Self::SecondaryKeys,
-    ) -> Result<Vec<M>, NetabaseError> where for<'a> <M as NetabaseModelTrait<D>>::Keys: std::borrow::Borrow<<<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelTraitKey<D>>::SecondaryKey as redb::Value>::SelfType<'a>>{
-        self.get_by_secondary_key(M::Keys::from(secondary_key))
+    ) -> Result<Vec<M>, NetabaseError> {
+        self.get_by_secondary_key(secondary_key)
     }
 
     fn is_empty(&self) -> Result<bool, NetabaseError> {
@@ -760,7 +761,7 @@ where
         &self,
         secondary_key: <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey,
     ) -> Result<Vec<M>, NetabaseError> {
-        self.get_by_secondary_key(M::Keys::from(secondary_key))
+        self.get_by_secondary_key(secondary_key)
     }
 }
 

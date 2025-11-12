@@ -104,14 +104,20 @@ where
     type BorrowedType<'a>;
 
     /// The keys enum that wraps both primary and secondary keys
-    type Keys: NetabaseModelTraitKey<D>;
+    type Keys: NetabaseModelTraitKey<D, PrimaryKey = Self::PrimaryKey, SecondaryKey = Self::SecondaryKeys>;
+
+    /// Primary key type (for backwards compatibility)
+    type PrimaryKey: InnerKey + bincode::Encode + Decode<()> + Clone + Ord;
+
+    /// Secondary keys type (for backwards compatibility)
+    type SecondaryKeys: InnerKey + bincode::Encode + Decode<()> + Clone + Ord;
 
     fn key(&self) -> Self::Keys;
     /// Extract the primary key from the model instance
-    fn primary_key(&self) -> <Self::Keys as NetabaseModelTraitKey<D>>::PrimaryKey;
+    fn primary_key(&self) -> Self::PrimaryKey;
 
     /// Extract all secondary keys from the model instance
-    fn secondary_keys(&self) -> Vec<<Self::Keys as NetabaseModelTraitKey<D>>::SecondaryKey>;
+    fn secondary_keys(&self) -> Vec<Self::SecondaryKeys>;
 
     fn has_secondary(&self) -> bool;
 
@@ -131,12 +137,13 @@ where
         crate::traits::definition::NetabaseKeyDiscriminant,
 {
     const DISCRIMINANT: <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant;
+    type PrimaryKey: bincode::Encode + Decode<()> + Clone + Ord;
+    type SecondaryKey: bincode::Encode + Decode<()> + Clone + Ord;
 }
 
 /// Marker trait for key types (both primary and secondary).
 ///
 /// This trait is automatically implemented by the macro-generated key types.
-/// TODO: Create traits for inner Primary and Secondary keys so that Key can be implemented for them
 #[cfg(feature = "redb")]
 pub trait NetabaseModelTraitKey<D: NetabaseDefinitionTrait>:
     bincode::Encode
@@ -153,11 +160,7 @@ where
     <D as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
     <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant:
         crate::traits::definition::NetabaseKeyDiscriminant,
-    Self: std::borrow::Borrow<Self::PrimaryKey>,
-    Self: std::borrow::Borrow<Self::SecondaryKey>,
     Self: Key,
-    Self: From<Self::PrimaryKey>,
-    Self: From<Self::SecondaryKey>,
     for<'a> Self: std::borrow::Borrow<<Self as redb::Value>::SelfType<'a>>,
 {
     const DISCRIMINANT: <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant;
