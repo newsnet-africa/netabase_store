@@ -42,7 +42,7 @@ fn test_redb_basic_put_get() {
     let db_path = temp_dir.path().join("test.redb");
 
     let store = RedbStore::<TestDef>::new(&db_path).unwrap();
-    let tree = store.open_tree::<User>().unwrap();
+    let tree = store.open_tree::<User>();
 
     // Create a user
     let user = User {
@@ -65,7 +65,7 @@ fn test_redb_secondary_key_query() {
     let db_path = temp_dir.path().join("test.redb");
 
     let store = RedbStore::<TestDef>::new(&db_path).unwrap();
-    let tree = store.open_tree::<User>().unwrap();
+    let tree = store.open_tree::<User>();
 
     // Create users
     let user1 = User {
@@ -84,7 +84,7 @@ fn test_redb_secondary_key_query() {
 
     // Query by secondary key (email)
     let results = tree
-        .get_by_secondary_key(UserSecondaryKeys::Email("alice@example.com".to_string()))
+        .get_by_secondary_key(UserSecondaryKeys::Email(UserEmailSecondaryKey("alice@example.com".to_string())))
         .unwrap();
 
     assert_eq!(1, results.len());
@@ -97,7 +97,7 @@ fn test_redb_remove() {
     let db_path = temp_dir.path().join("test.redb");
 
     let store = RedbStore::<TestDef>::new(&db_path).unwrap();
-    let tree = store.open_tree::<User>().unwrap();
+    let tree = store.open_tree::<User>();
 
     let user = User {
         id: 1,

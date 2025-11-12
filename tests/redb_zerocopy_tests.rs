@@ -76,7 +76,7 @@ fn test_basic_crud() {
     // Read (owned)
     let txn = store.begin_read().unwrap();
     let tree = txn.open_tree::<User>().unwrap();
-    let user = tree.get(&1).unwrap().unwrap();
+    let user = tree.get(&UserPrimaryKey(1)).unwrap().unwrap();
     assert_eq!(user.name, "Alice");
     assert_eq!(user.id, 1);
 }
@@ -169,12 +169,12 @@ fn test_secondary_index() {
     let txn = store.begin_read().unwrap();
     let tree = txn.open_tree::<User>().unwrap();
     let result = tree
-        .get_by_secondary_key(&"alice@example.com".to_string())
+        .get_by_secondary_key(&UserSecondaryKeys::Email(UserEmailSecondaryKey("alice@example.com".to_string())))
         .unwrap();
 
     assert_eq!(result.len(), 1);
-    // The result contains guards for primary keys
-    let prim_keys: Vec<_> = result.iter().map(|guard| guard.value()).collect();
+    // The result contains guards for primary keys - MultimapValue is an iterator
+    let prim_keys: Vec<_> = result.into_iter().map(|res| res.unwrap().value()).collect();
     assert_eq!(prim_keys.len(), 1);
 }
 
@@ -199,7 +199,7 @@ fn test_remove() {
     // Remove
     let mut txn = store.begin_write().unwrap();
     let mut tree = txn.open_tree::<User>().unwrap();
-    let removed = tree.remove(&1).unwrap();
+    let removed = tree.remove(UserPrimaryKey(1)).unwrap();
     assert!(removed.is_some());
     assert_eq!(removed.unwrap().name, "Alice");
     drop(tree);
@@ -234,7 +234,7 @@ fn test_remove_many() {
     // Remove multiple
     let mut txn = store.begin_write().unwrap();
     let mut tree = txn.open_tree::<User>().unwrap();
-    let removed = tree.remove_many(vec![1, 3, 5]).unwrap();
+    let removed = tree.remove_many(vec![UserPrimaryKey(1), UserPrimaryKey(3), UserPrimaryKey(5)]).unwrap();
     assert_eq!(removed.len(), 3);
     drop(tree);
     txn.commit().unwrap();
@@ -243,9 +243,9 @@ fn test_remove_many() {
     let txn = store.begin_read().unwrap();
     let tree = txn.open_tree::<User>().unwrap();
     assert_eq!(tree.len().unwrap(), 2);
-    assert!(tree.get(&1).unwrap().is_none());
-    assert!(tree.get(&2).unwrap().is_some());
-    assert!(tree.get(&3).unwrap().is_none());
+    assert!(tree.get(&UserPrimaryKey(1)).unwrap().is_none());
+    assert!(tree.get(&UserPrimaryKey(2)).unwrap().is_some());
+    assert!(tree.get(&UserPrimaryKey(3)).unwrap().is_none());
 }
 
 #[test]
@@ -377,8 +377,8 @@ fn test_transaction_abort() {
     let txn = store.begin_read().unwrap();
     let tree = txn.open_tree::<User>().unwrap();
     assert_eq!(tree.len().unwrap(), 1);
-    assert!(tree.get(&1).unwrap().is_some());
-    assert!(tree.get(&2).unwrap().is_none());
+    assert!(tree.get(&UserPrimaryKey(1)).unwrap().is_some());
+    assert!(tree.get(&UserPrimaryKey(2)).unwrap().is_none());
 }
 
 #[test]
@@ -430,7 +430,7 @@ fn test_with_read_transaction_helper() {
     // Use helper
     let name = with_read_transaction(&store, |txn| {
         let tree = txn.open_tree::<User>()?;
-        let user = tree.get(&42)?.unwrap();
+        let user = tree.get(&UserPrimaryKey(42))?.unwrap();
         Ok(user.name.clone())
     })
     .unwrap();

@@ -83,6 +83,16 @@ name = "redb_wrapper_overhead"
 harness = false
 required-features = ["native", "libp2p"]
 
+[[bench]]
+name = "redb_zerocopy_overhead"
+harness = false
+required-features = ["native", "libp2p"]
+
+[[bench]]
+name = "cross_store_comparison"
+harness = false
+required-features = ["native", "libp2p"]
+
 [[example]]
 name = "basic_store"
 required-features = ["native"]

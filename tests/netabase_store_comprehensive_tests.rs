@@ -312,7 +312,7 @@ mod redb_tests {
         tree.put(product.clone()).unwrap();
 
         // Read
-        let retrieved = tree.get(ProductPrimaryKey(1)).unwrap();
+        let retrieved = tree.get(ProductKey::Primary(ProductPrimaryKey(1))).unwrap();
         assert_eq!(retrieved, Some(product.clone()));
 
         // Update
@@ -320,14 +320,14 @@ mod redb_tests {
         updated.price = 299;
         tree.put(updated.clone()).unwrap();
 
-        let retrieved = tree.get(ProductPrimaryKey(1)).unwrap();
+        let retrieved = tree.get(ProductKey::Primary(ProductPrimaryKey(1))).unwrap();
         assert_eq!(retrieved.unwrap().price, 299);
 
         // Delete
-        let removed = tree.remove(ProductPrimaryKey(1)).unwrap();
+        let removed = tree.remove(ProductKey::Primary(ProductPrimaryKey(1))).unwrap();
         assert_eq!(removed, Some(updated));
 
-        let retrieved = tree.get(ProductPrimaryKey(1)).unwrap();
+        let retrieved = tree.get(ProductKey::Primary(ProductPrimaryKey(1))).unwrap();
         assert_eq!(retrieved, None);
     }
 
@@ -379,7 +379,7 @@ mod redb_tests {
         batch.commit().unwrap();
 
         // Verify all inserted
-        assert_eq!(tree.len(), 100);
+        assert_eq!(tree.len().unwrap(), 100);
 
         // Batch remove
         let mut batch = tree.create_batch().unwrap();
@@ -389,7 +389,7 @@ mod redb_tests {
         batch.commit().unwrap();
 
         // Verify removed
-        assert_eq!(tree.len(), 50);
+        assert_eq!(tree.len().unwrap(), 50);
     }
 
     #[test]
@@ -468,8 +468,8 @@ mod redb_tests {
             })
             .unwrap();
 
-        assert_eq!(product_tree.len(), 1);
-        assert_eq!(customer_tree.len(), 1);
+        assert_eq!(product_tree.len().unwrap(), 1);
+        assert_eq!(customer_tree.len().unwrap(), 1);
     }
 
     #[test]
@@ -484,12 +484,12 @@ mod redb_tests {
             tree.put(product.clone()).unwrap();
         }
 
-        assert_eq!(tree.len(), 10);
+        assert_eq!(tree.len().unwrap(), 10);
 
         tree.clear().unwrap();
 
-        assert_eq!(tree.len(), 0);
-        assert!(tree.is_empty());
+        assert_eq!(tree.len().unwrap(), 0);
+        assert!(tree.is_empty().unwrap());
     }
 
     #[test]
@@ -517,7 +517,7 @@ mod redb_tests {
             let store = NetabaseStore::<TestDefinition, _>::open_redb(&path).unwrap();
             let tree = store.open_tree::<Product>();
 
-            let product = tree.get(ProductPrimaryKey(1)).unwrap();
+            let product = tree.get(ProductKey::Primary(ProductPrimaryKey(1))).unwrap();
             assert!(product.is_some());
             assert_eq!(product.unwrap().name, "Persistent Product");
         }
@@ -562,7 +562,7 @@ mod cross_backend_tests {
             let tree = store.open_tree::<Product>();
 
             tree.put(test_product.clone()).unwrap();
-            let retrieved = tree.get(ProductPrimaryKey(42)).unwrap();
+            let retrieved = tree.get(ProductKey::Primary(ProductPrimaryKey(42))).unwrap();
             assert_eq!(retrieved, Some(test_product));
         }
     }

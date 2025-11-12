@@ -290,7 +290,10 @@ impl<'a> ModelVisitor<'a> {
                     type AsBytes<'a> = Vec<u8> where Self: 'a;
 
                     fn fixed_width() -> Option<usize> {
-                        #primary_key_fixed_width
+                        // Must return None when using bincode encoding
+                        // Even though the inner type might be fixed-width (e.g., u64),
+                        // bincode adds metadata that makes the encoded size variable
+                        None
                     }
 
                     fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
@@ -410,28 +413,11 @@ impl<'a> ModelVisitor<'a> {
                     }
                 }
 
-                // Implement From<SelfType> for Keys enum
-                // Since SelfType<'a> = Self for bincode implementation, this is identity conversion
-                #[cfg(feature = "redb")]
-                impl<'a> ::std::convert::From<<<#keys_ty as ::netabase_store::netabase_deps::redb::Value>::SelfType<'a>> for #keys_ty {
-                    fn from(value: <#keys_ty as ::netabase_store::netabase_deps::redb::Value>::SelfType<'a>) -> Self {
-                        value
-                    }
-                }
-
-                #[cfg(feature = "redb")]
-                impl<'a> ::std::convert::From<<<#primary_key_ty as ::netabase_store::netabase_deps::redb::Value>::SelfType<'a>> for #keys_ty {
-                    fn from(value: <#primary_key_ty as ::netabase_store::netabase_deps::redb::Value>::SelfType<'a>) -> Self {
-                        #keys_ty::Primary(value)
-                    }
-                }
-
-                #[cfg(feature = "redb")]
-                impl<'a> ::std::convert::From<<<#secondary_keys_ty as ::netabase_store::netabase_deps::redb::Value>::SelfType<'a>> for #keys_ty {
-                    fn from(value: <#secondary_keys_ty as ::netabase_store::netabase_deps::redb::Value>::SelfType<'a>) -> Self {
-                        #keys_ty::Secondary(value)
-                    }
-                }
+                // Note: No need to implement From<SelfType> for Keys enum
+                // For bincode implementation, SelfType<'a> = Self, so:
+                // - From<UserKey> is the reflexive impl (automatically provided)
+                // - From<PrimaryKey> and From<SecondaryKeys> come from derive_more::From
+                // These are sufficient to satisfy the From<SelfType<'a>> bounds in the trait
 
             }
         }).collect::<Vec<proc_macro2::TokenStream>>()

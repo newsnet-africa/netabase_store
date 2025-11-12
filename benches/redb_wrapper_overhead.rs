@@ -125,7 +125,7 @@ fn bench_redb_get(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("redb_wrapper", size), size, |b, &size| {
             b.iter(|| {
                 for i in 0u64..size {
-                    let article = article_tree.get(ArticlePrimaryKey(i)).unwrap();
+                    let article = article_tree.get(ArticleKey::Primary(ArticlePrimaryKey(i))).unwrap();
                     black_box(article);
                 }
             });

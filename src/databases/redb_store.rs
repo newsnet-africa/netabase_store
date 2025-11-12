@@ -485,6 +485,73 @@ where
         Ok(model)
     }
 
+    /// Bulk insert multiple models in a single transaction
+    /// This is significantly faster than calling put() in a loop
+    pub fn put_many(&self, models: Vec<M>) -> Result<(), NetabaseError> {
+        if models.is_empty() {
+            return Ok(());
+        }
+
+        let table_def = self.table_def();
+        let sec_table_def = self.secondary_table_def();
+
+        let write_txn = self.db.as_ref().begin_write()?;
+        {
+            let mut table = write_txn.open_table(table_def)?;
+            let mut sec_table = write_txn.open_multimap_table(sec_table_def)?;
+
+            for model in models {
+                let key = model.key();
+                table.insert(&key, model.clone())?;
+
+                // Handle secondary keys
+                let primary_key = model.primary_key();
+                let secondary_keys = model.secondary_keys();
+                if !secondary_keys.is_empty() {
+                    for sec_key in secondary_keys {
+                        sec_table.insert(sec_key, primary_key.clone())?;
+                    }
+                }
+            }
+        }
+        write_txn.commit()?;
+
+        Ok(())
+    }
+
+    /// Bulk get multiple models by their primary keys in a single transaction
+    /// This is significantly faster than calling get() in a loop
+    pub fn get_many(&self, keys: Vec<M::Keys>) -> Result<Vec<Option<M>>, NetabaseError> {
+        if keys.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let table_def = self.table_def();
+
+        let read_txn = self.db.as_ref().begin_read()?;
+
+        // Handle the case where the table doesn't exist yet
+        let table = match read_txn.open_table(table_def) {
+            Ok(table) => table,
+            Err(redb::TableError::TableDoesNotExist(_)) => {
+                return Ok(vec![None; keys.len()]);
+            }
+            Err(e) => return Err(NetabaseError::RedbTableError(e)),
+        };
+
+        let mut results = Vec::with_capacity(keys.len());
+
+        for key in keys {
+            let model = match table.get(&key)? {
+                Some(model_guard) => Some(model_guard.value()),
+                None => None,
+            };
+            results.push(model);
+        }
+
+        Ok(results)
+    }
+
     /// Iterate over all models in the tree
     pub fn iter(&self) -> Result<Vec<(M::Keys, M)>, NetabaseError> {
         let table_def = self.table_def();
