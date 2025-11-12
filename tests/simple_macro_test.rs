@@ -27,11 +27,15 @@ mod simple_models {
     }
 }
 
+use simple_models::*;
+
 #[test]
 fn test_simple() {
-    // Just test that the types exist
-    let _ = simple_models::SimpleUser {
+    // Just test that the types exist and are usable
+    let user = SimpleUser {
         id: 1,
         name: "test".into(),
     };
+    assert_eq!(user.id, 1);
+    assert_eq!(user.name, "test");
 }

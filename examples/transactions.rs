@@ -90,7 +90,7 @@ fn main() -> Result<()> {
     println!("✍️  Example 2: Read-Write Transaction (Single Insert)");
 
     {
-        let mut txn = store.write()?;
+        let mut txn = store.write();
         let mut user_tree = txn.open_tree::<User>();
 
         let user = User {
@@ -115,7 +115,7 @@ fn main() -> Result<()> {
     {
         let start = std::time::Instant::now();
 
-        let mut txn = store.write()?;
+        let mut txn = store.write();
         let mut user_tree = txn.open_tree::<User>();
 
         // All inserts use the same transaction
@@ -153,7 +153,7 @@ fn main() -> Result<()> {
 
         let start = std::time::Instant::now();
 
-        let mut txn = store.write()?;
+        let mut txn = store.write();
         let mut user_tree = txn.open_tree::<User>();
 
         user_tree.put_many(users)?;
@@ -172,7 +172,7 @@ fn main() -> Result<()> {
     println!("   Working with multiple models in one transaction\n");
 
     {
-        let mut txn = store.write()?;
+        let mut txn = store.write();
 
         let mut user_tree = txn.open_tree::<User>();
         let mut post_tree = txn.open_tree::<Post>();
@@ -253,7 +253,7 @@ fn main() -> Result<()> {
         };
 
         {
-            let mut txn = store.write()?;
+            let mut txn = store.write();
             let mut user_tree = txn.open_tree::<User>();
 
             user_tree.put(User {

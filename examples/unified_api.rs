@@ -76,7 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     redb_tree.put(user.clone())?;
     println!("  ✓ Inserted user");
 
-    let retrieved = redb_tree.get(UserPrimaryKey(1))?;
+    let retrieved = redb_tree.get(UserKey::Primary(UserPrimaryKey(1)))?;
     assert_eq!(retrieved, Some(user.clone()));
     println!("  ✓ Retrieved user: {:?}", retrieved.unwrap());
 
