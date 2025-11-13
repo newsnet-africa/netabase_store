@@ -1,12 +1,15 @@
 //! Zero-copy redb backend example
 //!
 //! This example demonstrates:
+//! - Creating a database with the new config API
 //! - Explicit transaction management
 //! - Bulk operations
 //! - Transaction isolation
 //! - Helper functions for common patterns
 
+use netabase_store::config::FileConfig;
 use netabase_store::databases::redb_zerocopy::*;
+use netabase_store::traits::backend_store::BackendStore;
 use netabase_store::{netabase, netabase_definition_module, NetabaseModel};
 
 // Define the database schema
@@ -41,11 +44,16 @@ use models::*;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Redb Zero-Copy Backend Example\n");
 
-    // Create a temporary database
+    // Create a database using the new config API
     let db_path = "/tmp/redb_zerocopy_example.db";
     println!("📁 Creating database at: {}", db_path);
 
-    let store = RedbStoreZeroCopy::<AppDef>::new(db_path)?;
+    let config = FileConfig::builder()
+        .path(db_path.into())
+        .truncate(true)  // Start fresh each time
+        .build();
+
+    let store = <RedbStoreZeroCopy<AppDef> as BackendStore<AppDef>>::new(config)?;
     println!("✅ Database created successfully\n");
 
     // Example 1: Basic write transaction

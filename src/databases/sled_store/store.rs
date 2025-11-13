@@ -1,4 +1,6 @@
+use crate::config::FileConfig;
 use crate::error::NetabaseError;
+use crate::traits::backend_store::{BackendStore, PathBasedBackend};
 use crate::traits::convert::ToIVec;
 use crate::traits::definition::NetabaseDefinitionTrait;
 use crate::traits::model::NetabaseModelTrait;
@@ -579,5 +581,86 @@ where
         }
 
         Ok(result)
+    }
+}
+
+// ============================================================================
+// BackendStore Trait Implementation
+// ============================================================================
+
+impl<D> BackendStore<D> for SledStore<D>
+where
+    D: NetabaseDefinitionTrait,
+    <D as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + 'static
+        + FromStr,
+{
+    type Config = FileConfig;
+
+    fn new(config: Self::Config) -> Result<Self, NetabaseError> {
+        // Remove existing database if truncate is true
+        if config.truncate && config.path.exists() {
+            std::fs::remove_dir_all(&config.path)?;
+        }
+
+        let db = if config.create_if_missing {
+            sled::open(&config.path)?
+        } else {
+            sled::Config::new()
+                .path(&config.path)
+                .cache_capacity((config.cache_size_mb * 1024 * 1024) as u64)
+                .use_compression(true)
+                .open()?
+        };
+
+        Ok(Self {
+            db,
+            trees: D::Discriminant::iter().collect(),
+        })
+    }
+
+    fn open(config: Self::Config) -> Result<Self, NetabaseError> {
+        let db = sled::Config::new()
+            .path(&config.path)
+            .cache_capacity((config.cache_size_mb * 1024 * 1024) as u64)
+            .use_compression(true)
+            .open()?;
+
+        Ok(Self {
+            db,
+            trees: D::Discriminant::iter().collect(),
+        })
+    }
+
+    fn temp() -> Result<Self, NetabaseError> {
+        let config = FileConfig::temp();
+        <Self as BackendStore<D>>::new(config)
+    }
+}
+
+impl<D> PathBasedBackend<D> for SledStore<D>
+where
+    D: NetabaseDefinitionTrait,
+    <D as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + 'static
+        + FromStr,
+{
+    fn at_path<P: AsRef<Path>>(path: P) -> Result<Self, NetabaseError> {
+        let config = FileConfig::new(path.as_ref());
+        <Self as BackendStore<D>>::open(config)
     }
 }
