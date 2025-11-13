@@ -540,10 +540,15 @@ where
         let sec_tree_name = format!("{}_secondary", M::discriminant_name());
         let secondary_tree = self.db.open_tree(sec_tree_name)?;
 
-        tree.transaction(|txn_tree| {
+        // Collect secondary key operations during transaction
+        let pending_secondary_ops = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let pending_ops_clone = pending_secondary_ops.clone();
+
+        let result = tree.transaction(|txn_tree| {
             let wrapper = SledTransactionalTree {
                 tree: txn_tree.clone(),
                 secondary_tree: secondary_tree.clone(),
+                pending_secondary_keys: Some(pending_ops_clone.clone()),
                 _phantom_d: PhantomData,
                 _phantom_m: PhantomData,
             };
@@ -555,8 +560,29 @@ where
                 NetabaseError::Transaction(format!("Transaction aborted: {}", e))
             }
             sled::transaction::TransactionError::Storage(e) => e.into(),
-        })
+        })?;
+
+        // After transaction commits, apply all pending secondary key operations
+        let ops = pending_secondary_ops.lock().unwrap();
+        for op in ops.iter() {
+            match op {
+                SecondaryKeyOp::Insert(key) => {
+                    secondary_tree.insert(key, &[] as &[u8])?;
+                }
+                SecondaryKeyOp::Remove(key) => {
+                    secondary_tree.remove(key)?;
+                }
+            }
+        }
+
+        Ok(result)
     }
+}
+
+/// Operation to be performed on secondary index after transaction commits
+enum SecondaryKeyOp {
+    Insert(Vec<u8>),
+    Remove(Vec<u8>),
 }
 
 /// Type-safe wrapper around a sled transactional tree.
@@ -602,6 +628,9 @@ where
 {
     tree: sled::transaction::TransactionalTree,
     secondary_tree: sled::Tree,
+    // When Some, collect secondary key operations instead of inserting directly
+    // This prevents deadlocks by deferring secondary writes until after commit
+    pending_secondary_keys: Option<std::sync::Arc<std::sync::Mutex<Vec<SecondaryKeyOp>>>>,
     _phantom_d: PhantomData<D>,
     _phantom_m: PhantomData<M>,
 }
@@ -646,9 +675,19 @@ where
 
         // Handle secondary keys
         if !secondary_keys.is_empty() {
-            for sec_key in secondary_keys {
-                let composite_key = self.build_composite_key(&sec_key, &primary_key)?;
-                self.secondary_tree.insert(composite_key, &[] as &[u8])?;
+            if let Some(pending) = &self.pending_secondary_keys {
+                // Defer secondary key insertion until after transaction commits
+                let mut ops = pending.lock().unwrap();
+                for sec_key in secondary_keys {
+                    let composite_key = self.build_composite_key(&sec_key, &primary_key)?;
+                    ops.push(SecondaryKeyOp::Insert(composite_key));
+                }
+            } else {
+                // Direct insertion (not in transaction context)
+                for sec_key in secondary_keys {
+                    let composite_key = self.build_composite_key(&sec_key, &primary_key)?;
+                    self.secondary_tree.insert(composite_key, &[] as &[u8])?;
+                }
             }
         }
 
@@ -689,9 +728,19 @@ where
                         // Clean up secondary keys
                         let secondary_keys = model.secondary_keys();
                         if !secondary_keys.is_empty() {
-                            for sec_key in &secondary_keys {
-                                let composite_key = self.build_composite_key(sec_key, &key)?;
-                                self.secondary_tree.remove(composite_key)?;
+                            if let Some(pending) = &self.pending_secondary_keys {
+                                // Defer secondary key removal until after transaction commits
+                                let mut ops = pending.lock().unwrap();
+                                for sec_key in &secondary_keys {
+                                    let composite_key = self.build_composite_key(sec_key, &key)?;
+                                    ops.push(SecondaryKeyOp::Remove(composite_key));
+                                }
+                            } else {
+                                // Direct removal (not in transaction context)
+                                for sec_key in &secondary_keys {
+                                    let composite_key = self.build_composite_key(sec_key, &key)?;
+                                    self.secondary_tree.remove(composite_key)?;
+                                }
                             }
                         }
                         Ok(Some(model))
