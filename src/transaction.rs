@@ -15,19 +15,58 @@
 //! # Examples
 //!
 //! ## Read Transaction
-//! ```ignore
+//! ```no_run
+//! # use netabase_store::{NetabaseStore, netabase_definition_module};
+//! # #[netabase_definition_module(MyDef, MyKeys)]
+//! # mod models {
+//! #     use netabase_store::{NetabaseModel, netabase};
+//! #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+//! #              bincode::Encode, bincode::Decode,
+//! #              serde::Serialize, serde::Deserialize)]
+//! #     #[netabase(MyDef)]
+//! #     pub struct User {
+//! #         #[primary_key]
+//! #         pub id: u64,
+//! #         pub name: String,
+//! #     }
+//! # }
+//! # use models::*;
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # let store = NetabaseStore::sled("./db")?;
 //! let txn = store.read();  // Sled only for now
 //! let tree = txn.open_tree::<User>();
 //! let user = tree.get(UserPrimaryKey(1))?;
 //! // Auto-closes on drop
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Write Transaction
-//! ```ignore
+//! ```no_run
+//! # use netabase_store::{NetabaseStore, netabase_definition_module};
+//! # #[netabase_definition_module(MyDef, MyKeys)]
+//! # mod models {
+//! #     use netabase_store::{NetabaseModel, netabase};
+//! #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+//! #              bincode::Encode, bincode::Decode,
+//! #              serde::Serialize, serde::Deserialize)]
+//! #     #[netabase(MyDef)]
+//! #     pub struct User {
+//! #         #[primary_key]
+//! #         pub id: u64,
+//! #         pub name: String,
+//! #     }
+//! # }
+//! # use models::*;
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # let store = NetabaseStore::sled("./db")?;
+//! # let user = User { id: 1, name: "Alice".to_string() };
 //! let mut txn = store.write();  // Sled only for now
 //! let mut tree = txn.open_tree::<User>();
 //! tree.put(user)?;
 //! txn.commit()?;  // Or auto-rollback on drop
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::error::NetabaseError;
@@ -227,10 +266,30 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let txn = store.read()?;
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # use netabase_store::transaction::TxnGuard;
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = NetabaseStore::sled("./db")?;
+    /// let mut txn = store.read();
     /// let users = txn.open_tree::<User>();
     /// let user = users.get(UserPrimaryKey(1))?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn open_tree<M>(&mut self) -> TreeView<'_, D, M, Mode>
     where
@@ -289,11 +348,31 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let mut txn = store.write()?;
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = NetabaseStore::sled("./db")?;
+    /// # let user = User { id: 1, name: "Alice".to_string() };
+    /// let mut txn = store.write();
     /// let mut tree = txn.open_tree::<User>();
     /// tree.put(user)?;
     /// txn.commit()?;  // Persist changes
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn commit(self) -> Result<(), NetabaseError> {
         match self.backend {
@@ -318,12 +397,31 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let mut txn = store.write()?;
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = NetabaseStore::sled("./db")?;
+    /// # let error_condition = true;
+    /// let mut txn = store.write();
     /// // ... operations ...
     /// if error_condition {
     ///     txn.rollback()?;  // Explicit rollback
     /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn rollback(self) -> Result<(), NetabaseError> {
         // Drop handles rollback automatically
@@ -350,10 +448,29 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let txn = store.read()?;
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = NetabaseStore::sled("./db")?;
+    /// let mut txn = store.read();
     /// let tree = txn.open_tree::<User>();
     /// let user = tree.get(UserPrimaryKey(1))?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn get(
         &self,
@@ -471,14 +588,34 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = NetabaseStore::sled("./db")?;
+    /// # let mut txn = store.read();
     /// use std::borrow::Borrow;
     ///
     /// let tree = txn.open_tree::<User>();
     /// if let Some(user) = tree.get(UserPrimaryKey(1))? {
-    ///     let user_ref: &UserRef<'_> = user.borrow();  // Zero-copy!
-    ///     println!("Name: {}", user_ref.name);
+    ///     // Borrow trait usage (if implemented for model)
+    ///     println!("Name: {}", user.name);
     /// }
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// # Note
@@ -496,11 +633,30 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct Post {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         #[secondary_key]
+    /// #         pub author_id: u64,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = NetabaseStore::sled("./db")?;
+    /// # let mut txn = store.read();
     /// let tree = txn.open_tree::<Post>();
-    /// let posts = tree.get_by_secondary_key(
-    ///     PostSecondaryKeys::AuthorId(AuthorIdKey(1))
-    /// )?;
+    /// let posts = tree.get_by_secondary_key(PostSecondaryKeys::AuthorId(1))?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn get_by_secondary_key(
         &self,
@@ -634,12 +790,31 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = NetabaseStore::sled("./db")?;
+    /// # let mut txn = store.read();
     /// let tree = txn.open_tree::<User>();
-    /// for result in tree.iter()? {
-    ///     let (key, user) = result?;
+    /// for (key, user) in tree.iter()? {
     ///     println!("User: {}", user.name);
     /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn iter(
         &self,
@@ -772,11 +947,31 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let mut txn = store.write()?;
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = NetabaseStore::sled("./db")?;
+    /// # let user = User { id: 1, name: "Alice".to_string() };
+    /// let mut txn = store.write();
     /// let mut tree = txn.open_tree::<User>();
     /// tree.put(user)?;
     /// txn.commit()?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn put(&mut self, model: M) -> Result<(), NetabaseError> {
         let primary_key = model.primary_key();
@@ -851,11 +1046,30 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let mut txn = store.write()?;
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = NetabaseStore::sled("./db")?;
+    /// let mut txn = store.write();
     /// let mut tree = txn.open_tree::<User>();
     /// let removed = tree.remove(UserPrimaryKey(1))?;
     /// txn.commit()?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn remove(
         &mut self,
@@ -939,11 +1153,30 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let mut txn = store.write()?;
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = NetabaseStore::sled("./db")?;
+    /// let mut txn = store.write();
     /// let mut tree = txn.open_tree::<User>();
     /// tree.clear()?;
     /// txn.commit()?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn clear(&mut self) -> Result<(), NetabaseError> {
         match &mut self.backend {
@@ -1030,11 +1263,31 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let mut txn = store.write()?;
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = NetabaseStore::sled("./db")?;
+    /// # let users = vec![User { id: 1, name: "Alice".to_string() }];
+    /// let mut txn = store.write();
     /// let mut tree = txn.open_tree::<User>();
     /// tree.put_many(users)?;
     /// txn.commit()?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn put_many<I>(&mut self, models: I) -> Result<(), NetabaseError>
     where
@@ -1050,12 +1303,31 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let mut txn = store.write()?;
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = NetabaseStore::sled("./db")?;
+    /// let mut txn = store.write();
     /// let mut tree = txn.open_tree::<User>();
     /// let keys = vec![UserPrimaryKey(1), UserPrimaryKey(2)];
     /// tree.remove_many(keys)?;
     /// txn.commit()?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn remove_many<I>(&mut self, keys: I) -> Result<Vec<Option<M>>, NetabaseError>
     where
@@ -1086,11 +1358,30 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let txn = store.read()?;
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = NetabaseStore::sled("./db")?;
+    /// let mut txn = store.read();
     /// let tree = txn.open_tree::<User>();
     /// let keys = vec![UserPrimaryKey(1), UserPrimaryKey(2), UserPrimaryKey(3)];
     /// let users = tree.get_many(keys)?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn get_many<I>(&self, keys: I) -> Result<Vec<Option<M>>, NetabaseError>
     where

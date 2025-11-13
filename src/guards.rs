@@ -25,19 +25,41 @@ use crate::error::NetabaseError;
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// # #[cfg(all(feature = "redb", feature = "redb-zerocopy"))]
+/// # {
 /// use netabase_store::guards::BorrowedGuard;
+/// # use netabase_store::{NetabaseStore, netabase_definition_module};
+/// # #[netabase_definition_module(MyDef, MyKeys)]
+/// # mod models {
+/// #     use netabase_store::{NetabaseModel, netabase};
+/// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+/// #              bincode::Encode, bincode::Decode,
+/// #              serde::Serialize, serde::Deserialize)]
+/// #     #[netabase(MyDef)]
+/// #     pub struct User {
+/// #         #[primary_key]
+/// #         pub id: u64,
+/// #         pub name: String,
+/// #     }
+/// # }
+/// # use models::*;
+/// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// # let temp_dir = tempfile::tempdir()?;
+/// # let store = NetabaseStore::redb_zerocopy(temp_dir.path().join("db.redb"))?;
+/// # let txn = store.begin_read()?;
+/// # let tree = txn.open_tree::<User>()?;
 ///
-/// let txn = store.read();
-/// let tree = txn.open_tree::<User>();
-///
-/// if let Some(guard) = tree.get_borrowed_guard(UserPrimaryKey(1))? {
+/// if let Some(guard) = tree.get_borrowed_guard(&UserPrimaryKey(1))? {
 ///     let user_ref: UserRef<'_> = guard.value();
 ///     println!("Name: {}", user_ref.name);  // Zero-copy!
 ///
 ///     // Can convert to owned if needed
 ///     let user: User = guard.to_owned();
 /// }  // guard dropped here, data no longer accessible
+/// # Ok(())
+/// # }
+/// # }
 /// ```
 #[cfg(all(feature = "redb", feature = "redb-zerocopy"))]
 pub struct BorrowedGuard<'txn, M>
@@ -70,10 +92,38 @@ where
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// let guard = tree.get_borrowed_guard(key)?;
-    /// let user_ref = guard.value();  // UserRef<'_>
-    /// println!("Name: {}", user_ref.name);  // &str - no allocation!
+    /// ```no_run
+    /// # #[cfg(all(feature = "redb", feature = "redb-zerocopy"))]
+    /// # {
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let temp_dir = tempfile::tempdir()?;
+    /// # let store = NetabaseStore::redb_zerocopy(temp_dir.path().join("db.redb"))?;
+    /// # let txn = store.begin_read()?;
+    /// # let tree = txn.open_tree::<User>()?;
+    /// # let key = UserPrimaryKey(1);
+    /// let guard = tree.get_borrowed_guard(&key)?;
+    /// if let Some(guard) = guard {
+    ///     let user_ref = guard.value();  // UserRef<'_>
+    ///     println!("Name: {}", user_ref.name);  // &str - no allocation!
+    /// }
+    /// # Ok(())
+    /// # }
+    /// # }
     /// ```
     pub fn value(&self) -> M::SelfType<'_> {
         self.guard.value()
@@ -88,11 +138,37 @@ where
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// let guard = tree.get_borrowed_guard(key)?;
+    /// ```no_run
+    /// # #[cfg(all(feature = "redb", feature = "redb-zerocopy"))]
+    /// # {
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let temp_dir = tempfile::tempdir()?;
+    /// # let store = NetabaseStore::redb_zerocopy(temp_dir.path().join("db.redb"))?;
+    /// # let txn = store.begin_read()?;
+    /// # let tree = txn.open_tree::<User>()?;
+    /// # let key = UserPrimaryKey(1);
+    /// let guard = tree.get_borrowed_guard(&key)?.unwrap();
     /// let user: User = guard.to_owned();  // Allocates
     /// drop(guard);  // Can drop guard now
     /// // `user` is still valid
+    /// # Ok(())
+    /// # }
+    /// # }
     /// ```
     pub fn to_owned(&self) -> M
     where
@@ -108,10 +184,37 @@ where
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # #[cfg(all(feature = "redb", feature = "redb-zerocopy"))]
+    /// # {
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let temp_dir = tempfile::tempdir()?;
+    /// # let store = NetabaseStore::redb_zerocopy(temp_dir.path().join("db.redb"))?;
+    /// # let txn = store.begin_read()?;
+    /// # let tree = txn.open_tree::<User>()?;
+    /// # let key = UserPrimaryKey(1);
+    /// # let guard = tree.get_borrowed_guard(&key)?.unwrap();
     /// let result = guard.with_value(|user_ref| {
     ///     format!("Hello, {}", user_ref.name)
     /// });
+    /// # Ok(())
+    /// # }
+    /// # }
     /// ```
     pub fn with_value<F, R>(&self, f: F) -> R
     where
@@ -152,11 +255,36 @@ where
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// # #[cfg(all(feature = "redb", feature = "redb-zerocopy"))]
+/// # {
+/// # use netabase_store::{NetabaseStore, netabase_definition_module};
+/// # #[netabase_definition_module(MyDef, MyKeys)]
+/// # mod models {
+/// #     use netabase_store::{NetabaseModel, netabase};
+/// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+/// #              bincode::Encode, bincode::Decode,
+/// #              serde::Serialize, serde::Deserialize)]
+/// #     #[netabase(MyDef)]
+/// #     pub struct User {
+/// #         #[primary_key]
+/// #         pub id: u64,
+/// #         pub name: String,
+/// #     }
+/// # }
+/// # use models::*;
+/// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// # let temp_dir = tempfile::tempdir()?;
+/// # let store = NetabaseStore::redb_zerocopy(temp_dir.path().join("db.redb"))?;
+/// # let txn = store.begin_read()?;
+/// # let tree = txn.open_tree::<User>()?;
 /// for result in tree.iter_borrowed_guard()? {
 ///     let (key, user_ref) = result?;
 ///     println!("User {}: {}", key, user_ref.name);  // Zero-copy!
 /// }
+/// # Ok(())
+/// # }
+/// # }
 /// ```
 #[cfg(all(feature = "redb", feature = "redb-zerocopy"))]
 pub struct BorrowedIter<'txn, K, V>
@@ -232,9 +360,34 @@ where
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// let users: Vec<User> = tree.iter_borrowed_guard()?
+    /// ```no_run
+    /// # #[cfg(all(feature = "redb", feature = "redb-zerocopy"))]
+    /// # {
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let temp_dir = tempfile::tempdir()?;
+    /// # let store = NetabaseStore::redb_zerocopy(temp_dir.path().join("db.redb"))?;
+    /// # let txn = store.begin_read()?;
+    /// # let tree = txn.open_tree::<User>()?;
+    /// let users: Vec<(UserPrimaryKey, User)> = tree.iter_borrowed_guard()?
     ///     .collect_owned()?;
+    /// # Ok(())
+    /// # }
+    /// # }
     /// ```
     pub fn collect_owned(self) -> Result<Vec<(K, V)>, NetabaseError>
     where
@@ -253,9 +406,35 @@ where
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # #[cfg(all(feature = "redb", feature = "redb-zerocopy"))]
+    /// # {
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #         pub age: u32,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let temp_dir = tempfile::tempdir()?;
+    /// # let store = NetabaseStore::redb_zerocopy(temp_dir.path().join("db.redb"))?;
+    /// # let txn = store.begin_read()?;
+    /// # let tree = txn.open_tree::<User>()?;
     /// let adults = tree.iter_borrowed_guard()?
-    ///     .filter_borrowed(|user_ref| user_ref.age >= 18)?;
+    ///     .filter_borrowed(|user_ref| user_ref.age >= 18);
+    /// # Ok(())
+    /// # }
+    /// # }
     /// ```
     pub fn filter_borrowed<F>(self, mut predicate: F) -> FilterBorrowed<'txn, K, V, F>
     where

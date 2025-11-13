@@ -108,7 +108,7 @@ impl Default for MemoryConfig {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 /// use netabase_store::config::IndexedDBConfig;
 ///
 /// let config = IndexedDBConfig::builder()

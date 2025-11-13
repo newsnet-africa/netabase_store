@@ -230,9 +230,31 @@ where
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # use netabase_store::netabase_definition_module;
+    /// # use netabase_store::traits::store_ops::OpenTree;
+    /// # use netabase_store::traits::model::NetabaseModelTrait;
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn example<S: OpenTree<MyDef, User>>(store: &S) -> Result<(), Box<dyn std::error::Error>> {
+    /// # let user = User { id: 1, name: "Alice".to_string() };
+    /// use netabase_store::traits::store_ops::StoreOps;
     /// let tree = store.open_tree::<User>();
     /// tree.put_raw(user)?;
+    /// # Ok(())
+    /// # }
     /// ```
     fn open_tree(&self) -> Self::Tree<'_>;
 }

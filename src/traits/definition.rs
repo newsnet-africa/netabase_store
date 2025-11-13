@@ -97,8 +97,9 @@ impl<T> NetabaseKeyDiscriminant for T where
 /// This trait now uses `NetabaseDiscriminant` and `NetabaseKeyDiscriminant` to consolidate
 /// the many trait bounds previously repeated everywhere. This means you can simply write:
 ///
-/// ```ignore
-/// fn my_function<D: NetabaseDefinitionTrait>() { ... }
+/// ```
+/// # use netabase_store::traits::definition::NetabaseDefinitionTrait;
+/// fn my_function<D: NetabaseDefinitionTrait>() { /* ... */ }
 /// ```
 ///
 /// instead of having to repeat all the discriminant bounds.
