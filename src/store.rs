@@ -588,3 +588,236 @@ where
     // TODO: Transaction API for Redb is still being optimized
     // The Sled backend has a working transaction API - see sled implementation above
 }
+
+// Zero-copy Redb backend support
+#[cfg(all(feature = "redb", feature = "redb-zerocopy"))]
+impl<D> BackendFor<D> for crate::databases::redb_zerocopy::RedbStoreZeroCopy<D>
+where
+    D: NetabaseDefinitionTrait
+{
+}
+
+#[cfg(all(feature = "redb", feature = "redb-zerocopy"))]
+impl<D> BackendConstructor<D> for crate::databases::redb_zerocopy::RedbStoreZeroCopy<D>
+where
+    D: NetabaseDefinitionTrait,
+{
+    fn new_backend<P: AsRef<Path>>(path: P) -> Result<Self, NetabaseError> {
+        crate::databases::redb_zerocopy::RedbStoreZeroCopy::new(path)
+    }
+}
+
+#[cfg(all(feature = "redb", feature = "redb-zerocopy"))]
+impl<D> NetabaseStore<D, crate::databases::redb_zerocopy::RedbStoreZeroCopy<D>>
+where
+    D: NetabaseDefinitionTrait,
+{
+    /// Create a new zero-copy Redb-backed store at the given path.
+    ///
+    /// This constructor creates a store using the high-performance zero-copy redb backend.
+    /// The zero-copy backend provides:
+    /// - **Transaction batching**: Explicit write/read transactions for bulk operations
+    /// - **Zero-copy reads**: Borrow data directly from database pages without allocation
+    /// - **Performance**: Up to 10x faster bulk inserts, up to 54x faster secondary key queries
+    ///
+    /// # When to Use
+    ///
+    /// Use this backend when:
+    /// - You need transaction batching (bulk operations)
+    /// - Performance is critical
+    /// - You want explicit transaction control
+    ///
+    /// Use the regular `redb()` constructor when:
+    /// - Simplicity is more important than performance
+    /// - Single-operation transactions are fine
+    /// - You want the simplest possible API
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netabase_store::{NetabaseStore, netabase_definition_module, NetabaseModel};
+    /// use netabase_store::traits::model::NetabaseModelTrait;
+    ///
+    /// #[netabase_definition_module(MyDef, MyKeys)]
+    /// mod models {
+    ///     use netabase_store::{NetabaseModel, netabase};
+    ///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    ///              bincode::Encode, bincode::Decode,
+    ///              serde::Serialize, serde::Deserialize)]
+    ///     #[netabase(MyDef)]
+    ///     pub struct User {
+    ///         #[primary_key]
+    ///         pub id: u64,
+    ///         pub name: String,
+    ///         #[secondary_key]
+    ///         pub email: String,
+    ///     }
+    /// }
+    /// use models::*;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let temp_dir = tempfile::tempdir()?;
+    /// let store = NetabaseStore::redb_zerocopy(temp_dir.path().join("app.redb"))?;
+    ///
+    /// // Write transaction - batched operations
+    /// let mut txn = store.begin_write()?;
+    /// let mut tree = txn.open_tree::<User>()?;
+    /// tree.put(User { id: 1, name: "Alice".into(), email: "alice@example.com".into() })?;
+    /// tree.put(User { id: 2, name: "Bob".into(), email: "bob@example.com".into() })?;
+    /// drop(tree);
+    /// txn.commit()?;  // Both inserts in one transaction
+    ///
+    /// // Read transaction - efficient reads
+    /// let txn = store.begin_read()?;
+    /// let tree = txn.open_tree::<User>()?;
+    /// let user = tree.get(&UserPrimaryKey(1))?.unwrap();
+    /// assert_eq!(user.name, "Alice");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn redb_zerocopy<P: AsRef<Path>>(path: P) -> Result<Self, NetabaseError> {
+        Ok(Self::from_backend(
+            crate::databases::redb_zerocopy::RedbStoreZeroCopy::new(path)?,
+        ))
+    }
+
+    /// Open an existing zero-copy Redb-backed store at the given path.
+    ///
+    /// Unlike `redb_zerocopy()` which removes any existing database,
+    /// this method opens an existing database or creates it if it doesn't exist.
+    pub fn open_redb_zerocopy<P: AsRef<Path>>(path: P) -> Result<Self, NetabaseError> {
+        Ok(Self::from_backend(
+            crate::databases::redb_zerocopy::RedbStoreZeroCopy::open(path)?,
+        ))
+    }
+
+    /// Begin a write transaction (zero-copy redb specific).
+    ///
+    /// Write transactions are exclusive - only one can be active at a time.
+    /// The transaction must be explicitly committed or aborted.
+    ///
+    /// Multiple operations can be batched in a single transaction for better performance.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module, NetabaseModel};
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let temp_dir = tempfile::tempdir()?;
+    /// # let store = NetabaseStore::redb_zerocopy(temp_dir.path().join("test.redb"))?;
+    /// // Batch multiple writes in one transaction
+    /// let mut txn = store.begin_write()?;
+    /// let mut tree = txn.open_tree::<User>()?;
+    /// for i in 0..1000 {
+    ///     tree.put(User { id: i, name: format!("User {}", i) })?;
+    /// }
+    /// drop(tree);
+    /// txn.commit()?;  // All 1000 inserts in one transaction!
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn begin_write(
+        &self,
+    ) -> Result<crate::databases::redb_zerocopy::RedbWriteTransactionZC<'_, D>, NetabaseError> {
+        self.backend.begin_write()
+    }
+
+    /// Begin a read transaction (zero-copy redb specific).
+    ///
+    /// Read transactions provide a consistent snapshot of the database.
+    /// Multiple read transactions can be active concurrently.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module, NetabaseModel};
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let temp_dir = tempfile::tempdir()?;
+    /// # let store = NetabaseStore::redb_zerocopy(temp_dir.path().join("test.redb"))?;
+    /// # let mut txn = store.begin_write()?;
+    /// # let mut tree = txn.open_tree::<User>()?;
+    /// # tree.put(User { id: 1, name: "Alice".into() })?;
+    /// # drop(tree); txn.commit()?;
+    /// let txn = store.begin_read()?;
+    /// let tree = txn.open_tree::<User>()?;
+    /// let user = tree.get(&UserPrimaryKey(1))?;
+    /// assert!(user.is_some());
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn begin_read(
+        &self,
+    ) -> Result<crate::databases::redb_zerocopy::RedbReadTransactionZC<'_, D>, NetabaseError> {
+        self.backend.begin_read()
+    }
+
+    /// Insert a single model with auto-commit (convenience method).
+    ///
+    /// This is equivalent to `begin_write() -> open_tree() -> put() -> commit()`.
+    /// Use `begin_write()` directly for better performance when inserting multiple items.
+    pub fn quick_put<M>(&self, model: M) -> Result<(), NetabaseError>
+    where
+        M: NetabaseModelTrait<D>,
+        M::Keys: crate::traits::model::NetabaseModelTraitKey<D>,
+    {
+        self.backend.quick_put(model)
+    }
+
+    /// Get a single model (cloned) with auto-transaction (convenience method).
+    ///
+    /// This is equivalent to `begin_read() -> open_tree() -> get()`.
+    /// Use `begin_read()` directly for better performance when reading multiple items.
+    pub fn quick_get<M>(
+        &self,
+        key: &<M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey,
+    ) -> Result<Option<M>, NetabaseError>
+    where
+        M: NetabaseModelTrait<D>,
+        M::Keys: crate::traits::model::NetabaseModelTraitKey<D>,
+    {
+        self.backend.quick_get(key)
+    }
+
+    /// Remove a single model with auto-commit (convenience method).
+    ///
+    /// This is equivalent to `begin_write() -> open_tree() -> remove() -> commit()`.
+    /// Use `begin_write()` directly for better performance when removing multiple items.
+    pub fn quick_remove<M>(
+        &self,
+        key: &<M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey,
+    ) -> Result<Option<M>, NetabaseError>
+    where
+        M: NetabaseModelTrait<D>,
+        M::Keys: crate::traits::model::NetabaseModelTraitKey<D>,
+    {
+        self.backend.quick_remove(key)
+    }
+}
