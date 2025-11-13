@@ -53,7 +53,7 @@ impl<T> NetabaseDiscriminant for T where
 
 /// A consolidated trait for key discriminant bounds.
 ///
-/// Similar to `NetabaseDiscriminant` but with fewer bounds (no AsRef<str>, Display, or FromStr)
+/// Similar to `NetabaseDiscriminant` but with fewer bounds (no `AsRef<str>`, Display, or FromStr)
 /// since key discriminants don't need string conversion capabilities.
 pub trait NetabaseKeyDiscriminant:
     Clone

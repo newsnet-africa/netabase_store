@@ -658,11 +658,14 @@ where
 /// # use netabase_store::*;
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// # let store = todo!();
+/// # let user_id = 1u64;
 /// # use netabase_store::databases::redb_zerocopy::with_read_transaction;
 /// let user = with_read_transaction(&store, |txn| {
 ///     let tree = txn.open_tree::<User>()?;
 ///     tree.get(&user_id)
 /// })?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn with_read_transaction<D, F, R>(
     store: &RedbStoreZeroCopy<D>,

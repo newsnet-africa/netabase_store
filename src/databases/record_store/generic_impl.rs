@@ -15,7 +15,7 @@ use libp2p::kad::{
 };
 use std::borrow::Cow;
 
-/// Generic RecordStore implementation for SledStore<D>
+/// Generic RecordStore implementation for `SledStore<D>`
 ///
 /// This works with any Definition type D by:
 /// 1. Deserializing Record values as the Definition enum
@@ -87,7 +87,7 @@ where
     }
 }
 
-/// Generic RecordStore implementation for RedbStore<D>
+/// Generic RecordStore implementation for `RedbStore<D>`
 #[cfg(all(feature = "libp2p", feature = "redb", not(target_arch = "wasm32")))]
 impl<D> RecordStore for RedbStore<D>
 where
