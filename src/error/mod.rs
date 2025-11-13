@@ -2,6 +2,8 @@
 pub enum NetabaseError {
     #[error("There was a conversion Error")]
     Conversion(#[from] EncodingDecodingError),
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
     #[cfg(feature = "sled")]
     #[error("There was an error with the Sled database")]
     SledDatabaseError(#[from] sled::Error),

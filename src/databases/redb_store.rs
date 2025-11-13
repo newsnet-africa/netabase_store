@@ -1,4 +1,6 @@
+use crate::config::FileConfig;
 use crate::error::NetabaseError;
+use crate::traits::backend_store::{BackendStore, PathBasedBackend};
 use crate::traits::convert::ToIVec;
 use crate::traits::definition::NetabaseDefinitionTrait;
 use crate::traits::model::{NetabaseModelTrait, NetabaseModelTraitKey};
@@ -266,6 +268,56 @@ where
             NetabaseError::Storage("Cannot compact: database has multiple references".to_string())
         })?;
         Ok(db.compact()?)
+    }
+}
+
+// BackendStore trait implementation
+impl<D> BackendStore<D> for RedbStore<D>
+where
+    D: NetabaseDefinitionTrait + ToIVec,
+    <D as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
+{
+    type Config = FileConfig;
+
+    fn new(config: Self::Config) -> Result<Self, NetabaseError> {
+        // Remove existing database if truncate is true
+        if config.truncate && config.path.exists() {
+            std::fs::remove_dir_all(&config.path)?;
+        }
+
+        let db = Database::create(&config.path)?;
+        Ok(Self {
+            db: Arc::new(db),
+            #[cfg(feature = "redb")]
+            tables: D::tables(),
+            trees: D::Discriminant::iter().collect(),
+        })
+    }
+
+    fn open(config: Self::Config) -> Result<Self, NetabaseError> {
+        let db = Database::open(&config.path)?;
+        Ok(Self {
+            db: Arc::new(db),
+            #[cfg(feature = "redb")]
+            tables: D::tables(),
+            trees: D::Discriminant::iter().collect(),
+        })
+    }
+
+    fn temp() -> Result<Self, NetabaseError> {
+        let config = FileConfig::temp();
+        <Self as BackendStore<D>>::new(config)
+    }
+}
+
+impl<D> PathBasedBackend<D> for RedbStore<D>
+where
+    D: NetabaseDefinitionTrait + ToIVec,
+    <D as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
+{
+    fn at_path<P: AsRef<Path>>(path: P) -> Result<Self, NetabaseError> {
+        let config = FileConfig::new(path.as_ref());
+        <Self as BackendStore<D>>::open(config)
     }
 }
 

@@ -1,12 +1,14 @@
 //! Basic example of using the redb backend
 //!
 //! This example demonstrates:
-//! - Creating a database
+//! - Creating a database with the new config API
 //! - Defining models with primary and secondary keys
 //! - CRUD operations
 //! - Secondary index queries
 
+use netabase_store::config::FileConfig;
 use netabase_store::databases::redb_store::RedbStore;
+use netabase_store::traits::backend_store::BackendStore;
 use netabase_store::{netabase, netabase_definition_module, NetabaseModel};
 
 // Define the database schema
@@ -41,11 +43,16 @@ use models::*;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Redb Backend Example\n");
 
-    // Create a temporary database
+    // Create a database using the new config API
     let db_path = "/tmp/redb_example.db";
     println!("📁 Creating database at: {}", db_path);
 
-    let store = RedbStore::<AppDef>::new(db_path)?;
+    let config = FileConfig::builder()
+        .path(db_path.into())
+        .truncate(true)  // Start fresh each time
+        .build();
+
+    let store = <RedbStore<AppDef> as BackendStore<AppDef>>::new(config)?;
     let tree = store.open_tree::<User>();
 
     println!("✅ Database and tree created successfully\n");

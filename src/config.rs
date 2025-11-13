@@ -197,7 +197,7 @@ mod tests {
     #[test]
     fn test_file_config_builder() {
         let config = FileConfig::builder()
-            .path("/tmp/test.db")
+            .path(PathBuf::from("/tmp/test.db"))
             .cache_size_mb(512)
             .create_if_missing(false)
             .build();

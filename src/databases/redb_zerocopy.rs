@@ -105,7 +105,9 @@
 //! - Single-operation transactions are fine
 //! - You want the simplest possible API
 
+use crate::config::FileConfig;
 use crate::error::NetabaseError;
+use crate::traits::backend_store::{BackendStore, PathBasedBackend};
 use crate::traits::definition::NetabaseDefinitionTrait;
 use crate::traits::model::{NetabaseModelTrait, NetabaseModelTraitKey};
 use crate::{MaybeSend, MaybeSync};
@@ -227,6 +229,50 @@ where
         drop(tree);
         txn.commit()?;
         Ok(result)
+    }
+}
+
+// BackendStore trait implementation
+impl<D> BackendStore<D> for RedbStoreZeroCopy<D>
+where
+    D: NetabaseDefinitionTrait,
+{
+    type Config = FileConfig;
+
+    fn new(config: Self::Config) -> Result<Self, NetabaseError> {
+        // Remove existing database if truncate is true
+        if config.truncate && config.path.exists() {
+            std::fs::remove_dir_all(&config.path)?;
+        }
+
+        let db = Database::create(&config.path)?;
+        Ok(Self {
+            db: Arc::new(db),
+            _phantom: PhantomData,
+        })
+    }
+
+    fn open(config: Self::Config) -> Result<Self, NetabaseError> {
+        let db = Database::open(&config.path)?;
+        Ok(Self {
+            db: Arc::new(db),
+            _phantom: PhantomData,
+        })
+    }
+
+    fn temp() -> Result<Self, NetabaseError> {
+        let config = FileConfig::temp();
+        <Self as BackendStore<D>>::new(config)
+    }
+}
+
+impl<D> PathBasedBackend<D> for RedbStoreZeroCopy<D>
+where
+    D: NetabaseDefinitionTrait,
+{
+    fn at_path<P: AsRef<Path>>(path: P) -> Result<Self, NetabaseError> {
+        let config = FileConfig::new(path.as_ref());
+        <Self as BackendStore<D>>::open(config)
     }
 }
 
