@@ -377,8 +377,8 @@ where
         // Insert into secondary indexes
         if !secondary_keys.is_empty() {
             let mut sec_table = self.txn.open_multimap_table(sec_table_def)?;
-            for sec_key in secondary_keys {
-                sec_table.insert(sec_key, primary_key.clone())?;
+            for sec_key in secondary_keys.values() {
+                sec_table.insert(sec_key.clone(), primary_key.clone())?;
             }
         }
 
@@ -403,8 +403,8 @@ where
             table.insert(wrapped_key, super::redb_store::BincodeWrapper(model))?;
 
             if !secondary_keys.is_empty() {
-                for sec_key in secondary_keys {
-                    sec_table.insert(sec_key, primary_key.clone())?;
+                for sec_key in secondary_keys.values() {
+                    sec_table.insert(sec_key.clone(), primary_key.clone())?;
                 }
             }
         }
@@ -460,8 +460,8 @@ where
             let secondary_keys = m.secondary_keys();
             if !secondary_keys.is_empty() {
                 let mut sec_table = self.txn.open_multimap_table(sec_table_def)?;
-                for sec_key in secondary_keys {
-                    sec_table.remove(sec_key, key.clone())?;
+                for sec_key in secondary_keys.values() {
+                    sec_table.remove(sec_key.clone(), key.clone())?;
                 }
             }
         }

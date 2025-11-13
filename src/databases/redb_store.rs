@@ -408,8 +408,8 @@ where
             // Insert secondary index entries: SecondaryKey -> PrimaryKey
             if !secondary_keys.is_empty() {
                 let mut sec_table = write_txn.open_multimap_table(sec_table_def)?;
-                for sec_key in secondary_keys {
-                    sec_table.insert(sec_key, primary_key.clone())?;
+                for sec_key in secondary_keys.values() {
+                    sec_table.insert(sec_key.clone(), primary_key.clone())?;
                 }
             }
         }
@@ -473,8 +473,8 @@ where
                 let secondary_keys = m.secondary_keys();
                 if !secondary_keys.is_empty() {
                     let mut sec_table = write_txn.open_multimap_table(sec_table_def)?;
-                    for sec_key in secondary_keys {
-                        sec_table.remove(sec_key, primary_key.clone())?;
+                    for sec_key in secondary_keys.values() {
+                        sec_table.remove(sec_key.clone(), primary_key.clone())?;
                     }
                 }
             }
@@ -508,8 +508,8 @@ where
                 let primary_key = model.primary_key();
                 let secondary_keys = model.secondary_keys();
                 if !secondary_keys.is_empty() {
-                    for sec_key in secondary_keys {
-                        sec_table.insert(sec_key, primary_key.clone())?;
+                    for sec_key in secondary_keys.values() {
+                        sec_table.insert(sec_key.clone(), primary_key.clone())?;
                     }
                 }
             }
@@ -1163,8 +1163,8 @@ where
 
                         // Insert secondary key entries: SecondaryKey -> PrimaryKey
                         if !secondary_keys.is_empty() {
-                            for sec_key in secondary_keys {
-                                sec_table.insert(sec_key, primary_key.clone())?;
+                            for sec_key in secondary_keys.values() {
+                                sec_table.insert(sec_key.clone(), primary_key.clone())?;
                             }
                         }
                     }
@@ -1177,7 +1177,7 @@ where
                             let model: M = model_guard.value();
                             model.secondary_keys()
                         } else {
-                            Vec::new()
+                            std::collections::HashMap::new()
                         };
 
                         // Remove from primary table
@@ -1185,8 +1185,8 @@ where
 
                         // Remove secondary key entries: SecondaryKey -> PrimaryKey
                         if !secondary_keys.is_empty() {
-                            for sec_key in secondary_keys {
-                                sec_table.remove(sec_key, key.clone())?;
+                            for sec_key in secondary_keys.values() {
+                                sec_table.remove(sec_key.clone(), key.clone())?;
                             }
                         }
                     }
