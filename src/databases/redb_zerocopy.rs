@@ -65,20 +65,32 @@
 //!
 //! ### Old API (redb_store)
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # use netabase_store::*;
+//! # fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! # let store = todo!();
+//! # let user = todo!();
 //! let tree = store.open_tree::<User>();
 //! tree.put(user)?; // Auto-commits (1 transaction per operation)
 //! let user = tree.get(key)?; // Always clones
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ### New API (redb_zerocopy)
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! # use netabase_store::*;
+//! # fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! # let store = todo!();
+//! # let user = todo!();
 //! let mut txn = store.begin_write()?;
 //! let mut tree = txn.open_tree::<User>()?;
 //! tree.put(user)?; // Batched in transaction
 //! drop(tree);
 //! txn.commit()?; // Explicit commit
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## When to Use
@@ -608,13 +620,21 @@ where
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust,no_run
+/// # use netabase_store::*;
+/// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// # let store = todo!();
+/// # let user1 = todo!();
+/// # let user2 = todo!();
+/// # use netabase_store::databases::redb_zerocopy::with_write_transaction;
 /// with_write_transaction(&store, |txn| {
 ///     let mut tree = txn.open_tree::<User>()?;
 ///     tree.put(user1)?;
 ///     tree.put(user2)?;
 ///     Ok(())
 /// })?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn with_write_transaction<D, F, R>(
     store: &RedbStoreZeroCopy<D>,
@@ -634,7 +654,11 @@ where
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust,no_run
+/// # use netabase_store::*;
+/// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// # let store = todo!();
+/// # use netabase_store::databases::redb_zerocopy::with_read_transaction;
 /// let user = with_read_transaction(&store, |txn| {
 ///     let tree = txn.open_tree::<User>()?;
 ///     tree.get(&user_id)

@@ -172,6 +172,9 @@ pub fn netabase(_defs: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// # Example
 ///
+/// This derive is automatically applied by `#[netabase_definition_module]`.
+/// Manual usage would look like:
+///
 /// ```ignore
 /// #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Display, AsRefStr, EnumIter, EnumString)]
 /// #[derive(NetabaseDiscriminant)]
@@ -180,6 +183,7 @@ pub fn netabase(_defs: TokenStream, input: TokenStream) -> TokenStream {
 ///     Variant2,
 /// }
 /// ```
+/// (Note: This is for illustration only - the macro handles this automatically)
 #[proc_macro_derive(NetabaseDiscriminant)]
 pub fn netabase_discriminant_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

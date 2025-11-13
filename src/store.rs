@@ -306,6 +306,53 @@ where
     pub fn write(&self) -> crate::transaction::TxnGuard<'_, D, crate::transaction::ReadWrite> {
         crate::transaction::TxnGuard::write_sled(self.backend.db())
     }
+
+    /// Execute a transaction on a single model tree (Sled-specific).
+    ///
+    /// This is Sled's native transaction API that provides ACID guarantees for operations
+    /// on a single model type. The transaction closure may be called multiple times if
+    /// there are conflicts.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `M` - The model type to operate on
+    /// * `F` - The transaction closure
+    /// * `R` - The return type
+    ///
+    /// # Arguments
+    ///
+    /// * `f` - Transaction closure that performs operations on the transactional tree
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(R)` - Transaction succeeded, returns result from closure
+    /// * `Err(NetabaseError)` - Transaction failed (conflict, I/O error, etc.)
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// // Atomic transfer between accounts
+    /// store.transaction::<Account, _, _>(|txn_tree| {
+    ///     let mut from = txn_tree.get(AccountPrimaryKey(1))?.unwrap();
+    ///     let mut to = txn_tree.get(AccountPrimaryKey(2))?.unwrap();
+    ///
+    ///     from.balance -= 100;
+    ///     to.balance += 100;
+    ///
+    ///     txn_tree.put(from)?;
+    ///     txn_tree.put(to)?;
+    ///
+    ///     Ok(())
+    /// })?;
+    /// ```
+    pub fn transaction<M, F, R>(&self, f: F) -> Result<R, NetabaseError>
+    where
+        M: NetabaseModelTrait<D> + TryFrom<D> + Into<D>,
+        D: TryFrom<M>,
+        F: Fn(&crate::databases::sled_store::SledTransactionalTree<D, M>) -> Result<R, Box<dyn std::error::Error>>,
+    {
+        self.backend.transaction(f)
+    }
 }
 
 #[cfg(feature = "redb")]

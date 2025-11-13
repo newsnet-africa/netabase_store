@@ -459,6 +459,261 @@ where
     pub fn flush(&self) -> Result<usize, NetabaseError> {
         Ok(self.db.flush()?)
     }
+
+    /// Execute a transaction on a single model tree.
+    ///
+    /// Provides ACID transaction semantics for operations on a single model type.
+    /// The closure receives a `SledTransactionalTree` that provides atomic operations.
+    /// All operations either succeed together or fail together.
+    ///
+    /// The transaction closure may be called multiple times if there are conflicts,
+    /// so it should be idempotent and avoid side effects.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `M` - The model type to operate on
+    /// * `F` - The transaction closure
+    /// * `R` - The return type
+    ///
+    /// # Arguments
+    ///
+    /// * `f` - Transaction closure that performs operations on the transactional tree
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(R)` - Transaction succeeded, returns result from closure
+    /// * `Err(NetabaseError)` - Transaction failed (conflict, I/O error, etc.)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+    /// # use netabase_store::databases::sled_store::SledStore;
+    /// # use netabase_store::traits::model::NetabaseModelTrait;
+    /// # #[netabase_definition_module(BankDef, BankKeys)]
+    /// # mod bank {
+    /// #     use super::*;
+    /// #     use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq, bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(BankDef)]
+    /// #     pub struct Account {
+    /// #         #[primary_key] pub id: u64,
+    /// #         pub balance: i64,
+    /// #     }
+    /// # }
+    /// # use bank::*;
+    /// # use netabase_store::traits::tree::NetabaseTreeSync;
+    /// let store = SledStore::<BankDef>::temp().unwrap();
+    /// let tree = store.open_tree::<Account>();
+    ///
+    /// // Set up initial accounts
+    /// tree.put(Account { id: 1, balance: 1000 }).unwrap();
+    /// tree.put(Account { id: 2, balance: 500 }).unwrap();
+    ///
+    /// // Atomic transfer between accounts
+    /// store.transaction::<Account, _, _>(|txn_tree| {
+    ///     // Get both accounts
+    ///     let mut from_account = txn_tree.get(Account { id: 1, balance: 0 }.primary_key())?
+    ///         .ok_or_else(|| "Account not found")?;
+    ///     let mut to_account = txn_tree.get(Account { id: 2, balance: 0 }.primary_key())?
+    ///         .ok_or_else(|| "Account not found")?;
+    ///
+    ///     // Transfer $100
+    ///     from_account.balance -= 100;
+    ///     to_account.balance += 100;
+    ///
+    ///     // Update both atomically
+    ///     txn_tree.put(from_account)?;
+    ///     txn_tree.put(to_account)?;
+    ///
+    ///     Ok(())
+    /// }).unwrap();
+    /// ```
+    pub fn transaction<M, F, R>(&self, f: F) -> Result<R, NetabaseError>
+    where
+        M: NetabaseModelTrait<D> + TryFrom<D> + Into<D>,
+        D: TryFrom<M>,
+        F: Fn(&SledTransactionalTree<D, M>) -> Result<R, Box<dyn std::error::Error>>,
+    {
+        let tree = self.db.open_tree(M::DISCRIMINANT.to_string())?;
+        let sec_tree_name = format!("{}_secondary", M::discriminant_name());
+        let secondary_tree = self.db.open_tree(sec_tree_name)?;
+
+        tree.transaction(|txn_tree| {
+            let wrapper = SledTransactionalTree {
+                tree: txn_tree.clone(),
+                secondary_tree: secondary_tree.clone(),
+                _phantom_d: PhantomData,
+                _phantom_m: PhantomData,
+            };
+
+            f(&wrapper).map_err(sled::transaction::ConflictableTransactionError::Abort)
+        })
+        .map_err(|e| match e {
+            sled::transaction::TransactionError::Abort(e) => {
+                NetabaseError::Transaction(format!("Transaction aborted: {}", e))
+            }
+            sled::transaction::TransactionError::Storage(e) => e.into(),
+        })
+    }
+}
+
+/// Type-safe wrapper around a sled transactional tree.
+///
+/// `SledTransactionalTree` provides ACID transaction operations on a specific model type.
+/// This wrapper is used within transaction closures to perform atomic operations.
+///
+/// # Type Parameters
+///
+/// * `D` - The definition type
+/// * `M` - The model type
+///
+/// # Note
+///
+/// This type is only used within transaction closures and cannot be constructed directly.
+/// Use `SledStore::transaction()` to create a transaction context.
+pub struct SledTransactionalTree<D, M>
+where
+    D: NetabaseDefinitionTrait,
+    M: NetabaseModelTrait<D>,
+    <D as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + MaybeSend
+        + MaybeSync
+        + 'static
+        + FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSync,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSend,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
+{
+    tree: sled::transaction::TransactionalTree,
+    secondary_tree: sled::Tree,
+    _phantom_d: PhantomData<D>,
+    _phantom_m: PhantomData<M>,
+}
+
+impl<D, M> SledTransactionalTree<D, M>
+where
+    D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
+    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D>,
+    <D as IntoDiscriminant>::Discriminant: Clone
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + strum::IntoEnumIterator
+        + MaybeSend
+        + MaybeSync
+        + 'static
+        + FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: std::marker::Copy,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
+    <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Display,
+    <D as strum::IntoDiscriminant>::Discriminant: FromStr,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSync,
+    <D as strum::IntoDiscriminant>::Discriminant: MaybeSend,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
+{
+    /// Insert or update a model in the transaction.
+    pub fn put(&self, model: M) -> Result<(), Box<dyn std::error::Error>> {
+        let primary_key = model.primary_key();
+        let secondary_keys = model.secondary_keys();
+
+        let key_bytes = bincode::encode_to_vec(&primary_key, bincode::config::standard())?;
+        let definition: D = model.into();
+        let value_bytes = definition.to_ivec()?;
+
+        self.tree.insert(key_bytes, value_bytes.as_ref())?;
+
+        // Handle secondary keys
+        if !secondary_keys.is_empty() {
+            for sec_key in secondary_keys {
+                let composite_key = self.build_composite_key(&sec_key, &primary_key)?;
+                self.secondary_tree.insert(composite_key, &[] as &[u8])?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Get a model by its primary key within the transaction.
+    pub fn get(
+        &self,
+        key: <M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey,
+    ) -> Result<Option<M>, Box<dyn std::error::Error>> {
+        let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())?;
+
+        match self.tree.get(&key_bytes)? {
+            Some(ivec) => {
+                let definition = D::from_ivec(&ivec)?;
+                match M::try_from(definition) {
+                    Ok(model) => Ok(Some(model)),
+                    Err(_) => Ok(None),
+                }
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Remove a model by its primary key within the transaction.
+    pub fn remove(
+        &self,
+        key: <M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey,
+    ) -> Result<Option<M>, Box<dyn std::error::Error>> {
+        let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())?;
+
+        match self.tree.remove(key_bytes.as_slice())? {
+            Some(ivec) => {
+                let definition = D::from_ivec(&ivec)?;
+                match M::try_from(definition) {
+                    Ok(model) => {
+                        // Clean up secondary keys
+                        let secondary_keys = model.secondary_keys();
+                        if !secondary_keys.is_empty() {
+                            for sec_key in &secondary_keys {
+                                let composite_key = self.build_composite_key(sec_key, &key)?;
+                                self.secondary_tree.remove(composite_key)?;
+                            }
+                        }
+                        Ok(Some(model))
+                    }
+                    Err(_) => Ok(None),
+                }
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Build a composite key from secondary key + primary key
+    fn build_composite_key(
+        &self,
+        secondary_key: &<M::Keys as NetabaseModelTraitKey<D>>::SecondaryKey,
+        primary_key: &<M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey,
+    ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let mut composite_key = bincode::encode_to_vec(secondary_key, bincode::config::standard())?;
+        let prim_key_bytes = bincode::encode_to_vec(primary_key, bincode::config::standard())?;
+        composite_key.extend_from_slice(&prim_key_bytes);
+        Ok(composite_key)
+    }
 }
 
 /// Type-safe wrapper around a sled tree for a specific model type.

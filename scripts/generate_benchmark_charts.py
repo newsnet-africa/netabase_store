@@ -27,6 +27,7 @@ COLORS = {
     'sled_raw_batch': '#1a5a8a',
     'sled_wrapper': '#ff7f0e',
     'sled_wrapper_loop': '#ff7f0e',
+    'sled_wrapper_txn': '#cc6600',  # Darker orange for sled transaction
 
     # Redb raw benchmarks
     'redb_raw': '#2ca02c',
@@ -174,6 +175,11 @@ def generate_insert_comparison_bar_chart(data: Dict):
     for impl_data in data.values():
         all_sizes.update(impl_data.keys())
     sizes = sorted([s for s in all_sizes if isinstance(s, int)])
+
+    # Check if we have any data
+    if not sizes:
+        print("Warning: No insert benchmark data found with size parameters")
+        return
 
     # Create subplots based on number of sizes
     n_sizes = len(sizes)
