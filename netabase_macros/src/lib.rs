@@ -104,12 +104,147 @@ mod visitors;
 /// )?;
 /// ```
 ///
+/// # What Gets Generated
+///
+/// For a model like this:
+/// ```ignore
+/// #[derive(NetabaseModel, Clone, bincode::Encode, bincode::Decode)]
+/// #[netabase(MyDef)]
+/// pub struct User {
+///     #[primary_key]
+///     pub id: u64,
+///     pub name: String,
+///     #[secondary_key]
+///     pub email: String,
+///     #[secondary_key]
+///     pub age: u32,
+/// }
+/// ```
+///
+/// The macro generates the following code:
+///
+/// ## 1. Primary Key Newtype
+/// ```ignore
+/// #[derive(Debug, Clone, PartialEq, Eq, ...)]
+/// pub struct UserPrimaryKey(pub u64);
+/// ```
+/// **Why:** Type safety prevents accidentally using a PostPrimaryKey with a User tree.
+/// **How to use:** `tree.get(UserPrimaryKey(1))?` or `user.primary_key()`
+///
+/// ## 2. Secondary Key Newtypes
+/// ```ignore
+/// #[derive(Debug, Clone, PartialEq, Eq, ...)]
+/// pub struct UserEmailSecondaryKey(pub String);
+///
+/// #[derive(Debug, Clone, PartialEq, Eq, ...)]
+/// pub struct UserAgeSecondaryKey(pub u32);
+/// ```
+/// **Why:** Model-prefixed to avoid conflicts when multiple models have `email` fields.
+/// **How to use:** Part of the SecondaryKeys enum (see below).
+///
+/// ## 3. Secondary Keys Enum
+/// ```ignore
+/// #[derive(Debug, Clone, PartialEq, Eq, ...)]
+/// pub enum UserSecondaryKeys {
+///     Email(UserEmailSecondaryKey),
+///     Age(UserAgeSecondaryKey),
+/// }
+/// ```
+/// **Why:** Unified type for querying by any secondary key.
+/// **How to use:** `tree.get_by_secondary_key(UserSecondaryKeys::Email(...))?`
+///
+/// ## 4. Combined Keys Enum
+/// ```ignore
+/// #[derive(Debug, Clone, PartialEq, Eq, ...)]
+/// pub enum UserKey {
+///     Primary(UserPrimaryKey),
+///     Secondary(UserSecondaryKeys),
+/// }
+/// ```
+/// **Why:** Allows working with any key type in batch operations.
+/// **How to use:** Usually automatic, but can use `UserKey::Primary(...)` explicitly.
+///
+/// ## 5. NetabaseModelTrait Implementation
+/// ```ignore
+/// impl NetabaseModelTrait<MyDef> for User {
+///     type PrimaryKey = UserPrimaryKey;
+///     type SecondaryKeys = UserSecondaryKeys;
+///     type Keys = UserKey;
+///
+///     fn primary_key(&self) -> Self::PrimaryKey {
+///         UserPrimaryKey(self.id)
+///     }
+///
+///     fn secondary_keys(&self) -> Vec<Self::SecondaryKeys> {
+///         vec![
+///             UserSecondaryKeys::Email(UserEmailSecondaryKey(self.email.clone())),
+///             UserSecondaryKeys::Age(UserAgeSecondaryKey(self.age)),
+///         ]
+///     }
+///
+///     fn discriminant_name() -> &'static str { "User" }
+/// }
+/// ```
+/// **Why:** Provides runtime access to keys from model instances.
+/// **How to use:** Automatic - called internally by tree operations.
+///
+/// ## 6. Borrow Implementations
+/// ```ignore
+/// impl Borrow<u64> for UserPrimaryKey { ... }
+/// impl Borrow<String> for UserEmailSecondaryKey { ... }
+/// // ... more Borrow impls
+/// ```
+/// **Why:** Enables efficient lookups without allocating new key instances.
+/// **How to use:** Automatic - allows `tree.get(&1)` instead of `tree.get(UserPrimaryKey(1))`.
+///
+/// # Why This Architecture?
+///
+/// 1. **Type Safety** - Can't accidentally use wrong key type with wrong model
+/// 2. **Zero Cost** - Newtypes compile to the same code as raw types
+/// 3. **Ergonomics** - Single trait covers all models, consistent API
+/// 4. **Flexibility** - Easy to add new models or key types
+/// 5. **Performance** - Borrow traits enable zero-allocation lookups
+///
+/// # Common Patterns
+///
+/// ## Inserting a Model
+/// ```ignore
+/// let user = User { id: 1, name: "Alice".into(), email: "alice@example.com".into(), age: 30 };
+/// tree.put(user)?;  // Automatically extracts and stores both primary and secondary keys
+/// ```
+///
+/// ## Querying by Primary Key
+/// ```ignore
+/// let user = tree.get(UserPrimaryKey(1))?;
+/// // Or with borrowing:
+/// let user = tree.get(&1)?;
+/// ```
+///
+/// ## Querying by Secondary Key
+/// ```ignore
+/// let users = tree.get_by_secondary_key(
+///     UserSecondaryKeys::Email(UserEmailSecondaryKey("alice@example.com".to_string()))
+/// )?;
+/// // Returns Vec<User> since multiple users could share the same secondary key value
+/// ```
+///
 /// ## Supported Primary Key Types
 ///
 /// - Primitives: `u8`, `u16`, `u32`, `u64`, `u128`, `i8`, `i16`, `i32`, `i64`, `i128`
 /// - `String`
 /// - `uuid::Uuid` (with uuid crate)
 /// - Any type that implements `bincode::Encode + bincode::Decode + Clone`
+///
+/// # Troubleshooting
+///
+/// **Error: "expected type, found module"**
+/// - Make sure you imported the definition: `use my_module::MyDefinition;`
+///
+/// **Error: "trait bounds not satisfied"**
+/// - Ensure your struct derives all required traits: `Clone`, `bincode::Encode`, `bincode::Decode`
+///
+/// **Error: "no primary key found"**
+/// - Add exactly one `#[primary_key]` attribute to a field
 ///
 /// # See Also
 ///
@@ -314,26 +449,157 @@ pub fn redb_zerocopy(_attr: TokenStream, input: TokenStream) -> TokenStream {
 /// }
 /// ```
 ///
-/// # Generated Code
+/// # What Gets Generated
 ///
-/// For a module with models `User` and `Post`, this generates:
+/// For a definition module with models `User` and `Post`:
 ///
+/// ```ignore
+/// #[netabase_definition_module(BlogSchema, BlogKeys)]
+/// mod blog {
+///     #[derive(NetabaseModel, ...)]
+///     #[netabase(BlogSchema)]
+///     pub struct User { #[primary_key] pub id: u64, ... }
+///
+///     #[derive(NetabaseModel, ...)]
+///     #[netabase(BlogSchema)]
+///     pub struct Post { #[primary_key] pub id: String, ... }
+/// }
 /// ```
-/// pub enum DefinitionName {
+///
+/// The macro generates:
+///
+/// ## 1. Definition Enum
+/// ```ignore
+/// #[derive(Clone, Debug, PartialEq, Eq, bincode::Encode, bincode::Decode, ...)]
+/// #[derive(strum::EnumDiscriminants, strum::IntoStaticStr, ...)]
+/// #[strum_discriminants(derive(EnumIter, Display, AsRefStr, EnumString, Hash))]
+/// #[strum_discriminants(name(BlogSchemaDiscriminant))]
+/// pub enum BlogSchema {
 ///     User(User),
 ///     Post(Post),
 /// }
+/// ```
+/// **Why:** Allows storing any model from this schema in a unified type.
+/// **How to use:** Usually automatic, but can do `BlogSchema::User(user)` explicitly.
 ///
-/// pub enum KeysEnumName {
-///     UserPrimary(UserPrimaryKey),
-///     UserSecondary(UserSecondaryKeys),
-///     PostPrimary(PostPrimaryKey),
-///     PostSecondary(PostSecondaryKeys),
+/// ## 2. Discriminant Enum (Auto-generated by strum)
+/// ```ignore
+/// pub enum BlogSchemaDiscriminant {
+///     User,
+///     Post,
+/// }
+/// ```
+/// **Why:** Used as table/tree names, provides efficient type identification.
+/// **How to use:** Automatic - used internally to identify which model type.
+///
+/// ## 3. Keys Enum
+/// ```ignore
+/// #[derive(Clone, Debug, PartialEq, Eq, bincode::Encode, bincode::Decode, ...)]
+/// #[derive(strum::EnumDiscriminants)]
+/// #[strum_discriminants(name(BlogKeysDiscriminant))]
+/// pub enum BlogKeys {
+///     UserKey(UserKey),
+///     PostKey(PostKey),
+/// }
+/// ```
+/// **Why:** Allows working with keys from any model in batch operations.
+/// **How to use:** `tree.get_by_key(BlogKeys::UserKey(UserKey::Primary(...)))?`
+///
+/// ## 4. Table Definitions Struct (Redb only)
+/// ```ignore
+/// pub struct BlogSchemaTables {
+///     pub user: TableDefinition<'static, BincodeWrapper<UserPrimaryKey>, BincodeWrapper<User>>,
+///     pub user_secondary: MultimapTableDefinition<'static, BincodeWrapper<CompositeKey<...>>, ()>,
+///     pub post: TableDefinition<'static, BincodeWrapper<PostPrimaryKey>, BincodeWrapper<Post>>,
+///     pub post_secondary: MultimapTableDefinition<'static, BincodeWrapper<CompositeKey<...>>, ()>,
+/// }
+/// ```
+/// **Why:** Redb requires static table definitions for zero-copy operations.
+/// **How to use:** Automatic - accessed via `store.tables()`.
+///
+/// ## 5. NetabaseDefinitionTrait Implementation
+/// ```ignore
+/// impl NetabaseDefinitionTrait for BlogSchema {
+///     type Keys = BlogKeys;
+///     type Discriminant = BlogSchemaDiscriminant;
+///     type Tables = BlogSchemaTables;
+/// }
+/// ```
+/// **Why:** Enables generic code that works with any definition.
+/// **How to use:** Automatic - used by `SledStore<BlogSchema>`, etc.
+///
+/// ## 6. Conversion Traits
+/// ```ignore
+/// // Convert from specific model to definition
+/// impl From<User> for BlogSchema {
+///     fn from(value: User) -> Self { BlogSchema::User(value) }
+/// }
+/// impl From<Post> for BlogSchema {
+///     fn from(value: Post) -> Self { BlogSchema::Post(value) }
 /// }
 ///
-/// // Plus trait implementations for NetabaseDefinitionTrait
-/// // Plus From/TryFrom conversions
+/// // Convert from definition to specific model
+/// impl TryFrom<BlogSchema> for User {
+///     type Error = String;
+///     fn try_from(value: BlogSchema) -> Result<Self, Self::Error> {
+///         match value {
+///             BlogSchema::User(u) => Ok(u),
+///             _ => Err("Expected User variant".to_string()),
+///         }
+///     }
+/// }
+/// // ... similar for Post
 /// ```
+/// **Why:** Enables type-safe conversions between models and definition enum.
+/// **How to use:** Usually automatic, but can use `.into()` and `.try_into()`.
+///
+/// # Why This Architecture?
+///
+/// 1. **Schema Cohesion** - Related models grouped together logically
+/// 2. **Type Safety** - Can't mix models from different schemas
+/// 3. **Performance** - Discriminants enable O(1) type identification
+/// 4. **Flexibility** - Easy to add new models to existing schema
+/// 5. **Backend Agnostic** - Same schema works with Sled, Redb, IndexedDB
+///
+/// # Common Patterns
+///
+/// ## Creating a Store with a Definition
+/// ```ignore
+/// let store = SledStore::<BlogSchema>::new("./blog.db")?;
+/// // Or
+/// let store = RedbStore::<BlogSchema>::new("./blog.redb")?;
+/// ```
+///
+/// ## Opening Trees for Different Models
+/// ```ignore
+/// let users = store.open_tree::<User>();
+/// let posts = store.open_tree::<Post>();
+///
+/// users.put(User { id: 1, ... })?;
+/// posts.put(Post { id: "post-1".into(), ... })?;
+/// ```
+///
+/// ## Working with the Definition Enum
+/// ```ignore
+/// // Store any model in the definition
+/// let item: BlogSchema = user.into();
+/// // Or
+/// let item = BlogSchema::User(user);
+///
+/// // Extract specific model back
+/// let user: User = item.try_into()?;
+/// ```
+///
+/// # Troubleshooting
+///
+/// **Error: "expected type, found macro"**
+/// - Ensure macro is imported: `use netabase_store::netabase_definition_module;`
+///
+/// **Error: "no models found in module"**
+/// - Make sure at least one struct has `#[derive(NetabaseModel)]` and `#[netabase(DefinitionName)]`
+///
+/// **Error: "mismatched definition names"**
+/// - All models must use the same definition name in `#[netabase(...)]`
 ///
 /// # Complete Example
 ///
