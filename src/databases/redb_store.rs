@@ -196,10 +196,29 @@ where
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # use netabase_store::databases::redb_store::RedbStore;
+    /// # use netabase_store::netabase_definition_module;
+    /// # #[netabase_definition_module(MyDefinition, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDefinition)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let store = RedbStore::<MyDefinition>::new("db.redb")?;
     /// let tables = store.tables();
-    /// // Access specific table definitions: tables.users, tables.posts, etc.
+    /// // Access specific table definitions
+    /// # Ok(())
+    /// # }
     /// ```
     #[cfg(feature = "redb")]
     pub fn tables(&self) -> &D::Tables {

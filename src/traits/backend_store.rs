@@ -19,19 +19,37 @@ use std::path::Path;
 ///
 /// # Examples
 ///
-/// ```ignore
-/// use netabase_store::traits::backend_store::BackendStore;
-/// use netabase_store::config::FileConfig;
-///
+/// ```no_run
+/// # use netabase_store::traits::backend_store::BackendStore;
+/// # use netabase_store::config::FileConfig;
+/// # use netabase_store::databases::sled_store::SledStore;
+/// # use netabase_store::netabase_definition_module;
+/// # #[netabase_definition_module(MyDef, MyKeys)]
+/// # mod models {
+/// #     use netabase_store::{NetabaseModel, netabase};
+/// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+/// #              bincode::Encode, bincode::Decode,
+/// #              serde::Serialize, serde::Deserialize)]
+/// #     #[netabase(MyDef)]
+/// #     pub struct User {
+/// #         #[primary_key]
+/// #         pub id: u64,
+/// #         pub name: String,
+/// #     }
+/// # }
+/// # use models::*;
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// // Unified API across all backends
 /// let config = FileConfig::new("my_store.db");
-/// let store = SledStore::new(config)?;
+/// let store = SledStore::<MyDef>::new(config)?;
 ///
 /// // Or open existing
-/// let store = SledStore::open(config)?;
+/// let store = SledStore::<MyDef>::open(config)?;
 ///
 /// // Temporary store
-/// let temp_store = SledStore::temp()?;
+/// let temp_store = SledStore::<MyDef>::temp()?;
+/// # Ok(())
+/// # }
 /// ```
 pub trait BackendStore<D: NetabaseDefinitionTrait>: Sized {
     /// Backend-specific configuration type

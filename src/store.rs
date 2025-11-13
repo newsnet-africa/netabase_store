@@ -6,17 +6,39 @@
 //!
 //! # Examples
 //!
-//! ```ignore
-//! use netabase_store::NetabaseStore;
+//! ```no_run
+//! use netabase_store::{NetabaseStore, netabase_definition_module, NetabaseModel};
+//! use netabase_store::traits::tree::NetabaseTreeSync;
+//! use netabase_store::traits::model::NetabaseModelTrait;
 //!
+//! #[netabase_definition_module(MyDef, MyKeys)]
+//! mod models {
+//!     use netabase_store::{NetabaseModel, netabase};
+//!     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+//!              bincode::Encode, bincode::Decode,
+//!              serde::Serialize, serde::Deserialize)]
+//!     #[netabase(MyDef)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: u64,
+//!         pub name: String,
+//!     }
+//! }
+//! use models::*;
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Create a Sled-backed store
-//! let store = NetabaseStore::sled("./data")?;
+//! let temp_dir = tempfile::tempdir()?;
+//! let store = NetabaseStore::sled(temp_dir.path().join("data"))?;
 //! let tree = store.open_tree::<User>();
-//! tree.put_raw(user)?;
+//! let user = User { id: 1, name: "Alice".to_string() };
+//! tree.put(user)?;
 //!
 //! // Create a Redb-backed store
-//! let store = NetabaseStore::redb("./data.redb")?;
+//! let store = NetabaseStore::redb(temp_dir.path().join("data.redb"))?;
 //! let tree = store.open_tree::<User>();
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::error::NetabaseError;
@@ -130,9 +152,29 @@ where
     /// # Type Parameters
     ///
     /// You must specify both the Definition and Backend types using turbofish syntax:
-    /// ```ignore
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # use netabase_store::databases::sled_store::SledStore;
+    /// # use netabase_store::databases::redb_store::RedbStore;
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let store = NetabaseStore::<MyDef, SledStore<MyDef>>::new("./db")?;
     /// let store = NetabaseStore::<MyDef, RedbStore<MyDef>>::new("./db.redb")?;
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// # Arguments
@@ -339,9 +381,27 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let store = NetabaseStore::<MyDefinition, _>::sled("./db")?;
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDefinition, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDefinition)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let store = NetabaseStore::sled("./db")?;
     /// let user_tree = store.open_tree::<User>();
+    /// # Ok(())
+    /// # }
     /// ```
     #[inline]
     pub fn open_tree<M>(&self) -> Backend::Tree<'_>
@@ -365,8 +425,25 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let store = NetabaseStore::<MyDefinition, _>::sled("./my_database")?;
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDefinition, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDefinition)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let store = NetabaseStore::sled("./my_database")?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn sled<P: AsRef<Path>>(path: P) -> Result<Self, NetabaseError> {
         Ok(Self::from_backend(
@@ -381,8 +458,25 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let store = NetabaseStore::<MyDefinition, _>::temp()?;
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDefinition, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDefinition)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let store = NetabaseStore::temp()?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn temp() -> Result<Self, NetabaseError> {
         Ok(Self::from_backend(
@@ -401,8 +495,25 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDefinition, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDefinition)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let store = NetabaseStore::redb("./my_database.redb")?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn redb<P: AsRef<Path>>(path: P) -> Result<Self, NetabaseError> {
         Ok(Self::from_backend(
@@ -430,7 +541,21 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDefinition, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDefinition)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #     }
+    /// # }
+    /// # use models::*;
     /// let store = NetabaseStore::memory();
     /// ```
     pub fn memory() -> Self {
@@ -481,10 +606,29 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDefinition, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDefinition)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = NetabaseStore::sled("./db")?;
     /// let txn = store.read();
     /// let tree = txn.open_tree::<User>();
     /// let user = tree.get(UserPrimaryKey(1))?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn read(&self) -> crate::transaction::TxnGuard<'_, D, crate::transaction::ReadOnly> {
         crate::transaction::TxnGuard::read_sled(self.backend.db())
@@ -497,11 +641,31 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDefinition, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDefinition)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = NetabaseStore::sled("./db")?;
+    /// # let user = User { id: 1, name: "Alice".to_string() };
     /// let mut txn = store.write();
     /// let mut tree = txn.open_tree::<User>();
     /// tree.put(user)?;
     /// txn.commit()?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn write(&self) -> crate::transaction::TxnGuard<'_, D, crate::transaction::ReadWrite> {
         crate::transaction::TxnGuard::write_sled(self.backend.db())
@@ -530,7 +694,24 @@ where
     ///
     /// # Examples
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
+    /// # #[netabase_definition_module(MyDefinition, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDefinition)]
+    /// #     pub struct Account {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub balance: i64,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let store = NetabaseStore::sled("./db")?;
     /// // Atomic transfer between accounts
     /// store.transaction::<Account, _, _>(|txn_tree| {
     ///     let mut from = txn_tree.get(AccountPrimaryKey(1))?.unwrap();
@@ -544,6 +725,8 @@ where
     ///
     ///     Ok(())
     /// })?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn transaction<M, F, R>(&self, f: F) -> Result<R, NetabaseError>
     where
