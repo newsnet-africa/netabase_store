@@ -208,36 +208,153 @@ mod visitors;
 /// # Common Patterns
 ///
 /// ## Inserting a Model
-/// ```ignore
+/// ```rust
+/// use netabase_store::{NetabaseModel, netabase_definition_module};
+/// use netabase_store::databases::sled_store::SledStore;
+/// use netabase_store::traits::tree::NetabaseTreeSync;
+///
+/// #[netabase_definition_module(MyDef, MyKeys)]
+/// mod models {
+///     use netabase_store::{NetabaseModel, netabase};
+///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+///              bincode::Encode, bincode::Decode,
+///              serde::Serialize, serde::Deserialize)]
+///     #[netabase(MyDef)]
+///     pub struct User {
+///         #[primary_key]
+///         pub id: u64,
+///         pub name: String,
+///         #[secondary_key]
+///         pub email: String,
+///         pub age: u32,
+///     }
+/// }
+/// use models::*;
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let store = SledStore::<MyDef>::temp()?;
+/// let tree = store.open_tree::<User>();
+///
 /// let user = User { id: 1, name: "Alice".into(), email: "alice@example.com".into(), age: 30 };
 /// tree.put(user)?;  // Automatically extracts and stores both primary and secondary keys
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// ## Querying by Primary Key
-/// ```ignore
-/// let user = tree.get(UserPrimaryKey(1))?;
-/// // Or with borrowing:
-/// let user = tree.get(&1)?;
+/// ```rust
+/// use netabase_store::{NetabaseModel, netabase_definition_module};
+/// use netabase_store::databases::sled_store::SledStore;
+/// use netabase_store::traits::tree::NetabaseTreeSync;
+/// use netabase_store::traits::model::NetabaseModelTrait;
+///
+/// #[netabase_definition_module(MyDef, MyKeys)]
+/// mod models {
+///     use netabase_store::{NetabaseModel, netabase};
+///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+///              bincode::Encode, bincode::Decode,
+///              serde::Serialize, serde::Deserialize)]
+///     #[netabase(MyDef)]
+///     pub struct User {
+///         #[primary_key]
+///         pub id: u64,
+///         pub name: String,
+///     }
+/// }
+/// use models::*;
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let store = SledStore::<MyDef>::temp()?;
+/// let tree = store.open_tree::<User>();
+/// let user = User { id: 1, name: "Alice".into() };
+/// tree.put(user.clone())?;
+///
+/// // Query with newtype
+/// let retrieved = tree.get(user.primary_key())?;
+/// assert!(retrieved.is_some());
+///
+/// // Or with borrowing (Sled backend):
+/// let retrieved2 = tree.get(&1)?;
+/// assert_eq!(retrieved2.unwrap(), user);
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// ## Querying by Secondary Key
 ///
 /// ### Verbose API
-/// ```ignore
+/// ```rust
+/// use netabase_store::{NetabaseModel, netabase_definition_module};
+/// use netabase_store::databases::sled_store::SledStore;
+/// use netabase_store::traits::tree::NetabaseTreeSync;
+///
+/// #[netabase_definition_module(MyDef, MyKeys)]
+/// mod models {
+///     use netabase_store::{NetabaseModel, netabase};
+///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+///              bincode::Encode, bincode::Decode,
+///              serde::Serialize, serde::Deserialize)]
+///     #[netabase(MyDef)]
+///     pub struct User {
+///         #[primary_key]
+///         pub id: u64,
+///         #[secondary_key]
+///         pub email: String,
+///     }
+/// }
+/// use models::*;
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let store = SledStore::<MyDef>::temp()?;
+/// let tree = store.open_tree::<User>();
+/// let user = User { id: 1, email: "alice@example.com".into() };
+/// tree.put(user)?;
+///
 /// let users = tree.get_by_secondary_key(
 ///     UserSecondaryKeys::Email(UserEmailSecondaryKey("alice@example.com".to_string()))
 /// )?;
 /// // Returns Vec<User> since multiple users could share the same secondary key value
+/// assert_eq!(users.len(), 1);
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// ### Ergonomic API (Convenience Extension Traits)
 ///
 /// The macro also generates extension traits for each secondary key:
-/// ```ignore
-/// use my_models::AsUserEmail;  // Generated trait
+/// ```rust
+/// use netabase_store::{NetabaseModel, netabase_definition_module};
+/// use netabase_store::databases::sled_store::SledStore;
+/// use netabase_store::traits::tree::NetabaseTreeSync;
+///
+/// #[netabase_definition_module(MyDef, MyKeys)]
+/// mod models {
+///     use netabase_store::{NetabaseModel, netabase};
+///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+///              bincode::Encode, bincode::Decode,
+///              serde::Serialize, serde::Deserialize)]
+///     #[netabase(MyDef)]
+///     pub struct User {
+///         #[primary_key]
+///         pub id: u64,
+///         #[secondary_key]
+///         pub email: String,
+///     }
+/// }
+/// use models::*;
+/// use models::AsUserEmail;  // Generated trait
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let store = SledStore::<MyDef>::temp()?;
+/// let tree = store.open_tree::<User>();
+/// let user = User { id: 1, email: "alice@example.com".into() };
+/// tree.put(user)?;
 ///
 /// // Much more ergonomic!
 /// let users = tree.get_by_secondary_key("alice@example.com".as_user_email_key())?;
+/// assert_eq!(users.len(), 1);
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// Generated traits follow the pattern `As{Model}{Field}` with method `as_{model}_{field}_key()`:
