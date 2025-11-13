@@ -795,7 +795,7 @@ where
 
                 // Handle secondary keys
                 if !secondary_keys.is_empty() {
-                    for sec_key in secondary_keys {
+                    for sec_key in secondary_keys.values() {
                         let composite_key = (sec_key, primary_key.clone());
                         let composite_bytes =
                             bincode::encode_to_vec(&composite_key, bincode::config::standard())
@@ -829,8 +829,8 @@ where
 
                         if !secondary_keys.is_empty() {
                             let mut sec_table = write_txn.open_table(sec_table_def)?;
-                            for sec_key in secondary_keys {
-                                let composite_key = CompositeKey::new(sec_key, primary_key.clone());
+                            for sec_key in secondary_keys.values() {
+                                let composite_key = CompositeKey::new(sec_key.clone(), primary_key.clone());
                                 sec_table.insert(composite_key, ())?;
                             }
                         }
@@ -881,7 +881,7 @@ where
                 if let Some(ref m) = model {
                     let secondary_keys = m.secondary_keys();
                     if !secondary_keys.is_empty() {
-                        for sec_key in secondary_keys {
+                        for sec_key in secondary_keys.values() {
                             let composite_key = (sec_key, M::Keys::from(key.clone()));
                             let composite_bytes =
                                 bincode::encode_to_vec(&composite_key, bincode::config::standard())
@@ -918,8 +918,8 @@ where
                             let secondary_keys = m.secondary_keys();
                             if !secondary_keys.is_empty() {
                                 let mut sec_table = write_txn.open_table(sec_table_def)?;
-                                for sec_key in secondary_keys {
-                                    let composite_key = CompositeKey::new(sec_key, key.clone());
+                                for sec_key in secondary_keys.values() {
+                                    let composite_key = CompositeKey::new(sec_key.clone(), key.clone());
                                     sec_table.remove(composite_key)?;
                                 }
                             }

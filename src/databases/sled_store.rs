@@ -678,14 +678,14 @@ where
             if let Some(pending) = &self.pending_secondary_keys {
                 // Defer secondary key insertion until after transaction commits
                 let mut ops = pending.lock().unwrap();
-                for sec_key in secondary_keys {
-                    let composite_key = self.build_composite_key(&sec_key, &primary_key)?;
+                for sec_key in secondary_keys.values() {
+                    let composite_key = self.build_composite_key(sec_key, &primary_key)?;
                     ops.push(SecondaryKeyOp::Insert(composite_key));
                 }
             } else {
                 // Direct insertion (not in transaction context)
-                for sec_key in secondary_keys {
-                    let composite_key = self.build_composite_key(&sec_key, &primary_key)?;
+                for sec_key in secondary_keys.values() {
+                    let composite_key = self.build_composite_key(sec_key, &primary_key)?;
                     self.secondary_tree.insert(composite_key, &[] as &[u8])?;
                 }
             }
@@ -731,13 +731,13 @@ where
                             if let Some(pending) = &self.pending_secondary_keys {
                                 // Defer secondary key removal until after transaction commits
                                 let mut ops = pending.lock().unwrap();
-                                for sec_key in &secondary_keys {
+                                for sec_key in secondary_keys.values() {
                                     let composite_key = self.build_composite_key(sec_key, &key)?;
                                     ops.push(SecondaryKeyOp::Remove(composite_key));
                                 }
                             } else {
                                 // Direct removal (not in transaction context)
-                                for sec_key in &secondary_keys {
+                                for sec_key in secondary_keys.values() {
                                     let composite_key = self.build_composite_key(sec_key, &key)?;
                                     self.secondary_tree.remove(composite_key)?;
                                 }
@@ -827,8 +827,9 @@ where
 /// let retrieved = books.get(book.primary_key()).unwrap();
 /// assert_eq!(retrieved, Some(book.clone()));
 ///
-/// // Query by secondary key
-/// let tech_books = books.get_by_secondary_key(book.secondary_keys()[0].clone()).unwrap();
+/// // Query by secondary key using convenience function
+/// use library::AsBookGenre;
+/// let tech_books = books.get_by_secondary_key("Technology".as_book_genre_key()).unwrap();
 /// assert_eq!(tech_books.len(), 1);
 ///
 /// // Update (same as put)
@@ -996,8 +997,8 @@ where
         // Batch secondary key inserts
         if !secondary_keys.is_empty() {
             let mut sec_batch = sled::Batch::default();
-            for sec_key in secondary_keys {
-                let composite_key = self.build_composite_key(&sec_key, &primary_key)?;
+            for sec_key in secondary_keys.values() {
+                let composite_key = self.build_composite_key(sec_key, &primary_key)?;
                 sec_batch.insert(composite_key, &[] as &[u8]);
             }
             self.secondary_tree.apply_batch(sec_batch)?;
@@ -1131,7 +1132,7 @@ where
                         let secondary_keys = model.secondary_keys();
                         if !secondary_keys.is_empty() {
                             let mut sec_batch = sled::Batch::default();
-                            for sec_key in &secondary_keys {
+                            for sec_key in secondary_keys.values() {
                                 let composite_key = self.build_composite_key(sec_key, &key)?;
                                 sec_batch.remove(composite_key);
                             }
@@ -1341,17 +1342,14 @@ where
     /// people.put(Person { id: 2, name: "Bob".into(), city: "NYC".into(), age: 25 }).unwrap();
     /// people.put(Person { id: 3, name: "Carol".into(), city: "LA".into(), age: 30 }).unwrap();
     ///
-    /// // Query by city (secondary key - use the first person's city value)
-    /// let alice = Person { id: 1, name: "Alice".into(), city: "NYC".into(), age: 30 };
-    /// let nyc_people = people.get_by_secondary_key(
-    ///     alice.secondary_keys()[0].clone()
-    /// ).unwrap();
+    /// // Query by city using convenience function
+    /// use people_def::AsPersonCity;
+    /// let nyc_people = people.get_by_secondary_key("NYC".as_person_city_key()).unwrap();
     /// assert_eq!(nyc_people.len(), 2);
     ///
-    /// // Query by age (another secondary key - use the city secondary key)
-    /// let age_30 = people.get_by_secondary_key(
-    ///     alice.secondary_keys()[1].clone()
-    /// ).unwrap();
+    /// // Query by age (another secondary key) using convenience function
+    /// use people_def::AsPersonAge;
+    /// let age_30 = people.get_by_secondary_key(30u32.as_person_age_key()).unwrap();
     /// assert_eq!(age_30.len(), 2);
     /// ```
     pub fn get_by_secondary_key(
@@ -1589,8 +1587,8 @@ where
         // Batch secondary key inserts
         if !secondary_keys.is_empty() {
             let mut sec_batch = sled::Batch::default();
-            for sec_key in secondary_keys {
-                let composite_key = self.build_composite_key(&sec_key, &primary_key)?;
+            for sec_key in secondary_keys.values() {
+                let composite_key = self.build_composite_key(sec_key, &primary_key)?;
                 sec_batch.insert(composite_key, &[] as &[u8]);
             }
             self.secondary_tree.apply_batch(sec_batch)?;
@@ -1637,7 +1635,7 @@ where
                 let secondary_keys = model.secondary_keys();
                 if !secondary_keys.is_empty() {
                     let mut sec_batch = sled::Batch::default();
-                    for sec_key in &secondary_keys {
+                    for sec_key in secondary_keys.values() {
                         let composite_key = self.build_composite_key(sec_key, &key)?;
                         sec_batch.remove(composite_key);
                     }
@@ -1775,8 +1773,8 @@ where
 
         // Add secondary key entries
         if !secondary_keys.is_empty() {
-            for sec_key in secondary_keys {
-                let sec_key_bytes = bincode::encode_to_vec(&sec_key, bincode::config::standard())
+            for sec_key in secondary_keys.values() {
+                let sec_key_bytes = bincode::encode_to_vec(sec_key, bincode::config::standard())
                     .map_err(crate::error::EncodingDecodingError::from)?;
                 let prim_key_bytes =
                     bincode::encode_to_vec(&primary_key, bincode::config::standard())

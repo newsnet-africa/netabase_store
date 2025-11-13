@@ -177,9 +177,10 @@
 //! let retrieved = user_tree.get(alice.primary_key()).unwrap().unwrap();
 //! assert_eq!(retrieved, alice);
 //!
-//! // Query by secondary key (email)
+//! // Query by secondary key (email) using convenience function
+//! use blog::AsUserEmail;
 //! let users_by_email = user_tree
-//!     .get_by_secondary_key(alice.secondary_keys()[0].clone())
+//!     .get_by_secondary_key("alice@example.com".as_user_email_key())
 //!     .unwrap();
 //! assert_eq!(users_by_email.len(), 1);
 //!
@@ -319,9 +320,10 @@
 //!     user_tree.put(alice.clone()).await?;
 //!     let retrieved = user_tree.get(alice.primary_key()).await?;
 //!
-//!     // Query by secondary key
+//!     // Query by secondary key using convenience function
+//!     use blog::AsUserEmail;
 //!     let users_by_email = user_tree
-//!         .get_by_secondary_key(alice.secondary_keys()[0].clone())
+//!         .get_by_secondary_key("alice@example.com".as_user_email_key())
 //!         .await?;
 //!
 //!     Ok(())
@@ -544,9 +546,10 @@
 //! let user = User { id: 1, username: "alice".into(), email: "alice@example.com".into() };
 //! user_tree.put(user.clone()).unwrap();
 //!
-//! // Query by email (secondary key)
+//! // Query by email (secondary key) using convenience function
+//! use my_models::AsUserEmail;
 //! let users = user_tree
-//!     .get_by_secondary_key(user.secondary_keys()[0].clone())
+//!     .get_by_secondary_key("alice@example.com".as_user_email_key())
 //!     .unwrap();
 //!
 //! // Multiple users can have the same secondary key value

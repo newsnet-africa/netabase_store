@@ -359,7 +359,7 @@ where
                 .entry(self.secondary_tree_name.clone())
                 .or_insert_with(HashMap::new);
 
-            for sec_key in secondary_keys {
+            for sec_key in secondary_keys.values() {
                 let composite_key = self.build_composite_key(&sec_key, &primary_key)?;
                 sec_tree.insert(composite_key, vec![]);
             }
@@ -415,7 +415,7 @@ where
             let secondary_keys = m.secondary_keys();
             if !secondary_keys.is_empty() {
                 if let Some(sec_tree) = data.get_mut(&self.secondary_tree_name) {
-                    for sec_key in &secondary_keys {
+                    for sec_key in secondary_keys.values() {
                         let composite_key = self.build_composite_key(sec_key, &key)?;
                         sec_tree.remove(&composite_key);
                     }
@@ -755,7 +755,7 @@ where
                 .entry(self.secondary_tree_name.clone())
                 .or_insert_with(HashMap::new);
 
-            for sec_key in secondary_keys {
+            for sec_key in secondary_keys.values() {
                 let composite_key = self.build_composite_key(&sec_key, &primary_key)?;
                 sec_tree.insert(composite_key, vec![]);
             }
@@ -802,7 +802,7 @@ where
             let secondary_keys = m.secondary_keys();
             if !secondary_keys.is_empty() {
                 if let Some(sec_tree) = data.get_mut(&self.secondary_tree_name) {
-                    for sec_key in &secondary_keys {
+                    for sec_key in secondary_keys.values() {
                         let composite_key = self.build_composite_key(sec_key, &key)?;
                         sec_tree.remove(&composite_key);
                     }

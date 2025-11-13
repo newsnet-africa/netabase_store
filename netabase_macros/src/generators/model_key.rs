@@ -249,7 +249,7 @@ impl<'a> ModelVisitor<'a> {
             None => panic!("Primary key not found"),
         };
 
-        // Get secondary key field identifiers
+        // Get secondary key field identifiers for HashMap construction
         let secondary_fields: Vec<_> = match &self.key {
             Some(k) => k
                 .secondary_keys
@@ -262,7 +262,12 @@ impl<'a> ModelVisitor<'a> {
                         proc_macro2::Span::call_site(),
                     );
                     quote::quote! {
-                        #secondary_keys_ty::#variant(self.#field_name.clone().into())
+                        {
+                            use ::netabase_store::strum::IntoDiscriminant;
+                            let key = #secondary_keys_ty::#variant(self.#field_name.clone().into());
+                            let discriminant = key.clone().into();
+                            (discriminant, key)
+                        }
                     }
                 })
                 .collect(),
@@ -333,8 +338,8 @@ impl<'a> ModelVisitor<'a> {
                         #primary_key_ty(self.#primary_field.clone())
                     }
 
-                    fn secondary_keys(&self) -> Vec<Self::SecondaryKeys> {
-                        vec![#(#secondary_fields),*]
+                    fn secondary_keys(&self) -> ::std::collections::HashMap<<Self::SecondaryKeys as ::netabase_store::strum::IntoDiscriminant>::Discriminant, Self::SecondaryKeys> {
+                        ::std::collections::HashMap::from([#(#secondary_fields),*])
                     }
 
                     fn discriminant_name() -> &'static str {
@@ -609,7 +614,7 @@ mod key_gen {
                     ::netabase_store::derive_more::From, ::netabase_store::derive_more::TryInto,
                     ::netabase_store::bincode::Encode, ::netabase_store::bincode::Decode
                 )]
-                #[strum_discriminants(derive(::netabase_store::strum::Display,
+                #[strum_discriminants(derive(Hash, ::netabase_store::strum::Display,
                 ::netabase_store::strum::AsRefStr ))]
                 pub enum #name {
                     #(#list),*

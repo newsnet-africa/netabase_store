@@ -57,8 +57,8 @@ use crate::{MaybeSend, MaybeSync};
 /// // Access primary key
 /// let pk = user.primary_key();  // Returns UserPrimaryKey(1)
 ///
-/// // Access secondary keys
-/// let sk = user.secondary_keys(); // Returns vec![EmailKey("alice@example.com"), AgeKey(30)]
+/// // Access secondary keys as a HashMap
+/// let sk = user.secondary_keys(); // Returns HashMap with discriminant -> key mappings
 /// ```
 ///
 /// # See Also
@@ -82,8 +82,13 @@ where
     /// Extract the primary key from the model instance
     fn primary_key(&self) -> Self::PrimaryKey;
 
-    /// Extract all secondary keys from the model instance
-    fn secondary_keys(&self) -> Vec<Self::SecondaryKeys>;
+    /// Extract all secondary keys from the model instance as a HashMap
+    ///
+    /// The HashMap is keyed by the secondary key discriminant, allowing direct
+    /// access to specific secondary keys without iteration.
+    fn secondary_keys(&self) -> std::collections::HashMap<<Self::SecondaryKeys as IntoDiscriminant>::Discriminant, Self::SecondaryKeys>
+    where
+        Self::SecondaryKeys: IntoDiscriminant;
 
     /// Get the discriminant name for this model (used for tree names)
     fn discriminant_name() -> &'static str;
@@ -113,14 +118,19 @@ where
     type PrimaryKey: InnerKey + bincode::Encode + Decode<()> + Clone + Ord;
 
     /// Secondary keys type (for backwards compatibility)
-    type SecondaryKeys: InnerKey + bincode::Encode + Decode<()> + Clone + Ord;
+    type SecondaryKeys: InnerKey + bincode::Encode + Decode<()> + Clone + Ord + IntoDiscriminant;
 
     fn key(&self) -> Self::Keys;
     /// Extract the primary key from the model instance
     fn primary_key(&self) -> Self::PrimaryKey;
 
-    /// Extract all secondary keys from the model instance
-    fn secondary_keys(&self) -> Vec<Self::SecondaryKeys>;
+    /// Extract all secondary keys from the model instance as a HashMap
+    ///
+    /// The HashMap is keyed by the secondary key discriminant, allowing direct
+    /// access to specific secondary keys without iteration.
+    fn secondary_keys(&self) -> std::collections::HashMap<<Self::SecondaryKeys as IntoDiscriminant>::Discriminant, Self::SecondaryKeys>
+    where
+        Self::SecondaryKeys: IntoDiscriminant;
 
     fn has_secondary(&self) -> bool;
 
@@ -141,7 +151,7 @@ where
 {
     const DISCRIMINANT: <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant;
     type PrimaryKey: bincode::Encode + Decode<()> + Clone + Ord;
-    type SecondaryKey: bincode::Encode + Decode<()> + Clone + Ord;
+    type SecondaryKey: bincode::Encode + Decode<()> + Clone + Ord + IntoDiscriminant;
 }
 
 /// Marker trait for key types (both primary and secondary).
@@ -168,7 +178,7 @@ where
 {
     const DISCRIMINANT: <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant;
     type PrimaryKey: InnerKey + bincode::Encode + Decode<()> + Clone + Ord;
-    type SecondaryKey: InnerKey + bincode::Encode + Decode<()> + Clone + Ord;
+    type SecondaryKey: InnerKey + bincode::Encode + Decode<()> + Clone + Ord + IntoDiscriminant;
 }
 
 pub trait InnerKey: Key + Value where for<'a> Self: std::borrow::Borrow<<Self as Value>::SelfType<'a>> {}
