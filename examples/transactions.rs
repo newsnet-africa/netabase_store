@@ -72,13 +72,17 @@ fn main() -> Result<()> {
     println!("   Multiple concurrent reads without blocking\n");
 
     {
-        let txn = store.read();
-        let user_tree = txn.open_tree::<User>();
-        let post_tree = txn.open_tree::<Post>();
+        let mut txn = store.read();
 
-        // Read operations work on both trees
+        // Get user count
+        let user_tree = txn.open_tree::<User>();
         let user_count = user_tree.len()?;
+        drop(user_tree);  // Drop before opening next tree
+
+        // Get post count
+        let post_tree = txn.open_tree::<Post>();
         let post_count = post_tree.len()?;
+        drop(post_tree);
 
         println!("   Users: {}, Posts: {}", user_count, post_count);
         println!("   Transaction auto-closes on drop\n");
@@ -174,19 +178,20 @@ fn main() -> Result<()> {
     {
         let mut txn = store.write();
 
-        let mut user_tree = txn.open_tree::<User>();
-        let mut post_tree = txn.open_tree::<Post>();
-
-        // Insert user
+        // Insert user first
         let user = User {
             id: 2000,
             username: "blogger".to_string(),
             email: "blogger@example.com".to_string(),
         };
-        user_tree.put(user.clone())?;
-        println!("   Inserted user: {}", user.username);
+        {
+            let mut user_tree = txn.open_tree::<User>();
+            user_tree.put(user.clone())?;
+            println!("   Inserted user: {}", user.username);
+        }  // Drop user_tree
 
         // Insert posts for that user
+        let mut post_tree = txn.open_tree::<Post>();
         for i in 0..5 {
             let post = Post {
                 id: 100 + i,
@@ -208,7 +213,7 @@ fn main() -> Result<()> {
     println!("🔍 Example 6: Query by Secondary Key");
 
     {
-        let txn = store.read();
+        let mut txn = store.read();
         let post_tree = txn.open_tree::<Post>();
 
         let posts = post_tree.get_by_secondary_key(
@@ -228,7 +233,7 @@ fn main() -> Result<()> {
     println!("📚 Example 7: Bulk Read Operations");
 
     {
-        let txn = store.read();
+        let mut txn = store.read();
         let user_tree = txn.open_tree::<User>();
 
         let keys: Vec<_> = (1..11).map(UserPrimaryKey).collect();
@@ -247,7 +252,7 @@ fn main() -> Result<()> {
 
     {
         let count_before = {
-            let txn = store.read();
+            let mut txn = store.read();
             let user_tree = txn.open_tree::<User>();
             user_tree.len()?
         };
@@ -267,7 +272,7 @@ fn main() -> Result<()> {
         }
 
         let count_after = {
-            let txn = store.read();
+            let mut txn = store.read();
             let user_tree = txn.open_tree::<User>();
             user_tree.len()?
         };
@@ -283,7 +288,7 @@ fn main() -> Result<()> {
     println!("   Read-only transactions cannot modify data\n");
 
     {
-        let txn = store.read();  // ReadOnly transaction
+        let mut txn = store.read();  // ReadOnly transaction
         let tree = txn.open_tree::<User>();
 
         // ✅ Read operations work
@@ -304,12 +309,17 @@ fn main() -> Result<()> {
     println!("📊 Final Statistics\n");
 
     {
-        let txn = store.read();
-        let user_tree = txn.open_tree::<User>();
-        let post_tree = txn.open_tree::<Post>();
+        let mut txn = store.read();
 
-        println!("   Total users: {}", user_tree.len()?);
-        println!("   Total posts: {}", post_tree.len()?);
+        let user_tree = txn.open_tree::<User>();
+        let user_count = user_tree.len()?;
+        drop(user_tree);
+
+        let post_tree = txn.open_tree::<Post>();
+        let post_count = post_tree.len()?;
+
+        println!("   Total users: {}", user_count);
+        println!("   Total posts: {}", post_count);
     }
 
     println!("\n✨ Example complete!");
