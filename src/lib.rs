@@ -680,6 +680,7 @@
 //! }
 //! ```
 
+pub mod config;
 pub mod databases;
 pub mod error;
 // NOTE: Phase 4 - guards module re-enabled with proper architecture
