@@ -141,14 +141,18 @@ where
     ///
     /// # Examples
     ///
+    /// ## Basic Usage with Sled Backend
+    ///
     /// ```rust
     /// use netabase_store::{NetabaseStore, netabase_definition_module, NetabaseModel};
     /// use netabase_store::databases::sled_store::SledStore;
+    /// use netabase_store::traits::tree::NetabaseTreeSync;
+    /// use netabase_store::traits::model::NetabaseModelTrait;
     ///
     /// #[netabase_definition_module(MyDef, MyKeys)]
     /// mod my_models {
     ///     use netabase_store::{NetabaseModel, netabase};
-    ///     #[derive(NetabaseModel, Clone, Debug,
+    ///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
     ///              bincode::Encode, bincode::Decode,
     ///              serde::Serialize, serde::Deserialize)]
     ///     #[netabase(MyDef)]
@@ -160,12 +164,113 @@ where
     /// }
     /// use my_models::*;
     ///
-    /// # fn main() -> Result<(), netabase_store::error::NetabaseError> {
-    /// // Generic constructor with explicit backend type
-    /// let store = NetabaseStore::<MyDef, SledStore<MyDef>>::new("./my_db")?;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// // Create store using generic constructor
+    /// let temp_dir = tempfile::tempdir()?;
+    /// let store = NetabaseStore::<MyDef, SledStore<MyDef>>::new(
+    ///     temp_dir.path().join("test.db")
+    /// )?;
     ///
-    /// // This is equivalent to the convenience method:
-    /// // let store = NetabaseStore::<MyDef, _>::sled("./my_db")?;
+    /// // Use the store normally
+    /// let tree = store.open_tree::<User>();
+    /// let user = User { id: 1, name: "Alice".to_string() };
+    /// tree.put(user.clone())?;
+    ///
+    /// let retrieved = tree.get(user.primary_key())?.unwrap();
+    /// assert_eq!(retrieved, user);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Using with Redb Backend
+    ///
+    /// ```rust
+    /// use netabase_store::{NetabaseStore, netabase_definition_module, NetabaseModel};
+    /// use netabase_store::databases::redb_store::RedbStore;
+    /// use netabase_store::traits::tree::NetabaseTreeSync;
+    /// use netabase_store::traits::model::NetabaseModelTrait;
+    ///
+    /// #[netabase_definition_module(MyDef, MyKeys)]
+    /// mod my_models {
+    ///     use netabase_store::{NetabaseModel, netabase};
+    ///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    ///              bincode::Encode, bincode::Decode,
+    ///              serde::Serialize, serde::Deserialize)]
+    ///     #[netabase(MyDef)]
+    ///     pub struct Post {
+    ///         #[primary_key]
+    ///         pub id: String,
+    ///         pub title: String,
+    ///     }
+    /// }
+    /// use my_models::*;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// // Create Redb store using generic constructor
+    /// let temp_dir = tempfile::tempdir()?;
+    /// let store = NetabaseStore::<MyDef, RedbStore<MyDef>>::new(
+    ///     temp_dir.path().join("test.redb")
+    /// )?;
+    ///
+    /// let tree = store.open_tree::<Post>();
+    /// let post = Post { id: "post-1".to_string(), title: "Hello".to_string() };
+    /// tree.put(post.clone())?;
+    ///
+    /// let retrieved = tree.get(post.primary_key())?.unwrap();
+    /// assert_eq!(retrieved, post);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Generic Function Example
+    ///
+    /// The generic constructor is useful for writing backend-agnostic code:
+    ///
+    /// ```rust
+    /// use netabase_store::{NetabaseStore, netabase_definition_module, NetabaseModel};
+    /// use netabase_store::store::BackendConstructor;
+    /// use netabase_store::traits::definition::NetabaseDefinitionTrait;
+    /// use netabase_store::traits::tree::NetabaseTreeSync;
+    /// use netabase_store::traits::model::NetabaseModelTrait;
+    ///
+    /// #[netabase_definition_module(MyDef, MyKeys)]
+    /// mod my_models {
+    ///     use netabase_store::{NetabaseModel, netabase};
+    ///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    ///              bincode::Encode, bincode::Decode,
+    ///              serde::Serialize, serde::Deserialize)]
+    ///     #[netabase(MyDef)]
+    ///     pub struct Item {
+    ///         #[primary_key]
+    ///         pub id: u64,
+    ///         pub data: String,
+    ///     }
+    /// }
+    /// use my_models::*;
+    ///
+    /// // Generic function that works with any backend
+    /// fn create_and_test_store<B>(path: &str) -> Result<(), Box<dyn std::error::Error>>
+    /// where
+    ///     B: BackendConstructor<MyDef> + 'static,
+    ///     for<'a> NetabaseStore<MyDef, B>: netabase_store::traits::store_ops::OpenTree<MyDef, Item>,
+    /// {
+    ///     let store = NetabaseStore::<MyDef, B>::new(path)?;
+    ///     let tree = store.open_tree::<Item>();
+    ///
+    ///     let item = Item { id: 1, data: "test".to_string() };
+    ///     tree.put(item.clone())?;
+    ///
+    ///     let retrieved = tree.get(item.primary_key())?.unwrap();
+    ///     assert_eq!(retrieved, item);
+    ///     Ok(())
+    /// }
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use netabase_store::databases::sled_store::SledStore;
+    /// # let temp_dir = tempfile::tempdir()?;
+    /// # create_and_test_store::<SledStore<MyDef>>(
+    /// #     temp_dir.path().join("test.db").to_str().unwrap()
+    /// # )?;
     /// # Ok(())
     /// # }
     /// ```
