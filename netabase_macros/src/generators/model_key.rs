@@ -11,9 +11,9 @@ impl<'a> ModelVisitor<'a> {
             Err(e) => panic!("{}", e),
         };
         let primary_key_id = p_keys.ident.clone();
-        let secondary_newtypes = self.generate_secondary_keys_newtypes();
-        let secondary_keys = self.generate_secondary_keys(&secondary_newtypes);
-        let secondary_newtypes = secondary_newtypes.iter().map(|(s, _)| s.clone()).collect();
+        let secondary_newtypes_with_variants = self.generate_secondary_keys_newtypes();
+        let secondary_keys = self.generate_secondary_keys(&secondary_newtypes_with_variants);
+        let secondary_newtypes = secondary_newtypes_with_variants.iter().map(|(s, _)| s.clone()).collect();
         let secondary_key_id = secondary_keys.ident.clone();
         let name = match self.name {
             Some(n) => append_ident(n, "Key"),
@@ -31,6 +31,109 @@ impl<'a> ModelVisitor<'a> {
         );
 
         (p_keys, secondary_newtypes, secondary_keys, keys_enum)
+    }
+
+    /// Generate convenience extension traits for secondary keys
+    /// This allows ergonomic API like: "user@email.com".as_user_email_key()
+    pub fn generate_key_extension_traits(&self) -> Vec<proc_macro2::TokenStream> {
+        let model_name = match self.name {
+            Some(n) => n,
+            None => return vec![],
+        };
+
+        let key = match &self.key {
+            Some(k) => k,
+            None => return vec![],
+        };
+
+        let secondary_keys_ty = append_ident(model_name, "SecondaryKeys");
+        let mut traits = Vec::new();
+
+        for field in &key.secondary_keys {
+            let field_name = field.ident.as_ref().expect("Secondary key must have name");
+            let field_type = &field.ty;
+
+            // Convert field name to UpperCamelCase for the variant
+            let variant_name = {
+                let upper = heck::AsUpperCamelCase(field_name.to_string());
+                Ident::new(&upper.to_string(), proc_macro2::Span::call_site())
+            };
+
+            // Create the newtype name
+            let newtype_name = format!("{}{}", model_name, append_ident(&variant_name, "SecondaryKey"));
+            let newtype_ident = Ident::new(&newtype_name, proc_macro2::Span::call_site());
+
+            // Create trait name: As{Model}{Field}Key
+            let trait_name = format!("As{}{}", model_name, variant_name);
+            let trait_ident = Ident::new(&trait_name, proc_macro2::Span::call_site());
+
+            // Create method name: as_{model}_{field}_key (lowercase with underscores)
+            let method_name = format!("as_{}_{}_key",
+                heck::AsSnakeCase(model_name.to_string()),
+                heck::AsSnakeCase(field_name.to_string())
+            );
+            let method_ident = Ident::new(&method_name, proc_macro2::Span::call_site());
+
+            // Determine if the inner type is String or &str to provide implementations
+            let type_string = quote::quote!(#field_type).to_string();
+
+            if type_string.contains("String") {
+                // For String types, implement for String, &str, and &String
+                traits.push(quote::quote! {
+                    /// Extension trait for ergonomic secondary key construction.
+                    ///
+                    /// This trait enables convenient conversion of string values to secondary keys.
+                    pub trait #trait_ident {
+                        /// Convert this value into a secondary key for querying.
+                        fn #method_ident(self) -> #secondary_keys_ty;
+                    }
+
+                    impl #trait_ident for String {
+                        fn #method_ident(self) -> #secondary_keys_ty {
+                            #secondary_keys_ty::#variant_name(#newtype_ident(self))
+                        }
+                    }
+
+                    impl #trait_ident for &str {
+                        fn #method_ident(self) -> #secondary_keys_ty {
+                            #secondary_keys_ty::#variant_name(#newtype_ident(self.to_string()))
+                        }
+                    }
+
+                    impl<'a> #trait_ident for &'a String {
+                        fn #method_ident(self) -> #secondary_keys_ty {
+                            #secondary_keys_ty::#variant_name(#newtype_ident(self.clone()))
+                        }
+                    }
+                });
+            } else {
+                // For non-String types, implement for the type and its reference
+                traits.push(quote::quote! {
+                    /// Extension trait for ergonomic secondary key construction.
+                    pub trait #trait_ident {
+                        /// Convert this value into a secondary key for querying.
+                        fn #method_ident(self) -> #secondary_keys_ty;
+                    }
+
+                    impl #trait_ident for #field_type {
+                        fn #method_ident(self) -> #secondary_keys_ty {
+                            #secondary_keys_ty::#variant_name(#newtype_ident(self))
+                        }
+                    }
+
+                    impl #trait_ident for &#field_type
+                    where
+                        #field_type: Clone,
+                    {
+                        fn #method_ident(self) -> #secondary_keys_ty {
+                            #secondary_keys_ty::#variant_name(#newtype_ident(self.clone()))
+                        }
+                    }
+                });
+            }
+        }
+
+        traits
     }
 
     pub fn generate_borrow_impls(&self) -> Vec<proc_macro2::TokenStream> {

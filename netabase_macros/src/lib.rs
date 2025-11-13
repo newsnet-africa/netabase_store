@@ -221,12 +221,33 @@ mod visitors;
 /// ```
 ///
 /// ## Querying by Secondary Key
+///
+/// ### Verbose API
 /// ```ignore
 /// let users = tree.get_by_secondary_key(
 ///     UserSecondaryKeys::Email(UserEmailSecondaryKey("alice@example.com".to_string()))
 /// )?;
 /// // Returns Vec<User> since multiple users could share the same secondary key value
 /// ```
+///
+/// ### Ergonomic API (Convenience Extension Traits)
+///
+/// The macro also generates extension traits for each secondary key:
+/// ```ignore
+/// use my_models::AsUserEmail;  // Generated trait
+///
+/// // Much more ergonomic!
+/// let users = tree.get_by_secondary_key("alice@example.com".as_user_email_key())?;
+/// ```
+///
+/// Generated traits follow the pattern `As{Model}{Field}` with method `as_{model}_{field}_key()`:
+/// - `AsUserEmail` with `as_user_email_key()`
+/// - `AsUserAge` with `as_user_age_key()`
+/// - `AsPostPublished` with `as_post_published_key()`
+///
+/// The traits are implemented for:
+/// - `String` fields: `String`, `&str`, `&String`
+/// - Numeric/bool fields: The type itself and `&Type`
 ///
 /// ## Supported Primary Key Types
 ///
@@ -258,6 +279,7 @@ pub fn netabase_model_derive(input: TokenStream) -> TokenStream {
     let (p, sl, s, k) = visitor.generate_keys();
     let trait_impl = visitor.generate_model_trait_impl();
     let borrow_impls = visitor.generate_borrow_impls();
+    let extension_traits = visitor.generate_key_extension_traits();
 
     quote! {
         #p
@@ -266,6 +288,7 @@ pub fn netabase_model_derive(input: TokenStream) -> TokenStream {
         #k
         #(#trait_impl)*
         #(#borrow_impls)*
+        #(#extension_traits)*
     }
     .into()
 }
