@@ -150,7 +150,7 @@ where
 
     /// Open an existing database or create if it doesn't exist
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, NetabaseError> {
-        let db = Database::create(path)?;
+        let db = Database::open(path)?;
         Ok(Self {
             db: Arc::new(db),
             _phantom: PhantomData,
