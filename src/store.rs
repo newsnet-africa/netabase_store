@@ -32,6 +32,14 @@ use std::path::Path;
 /// the Definition type to the backend at compile time.
 pub trait BackendFor<D: NetabaseDefinitionTrait> {}
 
+/// Trait for backends that can be constructed from a path.
+///
+/// This enables the generic `NetabaseStore::new()` constructor.
+pub trait BackendConstructor<D: NetabaseDefinitionTrait>: BackendFor<D> + Sized {
+    /// Create a new backend instance from a path.
+    fn new_backend<P: AsRef<Path>>(path: P) -> Result<Self, NetabaseError>;
+}
+
 // Blanket implementation for all backend types that match the pattern
 #[cfg(feature = "sled")]
 impl<D> BackendFor<D> for crate::databases::sled_store::SledStore<D> where
@@ -39,10 +47,32 @@ impl<D> BackendFor<D> for crate::databases::sled_store::SledStore<D> where
 {
 }
 
+#[cfg(feature = "sled")]
+impl<D> BackendConstructor<D> for crate::databases::sled_store::SledStore<D>
+where
+    D: NetabaseDefinitionTrait + crate::traits::convert::ToIVec,
+    <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
+{
+    fn new_backend<P: AsRef<Path>>(path: P) -> Result<Self, NetabaseError> {
+        crate::databases::sled_store::SledStore::new(path)
+    }
+}
+
 #[cfg(feature = "redb")]
 impl<D> BackendFor<D> for crate::databases::redb_store::RedbStore<D> where
     D: NetabaseDefinitionTrait
 {
+}
+
+#[cfg(feature = "redb")]
+impl<D> BackendConstructor<D> for crate::databases::redb_store::RedbStore<D>
+where
+    D: NetabaseDefinitionTrait + crate::traits::convert::ToIVec,
+    <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
+{
+    fn new_backend<P: AsRef<Path>>(path: P) -> Result<Self, NetabaseError> {
+        crate::databases::redb_store::RedbStore::new(path)
+    }
 }
 
 #[cfg(feature = "memory")]
@@ -84,6 +114,71 @@ where
             _phantom: PhantomData,
         }
     }
+}
+
+// Generic new() constructor for backends that support it
+impl<D, Backend> NetabaseStore<D, Backend>
+where
+    D: NetabaseDefinitionTrait,
+    Backend: BackendConstructor<D>,
+{
+    /// Create a new store with the specified backend at the given path.
+    ///
+    /// This generic constructor works with any backend that implements `BackendConstructor`.
+    /// It's more flexible than backend-specific constructors like `sled()` or `redb()`.
+    ///
+    /// # Type Parameters
+    ///
+    /// You must specify both the Definition and Backend types using turbofish syntax:
+    /// ```ignore
+    /// let store = NetabaseStore::<MyDef, SledStore<MyDef>>::new("./db")?;
+    /// let store = NetabaseStore::<MyDef, RedbStore<MyDef>>::new("./db.redb")?;
+    /// ```
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path to the database file or directory
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netabase_store::{NetabaseStore, netabase_definition_module, NetabaseModel};
+    /// use netabase_store::databases::sled_store::SledStore;
+    ///
+    /// #[netabase_definition_module(MyDef, MyKeys)]
+    /// mod my_models {
+    ///     use netabase_store::{NetabaseModel, netabase};
+    ///     #[derive(NetabaseModel, Clone, Debug,
+    ///              bincode::Encode, bincode::Decode,
+    ///              serde::Serialize, serde::Deserialize)]
+    ///     #[netabase(MyDef)]
+    ///     pub struct User {
+    ///         #[primary_key]
+    ///         pub id: u64,
+    ///         pub name: String,
+    ///     }
+    /// }
+    /// use my_models::*;
+    ///
+    /// # fn main() -> Result<(), netabase_store::error::NetabaseError> {
+    /// // Generic constructor with explicit backend type
+    /// let store = NetabaseStore::<MyDef, SledStore<MyDef>>::new("./my_db")?;
+    ///
+    /// // This is equivalent to the convenience method:
+    /// // let store = NetabaseStore::<MyDef, _>::sled("./my_db")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, NetabaseError> {
+        Ok(Self::from_backend(Backend::new_backend(path)?))
+    }
+}
+
+impl<D, Backend> NetabaseStore<D, Backend>
+where
+    D: NetabaseDefinitionTrait,
+    Backend: BackendFor<D>,
+{
 
     /// Get a reference to the underlying backend.
     ///
