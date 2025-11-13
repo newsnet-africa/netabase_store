@@ -25,6 +25,8 @@ pub enum NetabaseError {
     RedbStorageError(#[from] redb::StorageError),
     #[error("Storage error: {0}")]
     Storage(String),
+    #[error("Transaction error: {0}")]
+    Transaction(String),
 }
 
 #[derive(Debug, thiserror::Error)]

@@ -74,8 +74,10 @@
 //!
 //! ### Using the Unified NetabaseStore (Recommended)
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::{NetabaseStore, netabase_definition_module, NetabaseModel, netabase};
+//! use netabase_store::traits::tree::NetabaseTreeSync;
+//! use netabase_store::traits::model::NetabaseModelTrait;
 //!
 //! // Define your schema
 //! #[netabase_definition_module(BlogDefinition, BlogKeys)]
@@ -97,10 +99,11 @@
 //! }
 //! use blog::*;
 //!
-//! // Create a store with any backend - Sled example
-//! let store = NetabaseStore::<BlogDefinition, _>::sled("./my_db")?;
+//! # fn main() -> Result<(), netabase_store::error::NetabaseError> {
+//! // Create a store with any backend - Sled example (using temp for doctest)
+//! let store = NetabaseStore::<BlogDefinition, _>::temp()?;
 //!
-//! // Or use Redb
+//! // Or use Redb (in production):
 //! // let store = NetabaseStore::<BlogDefinition, _>::redb("./my_db.redb")?;
 //!
 //! // Open a tree for the User model - works with any backend!
@@ -115,12 +118,13 @@
 //! };
 //!
 //! user_tree.put(alice.clone())?;
-//! let retrieved = user_tree.get(UserPrimaryKey(1))?.unwrap();
+//! let retrieved = user_tree.get(alice.primary_key())?.unwrap();
 //! assert_eq!(retrieved, alice);
 //!
 //! // Backend-specific features still available
 //! store.flush()?; // Sled-specific
-//! # Ok::<(), netabase_store::error::NetabaseError>(())
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ### Using Sled Backend (Direct)
@@ -190,7 +194,7 @@
 //!
 //! ### Using Redb Backend (Native)
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
 //!
 //! // Define your schema with the definition module macro
@@ -245,13 +249,26 @@
 //! use blog::*;
 //! use netabase_store::databases::redb_store::RedbStore;
 //! use netabase_store::traits::tree::NetabaseTreeSync;
+//! use netabase_store::traits::model::NetabaseModelTrait;
 //!
-//! // Open a database with Redb backend
-//! let store = RedbStore::<BlogDefinition>::new("./my_redb_database").unwrap();
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Open a database with Redb backend (using temp file for doctest)
+//! let temp_dir = tempfile::tempdir()?;
+//! let db_path = temp_dir.path().join("test.redb");
+//! let store = RedbStore::<BlogDefinition>::new(db_path)?;
 //!
 //! // API is identical to SledStore
 //! let user_tree = store.open_tree::<User>();
-//! // ... same operations as Sled
+//!
+//! let user = User {
+//!     id: 1,
+//!     username: "bob".to_string(),
+//!     email: "bob@example.com".to_string(),
+//!     age: 25,
+//! };
+//! user_tree.put(user)?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ### Using IndexedDB Backend (WASM)
@@ -259,7 +276,7 @@
 //! IndexedDB backend provides persistent storage in web browsers.
 //! This example requires the `wasm` feature and can only run in browsers:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
 //! use netabase_store::databases::indexeddb_store::IndexedDBStore;
 //! use netabase_store::traits::tree::NetabaseTreeAsync;
@@ -316,7 +333,7 @@
 //! For high-performance bulk operations, use batch processing to reduce overhead.
 //! This example requires the `native` feature:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
 //! use netabase_store::databases::sled_store::SledStore;
 //! use netabase_store::traits::batch::Batchable;
@@ -339,20 +356,19 @@
 //! }
 //! use app::*;
 //!
-//! let store = SledStore::<AppDefinition>::temp().unwrap();
+//! # fn main() -> Result<(), netabase_store::error::NetabaseError> {
+//! let store = SledStore::<AppDefinition>::temp()?;
 //! let user_tree = store.open_tree::<User>();
 //!
-//! // Create a batch for atomic operations
-//! let mut batch = user_tree.batch();
+//! // Prepare batch of users
+//! let users: Vec<User> = (0..1000)
+//!     .map(|i| User { id: i, name: format!("User {}", i) })
+//!     .collect();
 //!
-//! // Add multiple operations
-//! for i in 0..1000 {
-//!     let user = User { id: i, name: format!("User {}", i) };
-//!     batch.put(user).unwrap();
-//! }
-//!
-//! // Commit all operations atomically
-//! batch.commit().unwrap();
+//! // Bulk insert - much faster than individual puts
+//! user_tree.put_batch(users)?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! Batch operations are atomic and significantly faster than individual operations

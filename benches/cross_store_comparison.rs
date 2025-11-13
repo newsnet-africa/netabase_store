@@ -116,6 +116,30 @@ fn bench_cross_store_insert(c: &mut Criterion) {
             });
         });
 
+        // 3. Wrapper Sled with Transaction (type-safe API, single transaction for all inserts)
+        group.bench_with_input(BenchmarkId::new("sled_wrapper_txn", size), size, |b, &size| {
+            b.iter(|| {
+                let temp_dir = tempfile::TempDir::new().unwrap();
+                let store = SledStore::<BenchDefinition>::new(temp_dir.path()).unwrap();
+
+                store.transaction::<Article, _, _>(|txn_tree| {
+                    for i in 0u64..size {
+                        let article = Article {
+                            id: i,
+                            title: format!("Article {}", i),
+                            content: format!("Content for article {}", i),
+                            author_id: i % 10,
+                        };
+                        txn_tree.put(article)?;
+                    }
+                    Ok(())
+                }).unwrap();
+
+                let article_tree = store.open_tree::<Article>();
+                black_box(article_tree.len());
+            });
+        });
+
         // 3. Raw Redb (baseline - manual index, single transaction)
         group.bench_with_input(BenchmarkId::new("redb_raw_txn", size), size, |b, &size| {
             b.iter(|| {
@@ -372,13 +396,26 @@ fn bench_cross_store_get(c: &mut Criterion) {
         });
     });
 
-    // 2. Wrapper Sled
-    group.bench_function("sled_wrapper", |b| {
+    // 2. Wrapper Sled (loop - N transactions)
+    group.bench_function("sled_wrapper_loop", |b| {
         b.iter(|| {
             for i in 0..size {
                 let article = article_tree_sled_wrapper.get(ArticlePrimaryKey(i)).unwrap();
                 black_box(article);
             }
+        });
+    });
+
+    // 3. Wrapper Sled (transaction - single transaction for all reads)
+    group.bench_function("sled_wrapper_txn", |b| {
+        b.iter(|| {
+            store_sled.transaction::<Article, _, _>(|txn_tree| {
+                for i in 0..size {
+                    let article = txn_tree.get(ArticlePrimaryKey(i))?;
+                    black_box(article);
+                }
+                Ok(())
+            }).unwrap();
         });
     });
 
@@ -479,7 +516,7 @@ fn bench_cross_store_bulk_ops(c: &mut Criterion) {
         });
     });
 
-    // 2. Wrapper Sled (no bulk API)
+    // 2. Wrapper Sled (loop - N transactions)
     group.bench_function("sled_wrapper_loop", |b| {
         b.iter(|| {
             let temp_dir = tempfile::TempDir::new().unwrap();
@@ -495,6 +532,29 @@ fn bench_cross_store_bulk_ops(c: &mut Criterion) {
                 }).unwrap();
             }
 
+            black_box(article_tree.len());
+        });
+    });
+
+    // 3. Wrapper Sled (transaction - single transaction)
+    group.bench_function("sled_wrapper_txn", |b| {
+        b.iter(|| {
+            let temp_dir = tempfile::TempDir::new().unwrap();
+            let store = SledStore::<BenchDefinition>::new(temp_dir.path()).unwrap();
+
+            store.transaction::<Article, _, _>(|txn_tree| {
+                for i in 0..size {
+                    txn_tree.put(Article {
+                        id: i,
+                        title: format!("Article {}", i),
+                        content: format!("Content for article {}", i),
+                        author_id: i % 10,
+                    })?;
+                }
+                Ok(())
+            }).unwrap();
+
+            let article_tree = store.open_tree::<Article>();
             black_box(article_tree.len());
         });
     });
@@ -660,7 +720,7 @@ fn bench_cross_store_secondary_query(c: &mut Criterion) {
         });
     });
 
-    // 2. Wrapper Sled (loop with get_by_secondary_key)
+    // 2. Wrapper Sled (loop with get_by_secondary_key - N transactions)
     let temp_dir_sled_wrapper = tempfile::TempDir::new().unwrap();
     let store_sled = SledStore::<BenchDefinition>::new(temp_dir_sled_wrapper.path()).unwrap();
     let article_tree_sled = store_sled.open_tree::<Article>();
@@ -682,6 +742,26 @@ fn bench_cross_store_secondary_query(c: &mut Criterion) {
                 ).unwrap();
                 black_box(results);
             }
+        });
+    });
+
+    // 3. Wrapper Sled (transaction - single transaction for all queries)
+    group.bench_function("sled_wrapper_txn", |b| {
+        b.iter(|| {
+            store_sled.transaction::<Article, _, _>(|txn_tree| {
+                for author_id in 0..num_queries {
+                    // Note: We need to implement get_by_secondary_key for SledTransactionalTree
+                    // For now, do individual gets as a placeholder
+                    // This would need the secondary key query implementation
+                    for i in 0..size {
+                        if i % 10 == author_id {
+                            let article = txn_tree.get(ArticlePrimaryKey(i))?;
+                            black_box(article);
+                        }
+                    }
+                }
+                Ok(())
+            }).unwrap();
         });
     });
 

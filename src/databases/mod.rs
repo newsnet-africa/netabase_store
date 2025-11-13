@@ -18,14 +18,17 @@
 ///! - **Enable with**: `features = ["redb"]`
 ///!
 ///! Example:
-///! ```rust,ignore
-///! use netabase_store::databases::redb_store::RedbStore;
-///!
+///! ```rust,no_run
+///! # use netabase_store::databases::redb_store::RedbStore;
+///! # fn example() -> Result<(), Box<dyn std::error::Error>> {
+///! # let models = vec![];
 ///! let store = RedbStore::<MyDefinition>::new("./database.redb")?;
 ///! let tree = store.open_tree::<MyModel>();
 ///!
 ///! // Bulk insert - 8-9x faster than loop
 ///! tree.put_many(models)?;
+///! # Ok(())
+///! # }
 ///! ```
 ///!
 ///! #### Redb ZeroCopy (`redb_zerocopy`)
@@ -36,9 +39,10 @@
 ///! - **Enable with**: `features = ["redb", "redb-zerocopy"]`
 ///!
 ///! Example:
-///! ```rust,ignore
-///! use netabase_store::databases::redb_zerocopy::{RedbStoreZeroCopy, with_write_transaction};
-///!
+///! ```rust,no_run
+///! # use netabase_store::databases::redb_zerocopy::{RedbStoreZeroCopy, with_write_transaction};
+///! # fn example() -> Result<(), Box<dyn std::error::Error>> {
+///! # let models = vec![];
 ///! let store = RedbStoreZeroCopy::<MyDefinition>::new("./database.redb")?;
 ///!
 ///! with_write_transaction(&store, |txn| {
@@ -46,6 +50,8 @@
 ///!     tree.put_many(models)?;
 ///!     Ok(())
 ///! })?;
+///! # Ok(())
+///! # }
 ///! ```
 ///!
 ///! #### Sled (`sled_store`)
@@ -55,11 +61,13 @@
 ///! - **Enable with**: `features = ["sled"]`
 ///!
 ///! Example:
-///! ```rust,ignore
-///! use netabase_store::databases::sled_store::SledStore;
-///!
+///! ```rust,no_run
+///! # use netabase_store::databases::sled_store::SledStore;
+///! # fn example() -> Result<(), Box<dyn std::error::Error>> {
 ///! let store = SledStore::<MyDefinition>::new("./database")?;
 ///! let tree = store.open_tree::<MyModel>();
+///! # Ok(())
+///! # }
 ///! ```
 ///!
 ///! ### WASM Backend (for browser applications)
@@ -71,12 +79,15 @@
 ///! - **Enable with**: `features = ["wasm"]` on wasm32 targets
 ///!
 ///! Example:
-///! ```rust,ignore
-///! use netabase_store::databases::indexeddb_store::IndexedDBStore;
-///!
+///! ```rust,no_run
+///! # use netabase_store::databases::indexeddb_store::IndexedDBStore;
+///! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+///! # let model = todo!();
 ///! let store = IndexedDBStore::<MyDefinition>::new("my_db").await?;
 ///! let tree = store.open_tree::<MyModel>();
 ///! tree.put(model).await?;
+///! # Ok(())
+///! # }
 ///! ```
 ///!
 ///! ### Testing Backend
@@ -88,9 +99,8 @@
 ///! - **Always available**: No feature flag needed
 ///!
 ///! Example:
-///! ```rust,ignore
-///! use netabase_store::databases::memory_store::MemoryStore;
-///!
+///! ```rust,no_run
+///! # use netabase_store::databases::memory_store::MemoryStore;
 ///! let store = MemoryStore::<MyDefinition>::new();
 ///! let tree = store.open_tree::<MyModel>();
 ///! ```

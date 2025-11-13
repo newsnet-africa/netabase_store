@@ -784,7 +784,7 @@ firefox target/criterion/cross_store_insert/wrapper_redb_bulk/profile/flamegraph
 cargo bench --bench cross_store_comparison --features native
 
 # Generate visualizations
-python3 scripts/generate_benchmark_charts.py
+uv run scripts/generate_benchmark_charts.py
 
 # View results
 open docs/benchmarks/insert_comparison_bars.png

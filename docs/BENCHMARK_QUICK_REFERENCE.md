@@ -64,7 +64,7 @@ cargo bench --bench cross_store_comparison -- redb_
 cargo bench --bench cross_store_comparison -- _bulk
 
 # Generate visualizations
-.venv/bin/python3 scripts/generate_benchmark_charts.py
+uv run scripts/generate_benchmark_charts.py
 
 # Analyze profiling
 ./scripts/analyze_profiling.sh
