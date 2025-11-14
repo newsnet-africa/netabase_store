@@ -277,7 +277,8 @@
 //! IndexedDB backend provides persistent storage in web browsers.
 //! This example requires the `wasm` feature and can only run in browsers:
 //!
-//! ```rust,no_run
+//! ```rust,ignore
+//! // This example requires the `wasm` feature and wasm32 target
 //! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
 //! use netabase_store::databases::indexeddb_store::IndexedDBStore;
 //! use netabase_store::traits::tree::NetabaseTreeAsync;
@@ -321,7 +322,7 @@
 //!     let retrieved = user_tree.get(alice.primary_key()).await?;
 //!
 //!     // Query by secondary key using convenience function
-//!     use blog::AsUserEmail;
+//!     use app::AsUserEmail;
 //!     let users_by_email = user_tree
 //!         .get_by_secondary_key("alice@example.com".as_user_email_key())
 //!         .await?;
@@ -335,10 +336,10 @@
 //! For high-performance bulk operations, use batch processing to reduce overhead.
 //! This example requires the `native` feature:
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
 //! use netabase_store::databases::sled_store::SledStore;
-//! use netabase_store::traits::batch::Batchable;
+//! use netabase_store::traits::batch::{Batchable, BatchOperations};
 //! use netabase_store::traits::model::NetabaseModelTrait;
 //!
 //! #[netabase_definition_module(AppDefinition, AppKeys)]
@@ -400,7 +401,8 @@
 //!
 //! ### Usage Example
 //!
-//! ```rust
+//! ```rust,ignore
+//! // This example requires the `redb-zerocopy` feature
 //! use netabase_store::{NetabaseStore, netabase_definition_module, NetabaseModel};
 //! use netabase_store::traits::model::NetabaseModelTrait;
 //!
@@ -547,7 +549,7 @@
 //! user_tree.put(user.clone()).unwrap();
 //!
 //! // Query by email (secondary key) using convenience function
-//! use my_models::AsUserEmail;
+//! use blog::AsUserEmail;
 //! let users = user_tree
 //!     .get_by_secondary_key("alice@example.com".as_user_email_key())
 //!     .unwrap();

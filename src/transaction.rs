@@ -33,8 +33,8 @@
 //! # }
 //! # use models::*;
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # let store = NetabaseStore::sled("./db")?;
-//! let txn = store.read();  // Sled only for now
+//! # let store = NetabaseStore::<MyDef, _>::sled("./db")?;
+//! let mut txn = store.read();  // Sled only for now
 //! let tree = txn.open_tree::<User>();
 //! let user = tree.get(UserPrimaryKey(1))?;
 //! // Auto-closes on drop
@@ -414,7 +414,7 @@ where
     /// # }
     /// # use models::*;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let store = NetabaseStore::sled("./db")?;
+    /// # let store = NetabaseStore::<MyDef, _>::sled("./db")?;
     /// # let error_condition = true;
     /// let mut txn = store.write();
     /// // ... operations ...
@@ -650,10 +650,10 @@ where
     /// # }
     /// # use models::*;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let store = NetabaseStore::sled("./db")?;
+    /// # let store = NetabaseStore::<MyDef, _>::sled("./db")?;
     /// # let mut txn = store.read();
     /// let tree = txn.open_tree::<Post>();
-    /// let posts = tree.get_by_secondary_key(PostSecondaryKeys::AuthorId(1))?;
+    /// let posts = tree.get_by_secondary_key(PostSecondaryKeys::AuthorId(PostAuthorIdSecondaryKey(1)))?;
     /// # Ok(())
     /// # }
     /// ```

@@ -72,8 +72,8 @@ use super::iterator::SledIter;
 /// assert_eq!(retrieved, Some(book.clone()));
 ///
 /// // Query by secondary key using convenience function
-/// use library::AsBookGenre;
-/// let tech_books = books.get_by_secondary_key("Technology".as_book_genre_key()).unwrap();
+/// use store::AsBookGenre;
+/// let tech_books = books.get_by_secondary_key("Tech".as_book_genre_key()).unwrap();
 /// assert_eq!(tech_books.len(), 1);
 ///
 /// // Update (same as put)
@@ -531,12 +531,12 @@ where
     /// people.put(Person { id: 3, name: "Carol".into(), city: "LA".into(), age: 30 }).unwrap();
     ///
     /// // Query by city using convenience function
-    /// use people_def::AsPersonCity;
+    /// use app::AsPersonCity;
     /// let nyc_people = people.get_by_secondary_key("NYC".as_person_city_key()).unwrap();
     /// assert_eq!(nyc_people.len(), 2);
     ///
     /// // Query by age (another secondary key) using convenience function
-    /// use people_def::AsPersonAge;
+    /// use app::AsPersonAge;
     /// let age_30 = people.get_by_secondary_key(30u32.as_person_age_key()).unwrap();
     /// assert_eq!(age_30.len(), 2);
     /// ```

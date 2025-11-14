@@ -5,13 +5,13 @@
 //!
 //! ## Quick Start
 //!
-//! ```rust,no_run
+//! ```
 //! # use netabase_store::databases::redb_zerocopy::*;
 //! # use netabase_store::*;
 //! # #[netabase_definition_module(MyDef, MyKeys)]
 //! # mod models {
 //! #     use netabase_store::*;
-//! #     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode)]
+//! #     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
 //! #     #[netabase(MyDef)]
 //! #     pub struct User {
 //! #         #[primary_key]
@@ -21,7 +21,9 @@
 //! # }
 //! # use models::*;
 //! # fn example() -> Result<(), netabase_store::error::NetabaseError> {
-//! let store = RedbStoreZeroCopy::<MyDef>::new("app.redb")?;
+//! # let temp = tempfile::tempdir().unwrap();
+//! # let path = temp.path().join("app.redb");
+//! let store = RedbStoreZeroCopy::<MyDef>::new(&path)?;
 //!
 //! // Write
 //! let mut txn = store.begin_write()?;
@@ -33,9 +35,10 @@
 //! // Read (cloned)
 //! let txn = store.begin_read()?;
 //! let tree = txn.open_tree::<User>()?;
-//! let user = tree.get(&1)?;
+//! let user = tree.get(&UserPrimaryKey(1))?;
 //! # Ok(())
 //! # }
+//! # example().unwrap();
 //! ```
 //!
 //! ## Architecture
@@ -63,34 +66,22 @@
 //!
 //! ## API Comparison
 //!
-//! ### Old API (redb_store)
+//! ### Standard API (redb_store) - Simple & Convenient
 //!
-//! ```rust,no_run
-//! # use netabase_store::*;
-//! # fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! # let store = todo!();
-//! # let user = todo!();
+//! ```ignore
 //! let tree = store.open_tree::<User>();
 //! tree.put(user)?; // Auto-commits (1 transaction per operation)
 //! let user = tree.get(key)?; // Always clones
-//! # Ok(())
-//! # }
 //! ```
 //!
-//! ### New API (redb_zerocopy)
+//! ### Zero-Copy API (redb_zerocopy) - High Performance
 //!
-//! ```rust,no_run
-//! # use netabase_store::*;
-//! # fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! # let store = todo!();
-//! # let user = todo!();
+//! ```ignore
 //! let mut txn = store.begin_write()?;
 //! let mut tree = txn.open_tree::<User>()?;
 //! tree.put(user)?; // Batched in transaction
 //! drop(tree);
 //! txn.commit()?; // Explicit commit
-//! # Ok(())
-//! # }
 //! ```
 //!
 //! ## When to Use
@@ -666,13 +657,27 @@ where
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```
 /// # use netabase_store::*;
+/// # use netabase_store::databases::redb_zerocopy::*;
+/// # #[netabase_definition_module(MyDef, MyKeys)]
+/// # mod models {
+/// #     use netabase_store::*;
+/// #     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
+/// #     #[netabase(MyDef)]
+/// #     pub struct User {
+/// #         #[primary_key]
+/// #         pub id: u64,
+/// #         pub name: String,
+/// #     }
+/// # }
+/// # use models::*;
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// # let store = todo!();
-/// # let user1 = todo!();
-/// # let user2 = todo!();
-/// # use netabase_store::databases::redb_zerocopy::with_write_transaction;
+/// # let temp = tempfile::tempdir().unwrap();
+/// # let path = temp.path().join("test.redb");
+/// # let store = RedbStoreZeroCopy::<MyDef>::new(&path)?;
+/// # let user1 = User { id: 1, name: "Alice".to_string() };
+/// # let user2 = User { id: 2, name: "Bob".to_string() };
 /// with_write_transaction(&store, |txn| {
 ///     let mut tree = txn.open_tree::<User>()?;
 ///     tree.put(user1)?;
@@ -681,6 +686,7 @@ where
 /// })?;
 /// # Ok(())
 /// # }
+/// # example().unwrap();
 /// ```
 pub fn with_write_transaction<D, F, R>(
     store: &RedbStoreZeroCopy<D>,
@@ -700,18 +706,38 @@ where
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```
 /// # use netabase_store::*;
+/// # use netabase_store::databases::redb_zerocopy::*;
+/// # #[netabase_definition_module(MyDef, MyKeys)]
+/// # mod models {
+/// #     use netabase_store::*;
+/// #     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
+/// #     #[netabase(MyDef)]
+/// #     pub struct User {
+/// #         #[primary_key]
+/// #         pub id: u64,
+/// #         pub name: String,
+/// #     }
+/// # }
+/// # use models::*;
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// # let store = todo!();
-/// # let user_id = 1u64;
-/// # use netabase_store::databases::redb_zerocopy::with_read_transaction;
+/// # let temp = tempfile::tempdir().unwrap();
+/// # let path = temp.path().join("test.redb");
+/// # let store = RedbStoreZeroCopy::<MyDef>::new(&path)?;
+/// # // Set up some data first
+/// # with_write_transaction(&store, |txn| {
+/// #     let mut tree = txn.open_tree::<User>()?;
+/// #     tree.put(User { id: 1, name: "Alice".to_string() })?;
+/// #     Ok(())
+/// # })?;
 /// let user = with_read_transaction(&store, |txn| {
 ///     let tree = txn.open_tree::<User>()?;
-///     tree.get(&user_id)
+///     tree.get(&UserPrimaryKey(1))
 /// })?;
 /// # Ok(())
 /// # }
+/// # example().unwrap();
 /// ```
 pub fn with_read_transaction<D, F, R>(
     store: &RedbStoreZeroCopy<D>,

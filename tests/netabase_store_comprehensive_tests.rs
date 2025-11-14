@@ -417,29 +417,37 @@ mod redb_tests {
     fn test_redb_backend_specific_features() {
         let temp_dir = tempfile::tempdir().unwrap();
         let path = temp_dir.path().join("test.redb");
-        let mut store = NetabaseStore::<TestDefinition, _>::redb(&path).unwrap();
-        let tree = store.open_tree::<Product>();
+        {
+            let mut store = NetabaseStore::<TestDefinition, _>::redb(&path).unwrap();
+            let tree = store.open_tree::<Product>();
 
-        tree.put(Product {
-            id: 1,
-            name: "Test".to_string(),
-            price: 100,
-            category: "Test".to_string(),
-            in_stock: true,
-        })
-        .unwrap();
+            tree.put(Product {
+                id: 1,
+                name: "Test".to_string(),
+                price: 100,
+                category: "Test".to_string(),
+                in_stock: true,
+            })
+            .unwrap();
 
-        // Test check_integrity (Redb-specific)
-        let is_valid = store.check_integrity().unwrap();
-        assert!(is_valid);
+            // Test tree_names (Redb-specific)
+            let names = store.tree_names();
+            assert!(!names.is_empty());
+        } // Drop store to release all references before integrity check
 
-        // Test compact (Redb-specific)
-        let compacted = store.compact().unwrap();
-        assert!(compacted);
+        // Test check_integrity (Redb-specific) - requires exclusive access
+        {
+            let mut store = NetabaseStore::<TestDefinition, _>::redb(&path).unwrap();
+            let is_valid = store.check_integrity().unwrap();
+            assert!(is_valid);
+        }
 
-        // Test tree_names (Redb-specific)
-        let names = store.tree_names();
-        assert!(!names.is_empty());
+        // Test compact (Redb-specific) - requires exclusive access
+        {
+            let mut store = NetabaseStore::<TestDefinition, _>::redb(&path).unwrap();
+            let compacted = store.compact().unwrap();
+            assert!(compacted);
+        }
     }
 
     #[test]
