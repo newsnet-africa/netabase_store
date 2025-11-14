@@ -487,6 +487,280 @@ where
 
 ---
 
+## Configuration API: BackendStore Trait
+
+**Files:** `src/config.rs`, `src/traits/backend_store.rs`
+
+The unified configuration system provides a consistent, ergonomic way to initialize any database backend with typed configuration objects.
+
+### Design Goals
+
+1. **Consistency**: Same API pattern across all backends (Sled, Redb, RedbZeroCopy, Memory, IndexedDB)
+2. **Type Safety**: Compile-time configuration validation with builder pattern
+3. **Portability**: Switch backends by changing configuration type, not code structure
+4. **Sensible Defaults**: Minimal configuration required, but full control available
+
+### BackendStore Trait
+
+The `BackendStore` trait defines three standard constructors all backends must implement:
+
+```rust
+pub trait BackendStore<D: NetabaseDefinitionTrait>: Sized {
+    type Config;
+
+    /// Create/open a database with the provided configuration
+    fn new(config: Self::Config) -> Result<Self, NetabaseError>;
+
+    /// Open an existing database (fails if missing)
+    fn open(config: Self::Config) -> Result<Self, NetabaseError>;
+
+    /// Create a temporary database (for testing)
+    fn temp() -> Result<Self, NetabaseError>;
+}
+```
+
+### Configuration Types
+
+#### FileConfig (for File-Based Backends)
+
+Used by: `SledStore`, `RedbStore`, `RedbStoreZeroCopy`
+
+```rust
+#[derive(TypedBuilder, Clone)]
+pub struct FileConfig {
+    /// Path to database file or directory
+    pub path: PathBuf,
+
+    /// Cache size in megabytes (default: 256)
+    #[builder(default = 256)]
+    pub cache_size_mb: usize,
+
+    /// Create database if it doesn't exist (default: true)
+    #[builder(default = true)]
+    pub create_if_missing: bool,
+
+    /// Truncate (delete) existing data on open (default: false)
+    #[builder(default = false)]
+    pub truncate: bool,
+
+    /// Open in read-only mode (default: false)
+    #[builder(default = false)]
+    pub read_only: bool,
+
+    /// Use fsync for durability (default: true)
+    #[builder(default = true)]
+    pub use_fsync: bool,
+}
+```
+
+#### MemoryConfig (for In-Memory Backend)
+
+Used by: `MemoryStore`
+
+```rust
+#[derive(TypedBuilder, Clone, Default)]
+pub struct MemoryConfig {
+    /// Optional capacity hint for pre-allocation
+    #[builder(default = None)]
+    pub capacity: Option<usize>,
+}
+```
+
+#### IndexedDBConfig (for WASM/Browser Backend)
+
+Used by: `IndexedDBStore`
+
+```rust
+#[derive(TypedBuilder, Clone)]
+pub struct IndexedDBConfig {
+    /// Name of the IndexedDB database
+    pub database_name: String,
+
+    /// Schema version number (default: 1)
+    #[builder(default = 1)]
+    pub version: u32,
+}
+```
+
+### Usage Patterns
+
+#### Builder Pattern (Recommended)
+
+The builder pattern provides excellent IDE autocomplete and type safety:
+
+```rust
+use netabase_store::config::FileConfig;
+use netabase_store::traits::backend_store::BackendStore;
+use netabase_store::databases::sled_store::SledStore;
+
+let config = FileConfig::builder()
+    .path("my_app.db".into())
+    .cache_size_mb(1024)
+    .truncate(true)
+    .build();
+
+let store = <SledStore<MyDefinition> as BackendStore<MyDefinition>>::new(config)?;
+```
+
+#### Simple Constructor
+
+For basic usage with defaults:
+
+```rust
+let config = FileConfig::new("my_app.db");
+let store = <SledStore<MyDefinition> as BackendStore<MyDefinition>>::open(config)?;
+```
+
+#### Temporary Databases (Testing)
+
+No configuration needed:
+
+```rust
+let store = <SledStore<MyDefinition> as BackendStore<MyDefinition>>::temp()?;
+```
+
+### Backend Portability
+
+The power of this system is backend switching with zero code changes:
+
+```rust
+use netabase_store::config::FileConfig;
+use netabase_store::traits::backend_store::BackendStore;
+
+let config = FileConfig::builder()
+    .path("database.db".into())
+    .cache_size_mb(512)
+    .build();
+
+// Try different backends - same config!
+#[cfg(feature = "sled")]
+let store = <SledStore<MyDef> as BackendStore<MyDef>>::new(config.clone())?;
+
+#[cfg(feature = "redb")]
+let store = <RedbStore<MyDef> as BackendStore<MyDef>>::new(config.clone())?;
+
+#[cfg(feature = "redb-zerocopy")]
+let store = <RedbStoreZeroCopy<MyDef> as BackendStore<MyDef>>::new(config)?;
+
+// All have identical API from this point on!
+let tree = store.open_tree::<User>();
+tree.put(user)?;
+```
+
+### Implementation Examples
+
+#### Sled Backend
+
+```rust
+impl<D: NetabaseDefinitionTrait> BackendStore<D> for SledStore<D> {
+    type Config = FileConfig;
+
+    fn new(config: Self::Config) -> Result<Self, NetabaseError> {
+        let mut sled_config = sled::Config::new()
+            .path(&config.path)
+            .cache_capacity(config.cache_size_mb * 1024 * 1024);
+
+        if config.truncate {
+            sled_config = sled_config.temporary(true);
+        }
+
+        let db = sled_config.open()
+            .map_err(|e| NetabaseError::Database(e.to_string()))?;
+
+        Ok(SledStore {
+            db: Arc::new(db),
+            _phantom: PhantomData,
+        })
+    }
+
+    fn open(config: Self::Config) -> Result<Self, NetabaseError> {
+        let mut cfg = config;
+        cfg.create_if_missing = false;
+        Self::new(cfg)
+    }
+
+    fn temp() -> Result<Self, NetabaseError> {
+        let config = FileConfig::builder()
+            .path(std::env::temp_dir().join(format!("netabase_temp_{}", uuid::Uuid::new_v4())))
+            .truncate(true)
+            .build();
+        Self::new(config)
+    }
+}
+```
+
+#### Redb Backend
+
+```rust
+impl<D: NetabaseDefinitionTrait> BackendStore<D> for RedbStore<D> {
+    type Config = FileConfig;
+
+    fn new(config: Self::Config) -> Result<Self, NetabaseError> {
+        let builder = redb::Builder::new()
+            .set_cache_size(config.cache_size_mb * 1024 * 1024);
+
+        let db = if config.truncate && config.path.exists() {
+            std::fs::remove_file(&config.path)?;
+            builder.create(&config.path)?
+        } else if config.create_if_missing {
+            builder.create(&config.path)?
+        } else {
+            builder.open(&config.path)?
+        };
+
+        Ok(RedbStore {
+            db: Arc::new(db),
+            _phantom: PhantomData,
+        })
+    }
+
+    fn open(config: Self::Config) -> Result<Self, NetabaseError> {
+        let mut cfg = config;
+        cfg.create_if_missing = false;
+        Self::new(cfg)
+    }
+
+    fn temp() -> Result<Self, NetabaseError> {
+        let config = FileConfig::builder()
+            .path(std::env::temp_dir().join(format!("netabase_temp_{}.redb", uuid::Uuid::new_v4())))
+            .truncate(true)
+            .build();
+        Self::new(config)
+    }
+}
+```
+
+### Benefits
+
+1. **Unified Interface**: Same pattern for all backends
+2. **Type Safety**: Builder pattern catches configuration errors at compile time
+3. **Documentation**: Configuration options self-document in IDE
+4. **Testing**: Easy temporary database creation
+5. **Portability**: Backend switching requires minimal code changes
+6. **Defaults**: Sensible defaults reduce boilerplate
+7. **Extensibility**: New backends follow established pattern
+
+### Migration from Old API
+
+**Before:**
+```rust
+// Different constructors per backend
+let sled = SledStore::new("path.db")?;
+let redb = RedbStore::open_with_path("path.redb")?;
+let temp = SledStore::temp()?;
+```
+
+**After:**
+```rust
+// Consistent API using BackendStore trait
+let config = FileConfig::new("path.db");
+let sled = <SledStore<D> as BackendStore<D>>::new(config.clone())?;
+let redb = <RedbStore<D> as BackendStore<D>>::new(config)?;
+let temp = <SledStore<D> as BackendStore<D>>::temp()?;
+```
+
+---
+
 ## NetabaseStore: Unified API Layer
 
 **File:** `src/store.rs`
