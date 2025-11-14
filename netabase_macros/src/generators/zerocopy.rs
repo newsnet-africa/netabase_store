@@ -121,7 +121,10 @@ pub fn generate_borrowed_type(model: &ItemStruct) -> TokenStream {
 /// Generate the `as_ref()` conversion method
 ///
 /// Generates:
-/// ```ignore
+/// ```
+/// # struct User { id: u64, name: String, email: String }
+/// # struct UserRef<'a> { id: u64, name: &'a str, email: &'a str }
+/// // The macro generates:
 /// impl User {
 ///     pub fn as_ref(&self) -> UserRef<'_> {
 ///         UserRef {
@@ -167,15 +170,19 @@ pub fn generate_as_ref_method(model: &ItemStruct) -> TokenStream {
 /// Generate the ouroboros self-referential wrapper
 ///
 /// This creates a struct that holds owned data and borrows from it:
-/// ```ignore
-/// #[ouroboros::self_referencing]
+/// ```
+/// # struct UserRef<'a> { id: u64, name: &'a str, email: &'a str }
+/// // The macro generates (conceptual - actual struct uses ouroboros):
+/// #[cfg(feature = "redb-zerocopy")]
+/// # #[allow(dead_code)]
 /// struct UserBorrowed {
 ///     id: u64,
 ///     name: String,
 ///     email: String,
-///     #[borrows(name, email)]
-///     #[not_covariant]
-///     ref_view: UserRef<'this>,
+/// #   // In actual generated code, there's also:
+/// #   // #[borrows(name, email)]
+/// #   // #[not_covariant]
+/// #   // ref_view: UserRef<'this>,
 /// }
 /// ```
 pub fn generate_ouroboros_wrapper(model: &ItemStruct) -> TokenStream {
@@ -311,11 +318,32 @@ pub fn generate_borrow_impl(model: &ItemStruct) -> TokenStream {
             /// need the data to outlive a function call.
             ///
             /// # Example
-            /// ```ignore
-            /// let user = User { /* ... */ };
-            /// user.with_borrowed(|user_ref| {
-            ///     println!("Name: {}", user_ref.name);  // Zero-copy!
+            /// ```
+            /// # struct User { id: u64, name: String }
+            /// # struct UserRef<'a> { id: u64, name: &'a str }
+            /// # struct UserBorrowed;
+            /// # impl UserBorrowed {
+            /// #     fn from_owned(_user: User) -> Self { UserBorrowed }
+            /// #     fn with_ref_view<F, R>(self, f: F) -> R
+            /// #     where F: for<'a> FnOnce(&UserRef<'a>) -> R {
+            /// #         f(&UserRef { id: 1, name: "test" })
+            /// #     }
+            /// # }
+            /// # impl User {
+            /// #     fn into_borrowed(self) -> UserBorrowed {
+            /// #         UserBorrowed::from_owned(self)
+            /// #     }
+            /// #     fn with_borrowed<F, R>(self, f: F) -> R
+            /// #     where F: for<'a> FnOnce(&UserRef<'a>) -> R {
+            /// #         let wrapper = self.into_borrowed();
+            /// #         wrapper.with_ref_view(f)
+            /// #     }
+            /// # }
+            /// let user = User { id: 1, name: "Alice".to_string() };
+            /// let result = user.with_borrowed(|user_ref| {
+            ///     user_ref.name  // Zero-copy access!
             /// });
+            /// assert_eq!(result, "Alice");
             /// ```
             pub fn with_borrowed<F, R>(self, f: F) -> R
             where
@@ -331,7 +359,10 @@ pub fn generate_borrow_impl(model: &ItemStruct) -> TokenStream {
 /// Generate the `From` trait for converting borrowed back to owned
 ///
 /// Generates:
-/// ```ignore
+/// ```
+/// # struct User { id: u64, name: String, email: String }
+/// # struct UserRef<'a> { id: u64, name: &'a str, email: &'a str }
+/// // The macro generates:
 /// impl<'a> From<UserRef<'a>> for User {
 ///     fn from(r: UserRef<'a>) -> Self {
 ///         User {
