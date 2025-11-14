@@ -12,9 +12,9 @@
 //! ```
 
 use netabase_store::NetabaseStore;
-use netabase_store::traits::store_ops::OpenTree;
 use netabase_store::netabase_definition_module;
-use netabase_store::traits::batch::{Batchable, BatchBuilder};
+use netabase_store::traits::batch::{BatchBuilder, Batchable};
+use netabase_store::traits::store_ops::OpenTree;
 use std::time::Instant;
 
 #[netabase_definition_module(AppDefinition, AppKeys)]
@@ -137,7 +137,10 @@ fn basic_batch_example(
 
     // Verify the products were inserted
     let count = product_tree.len();
-    println!("✓ Successfully inserted {} products using batch operation", count);
+    println!(
+        "✓ Successfully inserted {} products using batch operation",
+        count
+    );
 
     // Query by secondary key to verify
     let electronics = product_tree.get_by_secondary_key(ProductSecondaryKeys::Category(
@@ -150,7 +153,10 @@ fn basic_batch_example(
 
 /// Example 2: Performance comparison between individual puts and batch operations
 fn performance_comparison(
-    store: &NetabaseStore<AppDefinition, netabase_store::databases::sled_store::SledStore<AppDefinition>>,
+    store: &NetabaseStore<
+        AppDefinition,
+        netabase_store::databases::sled_store::SledStore<AppDefinition>,
+    >,
 ) -> anyhow::Result<()> {
     const NUM_ITEMS: u64 = 1000;
 
@@ -261,7 +267,10 @@ fn mixed_batch_operations(
 
 /// Example 4: Using batches with multiple model types
 fn cross_model_example(
-    store: &NetabaseStore<AppDefinition, netabase_store::databases::sled_store::SledStore<AppDefinition>>,
+    store: &NetabaseStore<
+        AppDefinition,
+        netabase_store::databases::sled_store::SledStore<AppDefinition>,
+    >,
 ) -> anyhow::Result<()> {
     let product_tree = store.open_tree::<Product>();
     let order_tree = store.open_tree::<Order>();

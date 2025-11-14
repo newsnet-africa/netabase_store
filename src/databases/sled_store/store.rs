@@ -549,23 +549,24 @@ where
         let pending_secondary_ops = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let pending_ops_clone = pending_secondary_ops.clone();
 
-        let result = tree.transaction(|txn_tree| {
-            let wrapper = SledTransactionalTree {
-                tree: txn_tree.clone(),
-                secondary_tree: secondary_tree.clone(),
-                pending_secondary_keys: Some(pending_ops_clone.clone()),
-                _phantom_d: PhantomData,
-                _phantom_m: PhantomData,
-            };
+        let result = tree
+            .transaction(|txn_tree| {
+                let wrapper = SledTransactionalTree {
+                    tree: txn_tree.clone(),
+                    secondary_tree: secondary_tree.clone(),
+                    pending_secondary_keys: Some(pending_ops_clone.clone()),
+                    _phantom_d: PhantomData,
+                    _phantom_m: PhantomData,
+                };
 
-            f(&wrapper).map_err(sled::transaction::ConflictableTransactionError::Abort)
-        })
-        .map_err(|e| match e {
-            sled::transaction::TransactionError::Abort(e) => {
-                NetabaseError::Transaction(format!("Transaction aborted: {}", e))
-            }
-            sled::transaction::TransactionError::Storage(e) => e.into(),
-        })?;
+                f(&wrapper).map_err(sled::transaction::ConflictableTransactionError::Abort)
+            })
+            .map_err(|e| match e {
+                sled::transaction::TransactionError::Abort(e) => {
+                    NetabaseError::Transaction(format!("Transaction aborted: {}", e))
+                }
+                sled::transaction::TransactionError::Storage(e) => e.into(),
+            })?;
 
         // After transaction commits, apply all pending secondary key operations
         let ops = pending_secondary_ops.lock().unwrap();

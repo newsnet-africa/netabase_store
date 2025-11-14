@@ -2,16 +2,15 @@
 ///
 /// This module generates `*Ref<'a>` borrowed types that enable zero-copy reads
 /// from redb by using tuple-based serialization and borrowed string slices.
-
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Fields, Type, ItemStruct, Ident, Field, parse_quote};
 use syn::visit_mut::{self, VisitMut};
+use syn::{Field, Fields, Ident, ItemStruct, Type, parse_quote};
 
 // Import type utilities for shared functionality
 use super::type_utils::{
-    calculate_fields_width, is_borrowable_type, is_option_type, is_string_type, is_u8_type,
-    is_vec_u8_type, map_to_borrowed_type as map_type_to_borrowed,
+    calculate_fields_width, is_borrowable_type, is_option_type, is_string_type, is_vec_u8_type,
+    map_to_borrowed_type as map_type_to_borrowed,
 };
 
 /// Visitor that injects the borrowed reference field into the user's struct
@@ -134,7 +133,8 @@ pub fn generate_as_ref_method(model: &ItemStruct) -> TokenStream {
         .iter()
         .map(|field| {
             let field_name = &field.ident;
-            let conversion = generate_to_borrowed_conversion(field_name.as_ref().unwrap(), &field.ty);
+            let conversion =
+                generate_to_borrowed_conversion(field_name.as_ref().unwrap(), &field.ty);
             quote! { #field_name: #conversion }
         })
         .collect();
@@ -470,13 +470,11 @@ fn generate_to_borrowed_conversion(field_name: &Ident, ty: &Type) -> TokenStream
                 }
                 "Option" => {
                     // Need to map the inner type
-                    if let syn::PathArguments::AngleBracketed(args) = &last_segment.arguments {
-                        if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-                            if is_string_type(inner) {
-                                return quote! { self.#field_name.as_deref() };
-                            } else if is_vec_u8_type(inner) {
-                                return quote! { self.#field_name.as_deref() };
-                            }
+                    if let syn::PathArguments::AngleBracketed(args) = &last_segment.arguments
+                        && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+                    {
+                        if is_string_type(inner) || is_vec_u8_type(inner) {
+                            return quote! { self.#field_name.as_deref() };
                         }
                     }
                     quote! { self.#field_name }
@@ -508,13 +506,13 @@ fn generate_to_owned_conversion(field_name: &Ident, ty: &Type) -> TokenStream {
                 "Vec" => quote! { r.#field_name.to_vec() },
                 "Option" => {
                     // Map to owned for inner type
-                    if let syn::PathArguments::AngleBracketed(args) = &last_segment.arguments {
-                        if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-                            if is_string_type(inner) {
-                                return quote! { r.#field_name.map(|s| s.to_owned()) };
-                            } else if is_vec_u8_type(inner) {
-                                return quote! { r.#field_name.map(|s| s.to_vec()) };
-                            }
+                    if let syn::PathArguments::AngleBracketed(args) = &last_segment.arguments
+                        && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+                    {
+                        if is_string_type(inner) {
+                            return quote! { r.#field_name.map(|s| s.to_owned()) };
+                        } else if is_vec_u8_type(inner) {
+                            return quote! { r.#field_name.map(|s| s.to_vec()) };
                         }
                     }
                     quote! { r.#field_name }

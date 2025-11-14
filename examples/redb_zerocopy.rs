@@ -10,7 +10,7 @@
 use netabase_store::config::FileConfig;
 use netabase_store::databases::redb_zerocopy::*;
 use netabase_store::traits::backend_store::BackendStore;
-use netabase_store::{netabase, netabase_definition_module, NetabaseModel};
+use netabase_store::{NetabaseModel, netabase, netabase_definition_module};
 
 // Define the database schema
 #[netabase_definition_module(AppDef, AppKeys)]
@@ -50,7 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = FileConfig::builder()
         .path(db_path.into())
-        .truncate(true)  // Start fresh each time
+        .truncate(true) // Start fresh each time
         .build();
 
     let store = <RedbStoreZeroCopy<AppDef> as BackendStore<AppDef>>::new(config)?;

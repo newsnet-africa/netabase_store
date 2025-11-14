@@ -16,8 +16,8 @@ use crate::{MaybeSend, MaybeSync, NetabaseModelTraitKey};
 ///
 /// # Type Parameters
 ///
-/// * `D` - The definition type (wraps all models in the schema)
-/// * `M` - The model type for this batch
+/// * `D` - The definition type (wraps all models in the schema). The netabase_macros generate this as you definitions built from you module. Use `cargo expand` on an example if you'd like to see how we implement it.
+/// * `M` - The model type for this batch. This is the model defined by the `NetabaseModel` derive macros. Again, you can expand an example (or read the `NetabaseModel` documentation) to see how to implement models.
 ///
 /// # Design
 ///

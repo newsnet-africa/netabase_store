@@ -8,8 +8,8 @@
 //! cargo run --example transactions --features "native sled"
 //! ```
 
-use netabase_store::{netabase_definition_module, NetabaseModel, NetabaseStore, netabase};
 use anyhow::Result;
+use netabase_store::{NetabaseModel, NetabaseStore, netabase, netabase_definition_module};
 
 // Define our schema
 #[netabase_definition_module(BlogDefinition, BlogKeys)]
@@ -77,7 +77,7 @@ fn main() -> Result<()> {
         // Get user count
         let user_tree = txn.open_tree::<User>();
         let user_count = user_tree.len()?;
-        drop(user_tree);  // Drop before opening next tree
+        drop(user_tree); // Drop before opening next tree
 
         // Get post count
         let post_tree = txn.open_tree::<Post>();
@@ -188,7 +188,7 @@ fn main() -> Result<()> {
             let mut user_tree = txn.open_tree::<User>();
             user_tree.put(user.clone())?;
             println!("   Inserted user: {}", user.username);
-        }  // Drop user_tree
+        } // Drop user_tree
 
         // Insert posts for that user
         let mut post_tree = txn.open_tree::<Post>();
@@ -216,9 +216,8 @@ fn main() -> Result<()> {
         let mut txn = store.read();
         let post_tree = txn.open_tree::<Post>();
 
-        let posts = post_tree.get_by_secondary_key(
-            PostSecondaryKeys::AuthorId(PostAuthorIdSecondaryKey(2000))
-        )?;
+        let posts = post_tree
+            .get_by_secondary_key(PostSecondaryKeys::AuthorId(PostAuthorIdSecondaryKey(2000)))?;
 
         println!("   Found {} posts for user 2000", posts.len());
         for post in posts {
@@ -288,7 +287,7 @@ fn main() -> Result<()> {
     println!("   Read-only transactions cannot modify data\n");
 
     {
-        let mut txn = store.read();  // ReadOnly transaction
+        let mut txn = store.read(); // ReadOnly transaction
         let tree = txn.open_tree::<User>();
 
         // ✅ Read operations work

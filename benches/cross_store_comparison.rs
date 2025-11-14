@@ -19,7 +19,9 @@
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use netabase_macros::netabase_definition_module;
 use netabase_store::databases::redb_store::RedbStore;
-use netabase_store::databases::redb_zerocopy::{RedbStoreZeroCopy, with_write_transaction, with_read_transaction};
+use netabase_store::databases::redb_zerocopy::{
+    RedbStoreZeroCopy, with_read_transaction, with_write_transaction,
+};
 use netabase_store::databases::sled_store::SledStore;
 use pprof::criterion::PProfProfiler;
 use redb::{ReadableDatabase, ReadableTable, ReadableTableMetadata};
@@ -82,8 +84,11 @@ fn bench_cross_store_insert(c: &mut Criterion) {
                         content: format!("Content for article {}", i),
                         author_id: i % 10,
                     };
-                    let encoded = bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
-                    articles_tree.insert(&i.to_be_bytes(), encoded.as_slice()).unwrap();
+                    let encoded =
+                        bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
+                    articles_tree
+                        .insert(&i.to_be_bytes(), encoded.as_slice())
+                        .unwrap();
 
                     // Secondary index
                     let index_key = format!("{}:{}", article.author_id, i);
@@ -96,33 +101,15 @@ fn bench_cross_store_insert(c: &mut Criterion) {
         });
 
         // 2. Wrapper Sled (type-safe API, auto-index, per-item insert = N transactions)
-        group.bench_with_input(BenchmarkId::new("sled_wrapper_loop", size), size, |b, &size| {
-            b.iter(|| {
-                let temp_dir = tempfile::TempDir::new().unwrap();
-                let store = SledStore::<BenchDefinition>::new(temp_dir.path()).unwrap();
-                let article_tree = store.open_tree::<Article>();
+        group.bench_with_input(
+            BenchmarkId::new("sled_wrapper_loop", size),
+            size,
+            |b, &size| {
+                b.iter(|| {
+                    let temp_dir = tempfile::TempDir::new().unwrap();
+                    let store = SledStore::<BenchDefinition>::new(temp_dir.path()).unwrap();
+                    let article_tree = store.open_tree::<Article>();
 
-                for i in 0u64..size {
-                    let article = Article {
-                        id: i,
-                        title: format!("Article {}", i),
-                        content: format!("Content for article {}", i),
-                        author_id: i % 10,
-                    };
-                    article_tree.put(article).unwrap();
-                }
-
-                black_box(article_tree.len());
-            });
-        });
-
-        // 3. Wrapper Sled with Transaction (type-safe API, single transaction for all inserts)
-        group.bench_with_input(BenchmarkId::new("sled_wrapper_txn", size), size, |b, &size| {
-            b.iter(|| {
-                let temp_dir = tempfile::TempDir::new().unwrap();
-                let store = SledStore::<BenchDefinition>::new(temp_dir.path()).unwrap();
-
-                store.transaction::<Article, _, _>(|txn_tree| {
                     for i in 0u64..size {
                         let article = Article {
                             id: i,
@@ -130,15 +117,43 @@ fn bench_cross_store_insert(c: &mut Criterion) {
                             content: format!("Content for article {}", i),
                             author_id: i % 10,
                         };
-                        txn_tree.put(article)?;
+                        article_tree.put(article).unwrap();
                     }
-                    Ok(())
-                }).unwrap();
 
-                let article_tree = store.open_tree::<Article>();
-                black_box(article_tree.len());
-            });
-        });
+                    black_box(article_tree.len());
+                });
+            },
+        );
+
+        // 3. Wrapper Sled with Transaction (type-safe API, single transaction for all inserts)
+        group.bench_with_input(
+            BenchmarkId::new("sled_wrapper_txn", size),
+            size,
+            |b, &size| {
+                b.iter(|| {
+                    let temp_dir = tempfile::TempDir::new().unwrap();
+                    let store = SledStore::<BenchDefinition>::new(temp_dir.path()).unwrap();
+
+                    store
+                        .transaction::<Article, _, _>(|txn_tree| {
+                            for i in 0u64..size {
+                                let article = Article {
+                                    id: i,
+                                    title: format!("Article {}", i),
+                                    content: format!("Content for article {}", i),
+                                    author_id: i % 10,
+                                };
+                                txn_tree.put(article)?;
+                            }
+                            Ok(())
+                        })
+                        .unwrap();
+
+                    let article_tree = store.open_tree::<Article>();
+                    black_box(article_tree.len());
+                });
+            },
+        );
 
         // 3. Raw Redb (baseline - manual index, single transaction)
         group.bench_with_input(BenchmarkId::new("redb_raw_txn", size), size, |b, &size| {
@@ -164,7 +179,8 @@ fn bench_cross_store_insert(c: &mut Criterion) {
                             content: format!("Content for article {}", i),
                             author_id: i % 10,
                         };
-                        let encoded = bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
+                        let encoded =
+                            bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
                         table.insert(i, encoded.as_slice()).unwrap();
                         index.insert((article.author_id, i), ()).unwrap();
                     }
@@ -178,59 +194,15 @@ fn bench_cross_store_insert(c: &mut Criterion) {
         });
 
         // 4. Wrapper Redb Loop (type-safe, auto-index, per-item = N transactions)
-        group.bench_with_input(BenchmarkId::new("redb_wrapper_loop", size), size, |b, &size| {
-            b.iter(|| {
-                let temp_dir = tempfile::TempDir::new().unwrap();
-                let db_path = temp_dir.path().join("bench.redb");
-                let store = RedbStore::<BenchDefinition>::new(&db_path).unwrap();
-                let article_tree = store.open_tree::<Article>();
-
-                for i in 0u64..size {
-                    let article = Article {
-                        id: i,
-                        title: format!("Article {}", i),
-                        content: format!("Content for article {}", i),
-                        author_id: i % 10,
-                    };
-                    article_tree.put(article).unwrap();
-                }
-
-                black_box(article_tree.len().unwrap());
-            });
-        });
-
-        // 5. Wrapper Redb Bulk (type-safe, auto-index, put_many = 1 transaction)
-        group.bench_with_input(BenchmarkId::new("redb_wrapper_bulk", size), size, |b, &size| {
-            b.iter(|| {
-                let temp_dir = tempfile::TempDir::new().unwrap();
-                let db_path = temp_dir.path().join("bench.redb");
-                let store = RedbStore::<BenchDefinition>::new(&db_path).unwrap();
-                let article_tree = store.open_tree::<Article>();
-
-                let articles: Vec<Article> = (0u64..size)
-                    .map(|i| Article {
-                        id: i,
-                        title: format!("Article {}", i),
-                        content: format!("Content for article {}", i),
-                        author_id: i % 10,
-                    })
-                    .collect();
-
-                article_tree.put_many(articles).unwrap();
-
-                black_box(article_tree.len().unwrap());
-            });
-        });
-
-        // 5. Zerocopy Redb (explicit transaction API - single transaction)
-        group.bench_with_input(BenchmarkId::new("redb_zerocopy_loop", size), size, |b, &size| {
-            b.iter(|| {
-                let temp_dir = tempfile::TempDir::new().unwrap();
-                let db_path = temp_dir.path().join("bench.redb");
-                let store = RedbStoreZeroCopy::<BenchDefinition>::new(&db_path).unwrap();
-
-                let count = with_write_transaction(&store, |txn| {
-                    let mut tree = txn.open_tree::<Article>()?;
+        group.bench_with_input(
+            BenchmarkId::new("redb_wrapper_loop", size),
+            size,
+            |b, &size| {
+                b.iter(|| {
+                    let temp_dir = tempfile::TempDir::new().unwrap();
+                    let db_path = temp_dir.path().join("bench.redb");
+                    let store = RedbStore::<BenchDefinition>::new(&db_path).unwrap();
+                    let article_tree = store.open_tree::<Article>();
 
                     for i in 0u64..size {
                         let article = Article {
@@ -239,41 +211,103 @@ fn bench_cross_store_insert(c: &mut Criterion) {
                             content: format!("Content for article {}", i),
                             author_id: i % 10,
                         };
-                        tree.put(article)?;
+                        article_tree.put(article).unwrap();
                     }
 
-                    tree.len()
-                }).unwrap();
+                    black_box(article_tree.len().unwrap());
+                });
+            },
+        );
 
-                black_box(count);
-            });
-        });
+        // 5. Wrapper Redb Bulk (type-safe, auto-index, put_many = 1 transaction)
+        group.bench_with_input(
+            BenchmarkId::new("redb_wrapper_bulk", size),
+            size,
+            |b, &size| {
+                b.iter(|| {
+                    let temp_dir = tempfile::TempDir::new().unwrap();
+                    let db_path = temp_dir.path().join("bench.redb");
+                    let store = RedbStore::<BenchDefinition>::new(&db_path).unwrap();
+                    let article_tree = store.open_tree::<Article>();
+
+                    let articles: Vec<Article> = (0u64..size)
+                        .map(|i| Article {
+                            id: i,
+                            title: format!("Article {}", i),
+                            content: format!("Content for article {}", i),
+                            author_id: i % 10,
+                        })
+                        .collect();
+
+                    article_tree.put_many(articles).unwrap();
+
+                    black_box(article_tree.len().unwrap());
+                });
+            },
+        );
+
+        // 5. Zerocopy Redb (explicit transaction API - single transaction)
+        group.bench_with_input(
+            BenchmarkId::new("redb_zerocopy_loop", size),
+            size,
+            |b, &size| {
+                b.iter(|| {
+                    let temp_dir = tempfile::TempDir::new().unwrap();
+                    let db_path = temp_dir.path().join("bench.redb");
+                    let store = RedbStoreZeroCopy::<BenchDefinition>::new(&db_path).unwrap();
+
+                    let count = with_write_transaction(&store, |txn| {
+                        let mut tree = txn.open_tree::<Article>()?;
+
+                        for i in 0u64..size {
+                            let article = Article {
+                                id: i,
+                                title: format!("Article {}", i),
+                                content: format!("Content for article {}", i),
+                                author_id: i % 10,
+                            };
+                            tree.put(article)?;
+                        }
+
+                        tree.len()
+                    })
+                    .unwrap();
+
+                    black_box(count);
+                });
+            },
+        );
 
         // 6. Zerocopy Redb with bulk insert
-        group.bench_with_input(BenchmarkId::new("redb_zerocopy_bulk", size), size, |b, &size| {
-            b.iter(|| {
-                let temp_dir = tempfile::TempDir::new().unwrap();
-                let db_path = temp_dir.path().join("bench.redb");
-                let store = RedbStoreZeroCopy::<BenchDefinition>::new(&db_path).unwrap();
+        group.bench_with_input(
+            BenchmarkId::new("redb_zerocopy_bulk", size),
+            size,
+            |b, &size| {
+                b.iter(|| {
+                    let temp_dir = tempfile::TempDir::new().unwrap();
+                    let db_path = temp_dir.path().join("bench.redb");
+                    let store = RedbStoreZeroCopy::<BenchDefinition>::new(&db_path).unwrap();
 
-                let articles: Vec<Article> = (0u64..size)
-                    .map(|i| Article {
-                        id: i,
-                        title: format!("Article {}", i),
-                        content: format!("Content for article {}", i),
-                        author_id: i % 10,
+                    let articles: Vec<Article> = (0u64..size)
+                        .map(|i| Article {
+                            id: i,
+                            title: format!("Article {}", i),
+                            content: format!("Content for article {}", i),
+                            author_id: i % 10,
+                        })
+                        .collect();
+
+                    let count = with_write_transaction(&store, |txn| {
+                        let mut tree = txn.open_tree::<Article>()?;
+                        tree.put_many(articles)?;
+                        tree.len()
                     })
-                    .collect();
+                    .unwrap();
 
-                let count = with_write_transaction(&store, |txn| {
-                    let mut tree = txn.open_tree::<Article>()?;
-                    tree.put_many(articles)?;
-                    tree.len()
-                }).unwrap();
-
-                black_box(count);
-            });
-        });
+                    black_box(count);
+                });
+            },
+        );
     }
 
     group.finish();
@@ -300,7 +334,9 @@ fn bench_cross_store_get(c: &mut Criterion) {
             author_id: i % 10,
         };
         let encoded = bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
-        articles_tree_sled.insert(&i.to_be_bytes(), encoded.as_slice()).unwrap();
+        articles_tree_sled
+            .insert(&i.to_be_bytes(), encoded.as_slice())
+            .unwrap();
         let index_key = format!("{}:{}", article.author_id, i);
         author_index_sled.insert(index_key.as_bytes(), &[]).unwrap();
     }
@@ -312,12 +348,14 @@ fn bench_cross_store_get(c: &mut Criterion) {
     let article_tree_sled_wrapper = store_sled.open_tree::<Article>();
 
     for i in 0..size {
-        article_tree_sled_wrapper.put(Article {
-            id: i,
-            title: format!("Article {}", i),
-            content: format!("Content for article {}", i),
-            author_id: i % 10,
-        }).unwrap();
+        article_tree_sled_wrapper
+            .put(Article {
+                id: i,
+                title: format!("Article {}", i),
+                content: format!("Content for article {}", i),
+                author_id: i % 10,
+            })
+            .unwrap();
     }
 
     // Setup Raw Redb
@@ -325,8 +363,7 @@ fn bench_cross_store_get(c: &mut Criterion) {
     let db_path_raw_redb = temp_dir_raw_redb.path().join("bench.redb");
     let db_redb = redb::Database::create(&db_path_raw_redb).unwrap();
 
-    let articles_table: redb::TableDefinition<u64, &[u8]> =
-        redb::TableDefinition::new("articles");
+    let articles_table: redb::TableDefinition<u64, &[u8]> = redb::TableDefinition::new("articles");
     let author_index_table: redb::TableDefinition<(u64, u64), ()> =
         redb::TableDefinition::new("author_index");
 
@@ -343,7 +380,8 @@ fn bench_cross_store_get(c: &mut Criterion) {
                     content: format!("Content for article {}", i),
                     author_id: i % 10,
                 };
-                let encoded = bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
+                let encoded =
+                    bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
                 table.insert(i, encoded.as_slice()).unwrap();
                 index.insert((article.author_id, i), ()).unwrap();
             }
@@ -358,12 +396,14 @@ fn bench_cross_store_get(c: &mut Criterion) {
     let article_tree_redb = store_redb.open_tree::<Article>();
 
     for i in 0..size {
-        article_tree_redb.put(Article {
-            id: i,
-            title: format!("Article {}", i),
-            content: format!("Content for article {}", i),
-            author_id: i % 10,
-        }).unwrap();
+        article_tree_redb
+            .put(Article {
+                id: i,
+                title: format!("Article {}", i),
+                content: format!("Content for article {}", i),
+                author_id: i % 10,
+            })
+            .unwrap();
     }
 
     // Setup Zerocopy Redb
@@ -382,7 +422,8 @@ fn bench_cross_store_get(c: &mut Criterion) {
             })?;
         }
         Ok(())
-    }).unwrap();
+    })
+    .unwrap();
 
     // 1. Raw Sled
     group.bench_function("sled_raw", |b| {
@@ -390,7 +431,9 @@ fn bench_cross_store_get(c: &mut Criterion) {
             for i in 0..size {
                 let bytes = articles_tree_sled.get(&i.to_be_bytes()).unwrap().unwrap();
                 let article: Article =
-                    bincode::decode_from_slice(&bytes, bincode::config::standard()).unwrap().0;
+                    bincode::decode_from_slice(&bytes, bincode::config::standard())
+                        .unwrap()
+                        .0;
                 black_box(article);
             }
         });
@@ -409,13 +452,15 @@ fn bench_cross_store_get(c: &mut Criterion) {
     // 3. Wrapper Sled (transaction - single transaction for all reads)
     group.bench_function("sled_wrapper_txn", |b| {
         b.iter(|| {
-            store_sled.transaction::<Article, _, _>(|txn_tree| {
-                for i in 0..size {
-                    let article = txn_tree.get(ArticlePrimaryKey(i))?;
-                    black_box(article);
-                }
-                Ok(())
-            }).unwrap();
+            store_sled
+                .transaction::<Article, _, _>(|txn_tree| {
+                    for i in 0..size {
+                        let article = txn_tree.get(ArticlePrimaryKey(i))?;
+                        black_box(article);
+                    }
+                    Ok(())
+                })
+                .unwrap();
         });
     });
 
@@ -440,7 +485,9 @@ fn bench_cross_store_get(c: &mut Criterion) {
     group.bench_function("redb_wrapper_loop", |b| {
         b.iter(|| {
             for i in 0..size {
-                let article = article_tree_redb.get(ArticleKey::Primary(ArticlePrimaryKey(i))).unwrap();
+                let article = article_tree_redb
+                    .get(ArticleKey::Primary(ArticlePrimaryKey(i)))
+                    .unwrap();
                 black_box(article);
             }
         });
@@ -468,7 +515,8 @@ fn bench_cross_store_get(c: &mut Criterion) {
                     black_box(article);
                 }
                 Ok(())
-            }).unwrap();
+            })
+            .unwrap();
         });
     });
 
@@ -499,7 +547,8 @@ fn bench_cross_store_bulk_ops(c: &mut Criterion) {
                     content: format!("Content for article {}", i),
                     author_id: i % 10,
                 };
-                let encoded = bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
+                let encoded =
+                    bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
                 batch.insert(&i.to_be_bytes(), encoded.as_slice());
             }
 
@@ -524,12 +573,14 @@ fn bench_cross_store_bulk_ops(c: &mut Criterion) {
             let article_tree = store.open_tree::<Article>();
 
             for i in 0..size {
-                article_tree.put(Article {
-                    id: i,
-                    title: format!("Article {}", i),
-                    content: format!("Content for article {}", i),
-                    author_id: i % 10,
-                }).unwrap();
+                article_tree
+                    .put(Article {
+                        id: i,
+                        title: format!("Article {}", i),
+                        content: format!("Content for article {}", i),
+                        author_id: i % 10,
+                    })
+                    .unwrap();
             }
 
             black_box(article_tree.len());
@@ -542,17 +593,19 @@ fn bench_cross_store_bulk_ops(c: &mut Criterion) {
             let temp_dir = tempfile::TempDir::new().unwrap();
             let store = SledStore::<BenchDefinition>::new(temp_dir.path()).unwrap();
 
-            store.transaction::<Article, _, _>(|txn_tree| {
-                for i in 0..size {
-                    txn_tree.put(Article {
-                        id: i,
-                        title: format!("Article {}", i),
-                        content: format!("Content for article {}", i),
-                        author_id: i % 10,
-                    })?;
-                }
-                Ok(())
-            }).unwrap();
+            store
+                .transaction::<Article, _, _>(|txn_tree| {
+                    for i in 0..size {
+                        txn_tree.put(Article {
+                            id: i,
+                            title: format!("Article {}", i),
+                            content: format!("Content for article {}", i),
+                            author_id: i % 10,
+                        })?;
+                    }
+                    Ok(())
+                })
+                .unwrap();
 
             let article_tree = store.open_tree::<Article>();
             black_box(article_tree.len());
@@ -583,7 +636,8 @@ fn bench_cross_store_bulk_ops(c: &mut Criterion) {
                         content: format!("Content for article {}", i),
                         author_id: i % 10,
                     };
-                    let encoded = bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
+                    let encoded =
+                        bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
                     table.insert(i, encoded.as_slice()).unwrap();
                     index.insert((article.author_id, i), ()).unwrap();
                 }
@@ -605,12 +659,14 @@ fn bench_cross_store_bulk_ops(c: &mut Criterion) {
             let article_tree = store.open_tree::<Article>();
 
             for i in 0..size {
-                article_tree.put(Article {
-                    id: i,
-                    title: format!("Article {}", i),
-                    content: format!("Content for article {}", i),
-                    author_id: i % 10,
-                }).unwrap();
+                article_tree
+                    .put(Article {
+                        id: i,
+                        title: format!("Article {}", i),
+                        content: format!("Content for article {}", i),
+                        author_id: i % 10,
+                    })
+                    .unwrap();
             }
 
             black_box(article_tree.len().unwrap());
@@ -637,7 +693,8 @@ fn bench_cross_store_bulk_ops(c: &mut Criterion) {
                 }
 
                 tree.len()
-            }).unwrap();
+            })
+            .unwrap();
 
             black_box(count);
         });
@@ -663,7 +720,8 @@ fn bench_cross_store_bulk_ops(c: &mut Criterion) {
                 let mut tree = txn.open_tree::<Article>()?;
                 tree.put_many(articles)?;
                 tree.len()
-            }).unwrap();
+            })
+            .unwrap();
 
             black_box(count);
         });
@@ -696,7 +754,9 @@ fn bench_cross_store_secondary_query(c: &mut Criterion) {
             author_id: i % 10,
         };
         let encoded = bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
-        articles_tree_sled.insert(&i.to_be_bytes(), encoded.as_slice()).unwrap();
+        articles_tree_sled
+            .insert(&i.to_be_bytes(), encoded.as_slice())
+            .unwrap();
         let index_key = format!("{}:{}", article.author_id, i);
         author_index_sled.insert(index_key.as_bytes(), &[]).unwrap();
     }
@@ -711,7 +771,8 @@ fn bench_cross_store_secondary_query(c: &mut Criterion) {
                     let key_str = std::str::from_utf8(&key).unwrap();
                     let article_id: u64 = key_str.split(':').nth(1).unwrap().parse().unwrap();
                     if let Some(data) = articles_tree_sled.get(&article_id.to_be_bytes()).unwrap() {
-                        let (article, _): (Article, _) = bincode::decode_from_slice(&data, bincode::config::standard()).unwrap();
+                        let (article, _): (Article, _) =
+                            bincode::decode_from_slice(&data, bincode::config::standard()).unwrap();
                         results.push(article);
                     }
                 }
@@ -726,20 +787,24 @@ fn bench_cross_store_secondary_query(c: &mut Criterion) {
     let article_tree_sled = store_sled.open_tree::<Article>();
 
     for i in 0..size {
-        article_tree_sled.put(Article {
-            id: i,
-            title: format!("Article {}", i),
-            content: format!("Content for article {}", i),
-            author_id: i % 10,
-        }).unwrap();
+        article_tree_sled
+            .put(Article {
+                id: i,
+                title: format!("Article {}", i),
+                content: format!("Content for article {}", i),
+                author_id: i % 10,
+            })
+            .unwrap();
     }
 
     group.bench_function("sled_wrapper_loop", |b| {
         b.iter(|| {
             for author_id in 0..num_queries {
-                let results = article_tree_sled.get_by_secondary_key(
-                    ArticleSecondaryKeys::AuthorId(ArticleAuthorIdSecondaryKey(author_id))
-                ).unwrap();
+                let results = article_tree_sled
+                    .get_by_secondary_key(ArticleSecondaryKeys::AuthorId(
+                        ArticleAuthorIdSecondaryKey(author_id),
+                    ))
+                    .unwrap();
                 black_box(results);
             }
         });
@@ -748,20 +813,22 @@ fn bench_cross_store_secondary_query(c: &mut Criterion) {
     // 3. Wrapper Sled (transaction - single transaction for all queries)
     group.bench_function("sled_wrapper_txn", |b| {
         b.iter(|| {
-            store_sled.transaction::<Article, _, _>(|txn_tree| {
-                for author_id in 0..num_queries {
-                    // Note: We need to implement get_by_secondary_key for SledTransactionalTree
-                    // For now, do individual gets as a placeholder
-                    // This would need the secondary key query implementation
-                    for i in 0..size {
-                        if i % 10 == author_id {
-                            let article = txn_tree.get(ArticlePrimaryKey(i))?;
-                            black_box(article);
+            store_sled
+                .transaction::<Article, _, _>(|txn_tree| {
+                    for author_id in 0..num_queries {
+                        // Note: We need to implement get_by_secondary_key for SledTransactionalTree
+                        // For now, do individual gets as a placeholder
+                        // This would need the secondary key query implementation
+                        for i in 0..size {
+                            if i % 10 == author_id {
+                                let article = txn_tree.get(ArticlePrimaryKey(i))?;
+                                black_box(article);
+                            }
                         }
                     }
-                }
-                Ok(())
-            }).unwrap();
+                    Ok(())
+                })
+                .unwrap();
         });
     });
 
@@ -770,8 +837,7 @@ fn bench_cross_store_secondary_query(c: &mut Criterion) {
     let db_path_redb = temp_dir_redb.path().join("bench.redb");
     let db_redb = redb::Database::create(&db_path_redb).unwrap();
 
-    let articles_table: redb::TableDefinition<u64, &[u8]> =
-        redb::TableDefinition::new("articles");
+    let articles_table: redb::TableDefinition<u64, &[u8]> = redb::TableDefinition::new("articles");
     let author_index_table: redb::TableDefinition<(u64, u64), ()> =
         redb::TableDefinition::new("author_index");
 
@@ -788,7 +854,8 @@ fn bench_cross_store_secondary_query(c: &mut Criterion) {
                     content: format!("Content for article {}", i),
                     author_id: i % 10,
                 };
-                let encoded = bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
+                let encoded =
+                    bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
                 table.insert(i, encoded.as_slice()).unwrap();
                 index.insert((article.author_id, i), ()).unwrap();
             }
@@ -809,7 +876,9 @@ fn bench_cross_store_secondary_query(c: &mut Criterion) {
                     let (key_guard, _) = item.unwrap();
                     let (_author_id, article_id) = key_guard.value();
                     if let Some(data) = table.get(article_id).unwrap() {
-                        let (article, _): (Article, _) = bincode::decode_from_slice(data.value(), bincode::config::standard()).unwrap();
+                        let (article, _): (Article, _) =
+                            bincode::decode_from_slice(data.value(), bincode::config::standard())
+                                .unwrap();
                         results.push(article);
                     }
                 }
@@ -825,20 +894,24 @@ fn bench_cross_store_secondary_query(c: &mut Criterion) {
     let article_tree_redb = store_redb.open_tree::<Article>();
 
     for i in 0..size {
-        article_tree_redb.put(Article {
-            id: i,
-            title: format!("Article {}", i),
-            content: format!("Content for article {}", i),
-            author_id: i % 10,
-        }).unwrap();
+        article_tree_redb
+            .put(Article {
+                id: i,
+                title: format!("Article {}", i),
+                content: format!("Content for article {}", i),
+                author_id: i % 10,
+            })
+            .unwrap();
     }
 
     group.bench_function("redb_wrapper_loop", |b| {
         b.iter(|| {
             for author_id in 0..num_queries {
-                let results = article_tree_redb.get_by_secondary_key(
-                    ArticleSecondaryKeys::AuthorId(ArticleAuthorIdSecondaryKey(author_id))
-                ).unwrap();
+                let results = article_tree_redb
+                    .get_by_secondary_key(ArticleSecondaryKeys::AuthorId(
+                        ArticleAuthorIdSecondaryKey(author_id),
+                    ))
+                    .unwrap();
                 black_box(results);
             }
         });
@@ -848,7 +921,9 @@ fn bench_cross_store_secondary_query(c: &mut Criterion) {
     group.bench_function("redb_wrapper_bulk", |b| {
         b.iter(|| {
             let keys: Vec<_> = (0..num_queries)
-                .map(|author_id| ArticleSecondaryKeys::AuthorId(ArticleAuthorIdSecondaryKey(author_id)))
+                .map(|author_id| {
+                    ArticleSecondaryKeys::AuthorId(ArticleAuthorIdSecondaryKey(author_id))
+                })
                 .collect();
             let results = article_tree_redb.get_many_by_secondary_keys(keys).unwrap();
             black_box(results);
@@ -869,7 +944,8 @@ fn bench_cross_store_secondary_query(c: &mut Criterion) {
                 title: format!("Article {}", i),
                 content: format!("Content for article {}", i),
                 author_id: i % 10,
-            }).unwrap();
+            })
+            .unwrap();
         }
         drop(tree);
         txn.commit().unwrap();
@@ -880,13 +956,14 @@ fn bench_cross_store_secondary_query(c: &mut Criterion) {
             with_read_transaction(&store_zerocopy, |txn| {
                 let tree = txn.open_tree::<Article>()?;
                 for author_id in 0..num_queries {
-                    let results = tree.get_by_secondary_key(
-                        &ArticleSecondaryKeys::AuthorId(ArticleAuthorIdSecondaryKey(author_id))
-                    )?;
+                    let results = tree.get_by_secondary_key(&ArticleSecondaryKeys::AuthorId(
+                        ArticleAuthorIdSecondaryKey(author_id),
+                    ))?;
                     black_box(results);
                 }
                 Ok(())
-            }).unwrap();
+            })
+            .unwrap();
         });
     });
 
@@ -902,21 +979,58 @@ fn bench_redb_raw_vs_zerocopy(c: &mut Criterion) {
 
     for size in sizes.iter() {
         // Raw Redb - Insert with single transaction
-        group.bench_with_input(BenchmarkId::new("redb_raw_insert", size), size, |b, &size| {
-            b.iter(|| {
-                let temp_dir = tempfile::TempDir::new().unwrap();
-                let db_path = temp_dir.path().join("bench.redb");
-                let db = redb::Database::create(&db_path).unwrap();
+        group.bench_with_input(
+            BenchmarkId::new("redb_raw_insert", size),
+            size,
+            |b, &size| {
+                b.iter(|| {
+                    let temp_dir = tempfile::TempDir::new().unwrap();
+                    let db_path = temp_dir.path().join("bench.redb");
+                    let db = redb::Database::create(&db_path).unwrap();
 
-                let articles_table: redb::TableDefinition<u64, &[u8]> =
-                    redb::TableDefinition::new("articles");
-                let author_index_table: redb::TableDefinition<(u64, u64), ()> =
-                    redb::TableDefinition::new("author_index");
+                    let articles_table: redb::TableDefinition<u64, &[u8]> =
+                        redb::TableDefinition::new("articles");
+                    let author_index_table: redb::TableDefinition<(u64, u64), ()> =
+                        redb::TableDefinition::new("author_index");
 
-                let write_txn = db.begin_write().unwrap();
-                {
-                    let mut table = write_txn.open_table(articles_table).unwrap();
-                    let mut index = write_txn.open_table(author_index_table).unwrap();
+                    let write_txn = db.begin_write().unwrap();
+                    {
+                        let mut table = write_txn.open_table(articles_table).unwrap();
+                        let mut index = write_txn.open_table(author_index_table).unwrap();
+
+                        for i in 0u64..size {
+                            let article = Article {
+                                id: i,
+                                title: format!("Article {}", i),
+                                content: format!("Content for article {}", i),
+                                author_id: i % 10,
+                            };
+                            let encoded =
+                                bincode::encode_to_vec(&article, bincode::config::standard())
+                                    .unwrap();
+                            table.insert(i, encoded.as_slice()).unwrap();
+                            index.insert((article.author_id, i), ()).unwrap();
+                        }
+                    }
+                    write_txn.commit().unwrap();
+
+                    black_box(());
+                });
+            },
+        );
+
+        // ZeroCopy Redb - Insert with single transaction
+        group.bench_with_input(
+            BenchmarkId::new("redb_zerocopy_insert", size),
+            size,
+            |b, &size| {
+                b.iter(|| {
+                    let temp_dir = tempfile::TempDir::new().unwrap();
+                    let db_path = temp_dir.path().join("bench.redb");
+                    let store = RedbStoreZeroCopy::<BenchDefinition>::new(&db_path).unwrap();
+
+                    let mut txn = store.begin_write().unwrap();
+                    let mut tree = txn.open_tree::<Article>().unwrap();
 
                     for i in 0u64..size {
                         let article = Article {
@@ -925,69 +1039,47 @@ fn bench_redb_raw_vs_zerocopy(c: &mut Criterion) {
                             content: format!("Content for article {}", i),
                             author_id: i % 10,
                         };
-                        let encoded = bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
-                        table.insert(i, encoded.as_slice()).unwrap();
-                        index.insert((article.author_id, i), ()).unwrap();
+                        tree.put(article).unwrap();
                     }
-                }
-                write_txn.commit().unwrap();
 
-                black_box(());
-            });
-        });
+                    drop(tree);
+                    txn.commit().unwrap();
 
-        // ZeroCopy Redb - Insert with single transaction
-        group.bench_with_input(BenchmarkId::new("redb_zerocopy_insert", size), size, |b, &size| {
-            b.iter(|| {
-                let temp_dir = tempfile::TempDir::new().unwrap();
-                let db_path = temp_dir.path().join("bench.redb");
-                let store = RedbStoreZeroCopy::<BenchDefinition>::new(&db_path).unwrap();
-
-                let mut txn = store.begin_write().unwrap();
-                let mut tree = txn.open_tree::<Article>().unwrap();
-
-                for i in 0u64..size {
-                    let article = Article {
-                        id: i,
-                        title: format!("Article {}", i),
-                        content: format!("Content for article {}", i),
-                        author_id: i % 10,
-                    };
-                    tree.put(article).unwrap();
-                }
-
-                drop(tree);
-                txn.commit().unwrap();
-
-                black_box(());
-            });
-        });
+                    black_box(());
+                });
+            },
+        );
 
         // ZeroCopy Redb - Insert with bulk API
-        group.bench_with_input(BenchmarkId::new("redb_zerocopy_bulk_insert", size), size, |b, &size| {
-            b.iter(|| {
-                let temp_dir = tempfile::TempDir::new().unwrap();
-                let db_path = temp_dir.path().join("bench.redb");
-                let store = RedbStoreZeroCopy::<BenchDefinition>::new(&db_path).unwrap();
+        group.bench_with_input(
+            BenchmarkId::new("redb_zerocopy_bulk_insert", size),
+            size,
+            |b, &size| {
+                b.iter(|| {
+                    let temp_dir = tempfile::TempDir::new().unwrap();
+                    let db_path = temp_dir.path().join("bench.redb");
+                    let store = RedbStoreZeroCopy::<BenchDefinition>::new(&db_path).unwrap();
 
-                let articles: Vec<Article> = (0u64..size)
-                    .map(|i| Article {
-                        id: i,
-                        title: format!("Article {}", i),
-                        content: format!("Content for article {}", i),
-                        author_id: i % 10,
+                    let articles: Vec<Article> = (0u64..size)
+                        .map(|i| Article {
+                            id: i,
+                            title: format!("Article {}", i),
+                            content: format!("Content for article {}", i),
+                            author_id: i % 10,
+                        })
+                        .collect();
+
+                    with_write_transaction(&store, |txn| {
+                        let mut tree = txn.open_tree::<Article>()?;
+                        tree.put_many(articles)?;
+                        Ok(())
                     })
-                    .collect();
+                    .unwrap();
 
-                with_write_transaction(&store, |txn| {
-                    let mut tree = txn.open_tree::<Article>()?;
-                    tree.put_many(articles)?;
-                    Ok(())
-                }).unwrap();
-
-                black_box(());
-            });
-        });
+                    black_box(());
+                });
+            },
+        );
     }
 
     // Read benchmarks
@@ -1011,7 +1103,8 @@ fn bench_redb_raw_vs_zerocopy(c: &mut Criterion) {
                         content: format!("Content for article {}", i),
                         author_id: i % 10,
                     };
-                    let encoded = bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
+                    let encoded =
+                        bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
                     table.insert(i, encoded.as_slice()).unwrap();
                 }
             }
@@ -1032,54 +1125,76 @@ fn bench_redb_raw_vs_zerocopy(c: &mut Criterion) {
                     title: format!("Article {}", i),
                     content: format!("Content for article {}", i),
                     author_id: i % 10,
-                }).unwrap();
+                })
+                .unwrap();
             }
             drop(tree);
             txn.commit().unwrap();
         }
 
         // Raw redb - read with new transaction per get
-        group.bench_with_input(BenchmarkId::new("redb_raw_read_per_txn", size), size, |b, &size| {
-            b.iter(|| {
-                for i in 0u64..size {
-                    let read_txn = db_raw.begin_read().unwrap();
-                    let table = read_txn.open_table(articles_table).unwrap();
-                    if let Some(data) = table.get(i).unwrap() {
-                        let (article, _): (Article, _) = bincode::decode_from_slice(data.value(), bincode::config::standard()).unwrap();
-                        black_box(article);
-                    }
-                }
-            });
-        });
-
-        // Raw redb - read with single transaction
-        group.bench_with_input(BenchmarkId::new("redb_raw_read_single_txn", size), size, |b, &size| {
-            b.iter(|| {
-                let read_txn = db_raw.begin_read().unwrap();
-                let table = read_txn.open_table(articles_table).unwrap();
-                for i in 0u64..size {
-                    if let Some(data) = table.get(i).unwrap() {
-                        let (article, _): (Article, _) = bincode::decode_from_slice(data.value(), bincode::config::standard()).unwrap();
-                        black_box(article);
-                    }
-                }
-            });
-        });
-
-        // ZeroCopy redb - read with single transaction
-        group.bench_with_input(BenchmarkId::new("redb_zerocopy_read", size), size, |b, &size| {
-            b.iter(|| {
-                with_read_transaction(&store_zc, |txn| {
-                    let tree = txn.open_tree::<Article>()?;
+        group.bench_with_input(
+            BenchmarkId::new("redb_raw_read_per_txn", size),
+            size,
+            |b, &size| {
+                b.iter(|| {
                     for i in 0u64..size {
-                        if let Some(article) = tree.get(&ArticlePrimaryKey(i))? {
+                        let read_txn = db_raw.begin_read().unwrap();
+                        let table = read_txn.open_table(articles_table).unwrap();
+                        if let Some(data) = table.get(i).unwrap() {
+                            let (article, _): (Article, _) = bincode::decode_from_slice(
+                                data.value(),
+                                bincode::config::standard(),
+                            )
+                            .unwrap();
                             black_box(article);
                         }
                     }
-                    Ok(())
-                }).unwrap();
-            });
-        });
+                });
+            },
+        );
+
+        // Raw redb - read with single transaction
+        group.bench_with_input(
+            BenchmarkId::new("redb_raw_read_single_txn", size),
+            size,
+            |b, &size| {
+                b.iter(|| {
+                    let read_txn = db_raw.begin_read().unwrap();
+                    let table = read_txn.open_table(articles_table).unwrap();
+                    for i in 0u64..size {
+                        if let Some(data) = table.get(i).unwrap() {
+                            let (article, _): (Article, _) = bincode::decode_from_slice(
+                                data.value(),
+                                bincode::config::standard(),
+                            )
+                            .unwrap();
+                            black_box(article);
+                        }
+                    }
+                });
+            },
+        );
+
+        // ZeroCopy redb - read with single transaction
+        group.bench_with_input(
+            BenchmarkId::new("redb_zerocopy_read", size),
+            size,
+            |b, &size| {
+                b.iter(|| {
+                    with_read_transaction(&store_zc, |txn| {
+                        let tree = txn.open_tree::<Article>()?;
+                        for i in 0u64..size {
+                            if let Some(article) = tree.get(&ArticlePrimaryKey(i))? {
+                                black_box(article);
+                            }
+                        }
+                        Ok(())
+                    })
+                    .unwrap();
+                });
+            },
+        );
     }
 
     group.finish();
@@ -1090,8 +1205,8 @@ fn bench_redb_raw_vs_zerocopy(c: &mut Criterion) {
 fn configure_criterion() -> Criterion {
     Criterion::default()
         .with_profiler(PProfProfiler::new(
-            100, // Sample frequency (Hz)
-            pprof::criterion::Output::Flamegraph(None) // Flamegraph output
+            100,                                        // Sample frequency (Hz)
+            pprof::criterion::Output::Flamegraph(None), // Flamegraph output
         ))
         .sample_size(50) // Reduce sample size for faster profiling
         .measurement_time(std::time::Duration::from_secs(10)) // 10 seconds per benchmark

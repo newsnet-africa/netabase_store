@@ -86,7 +86,12 @@ where
     ///
     /// The HashMap is keyed by the secondary key discriminant, allowing direct
     /// access to specific secondary keys without iteration.
-    fn secondary_keys(&self) -> std::collections::HashMap<<Self::SecondaryKeys as IntoDiscriminant>::Discriminant, Self::SecondaryKeys>
+    fn secondary_keys(
+        &self,
+    ) -> std::collections::HashMap<
+        <Self::SecondaryKeys as IntoDiscriminant>::Discriminant,
+        Self::SecondaryKeys,
+    >
     where
         Self::SecondaryKeys: IntoDiscriminant;
 
@@ -128,7 +133,12 @@ where
     ///
     /// The HashMap is keyed by the secondary key discriminant, allowing direct
     /// access to specific secondary keys without iteration.
-    fn secondary_keys(&self) -> std::collections::HashMap<<Self::SecondaryKeys as IntoDiscriminant>::Discriminant, Self::SecondaryKeys>
+    fn secondary_keys(
+        &self,
+    ) -> std::collections::HashMap<
+        <Self::SecondaryKeys as IntoDiscriminant>::Discriminant,
+        Self::SecondaryKeys,
+    >
     where
         Self::SecondaryKeys: IntoDiscriminant;
 
@@ -181,4 +191,8 @@ where
     type SecondaryKey: InnerKey + bincode::Encode + Decode<()> + Clone + Ord + IntoDiscriminant;
 }
 
-pub trait InnerKey: Key + Value where for<'a> Self: std::borrow::Borrow<<Self as Value>::SelfType<'a>> {}
+pub trait InnerKey: Key + Value
+where
+    for<'a> Self: std::borrow::Borrow<<Self as Value>::SelfType<'a>>,
+{
+}

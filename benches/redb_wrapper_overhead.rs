@@ -4,8 +4,8 @@
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use netabase_macros::netabase_definition_module;
 use netabase_store::databases::redb_store::RedbStore;
-use redb::{Database, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition};
 use pprof::criterion::PProfProfiler;
+use redb::{Database, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition};
 
 // Test schema
 #[netabase_definition_module(BenchDefinition, BenchKeys)]
@@ -125,7 +125,9 @@ fn bench_redb_get(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("redb_wrapper", size), size, |b, &size| {
             b.iter(|| {
                 for i in 0u64..size {
-                    let article = article_tree.get(ArticleKey::Primary(ArticlePrimaryKey(i))).unwrap();
+                    let article = article_tree
+                        .get(ArticleKey::Primary(ArticlePrimaryKey(i)))
+                        .unwrap();
                     black_box(article);
                 }
             });
@@ -280,7 +282,9 @@ fn bench_redb_secondary_key_lookup(c: &mut Criterion) {
             b.iter(|| {
                 // Query for author_id = 5 (should have ~10% of records)
                 let results = article_tree
-                    .get_by_secondary_key(ArticleSecondaryKeys::AuthorId(ArticleAuthorIdSecondaryKey(5)))
+                    .get_by_secondary_key(ArticleSecondaryKeys::AuthorId(
+                        ArticleAuthorIdSecondaryKey(5),
+                    ))
                     .unwrap();
                 black_box(results.len());
             });
@@ -347,8 +351,10 @@ fn bench_redb_secondary_key_lookup(c: &mut Criterion) {
 
 // Configure criterion with profiler support
 fn configure_criterion() -> Criterion {
-    Criterion::default()
-        .with_profiler(pprof::criterion::PProfProfiler::new(100, pprof::criterion::Output::Flamegraph(None)))
+    Criterion::default().with_profiler(pprof::criterion::PProfProfiler::new(
+        100,
+        pprof::criterion::Output::Flamegraph(None),
+    ))
 }
 
 criterion_group! {

@@ -10,9 +10,9 @@
 //! ```
 
 use netabase_store::NetabaseStore;
-use netabase_store::traits::store_ops::OpenTree;
 use netabase_store::netabase_definition_module;
 use netabase_store::traits::batch::{BatchBuilder, Batchable};
+use netabase_store::traits::store_ops::OpenTree;
 
 #[netabase_definition_module(BankDefinition, BankKeys)]
 pub mod models {
@@ -90,7 +90,11 @@ fn main() -> anyhow::Result<()> {
 
 /// Set up initial accounts
 fn setup_accounts(
-    account_tree: &netabase_store::databases::sled_store::SledStoreTree<'_, BankDefinition, Account>,
+    account_tree: &netabase_store::databases::sled_store::SledStoreTree<
+        '_,
+        BankDefinition,
+        Account,
+    >,
 ) -> anyhow::Result<()> {
     let mut batch = account_tree.create_batch()?;
 
@@ -128,7 +132,11 @@ fn setup_accounts(
 /// Perform an atomic transfer between two accounts
 /// This demonstrates why atomicity is crucial: we need BOTH operations to succeed
 fn atomic_transfer(
-    account_tree: &netabase_store::databases::sled_store::SledStoreTree<'_, BankDefinition, Account>,
+    account_tree: &netabase_store::databases::sled_store::SledStoreTree<
+        '_,
+        BankDefinition,
+        Account,
+    >,
     tx_tree: &netabase_store::databases::sled_store::SledStoreTree<'_, BankDefinition, Transaction>,
     from_id: u64,
     to_id: u64,
@@ -203,7 +211,11 @@ fn atomic_transfer(
 
 /// Batch update multiple accounts - all updates happen atomically
 fn batch_update_multiple_accounts(
-    account_tree: &netabase_store::databases::sled_store::SledStoreTree<'_, BankDefinition, Account>,
+    account_tree: &netabase_store::databases::sled_store::SledStoreTree<
+        '_,
+        BankDefinition,
+        Account,
+    >,
 ) -> anyhow::Result<()> {
     println!("Applying interest to all savings accounts...");
 
@@ -242,7 +254,11 @@ fn batch_update_multiple_accounts(
 
 /// Conditional batch processing: only commit if certain conditions are met
 fn conditional_batch(
-    account_tree: &netabase_store::databases::sled_store::SledStoreTree<'_, BankDefinition, Account>,
+    account_tree: &netabase_store::databases::sled_store::SledStoreTree<
+        '_,
+        BankDefinition,
+        Account,
+    >,
 ) -> anyhow::Result<()> {
     println!("Processing fee deductions (only if all accounts have sufficient balance)...");
 

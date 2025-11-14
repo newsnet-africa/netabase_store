@@ -106,11 +106,11 @@ pub fn get_type_width(ty: &Type) -> Option<usize> {
             let elem_width = get_type_width(&array.elem)?;
 
             // Extract array length from const expression
-            if let syn::Expr::Lit(expr_lit) = &array.len {
-                if let syn::Lit::Int(lit_int) = &expr_lit.lit {
-                    let len: usize = lit_int.base10_parse().ok()?;
-                    return Some(elem_width * len);
-                }
+            if let syn::Expr::Lit(expr_lit) = &array.len
+                && let syn::Lit::Int(lit_int) = &expr_lit.lit
+            {
+                let len: usize = lit_int.base10_parse().ok()?;
+                return Some(elem_width * len);
             }
 
             None
@@ -167,12 +167,11 @@ pub fn map_to_borrowed_type(ty: &Type) -> TokenStream {
 
                 // Vec<u8> -> &'a [u8]
                 "Vec" => {
-                    if let syn::PathArguments::AngleBracketed(args) = &last_segment.arguments {
-                        if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-                            if is_u8_type(inner) {
-                                return quote! { &'a [u8] };
-                            }
-                        }
+                    if let syn::PathArguments::AngleBracketed(args) = &last_segment.arguments
+                        && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+                        && is_u8_type(inner)
+                    {
+                        return quote! { &'a [u8] };
                     }
                     quote! {
                         compile_error!("Vec<T> is only supported for T = u8. Use Vec<u8> or store as String.");
@@ -181,18 +180,18 @@ pub fn map_to_borrowed_type(ty: &Type) -> TokenStream {
 
                 // Option<T> -> Option<T::Borrowed>
                 "Option" => {
-                    if let syn::PathArguments::AngleBracketed(args) = &last_segment.arguments {
-                        if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-                            let inner_borrowed = map_to_borrowed_type(inner);
-                            return quote! { Option<#inner_borrowed> };
-                        }
+                    if let syn::PathArguments::AngleBracketed(args) = &last_segment.arguments
+                        && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+                    {
+                        let inner_borrowed = map_to_borrowed_type(inner);
+                        return quote! { Option<#inner_borrowed> };
                     }
                     quote! { #ty }
                 }
 
                 // Primitives stay the same (Copy)
-                "u8" | "u16" | "u32" | "u64" | "u128" | "i8" | "i16" | "i32" | "i64"
-                | "i128" | "f32" | "f64" | "bool" | "char" => quote! { #ty },
+                "u8" | "u16" | "u32" | "u64" | "u128" | "i8" | "i16" | "i32" | "i64" | "i128"
+                | "f32" | "f64" | "bool" | "char" => quote! { #ty },
 
                 // Unsupported types
                 _ => quote! {
@@ -214,11 +213,8 @@ pub fn map_to_borrowed_type(ty: &Type) -> TokenStream {
 
         // Tuples: (T, U) -> (T::Borrowed, U::Borrowed)
         Type::Tuple(tuple) => {
-            let elem_borrowed: Vec<TokenStream> = tuple
-                .elems
-                .iter()
-                .map(|elem| map_to_borrowed_type(elem))
-                .collect();
+            let elem_borrowed: Vec<TokenStream> =
+                tuple.elems.iter().map(map_to_borrowed_type).collect();
             quote! { (#(#elem_borrowed),*) }
         }
 
@@ -252,62 +248,56 @@ pub fn is_borrowable_type(ty: &Type) -> bool {
 
 /// Check if type is `String`
 pub fn is_string_type(ty: &Type) -> bool {
-    if let Type::Path(type_path) = ty {
-        if let Some(segment) = type_path.path.segments.last() {
-            return segment.ident == "String";
-        }
+    if let Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.last()
+    {
+        return segment.ident == "String";
     }
     false
 }
 
 /// Check if type is `Vec<u8>`
 pub fn is_vec_u8_type(ty: &Type) -> bool {
-    if let Type::Path(type_path) = ty {
-        if let Some(segment) = type_path.path.segments.last() {
-            if segment.ident == "Vec" {
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-                        return is_u8_type(inner);
-                    }
-                }
-            }
-        }
+    if let Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.last()
+        && segment.ident == "Vec"
+        && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
+        && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+    {
+        return is_u8_type(inner);
     }
     false
 }
 
 /// Check if type is `u8`
 pub fn is_u8_type(ty: &Type) -> bool {
-    if let Type::Path(type_path) = ty {
-        if let Some(segment) = type_path.path.segments.last() {
-            return segment.ident == "u8";
-        }
+    if let Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.last()
+    {
+        return segment.ident == "u8";
     }
     false
 }
 
 /// Check if type is `Option<String>` or `Option<Vec<u8>>`
 pub fn is_option_string_or_vec(ty: &Type) -> bool {
-    if let Type::Path(type_path) = ty {
-        if let Some(segment) = type_path.path.segments.last() {
-            if segment.ident == "Option" {
-                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                    if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-                        return is_string_type(inner) || is_vec_u8_type(inner);
-                    }
-                }
-            }
-        }
+    if let Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.last()
+        && segment.ident == "Option"
+        && let syn::PathArguments::AngleBracketed(args) = &segment.arguments
+        && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+    {
+        return is_string_type(inner) || is_vec_u8_type(inner);
     }
     false
 }
 
 /// Check if type is `Option<T>`
 pub fn is_option_type(ty: &Type) -> bool {
-    if let Type::Path(type_path) = ty {
-        if let Some(segment) = type_path.path.segments.last() {
-            return segment.ident == "Option";
-        }
+    if let Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.last()
+    {
+        return segment.ident == "Option";
     }
     false
 }
@@ -317,26 +307,26 @@ pub fn is_option_type(ty: &Type) -> bool {
 /// Returns true for primitives that implement Copy (integers, floats, bool, char).
 /// These types don't need borrowing and can be directly copied from database pages.
 pub fn is_copy_type(ty: &Type) -> bool {
-    if let Type::Path(type_path) = ty {
-        if let Some(segment) = type_path.path.segments.last() {
-            let type_name = segment.ident.to_string();
-            return matches!(
-                type_name.as_str(),
-                "u8" | "u16"
-                    | "u32"
-                    | "u64"
-                    | "u128"
-                    | "i8"
-                    | "i16"
-                    | "i32"
-                    | "i64"
-                    | "i128"
-                    | "f32"
-                    | "f64"
-                    | "bool"
-                    | "char"
-            );
-        }
+    if let Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.last()
+    {
+        let type_name = segment.ident.to_string();
+        return matches!(
+            type_name.as_str(),
+            "u8" | "u16"
+                | "u32"
+                | "u64"
+                | "u128"
+                | "i8"
+                | "i16"
+                | "i32"
+                | "i64"
+                | "i128"
+                | "f32"
+                | "f64"
+                | "bool"
+                | "char"
+        );
     }
     false
 }

@@ -8,9 +8,9 @@
 
 #![cfg(feature = "sled")]
 
-use netabase_store::{netabase, netabase_definition_module, NetabaseModel};
 use netabase_store::databases::sled_store::SledStore;
 use netabase_store::traits::model::NetabaseModelTrait;
+use netabase_store::{NetabaseModel, netabase, netabase_definition_module};
 
 /// Test definition module with multiple models
 #[netabase_definition_module(BlogDefinition, BlogKeys)]
@@ -188,9 +188,21 @@ fn test_multiple_models() {
     db.open_tree::<Comment>().put(comment.clone()).unwrap();
 
     // Retrieve from different trees
-    let retrieved_user = db.open_tree::<User>().get(user.primary_key()).unwrap().unwrap();
-    let retrieved_post = db.open_tree::<Post>().get(post.primary_key()).unwrap().unwrap();
-    let retrieved_comment = db.open_tree::<Comment>().get(comment.primary_key()).unwrap().unwrap();
+    let retrieved_user = db
+        .open_tree::<User>()
+        .get(user.primary_key())
+        .unwrap()
+        .unwrap();
+    let retrieved_post = db
+        .open_tree::<Post>()
+        .get(post.primary_key())
+        .unwrap()
+        .unwrap();
+    let retrieved_comment = db
+        .open_tree::<Comment>()
+        .get(comment.primary_key())
+        .unwrap()
+        .unwrap();
 
     assert_eq!(retrieved_user, user);
     assert_eq!(retrieved_post, post);
@@ -313,7 +325,9 @@ fn test_multiple_secondary_keys() {
 
     // Query by author_id
     let author_comments = tree
-        .get_by_secondary_key(CommentSecondaryKeys::AuthorId(CommentAuthorIdSecondaryKey(1)))
+        .get_by_secondary_key(CommentSecondaryKeys::AuthorId(CommentAuthorIdSecondaryKey(
+            1,
+        )))
         .unwrap();
     assert_eq!(author_comments.len(), 2);
 }
@@ -450,7 +464,7 @@ fn test_unicode_strings() {
 
     let user = User {
         id: 1,
-        username: "用户名".to_string(), // Chinese
+        username: "用户名".to_string(),            // Chinese
         email: "ユーザー@example.com".to_string(), // Japanese
         created_at: 1234567890,
     };
@@ -468,7 +482,7 @@ fn test_zero_values() {
     let tree = db.open_tree::<User>();
 
     let user = User {
-        id: 0, // Zero ID
+        id: 0,                    // Zero ID
         username: "".to_string(), // Empty username
         email: "test@example.com".to_string(),
         created_at: 0, // Zero timestamp
@@ -572,7 +586,11 @@ fn test_comprehensive_workflow() {
     println!("✅ Queried {} comments for post 1", comments.len());
 
     // 6. Update user email
-    let mut user = db.open_tree::<User>().get(UserPrimaryKey(1)).unwrap().unwrap();
+    let mut user = db
+        .open_tree::<User>()
+        .get(UserPrimaryKey(1))
+        .unwrap()
+        .unwrap();
     user.email = "alice.new@example.com".to_string();
     db.open_tree::<User>().put(user).unwrap();
     println!("✅ Updated user email");

@@ -33,11 +33,11 @@
 //! - `redb_impl`: RedbStore RecordStore implementation
 
 #[cfg(feature = "libp2p")]
+use libp2p::PeerId;
+#[cfg(feature = "libp2p")]
 use libp2p::kad::store::{Error, Result};
 #[cfg(feature = "libp2p")]
 use libp2p::kad::{ProviderRecord, Record, RecordKey as Key};
-#[cfg(feature = "libp2p")]
-use libp2p::PeerId;
 
 // Model-aware extension
 #[cfg(feature = "libp2p")]

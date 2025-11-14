@@ -34,7 +34,10 @@ pub fn generate_helper_functions(
     definition: &Ident,
     definition_key: &Ident,
 ) -> proc_macro2::TokenStream {
-    let helper_mod_name = syn::Ident::new(&format!("__{}_helpers", definition.to_string().to_lowercase()), definition.span());
+    let helper_mod_name = syn::Ident::new(
+        &format!("__{}_helpers", definition.to_string().to_lowercase()),
+        definition.span(),
+    );
 
     // Generate match arms for extracting discriminant from NetabaseDefinitionKeys
     let decode_discriminant_arms: Vec<_> = modules
@@ -42,7 +45,8 @@ pub fn generate_helper_functions(
         .flat_map(|module| {
             module.models.iter().map(|model| {
                 let model_name = &model.ident;
-                let model_key_name = syn::Ident::new(&format!("{}Key", model_name), model_name.span());
+                let model_key_name =
+                    syn::Ident::new(&format!("{}Key", model_name), model_name.span());
 
                 quote! {
                     #definition_key::#model_key_name(_) => stringify!(#model_name)
@@ -109,14 +113,18 @@ pub fn generate_trait_methods(
     definition_key: &Ident,
 ) -> proc_macro2::TokenStream {
     let instance_put_match_arms = generate_instance_put_match_arms(modules);
-    let instance_get_match_arms = generate_instance_get_match_arms(modules, definition, definition_key);
+    let instance_get_match_arms =
+        generate_instance_get_match_arms(modules, definition, definition_key);
     let remove_match_arms = generate_remove_match_arms(modules, definition_key);
 
     // Generate OpenTree bounds for all model types
     let open_tree_bounds = generate_open_tree_bounds(modules, definition);
 
     // Generate helper module name for decode_record_key
-    let helper_mod_name = syn::Ident::new(&format!("__{}_helpers", definition.to_string().to_lowercase()), definition.span());
+    let helper_mod_name = syn::Ident::new(
+        &format!("__{}_helpers", definition.to_string().to_lowercase()),
+        definition.span(),
+    );
 
     quote! {
         // Sled store methods
@@ -558,13 +566,18 @@ fn generate_instance_put_match_arms(modules: &[ModuleInfo]) -> proc_macro2::Toke
 
 /// Generate match arms for instance get operations
 /// Returns both the Definition and the Record for the Kad network
-fn generate_instance_get_match_arms(modules: &[ModuleInfo], definition: &Ident, definition_key: &Ident) -> proc_macro2::TokenStream {
+fn generate_instance_get_match_arms(
+    modules: &[ModuleInfo],
+    definition: &Ident,
+    definition_key: &Ident,
+) -> proc_macro2::TokenStream {
     let arms: Vec<_> = modules
         .iter()
         .flat_map(|module| {
             module.models.iter().map(|model| {
                 let model_name = &model.ident;
-                let model_key_name = syn::Ident::new(&format!("{}Key", model_name), model_name.span());
+                let model_key_name =
+                    syn::Ident::new(&format!("{}Key", model_name), model_name.span());
                 let model_path = if module.path.is_empty() {
                     quote! { #model_name }
                 } else {
@@ -638,7 +651,10 @@ fn generate_instance_get_match_arms(modules: &[ModuleInfo], definition: &Ident, 
 /// Generate match arms for put operations (legacy - being phased out)
 ///
 /// Routes to correct tree based on discriminant and uses StoreOps::put_raw
-fn generate_put_match_arms(modules: &[ModuleInfo], _definition: &Ident) -> proc_macro2::TokenStream {
+fn generate_put_match_arms(
+    modules: &[ModuleInfo],
+    _definition: &Ident,
+) -> proc_macro2::TokenStream {
     let arms: Vec<_> = modules
         .iter()
         .flat_map(|module| {
@@ -744,7 +760,10 @@ fn generate_get_match_arms(modules: &[ModuleInfo], definition: &Ident) -> proc_m
 /// Generate match arms for remove operations
 ///
 /// Routes to correct tree based on discriminant and uses StoreOps::remove_raw
-fn generate_remove_match_arms(modules: &[ModuleInfo], definition_key: &Ident) -> proc_macro2::TokenStream {
+fn generate_remove_match_arms(
+    modules: &[ModuleInfo],
+    definition_key: &Ident,
+) -> proc_macro2::TokenStream {
     let arms: Vec<_> = modules
         .iter()
         .flat_map(|module| {
@@ -800,7 +819,11 @@ fn generate_remove_match_arms(modules: &[ModuleInfo], definition_key: &Ident) ->
 /// Generate records iterator implementation
 ///
 /// Iterates over all trees and wraps models in Definition
-fn generate_records_iter_impl(modules: &[ModuleInfo], definition: &Ident, definition_key: &Ident) -> proc_macro2::TokenStream {
+fn generate_records_iter_impl(
+    modules: &[ModuleInfo],
+    definition: &Ident,
+    definition_key: &Ident,
+) -> proc_macro2::TokenStream {
     // Generate match arms for decoding based on discriminant
     let decode_arms: Vec<_> = modules
         .iter()
@@ -953,7 +976,8 @@ fn generate_redb_record_store_impl(
     let _put_match_arms = generate_put_match_arms(modules, definition);
     let _get_match_arms = generate_get_match_arms(modules, definition);
     let _remove_match_arms = generate_remove_match_arms(modules, definition_key);
-    let redb_records_iter_impl = generate_redb_records_iter_impl(modules, definition, definition_key);
+    let redb_records_iter_impl =
+        generate_redb_records_iter_impl(modules, definition, definition_key);
 
     quote! {
         // RecordStore implementation removed - should be implemented generically in netabase
@@ -965,7 +989,11 @@ fn generate_redb_record_store_impl(
 /// Generate RedbStore-specific records iterator implementation
 ///
 /// RedbStore requires collecting records into a Vec first due to transaction constraints
-fn generate_redb_records_iter_impl(modules: &[ModuleInfo], definition: &Ident, definition_key: &Ident) -> proc_macro2::TokenStream {
+fn generate_redb_records_iter_impl(
+    modules: &[ModuleInfo],
+    definition: &Ident,
+    definition_key: &Ident,
+) -> proc_macro2::TokenStream {
     // Generate match arms for decoding based on discriminant
     let decode_arms: Vec<_> = modules
         .iter()

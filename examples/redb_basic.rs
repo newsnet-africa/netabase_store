@@ -9,7 +9,7 @@
 use netabase_store::config::FileConfig;
 use netabase_store::databases::redb_store::RedbStore;
 use netabase_store::traits::backend_store::BackendStore;
-use netabase_store::{netabase, netabase_definition_module, NetabaseModel};
+use netabase_store::{NetabaseModel, netabase, netabase_definition_module};
 
 // Define the database schema
 #[netabase_definition_module(AppDef, AppKeys)]
@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = FileConfig::builder()
         .path(db_path.into())
-        .truncate(true)  // Start fresh each time
+        .truncate(true) // Start fresh each time
         .build();
 
     let store = <RedbStore<AppDef> as BackendStore<AppDef>>::new(config)?;
@@ -98,12 +98,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Query by secondary key (email)
     // Note: The macro generates newtype wrappers for secondary keys
-    let results = tree.get_by_secondary_key(UserSecondaryKeys::Email(
-        UserEmailSecondaryKey("bob@example.com".to_string()),
-    ))?;
+    let results = tree.get_by_secondary_key(UserSecondaryKeys::Email(UserEmailSecondaryKey(
+        "bob@example.com".to_string(),
+    )))?;
 
     for user in results {
-        println!("  ✓ Found: {} (ID: {}, Age: {})", user.name, user.id, user.age);
+        println!(
+            "  ✓ Found: {} (ID: {}, Age: {})",
+            user.name, user.id, user.age
+        );
     }
 
     println!("\n🗑️  Removing user...");

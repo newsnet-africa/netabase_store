@@ -690,8 +690,8 @@ pub mod error;
 #[cfg(all(feature = "redb", feature = "redb-zerocopy"))]
 pub mod guards;
 pub mod store;
-pub mod transaction;
 pub mod traits;
+pub mod transaction;
 
 // Re-export netabase_deps for users of the macros
 pub use netabase_deps;
@@ -700,13 +700,13 @@ pub use netabase_deps::*;
 // Re-export macros for convenience
 pub use netabase_macros::*;
 pub use store::NetabaseStore;
-pub use transaction::{ReadOnly, ReadWrite, TxnGuard, TreeView};
 pub use traits::*;
+pub use transaction::{ReadOnly, ReadWrite, TreeView, TxnGuard};
 
 // Re-export zero-copy redb types for convenience
 #[cfg(all(feature = "redb", feature = "redb-zerocopy"))]
 pub use databases::redb_zerocopy::{
-    RedbStoreZeroCopy, RedbWriteTransactionZC, RedbReadTransactionZC, RedbTreeMut, RedbTree,
+    RedbReadTransactionZC, RedbStoreZeroCopy, RedbTree, RedbTreeMut, RedbWriteTransactionZC,
 };
 #[cfg(all(feature = "redb", feature = "redb-zerocopy"))]
 pub use guards::{BorrowedGuard, BorrowedIter};

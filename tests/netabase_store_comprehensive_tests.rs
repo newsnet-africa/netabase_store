@@ -7,8 +7,8 @@
 #![cfg(not(target_arch = "wasm32"))]
 #![cfg(feature = "native")]
 
-use netabase_store::{NetabaseStore, NetabaseModel, netabase_definition_module, netabase};
-use netabase_store::traits::batch::{Batchable, BatchBuilder};
+use netabase_store::traits::batch::{BatchBuilder, Batchable};
+use netabase_store::{NetabaseModel, NetabaseStore, netabase, netabase_definition_module};
 
 // Test schema
 #[netabase_definition_module(TestDefinition, TestKeys)]
@@ -142,18 +142,18 @@ mod sled_tests {
 
         // Query by category
         let electronics = tree
-            .get_by_secondary_key(ProductSecondaryKeys::Category(
-                ProductCategorySecondaryKey("Electronics".to_string()),
-            ))
+            .get_by_secondary_key(ProductSecondaryKeys::Category(ProductCategorySecondaryKey(
+                "Electronics".to_string(),
+            )))
             .unwrap();
 
         assert_eq!(electronics.len(), 4); // 0, 3, 6, 9
 
         // Query by stock status
         let in_stock = tree
-            .get_by_secondary_key(ProductSecondaryKeys::InStock(
-                ProductInStockSecondaryKey(true),
-            ))
+            .get_by_secondary_key(ProductSecondaryKeys::InStock(ProductInStockSecondaryKey(
+                true,
+            )))
             .unwrap();
 
         assert_eq!(in_stock.len(), 5); // 0, 2, 4, 6, 8
@@ -324,7 +324,9 @@ mod redb_tests {
         assert_eq!(retrieved.unwrap().price, 299);
 
         // Delete
-        let removed = tree.remove(ProductKey::Primary(ProductPrimaryKey(1))).unwrap();
+        let removed = tree
+            .remove(ProductKey::Primary(ProductPrimaryKey(1)))
+            .unwrap();
         assert_eq!(removed, Some(updated));
 
         let retrieved = tree.get(ProductKey::Primary(ProductPrimaryKey(1))).unwrap();
@@ -345,18 +347,18 @@ mod redb_tests {
 
         // Query by category
         let electronics = tree
-            .get_by_secondary_key(ProductSecondaryKeys::Category(
-                ProductCategorySecondaryKey("Electronics".to_string()),
-            ))
+            .get_by_secondary_key(ProductSecondaryKeys::Category(ProductCategorySecondaryKey(
+                "Electronics".to_string(),
+            )))
             .unwrap();
 
         assert_eq!(electronics.len(), 4);
 
         // Query by stock status
         let in_stock = tree
-            .get_by_secondary_key(ProductSecondaryKeys::InStock(
-                ProductInStockSecondaryKey(true),
-            ))
+            .get_by_secondary_key(ProductSecondaryKeys::InStock(ProductInStockSecondaryKey(
+                true,
+            )))
             .unwrap();
 
         assert_eq!(in_stock.len(), 5);
@@ -570,7 +572,9 @@ mod cross_backend_tests {
             let tree = store.open_tree::<Product>();
 
             tree.put(test_product.clone()).unwrap();
-            let retrieved = tree.get(ProductKey::Primary(ProductPrimaryKey(42))).unwrap();
+            let retrieved = tree
+                .get(ProductKey::Primary(ProductPrimaryKey(42)))
+                .unwrap();
             assert_eq!(retrieved, Some(test_product));
         }
     }

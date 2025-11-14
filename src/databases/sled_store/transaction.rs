@@ -61,7 +61,8 @@ where
     pub(super) secondary_tree: sled::Tree,
     // When Some, collect secondary key operations instead of inserting directly
     // This prevents deadlocks by deferring secondary writes until after commit
-    pub(super) pending_secondary_keys: Option<std::sync::Arc<std::sync::Mutex<Vec<SecondaryKeyOp>>>>,
+    pub(super) pending_secondary_keys:
+        Option<std::sync::Arc<std::sync::Mutex<Vec<SecondaryKeyOp>>>>,
     pub(super) _phantom_d: PhantomData<D>,
     pub(super) _phantom_m: PhantomData<M>,
 }

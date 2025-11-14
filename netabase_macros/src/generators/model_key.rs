@@ -1,7 +1,8 @@
 use syn::{Ident, ItemEnum, ItemStruct, parse_quote};
 
 use crate::{
-    generators::type_utils::get_type_width, util::append_ident, visitors::model_visitor::ModelVisitor,
+    generators::type_utils::get_type_width, util::append_ident,
+    visitors::model_visitor::ModelVisitor,
 };
 
 impl<'a> ModelVisitor<'a> {
@@ -13,7 +14,10 @@ impl<'a> ModelVisitor<'a> {
         let primary_key_id = p_keys.ident.clone();
         let secondary_newtypes_with_variants = self.generate_secondary_keys_newtypes();
         let secondary_keys = self.generate_secondary_keys(&secondary_newtypes_with_variants);
-        let secondary_newtypes = secondary_newtypes_with_variants.iter().map(|(s, _)| s.clone()).collect();
+        let secondary_newtypes = secondary_newtypes_with_variants
+            .iter()
+            .map(|(s, _)| s.clone())
+            .collect();
         let secondary_key_id = secondary_keys.ident.clone();
         let name = match self.name {
             Some(n) => append_ident(n, "Key"),
@@ -60,7 +64,11 @@ impl<'a> ModelVisitor<'a> {
             };
 
             // Create the newtype name
-            let newtype_name = format!("{}{}", model_name, append_ident(&variant_name, "SecondaryKey"));
+            let newtype_name = format!(
+                "{}{}",
+                model_name,
+                append_ident(&variant_name, "SecondaryKey")
+            );
             let newtype_ident = Ident::new(&newtype_name, proc_macro2::Span::call_site());
 
             // Create trait name: As{Model}{Field}Key
@@ -68,7 +76,8 @@ impl<'a> ModelVisitor<'a> {
             let trait_ident = Ident::new(&trait_name, proc_macro2::Span::call_site());
 
             // Create method name: as_{model}_{field}_key (lowercase with underscores)
-            let method_name = format!("as_{}_{}_key",
+            let method_name = format!(
+                "as_{}_{}_key",
                 heck::AsSnakeCase(model_name.to_string()),
                 heck::AsSnakeCase(field_name.to_string())
             );
@@ -167,17 +176,17 @@ impl<'a> ModelVisitor<'a> {
         for (newtype_struct, _variant_name) in &secondary_newtypes {
             let newtype_ty = &newtype_struct.ident;
             // Extract inner type from the newtype struct
-            if let syn::Fields::Unnamed(fields) = &newtype_struct.fields {
-                if let Some(field) = fields.unnamed.first() {
-                    let inner_ty = &field.ty;
-                    impls.push(quote::quote! {
-                        impl ::std::borrow::Borrow<#inner_ty> for #newtype_ty {
-                            fn borrow(&self) -> &#inner_ty {
-                                &self.0
-                            }
+            if let syn::Fields::Unnamed(fields) = &newtype_struct.fields
+                && let Some(field) = fields.unnamed.first()
+            {
+                let inner_ty = &field.ty;
+                impls.push(quote::quote! {
+                    impl ::std::borrow::Borrow<#inner_ty> for #newtype_ty {
+                        fn borrow(&self) -> &#inner_ty {
+                            &self.0
                         }
-                    });
-                }
+                    }
+                });
             }
         }
 
@@ -602,7 +611,7 @@ mod key_gen {
             }
         }
 
-        pub fn generate_secondary_keys(&self, keys: &Vec<(ItemStruct, Ident)>) -> ItemEnum {
+        pub fn generate_secondary_keys(&self, keys: &[(ItemStruct, Ident)]) -> ItemEnum {
             let list = keys.iter().map(Self::generate_variant);
             let name = match &self.name {
                 Some(n) => &append_ident(n, "SecondaryKeys"),

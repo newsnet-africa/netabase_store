@@ -64,10 +64,8 @@ pub trait BackendConstructor<D: NetabaseDefinitionTrait>: BackendFor<D> + Sized 
 
 // Blanket implementation for all backend types that match the pattern
 #[cfg(feature = "sled")]
-impl<D> BackendFor<D> for crate::databases::sled_store::SledStore<D> where
-    D: NetabaseDefinitionTrait
-{
-}
+impl<D> BackendFor<D> for crate::databases::sled_store::SledStore<D> where D: NetabaseDefinitionTrait
+{}
 
 #[cfg(feature = "sled")]
 impl<D> BackendConstructor<D> for crate::databases::sled_store::SledStore<D>
@@ -81,10 +79,8 @@ where
 }
 
 #[cfg(feature = "redb")]
-impl<D> BackendFor<D> for crate::databases::redb_store::RedbStore<D> where
-    D: NetabaseDefinitionTrait
-{
-}
+impl<D> BackendFor<D> for crate::databases::redb_store::RedbStore<D> where D: NetabaseDefinitionTrait
+{}
 
 #[cfg(feature = "redb")]
 impl<D> BackendConstructor<D> for crate::databases::redb_store::RedbStore<D>
@@ -317,7 +313,6 @@ where
     D: NetabaseDefinitionTrait,
     Backend: BackendFor<D>,
 {
-
     /// Get a reference to the underlying backend.
     ///
     /// This allows access to backend-specific methods and configuration.
@@ -723,7 +718,9 @@ where
     where
         M: NetabaseModelTrait<D> + TryFrom<D> + Into<D>,
         D: TryFrom<M>,
-        F: Fn(&crate::databases::sled_store::SledTransactionalTree<D, M>) -> Result<R, Box<dyn std::error::Error>>,
+        F: Fn(
+            &crate::databases::sled_store::SledTransactionalTree<D, M>,
+        ) -> Result<R, Box<dyn std::error::Error>>,
     {
         self.backend.transaction(f)
     }
@@ -765,8 +762,7 @@ where
 
 // Zero-copy Redb backend support
 #[cfg(all(feature = "redb", feature = "redb-zerocopy"))]
-impl<D> BackendFor<D> for crate::databases::redb_zerocopy::RedbStoreZeroCopy<D>
-where
+impl<D> BackendFor<D> for crate::databases::redb_zerocopy::RedbStoreZeroCopy<D> where
     D: NetabaseDefinitionTrait
 {
 }

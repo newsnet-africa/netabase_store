@@ -1,20 +1,27 @@
+use netabase_store::traits::model::NetabaseModelTrait;
+use netabase_store::traits::tree::NetabaseTreeSync;
 /// Integration tests for convenience extension traits for secondary keys
 ///
 /// These tests verify that the generated extension traits provide
 /// ergonomic APIs for creating secondary keys.
-
-use netabase_store::{netabase_definition_module, NetabaseModel};
-use netabase_store::traits::model::NetabaseModelTrait;
-use netabase_store::traits::tree::NetabaseTreeSync;
+use netabase_store::{NetabaseModel, netabase_definition_module};
 
 // Define a test schema with various secondary key types
 #[netabase_definition_module(TestDef, TestKeys)]
 mod test_models {
-    use netabase_store::{netabase, NetabaseModel};
+    use netabase_store::{NetabaseModel, netabase};
 
-    #[derive(NetabaseModel, Clone, Debug, PartialEq, Eq,
-             bincode::Encode, bincode::Decode,
-             serde::Serialize, serde::Deserialize)]
+    #[derive(
+        NetabaseModel,
+        Clone,
+        Debug,
+        PartialEq,
+        Eq,
+        bincode::Encode,
+        bincode::Decode,
+        serde::Serialize,
+        serde::Deserialize,
+    )]
     #[netabase(TestDef)]
     pub struct User {
         #[primary_key]
@@ -28,9 +35,17 @@ mod test_models {
         pub active: bool,
     }
 
-    #[derive(NetabaseModel, Clone, Debug, PartialEq, Eq,
-             bincode::Encode, bincode::Decode,
-             serde::Serialize, serde::Deserialize)]
+    #[derive(
+        NetabaseModel,
+        Clone,
+        Debug,
+        PartialEq,
+        Eq,
+        bincode::Encode,
+        bincode::Decode,
+        serde::Serialize,
+        serde::Deserialize,
+    )]
     #[netabase(TestDef)]
     pub struct Product {
         #[primary_key]
@@ -65,15 +80,17 @@ fn test_string_secondary_key_from_str() {
     tree.put(user.clone()).unwrap();
 
     // Old verbose API
-    let _by_email_old = tree.get_by_secondary_key(
-        UserSecondaryKeys::Email(UserEmailSecondaryKey("alice@example.com".to_string()))
-    ).unwrap();
+    let _by_email_old = tree
+        .get_by_secondary_key(UserSecondaryKeys::Email(UserEmailSecondaryKey(
+            "alice@example.com".to_string(),
+        )))
+        .unwrap();
 
     // New ergonomic API using convenience trait
     use test_models::AsUserEmail;
-    let by_email_new = tree.get_by_secondary_key(
-        "alice@example.com".as_user_email_key()
-    ).unwrap();
+    let by_email_new = tree
+        .get_by_secondary_key("alice@example.com".as_user_email_key())
+        .unwrap();
 
     assert_eq!(by_email_new.len(), 1);
     assert_eq!(by_email_new[0], user);
@@ -101,7 +118,9 @@ fn test_string_secondary_key_from_string() {
     // Test with owned String
     use test_models::AsUserEmail;
     let email = "bob@example.com".to_string();
-    let by_email = tree.get_by_secondary_key(email.as_user_email_key()).unwrap();
+    let by_email = tree
+        .get_by_secondary_key(email.as_user_email_key())
+        .unwrap();
 
     assert_eq!(by_email.len(), 1);
     assert_eq!(by_email[0], user);
@@ -164,7 +183,9 @@ fn test_bool_secondary_key() {
 
     // Use convenience trait for bool type
     use test_models::AsUserActive;
-    let active_users = tree.get_by_secondary_key(true.as_user_active_key()).unwrap();
+    let active_users = tree
+        .get_by_secondary_key(true.as_user_active_key())
+        .unwrap();
 
     assert_eq!(active_users.len(), 1);
     assert_eq!(active_users[0], active_user);
@@ -200,15 +221,15 @@ fn test_multiple_models_different_traits() {
     product_tree.put(product.clone()).unwrap();
 
     // Use extension traits for both models
-    use test_models::{AsUserEmail, AsProductCategory};
+    use test_models::{AsProductCategory, AsUserEmail};
 
-    let users_by_email = user_tree.get_by_secondary_key(
-        "dave@example.com".as_user_email_key()
-    ).unwrap();
+    let users_by_email = user_tree
+        .get_by_secondary_key("dave@example.com".as_user_email_key())
+        .unwrap();
 
-    let products_by_category = product_tree.get_by_secondary_key(
-        "Electronics".as_product_category_key()
-    ).unwrap();
+    let products_by_category = product_tree
+        .get_by_secondary_key("Electronics".as_product_category_key())
+        .unwrap();
 
     assert_eq!(users_by_email[0], user);
     assert_eq!(products_by_category[0], product);
@@ -243,9 +264,9 @@ fn test_convenience_vs_verbose_equivalence() {
     tree.put(user2.clone()).unwrap();
 
     // Verbose API
-    let by_age_verbose = tree.get_by_secondary_key(
-        UserSecondaryKeys::Age(UserAgeSecondaryKey(30))
-    ).unwrap();
+    let by_age_verbose = tree
+        .get_by_secondary_key(UserSecondaryKeys::Age(UserAgeSecondaryKey(30)))
+        .unwrap();
 
     // Convenience API
     use test_models::AsUserAge;
@@ -279,12 +300,16 @@ fn test_reference_types() {
     // Test with &str
     use test_models::AsUserEmail;
     let email_str: &str = "ref@example.com";
-    let by_email = tree.get_by_secondary_key(email_str.as_user_email_key()).unwrap();
+    let by_email = tree
+        .get_by_secondary_key(email_str.as_user_email_key())
+        .unwrap();
     assert_eq!(by_email[0], user);
 
     // Test with &String
     let email_string = "ref@example.com".to_string();
-    let by_email2 = tree.get_by_secondary_key((&email_string).as_user_email_key()).unwrap();
+    let by_email2 = tree
+        .get_by_secondary_key((&email_string).as_user_email_key())
+        .unwrap();
     assert_eq!(by_email2[0], user);
 
     // Test with &u32

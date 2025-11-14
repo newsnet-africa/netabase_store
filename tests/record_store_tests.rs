@@ -1,10 +1,9 @@
 #![cfg(not(target_arch = "wasm32"))]
-
 #![cfg(all(feature = "libp2p", feature = "native"))]
 
 use libp2p::kad::store::RecordStore;
 use libp2p::kad::{ProviderRecord, Record, RecordKey as Key};
-use libp2p::{multihash::Multihash, PeerId};
+use libp2p::{PeerId, multihash::Multihash};
 use netabase_macros::{netabase, netabase_definition_module};
 use netabase_store::databases::sled_store::SledStore;
 use std::time::Instant;
@@ -13,7 +12,7 @@ use std::time::Instant;
 #[netabase_definition_module(TestDefinition, TestKeys)]
 mod test_schema {
     use netabase_deps::{bincode, serde};
-    use netabase_macros::{netabase, NetabaseModel};
+    use netabase_macros::{NetabaseModel, netabase};
 
     #[derive(
         NetabaseModel,
@@ -55,9 +54,11 @@ fn put_get_remove_record() {
 
     // Create a test key based on TestModel
     let test_model_key = TestModelPrimaryKey(1);
-    let key_bytes = bincode::encode_to_vec(&TestKeys::TestModelKey(
-        test_schema::TestModelKey::Primary(test_model_key)
-    ), bincode::config::standard()).unwrap();
+    let key_bytes = bincode::encode_to_vec(
+        &TestKeys::TestModelKey(test_schema::TestModelKey::Primary(test_model_key)),
+        bincode::config::standard(),
+    )
+    .unwrap();
     let record_key = Key::from(key_bytes);
 
     // Encode the Definition as the record value
@@ -72,7 +73,10 @@ fn put_get_remove_record() {
     };
 
     assert!(store.put(record.clone()).is_ok());
-    assert_eq!(Some(std::borrow::Cow::Owned(record.clone())), store.get(&record_key));
+    assert_eq!(
+        Some(std::borrow::Cow::Owned(record.clone())),
+        store.get(&record_key)
+    );
     store.remove(&record_key);
     assert!(store.get(&record_key).is_none());
 }
@@ -86,9 +90,17 @@ fn add_get_remove_provider() {
     let provider_record = ProviderRecord::new(key.clone(), provider_id, Vec::new());
 
     assert!(store.add_provider(provider_record.clone()).is_ok());
-    assert!(store.providers(&provider_record.key).contains(&provider_record));
+    assert!(
+        store
+            .providers(&provider_record.key)
+            .contains(&provider_record)
+    );
     store.remove_provider(&provider_record.key, &provider_id);
-    assert!(!store.providers(&provider_record.key).contains(&provider_record));
+    assert!(
+        !store
+            .providers(&provider_record.key)
+            .contains(&provider_record)
+    );
 }
 
 #[test]
@@ -175,13 +187,16 @@ fn records_iterator() {
 
             // Create proper keys using TestModelPrimaryKey
             let test_model_key = TestModelPrimaryKey(i);
-            let key_bytes = bincode::encode_to_vec(&TestKeys::TestModelKey(
-                test_schema::TestModelKey::Primary(test_model_key)
-            ), bincode::config::standard()).unwrap();
+            let key_bytes = bincode::encode_to_vec(
+                &TestKeys::TestModelKey(test_schema::TestModelKey::Primary(test_model_key)),
+                bincode::config::standard(),
+            )
+            .unwrap();
 
             // Encode the Definition as the record value
             let definition = TestDefinition::TestModel(test_model);
-            let value_bytes = bincode::encode_to_vec(&definition, bincode::config::standard()).unwrap();
+            let value_bytes =
+                bincode::encode_to_vec(&definition, bincode::config::standard()).unwrap();
 
             Record {
                 key: Key::from(key_bytes),

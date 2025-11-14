@@ -1,7 +1,5 @@
 use crate::errors::NetabaseModelDeriveError;
-use syn::{
-    Attribute, DeriveInput, Field, Fields, Ident, parse_quote,
-};
+use syn::{Attribute, DeriveInput, Field, Fields, Ident, parse_quote};
 
 pub mod visitor_utils;
 

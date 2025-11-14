@@ -227,8 +227,7 @@ where
             .map_err(|e| NetabaseError::Storage(format!("Failed to put value: {:?}", e)))?;
 
         // Wait for transaction to complete
-        tx
-            .await
+        tx.await
             .into_result()
             .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
 
@@ -271,11 +270,9 @@ where
                 let mut bytes = vec![0u8; uint8_array.length() as usize];
                 uint8_array.copy_to(&mut bytes);
 
-                let (definition, _) = bincode::decode_from_slice::<D, _>(
-                    &bytes,
-                    bincode::config::standard(),
-                )
-                .map_err(crate::error::EncodingDecodingError::from)?;
+                let (definition, _) =
+                    bincode::decode_from_slice::<D, _>(&bytes, bincode::config::standard())
+                        .map_err(crate::error::EncodingDecodingError::from)?;
                 match M::try_from(definition) {
                     Ok(model) => Ok(Some(model)),
                     Err(_) => Ok(None),
@@ -317,8 +314,7 @@ where
             .await
             .map_err(|e| NetabaseError::Storage(format!("Delete request failed: {:?}", e)))?;
 
-        tx
-            .await
+        tx.await
             .into_result()
             .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
 
@@ -380,8 +376,7 @@ where
             .await
             .map_err(|e| NetabaseError::Storage(format!("Clear request failed: {:?}", e)))?;
 
-        tx
-            .await
+        tx.await
             .into_result()
             .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
 
@@ -440,11 +435,9 @@ where
                 let mut value_bytes = vec![0u8; value_array.length() as usize];
                 value_array.copy_to(&mut value_bytes);
 
-                let (definition, _) = bincode::decode_from_slice::<D, _>(
-                    &value_bytes,
-                    bincode::config::standard(),
-                )
-                .map_err(crate::error::EncodingDecodingError::from)?;
+                let (definition, _) =
+                    bincode::decode_from_slice::<D, _>(&value_bytes, bincode::config::standard())
+                        .map_err(crate::error::EncodingDecodingError::from)?;
                 let model = M::try_from(definition).map_err(|_| {
                     crate::error::NetabaseError::Conversion(
                         crate::error::EncodingDecodingError::Decoding(
@@ -650,8 +643,7 @@ impl IndexedDBTree {
             .put_key_val(&key_js, &value_js)
             .map_err(|e| NetabaseError::Storage(format!("Failed to put value: {:?}", e)))?;
 
-        tx
-            .await
+        tx.await
             .into_result()
             .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
 
@@ -710,8 +702,7 @@ impl IndexedDBTree {
             .await
             .map_err(|e| NetabaseError::Storage(format!("Delete request failed: {:?}", e)))?;
 
-        tx
-            .await
+        tx.await
             .into_result()
             .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
 
@@ -796,8 +787,7 @@ impl IndexedDBTree {
             .await
             .map_err(|e| NetabaseError::Storage(format!("Clear request failed: {:?}", e)))?;
 
-        tx
-            .await
+        tx.await
             .into_result()
             .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
 
