@@ -110,18 +110,15 @@ use crate::error::NetabaseError;
 use crate::traits::backend_store::{BackendStore, PathBasedBackend};
 use crate::traits::definition::NetabaseDefinitionTrait;
 use crate::traits::model::{NetabaseModelTrait, NetabaseModelTraitKey};
-use crate::{MaybeSend, MaybeSync};
-#[allow(unused_imports)] // ReadableMultimapTable used in conditional compilation
+#[allow(unused_imports)] // Some items used in conditional compilation
 use redb::{
     Database, Key, MultimapTableDefinition, MultimapValue, ReadTransaction, ReadableDatabase,
     ReadableMultimapTable, ReadableTable, ReadableTableMetadata, TableDefinition, Value,
     WriteTransaction,
 };
-use std::borrow::Borrow;
 use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
-use strum::IntoEnumIterator;
 
 /// Main store handle for zero-copy redb backend
 ///
@@ -378,6 +375,7 @@ where
     M: NetabaseModelTrait<D>,
 {
     txn: &'txn mut WriteTransaction,
+    #[allow(dead_code)]
     discriminant: D::Discriminant,
     table_name: &'static str,
     secondary_table_name: &'static str,
@@ -576,6 +574,7 @@ where
     M: NetabaseModelTrait<D>,
 {
     txn: &'txn ReadTransaction,
+    #[allow(dead_code)]
     discriminant: D::Discriminant,
     table_name: &'static str,
     secondary_table_name: &'static str,

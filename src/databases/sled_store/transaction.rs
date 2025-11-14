@@ -8,9 +8,7 @@ use std::marker::PhantomData;
 use std::str::FromStr;
 
 use strum::IntoDiscriminant;
-use strum::IntoEnumIterator;
 
-use crate::error::NetabaseError;
 use crate::traits::convert::ToIVec;
 use crate::traits::definition::NetabaseDefinitionTrait;
 use crate::traits::model::NetabaseModelTrait;

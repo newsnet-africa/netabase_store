@@ -701,8 +701,7 @@ where
             // MultimapTable doesn't have a simple way to clear all entries
             // We need to collect all (secondary_key, primary_key) pairs and remove them
             match write_txn.open_multimap_table(sec_table_def) {
-                Ok(mut sec_table) => {
-                    use redb::ReadableMultimapTable;
+                Ok(sec_table) => {
                     // Since MultimapTable doesn't provide a clear() method, we need to manually
                     // iterate and remove all entries. However, we can't iterate and mutate simultaneously,
                     // so for now we'll just drop the table (entries will persist until overwritten)

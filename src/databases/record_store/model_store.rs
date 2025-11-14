@@ -45,7 +45,7 @@ use std::str::FromStr;
 use strum::IntoDiscriminant;
 
 #[cfg(feature = "libp2p")]
-use libp2p::kad::{ProviderRecord, Record, RecordKey as Key};
+use libp2p::kad::{Record, RecordKey as Key};
 #[cfg(feature = "libp2p")]
 use libp2p::kad::store::{Error, Result};
 
