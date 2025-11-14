@@ -112,7 +112,6 @@ use super::types::SecondaryKeyOp;
 /// # See Also
 ///
 /// - [`SledStoreTree`] - Type-safe tree interface for a specific model
-/// - [`NetabaseTreeSync`] - Unified trait interface for CRUD operations
 /// - [`RedbStore`](crate::databases::redb_store::RedbStore) - Alternative backend with ACID guarantees
 pub struct SledStore<D>
 where

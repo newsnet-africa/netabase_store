@@ -387,7 +387,6 @@ mod visitors;
 /// # See Also
 ///
 /// - [`netabase_definition_module`] - Groups multiple models into a schema
-/// - [`NetabaseModelTrait`](crate::traits::model::NetabaseModelTrait) - The trait this macro implements
 #[proc_macro_derive(NetabaseModel, attributes(primary_key, secondary_key, link))]
 pub fn netabase_model_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -795,7 +794,6 @@ pub fn redb_zerocopy(_attr: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// - [`NetabaseModel`] - Derive macro for individual models
 /// - [`netabase`] - Attribute linking models to definitions
-/// - [`NetabaseDefinitionTrait`](crate::traits::definition::NetabaseDefinitionTrait) - The trait this generates
 #[proc_macro_attribute]
 pub fn netabase_definition_module(name: TokenStream, input: TokenStream) -> TokenStream {
     let mut def_module = parse_macro_input!(input as ItemMod);
