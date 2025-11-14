@@ -1024,7 +1024,8 @@ where
                         if !secondary_keys.is_empty() {
                             let mut sec_table = write_txn.open_table(sec_table_def)?;
                             for sec_key in secondary_keys.values() {
-                                let composite_key = CompositeKey::new(sec_key.clone(), primary_key.clone());
+                                let composite_key =
+                                    CompositeKey::new(sec_key.clone(), primary_key.clone());
                                 sec_table.insert(composite_key, ())?;
                             }
                         }
@@ -1132,7 +1133,8 @@ where
                             if !secondary_keys.is_empty() {
                                 let mut sec_table = write_txn.open_table(sec_table_def)?;
                                 for sec_key in secondary_keys.values() {
-                                    let composite_key = CompositeKey::new(sec_key.clone(), key.clone());
+                                    let composite_key =
+                                        CompositeKey::new(sec_key.clone(), key.clone());
                                     sec_table.remove(composite_key)?;
                                 }
                             }

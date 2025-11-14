@@ -1,24 +1,31 @@
-/// Integration tests for the generic NetabaseStore::new() constructor
-///
-/// These tests verify that the new() constructor works correctly with
-/// different backends and can be used in generic contexts.
-
-use netabase_store::{netabase_definition_module, NetabaseModel, NetabaseStore};
 use netabase_store::error::NetabaseError;
 use netabase_store::store::BackendConstructor;
 use netabase_store::traits::model::NetabaseModelTrait;
 use netabase_store::traits::store_ops::OpenTree;
 use netabase_store::traits::tree::NetabaseTreeSync;
+/// Integration tests for the generic NetabaseStore::new() constructor
+///
+/// These tests verify that the new() constructor works correctly with
+/// different backends and can be used in generic contexts.
+use netabase_store::{NetabaseModel, NetabaseStore, netabase_definition_module};
 use tempfile::TempDir;
 
 // Define a test schema
 #[netabase_definition_module(TestDef, TestKeys)]
 mod test_models {
-    use netabase_store::{netabase, NetabaseModel};
+    use netabase_store::{NetabaseModel, netabase};
 
-    #[derive(NetabaseModel, Clone, Debug, PartialEq, Eq,
-             bincode::Encode, bincode::Decode,
-             serde::Serialize, serde::Deserialize)]
+    #[derive(
+        NetabaseModel,
+        Clone,
+        Debug,
+        PartialEq,
+        Eq,
+        bincode::Encode,
+        bincode::Decode,
+        serde::Serialize,
+        serde::Deserialize,
+    )]
     #[netabase(TestDef)]
     pub struct TestUser {
         #[primary_key]
@@ -28,9 +35,17 @@ mod test_models {
         pub email: String,
     }
 
-    #[derive(NetabaseModel, Clone, Debug, PartialEq, Eq,
-             bincode::Encode, bincode::Decode,
-             serde::Serialize, serde::Deserialize)]
+    #[derive(
+        NetabaseModel,
+        Clone,
+        Debug,
+        PartialEq,
+        Eq,
+        bincode::Encode,
+        bincode::Decode,
+        serde::Serialize,
+        serde::Deserialize,
+    )]
     #[netabase(TestDef)]
     pub struct TestPost {
         #[primary_key]
@@ -72,16 +87,19 @@ fn test_new_with_sled_backend() {
     tree.put(user.clone()).expect("Failed to put user");
 
     // Retrieve by primary key
-    let retrieved = tree.get(user.primary_key())
+    let retrieved = tree
+        .get(user.primary_key())
         .expect("Failed to get user")
         .expect("User not found");
 
     assert_eq!(retrieved, user);
 
     // Retrieve by secondary key
-    let by_email = tree.get_by_secondary_key(
-        TestUserSecondaryKeys::Email(TestUserEmailSecondaryKey("alice@example.com".to_string()))
-    ).expect("Failed to get by email");
+    let by_email = tree
+        .get_by_secondary_key(TestUserSecondaryKeys::Email(TestUserEmailSecondaryKey(
+            "alice@example.com".to_string(),
+        )))
+        .expect("Failed to get by email");
 
     assert_eq!(by_email.len(), 1);
     assert_eq!(by_email[0], user);
@@ -112,7 +130,8 @@ fn test_new_with_redb_backend() {
     tree.put(post.clone()).expect("Failed to put post");
 
     // Retrieve by primary key (Redb requires Key enum wrapper)
-    let retrieved = tree.get(TestPostKey::Primary(post.primary_key()))
+    let retrieved = tree
+        .get(TestPostKey::Primary(post.primary_key()))
         .expect("Failed to get post")
         .expect("Post not found");
 
@@ -195,7 +214,8 @@ fn test_generic_function_with_backend() {
 
     tree.put(user.clone()).expect("Failed to put");
 
-    let retrieved = tree.get(user.primary_key())
+    let retrieved = tree
+        .get(user.primary_key())
         .expect("Failed to get")
         .expect("User should exist");
 
@@ -216,8 +236,8 @@ fn test_new_equals_convenience_method() {
     let store1 = NetabaseStore::<TestDef, SledStore<TestDef>>::new(&path1)
         .expect("Failed to create store with new()");
 
-    let store2 = NetabaseStore::<TestDef, _>::sled(&path2)
-        .expect("Failed to create store with sled()");
+    let store2 =
+        NetabaseStore::<TestDef, _>::sled(&path2).expect("Failed to create store with sled()");
 
     // Both should work identically
     let tree1 = store1.open_tree::<TestUser>();
@@ -264,7 +284,8 @@ fn test_new_redb_persistence() {
             .expect("Failed to reopen store");
 
         let tree = store.open_tree::<TestUser>();
-        let retrieved = tree.get(TestUserKey::Primary(TestUserPrimaryKey(1)))
+        let retrieved = tree
+            .get(TestUserKey::Primary(TestUserPrimaryKey(1)))
             .expect("Failed to get user")
             .expect("User should exist");
 

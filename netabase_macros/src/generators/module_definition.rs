@@ -38,11 +38,19 @@ impl<'a> DefinitionsVisitor<'a> {
         let apply_to_store_impl = def_gen::generate_apply_to_store_impl(&self.modules, definition);
 
         // Generate helper functions needed by RecordStoreExt trait methods
-        let helper_functions = crate::generators::record_store::generate_helper_functions(&self.modules, definition, definition_key);
+        let helper_functions = crate::generators::record_store::generate_helper_functions(
+            &self.modules,
+            definition,
+            definition_key,
+        );
 
         // Generate inherent methods for RecordStore operations (libp2p feature)
         // These are public methods on the Definition type, not trait methods
-        let record_store_methods = crate::generators::record_store::generate_trait_methods(&self.modules, definition, definition_key);
+        let record_store_methods = crate::generators::record_store::generate_trait_methods(
+            &self.modules,
+            definition,
+            definition_key,
+        );
 
         // Generate AsRef and Borrow implementations for all model types
         let as_ref_borrow_impls = def_gen::generate_as_ref_borrow_impls(&self.modules, definition);
@@ -160,7 +168,8 @@ pub mod def_gen {
             .flat_map(|m| generate_model_key_variants(&m.keys, m.path.clone()));
 
         // Create discriminant type name
-        let discriminant_name = syn::Ident::new(&format!("{}Discriminant", definition), definition.span());
+        let discriminant_name =
+            syn::Ident::new(&format!("{}Discriminant", definition), definition.span());
 
         let mut def_enum: ItemEnum = parse_quote! {
             #[derive(Debug, Clone, ::netabase_store::strum::EnumDiscriminants,
@@ -185,7 +194,10 @@ pub mod def_gen {
         }
 
         // Create key discriminant type name
-        let key_discriminant_name = syn::Ident::new(&format!("{}Discriminant", definition_key), definition_key.span());
+        let key_discriminant_name = syn::Ident::new(
+            &format!("{}Discriminant", definition_key),
+            definition_key.span(),
+        );
 
         let mut def_key_enum: ItemEnum = parse_quote! {
             #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash,

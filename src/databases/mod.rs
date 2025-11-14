@@ -145,7 +145,6 @@
 ///! - `put_many(Vec<M>)` - Bulk insert
 ///! - `get_many(Vec<M::Keys>)` - Bulk read
 ///! - `get_many_by_secondary_keys(Vec<SecondaryKey>)` - Bulk secondary queries
-
 #[cfg(feature = "redb")]
 pub mod redb_store;
 

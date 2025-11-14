@@ -84,7 +84,9 @@ where
         let key_bytes = utils::encode_key(&record.key);
 
         // Check max_provided_keys limit - count unique keys in provided tree
-        let is_new_key = !provided_tree.contains_key(&key_bytes).map_err(|_| Error::MaxRecords)?;
+        let is_new_key = !provided_tree
+            .contains_key(&key_bytes)
+            .map_err(|_| Error::MaxRecords)?;
         if is_new_key && provided_tree.len() >= config.max_provided_keys {
             return Err(Error::MaxProvidedKeys);
         }
@@ -103,7 +105,8 @@ where
             .map_err(|_| Error::MaxRecords)?;
 
         // Also track in provided tree
-        provided_tree.insert(key_bytes, value_bytes)
+        provided_tree
+            .insert(key_bytes, value_bytes)
             .map_err(|_| Error::MaxRecords)?;
 
         Ok(())

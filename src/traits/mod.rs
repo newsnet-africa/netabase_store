@@ -8,5 +8,8 @@ pub mod store_ops;
 pub mod tree;
 
 // Re-export commonly used types
-pub use definition::{NetabaseDefinitionTrait, NetabaseDefinitionTraitKey, NetabaseDiscriminant, NetabaseKeyDiscriminant};
+pub use definition::{
+    NetabaseDefinitionTrait, NetabaseDefinitionTraitKey, NetabaseDiscriminant,
+    NetabaseKeyDiscriminant,
+};
 pub use model::{NetabaseModelTrait, NetabaseModelTraitKey};

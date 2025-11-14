@@ -206,8 +206,10 @@ fn bench_raw_sled_iteration(c: &mut Criterion) {
 
 // Configure criterion with profiler support
 fn configure_criterion() -> Criterion {
-    Criterion::default()
-        .with_profiler(pprof::criterion::PProfProfiler::new(100, pprof::criterion::Output::Flamegraph(None)))
+    Criterion::default().with_profiler(pprof::criterion::PProfProfiler::new(
+        100,
+        pprof::criterion::Output::Flamegraph(None),
+    ))
 }
 
 criterion_group! {

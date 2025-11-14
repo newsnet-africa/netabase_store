@@ -18,7 +18,7 @@ mod wasm_store_tests {
     #[netabase_definition_module(TestDefinition, TestKeys)]
     mod test_schema {
         use netabase_deps::{bincode, serde};
-        use netabase_macros::{netabase, NetabaseModel};
+        use netabase_macros::{NetabaseModel, netabase};
 
         #[derive(
             NetabaseModel,
@@ -58,9 +58,7 @@ mod wasm_store_tests {
             category: "test".to_string(),
         };
 
-        tree.put(model.clone())
-            .await
-            .expect("Failed to put model");
+        tree.put(model.clone()).await.expect("Failed to put model");
 
         let retrieved = tree
             .get(TestModelPrimaryKey(1))
@@ -99,13 +97,21 @@ mod wasm_store_tests {
             category: "movies".to_string(),
         };
 
-        tree.put(model1.clone()).await.expect("Failed to put model1");
-        tree.put(model2.clone()).await.expect("Failed to put model2");
-        tree.put(model3.clone()).await.expect("Failed to put model3");
+        tree.put(model1.clone())
+            .await
+            .expect("Failed to put model1");
+        tree.put(model2.clone())
+            .await
+            .expect("Failed to put model2");
+        tree.put(model3.clone())
+            .await
+            .expect("Failed to put model3");
 
         // Query by secondary key
         let books = tree
-            .get_by_secondary_key(TestModelSecondaryKeys::Category(TestModelCategorySecondaryKey("books".to_string())))
+            .get_by_secondary_key(TestModelSecondaryKeys::Category(
+                TestModelCategorySecondaryKey("books".to_string()),
+            ))
             .await
             .expect("Failed to query by secondary key");
 

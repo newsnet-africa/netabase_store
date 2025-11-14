@@ -4,7 +4,9 @@
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use netabase_macros::netabase_definition_module;
 use netabase_store::databases::redb_store::RedbStore;
-use netabase_store::databases::redb_zerocopy::{RedbStoreZeroCopy, with_write_transaction, with_read_transaction};
+use netabase_store::databases::redb_zerocopy::{
+    RedbStoreZeroCopy, with_read_transaction, with_write_transaction,
+};
 use pprof::criterion::PProfProfiler;
 
 // Test schema
@@ -45,52 +47,60 @@ fn bench_redb_insert(c: &mut Criterion) {
 
     for size in [100, 1000, 5000].iter() {
         // Standard redb API (auto-commit per insert)
-        group.bench_with_input(BenchmarkId::new("standard_autocommit", size), size, |b, &size| {
-            b.iter(|| {
-                let temp_dir = tempfile::TempDir::new().unwrap();
-                let db_path = temp_dir.path().join("bench_standard.redb");
-                let store = RedbStore::<BenchDefinition>::new(&db_path).unwrap();
-                let article_tree = store.open_tree::<Article>();
+        group.bench_with_input(
+            BenchmarkId::new("standard_autocommit", size),
+            size,
+            |b, &size| {
+                b.iter(|| {
+                    let temp_dir = tempfile::TempDir::new().unwrap();
+                    let db_path = temp_dir.path().join("bench_standard.redb");
+                    let store = RedbStore::<BenchDefinition>::new(&db_path).unwrap();
+                    let article_tree = store.open_tree::<Article>();
 
-                for i in 0u64..size {
-                    let article = Article {
-                        id: i,
-                        title: format!("Article {}", i),
-                        content: format!("Content {}", i),
-                        author_id: i % 10,
-                    };
-                    article_tree.put(article).unwrap();
-                }
-                black_box(article_tree.len().unwrap());
-            });
-        });
+                    for i in 0u64..size {
+                        let article = Article {
+                            id: i,
+                            title: format!("Article {}", i),
+                            content: format!("Content {}", i),
+                            author_id: i % 10,
+                        };
+                        article_tree.put(article).unwrap();
+                    }
+                    black_box(article_tree.len().unwrap());
+                });
+            },
+        );
 
         // Zerocopy API with single transaction for all inserts
-        group.bench_with_input(BenchmarkId::new("zerocopy_single_txn", size), size, |b, &size| {
-            b.iter(|| {
-                let temp_dir = tempfile::TempDir::new().unwrap();
-                let db_path = temp_dir.path().join("bench_zerocopy.redb");
-                let store = RedbStoreZeroCopy::<BenchDefinition>::new(&db_path).unwrap();
+        group.bench_with_input(
+            BenchmarkId::new("zerocopy_single_txn", size),
+            size,
+            |b, &size| {
+                b.iter(|| {
+                    let temp_dir = tempfile::TempDir::new().unwrap();
+                    let db_path = temp_dir.path().join("bench_zerocopy.redb");
+                    let store = RedbStoreZeroCopy::<BenchDefinition>::new(&db_path).unwrap();
 
-                let mut txn = store.begin_write().unwrap();
-                let mut tree = txn.open_tree::<Article>().unwrap();
+                    let mut txn = store.begin_write().unwrap();
+                    let mut tree = txn.open_tree::<Article>().unwrap();
 
-                for i in 0u64..size {
-                    let article = Article {
-                        id: i,
-                        title: format!("Article {}", i),
-                        content: format!("Content {}", i),
-                        author_id: i % 10,
-                    };
-                    tree.put(article).unwrap();
-                }
+                    for i in 0u64..size {
+                        let article = Article {
+                            id: i,
+                            title: format!("Article {}", i),
+                            content: format!("Content {}", i),
+                            author_id: i % 10,
+                        };
+                        tree.put(article).unwrap();
+                    }
 
-                let count = tree.len().unwrap();
-                drop(tree);
-                txn.commit().unwrap();
-                black_box(count);
-            });
-        });
+                    let count = tree.len().unwrap();
+                    drop(tree);
+                    txn.commit().unwrap();
+                    black_box(count);
+                });
+            },
+        );
 
         // Zerocopy API with bulk insert (put_many)
         group.bench_with_input(BenchmarkId::new("zerocopy_bulk", size), size, |b, &size| {
@@ -112,7 +122,8 @@ fn bench_redb_insert(c: &mut Criterion) {
                     let mut tree = txn.open_tree::<Article>()?;
                     tree.put_many(articles)?;
                     tree.len()
-                }).unwrap();
+                })
+                .unwrap();
 
                 black_box(count);
             });
@@ -166,42 +177,57 @@ fn bench_redb_get(c: &mut Criterion) {
         }
 
         // Benchmark standard API (creates transaction per get)
-        group.bench_with_input(BenchmarkId::new("standard_per_get", size), size, |b, &size| {
-            b.iter(|| {
-                for i in 0u64..size {
-                    let article = article_tree_std.get(ArticleKey::Primary(ArticlePrimaryKey(i))).unwrap();
-                    black_box(article);
-                }
-            });
-        });
-
-        // Benchmark zerocopy with single read transaction
-        group.bench_with_input(BenchmarkId::new("zerocopy_single_txn", size), size, |b, &size| {
-            b.iter(|| {
-                let txn = store_zc.begin_read().unwrap();
-                let tree = txn.open_tree::<Article>().unwrap();
-
-                for i in 0u64..size {
-                    let article = tree.get(&ArticlePrimaryKey(i)).unwrap();
-                    black_box(article);
-                }
-            });
-        });
-
-        // Benchmark zerocopy with helper function
-        group.bench_with_input(BenchmarkId::new("zerocopy_helper", size), size, |b, &size| {
-            b.iter(|| {
-                with_read_transaction(&store_zc, |txn| {
-                    let tree = txn.open_tree::<Article>()?;
-
+        group.bench_with_input(
+            BenchmarkId::new("standard_per_get", size),
+            size,
+            |b, &size| {
+                b.iter(|| {
                     for i in 0u64..size {
-                        let article = tree.get(&ArticlePrimaryKey(i))?;
+                        let article = article_tree_std
+                            .get(ArticleKey::Primary(ArticlePrimaryKey(i)))
+                            .unwrap();
                         black_box(article);
                     }
-                    Ok(())
-                }).unwrap();
-            });
-        });
+                });
+            },
+        );
+
+        // Benchmark zerocopy with single read transaction
+        group.bench_with_input(
+            BenchmarkId::new("zerocopy_single_txn", size),
+            size,
+            |b, &size| {
+                b.iter(|| {
+                    let txn = store_zc.begin_read().unwrap();
+                    let tree = txn.open_tree::<Article>().unwrap();
+
+                    for i in 0u64..size {
+                        let article = tree.get(&ArticlePrimaryKey(i)).unwrap();
+                        black_box(article);
+                    }
+                });
+            },
+        );
+
+        // Benchmark zerocopy with helper function
+        group.bench_with_input(
+            BenchmarkId::new("zerocopy_helper", size),
+            size,
+            |b, &size| {
+                b.iter(|| {
+                    with_read_transaction(&store_zc, |txn| {
+                        let tree = txn.open_tree::<Article>()?;
+
+                        for i in 0u64..size {
+                            let article = tree.get(&ArticlePrimaryKey(i))?;
+                            black_box(article);
+                        }
+                        Ok(())
+                    })
+                    .unwrap();
+                });
+            },
+        );
     }
 
     group.finish();
@@ -222,17 +248,21 @@ fn bench_redb_bulk_remove(c: &mut Criterion) {
 
                 // Insert data
                 for i in 0u64..size {
-                    article_tree.put(Article {
-                        id: i,
-                        title: format!("Article {}", i),
-                        content: format!("Content {}", i),
-                        author_id: i % 10,
-                    }).unwrap();
+                    article_tree
+                        .put(Article {
+                            id: i,
+                            title: format!("Article {}", i),
+                            content: format!("Content {}", i),
+                            author_id: i % 10,
+                        })
+                        .unwrap();
                 }
 
                 // Remove half
                 for i in 0u64..(size / 2) {
-                    article_tree.remove(ArticleKey::Primary(ArticlePrimaryKey(i))).unwrap();
+                    article_tree
+                        .remove(ArticleKey::Primary(ArticlePrimaryKey(i)))
+                        .unwrap();
                 }
 
                 black_box(article_tree.len().unwrap());
@@ -258,17 +288,17 @@ fn bench_redb_bulk_remove(c: &mut Criterion) {
                         })?;
                     }
                     Ok(())
-                }).unwrap();
+                })
+                .unwrap();
 
                 // Bulk remove half
                 let count = with_write_transaction(&store, |txn| {
                     let mut tree = txn.open_tree::<Article>()?;
-                    let keys: Vec<_> = (0u64..(size / 2))
-                        .map(ArticlePrimaryKey)
-                        .collect();
+                    let keys: Vec<_> = (0u64..(size / 2)).map(ArticlePrimaryKey).collect();
                     tree.remove_many(keys)?;
                     tree.len()
-                }).unwrap();
+                })
+                .unwrap();
 
                 black_box(count);
             });
@@ -303,7 +333,8 @@ fn bench_redb_mvcc(c: &mut Criterion) {
                     })?;
                 }
                 Ok(())
-            }).unwrap();
+            })
+            .unwrap();
 
             // Start long-lived read transaction
             let read_txn = store.begin_read().unwrap();
@@ -317,7 +348,8 @@ fn bench_redb_mvcc(c: &mut Criterion) {
                     tree.remove(ArticlePrimaryKey(i))?;
                 }
                 Ok(())
-            }).unwrap();
+            })
+            .unwrap();
 
             // Read transaction still sees old snapshot
             let snapshot_count = read_tree.len().unwrap();
@@ -331,8 +363,10 @@ fn bench_redb_mvcc(c: &mut Criterion) {
 
 // Configure criterion with profiler support
 fn configure_criterion() -> Criterion {
-    Criterion::default()
-        .with_profiler(PProfProfiler::new(100, pprof::criterion::Output::Flamegraph(None)))
+    Criterion::default().with_profiler(PProfProfiler::new(
+        100,
+        pprof::criterion::Output::Flamegraph(None),
+    ))
 }
 
 criterion_group! {

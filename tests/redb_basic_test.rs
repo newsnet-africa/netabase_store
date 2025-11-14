@@ -5,7 +5,7 @@
 #![cfg(all(feature = "redb", not(feature = "paxos")))]
 
 use netabase_store::databases::redb_store::RedbStore;
-use netabase_store::{netabase, netabase_definition_module, NetabaseModel};
+use netabase_store::{NetabaseModel, netabase, netabase_definition_module};
 use tempfile::TempDir;
 
 // Define test schema
@@ -84,7 +84,9 @@ fn test_redb_secondary_key_query() {
 
     // Query by secondary key (email)
     let results = tree
-        .get_by_secondary_key(UserSecondaryKeys::Email(UserEmailSecondaryKey("alice@example.com".to_string())))
+        .get_by_secondary_key(UserSecondaryKeys::Email(UserEmailSecondaryKey(
+            "alice@example.com".to_string(),
+        )))
         .unwrap();
 
     assert_eq!(1, results.len());

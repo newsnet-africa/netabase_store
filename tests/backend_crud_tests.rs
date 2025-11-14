@@ -13,8 +13,7 @@
 /// 4. Handle multiple models in the same definition
 /// 5. Iterate over records
 /// 6. Clear and flush data
-
-use netabase_store::{netabase, netabase_definition_module, NetabaseModel};
+use netabase_store::{NetabaseModel, netabase, netabase_definition_module};
 
 // Test schema shared across all backends
 #[netabase_definition_module(TestDefinition, TestKeys)]
@@ -96,7 +95,10 @@ mod sled_tests {
             email: "alice@example.com".to_string(),
             age: 30,
         };
-        assert!(user_tree.put(alice.clone()).is_ok(), "Failed to insert user");
+        assert!(
+            user_tree.put(alice.clone()).is_ok(),
+            "Failed to insert user"
+        );
 
         // READ
         let retrieved = user_tree.get(UserPrimaryKey(1)).unwrap();
@@ -109,7 +111,10 @@ mod sled_tests {
             email: "alice_new@example.com".to_string(),
             age: 31,
         };
-        assert!(user_tree.put(updated_alice.clone()).is_ok(), "Failed to update user");
+        assert!(
+            user_tree.put(updated_alice.clone()).is_ok(),
+            "Failed to update user"
+        );
 
         let retrieved = user_tree.get(UserPrimaryKey(1)).unwrap();
         assert_eq!(Some(updated_alice), retrieved, "Updated user doesn't match");
@@ -223,7 +228,9 @@ mod sled_tests {
         assert_eq!(Some(alice), user_tree.get(UserPrimaryKey(1)).unwrap());
         assert_eq!(
             Some(laptop),
-            product_tree.get(ProductPrimaryKey("LAPTOP-001".to_string())).unwrap()
+            product_tree
+                .get(ProductPrimaryKey("LAPTOP-001".to_string()))
+                .unwrap()
         );
     }
 
@@ -348,7 +355,9 @@ mod sled_tests {
 
         // Query by in_stock = true
         let results = product_tree
-            .get_by_secondary_key(ProductSecondaryKeys::InStock(ProductInStockSecondaryKey(true)))
+            .get_by_secondary_key(ProductSecondaryKeys::InStock(ProductInStockSecondaryKey(
+                true,
+            )))
             .unwrap();
 
         assert_eq!(2, results.len(), "Should find 2 in-stock products");
@@ -383,7 +392,10 @@ mod memory_tests {
             email: "alice@example.com".to_string(),
             age: 30,
         };
-        assert!(user_tree.put(alice.clone()).is_ok(), "Failed to insert user");
+        assert!(
+            user_tree.put(alice.clone()).is_ok(),
+            "Failed to insert user"
+        );
 
         // READ
         let retrieved = user_tree.get(UserPrimaryKey(1)).unwrap();
@@ -396,7 +408,10 @@ mod memory_tests {
             email: "alice_new@example.com".to_string(),
             age: 31,
         };
-        assert!(user_tree.put(updated_alice.clone()).is_ok(), "Failed to update user");
+        assert!(
+            user_tree.put(updated_alice.clone()).is_ok(),
+            "Failed to update user"
+        );
 
         let retrieved = user_tree.get(UserPrimaryKey(1)).unwrap();
         assert_eq!(Some(updated_alice), retrieved, "Updated user doesn't match");
@@ -510,7 +525,9 @@ mod memory_tests {
         assert_eq!(Some(alice), user_tree.get(UserPrimaryKey(1)).unwrap());
         assert_eq!(
             Some(laptop),
-            product_tree.get(ProductPrimaryKey("LAPTOP-001".to_string())).unwrap()
+            product_tree
+                .get(ProductPrimaryKey("LAPTOP-001".to_string()))
+                .unwrap()
         );
     }
 
@@ -635,7 +652,9 @@ mod memory_tests {
 
         // Query by in_stock = true
         let results = product_tree
-            .get_by_secondary_key(ProductSecondaryKeys::InStock(ProductInStockSecondaryKey(true)))
+            .get_by_secondary_key(ProductSecondaryKeys::InStock(ProductInStockSecondaryKey(
+                true,
+            )))
             .unwrap();
 
         assert_eq!(2, results.len(), "Should find 2 in-stock products");
@@ -675,7 +694,10 @@ mod redb_tests {
             email: "alice@example.com".to_string(),
             age: 30,
         };
-        assert!(user_tree.insert(alice.clone()).is_ok(), "Failed to insert user");
+        assert!(
+            user_tree.insert(alice.clone()).is_ok(),
+            "Failed to insert user"
+        );
 
         // READ
         let retrieved = user_tree.get(UserKey::Primary(UserPrimaryKey(1))).unwrap();
@@ -688,13 +710,18 @@ mod redb_tests {
             email: "alice_new@example.com".to_string(),
             age: 31,
         };
-        assert!(user_tree.insert(updated_alice.clone()).is_ok(), "Failed to update user");
+        assert!(
+            user_tree.insert(updated_alice.clone()).is_ok(),
+            "Failed to update user"
+        );
 
         let retrieved = user_tree.get(UserKey::Primary(UserPrimaryKey(1))).unwrap();
         assert_eq!(Some(updated_alice), retrieved, "Updated user doesn't match");
 
         // DELETE
-        let removed = user_tree.remove(UserKey::Primary(UserPrimaryKey(1))).unwrap();
+        let removed = user_tree
+            .remove(UserKey::Primary(UserPrimaryKey(1)))
+            .unwrap();
         assert!(removed.is_some(), "Failed to remove user");
 
         let retrieved = user_tree.get(UserKey::Primary(UserPrimaryKey(1))).unwrap();
@@ -805,10 +832,17 @@ mod redb_tests {
         product_tree.insert(laptop.clone()).unwrap();
 
         // Verify both models are stored correctly
-        assert_eq!(Some(alice), user_tree.get(UserKey::Primary(UserPrimaryKey(1))).unwrap());
+        assert_eq!(
+            Some(alice),
+            user_tree.get(UserKey::Primary(UserPrimaryKey(1))).unwrap()
+        );
         assert_eq!(
             Some(laptop),
-            product_tree.get(ProductKey::Primary(ProductPrimaryKey("LAPTOP-001".to_string()))).unwrap()
+            product_tree
+                .get(ProductKey::Primary(ProductPrimaryKey(
+                    "LAPTOP-001".to_string()
+                )))
+                .unwrap()
         );
     }
 
@@ -863,7 +897,10 @@ mod redb_tests {
         let store = RedbStore::<TestDefinition>::new(db_path.to_str().unwrap()).unwrap();
         let user_tree = store.open_tree::<User>();
 
-        assert!(user_tree.is_empty().unwrap(), "Tree should be empty initially");
+        assert!(
+            user_tree.is_empty().unwrap(),
+            "Tree should be empty initially"
+        );
         assert_eq!(0, user_tree.len().unwrap(), "Length should be 0");
 
         let alice = User {
@@ -878,7 +915,10 @@ mod redb_tests {
         assert_eq!(1, user_tree.len().unwrap(), "Length should be 1");
 
         user_tree.clear().unwrap();
-        assert!(user_tree.is_empty().unwrap(), "Tree should be empty after clear");
+        assert!(
+            user_tree.is_empty().unwrap(),
+            "Tree should be empty after clear"
+        );
     }
 
     #[test]
@@ -899,7 +939,9 @@ mod redb_tests {
         product_tree.insert(laptop.clone()).unwrap();
 
         let retrieved = product_tree
-            .get(ProductKey::Primary(ProductPrimaryKey("LAPTOP-001".to_string())))
+            .get(ProductKey::Primary(ProductPrimaryKey(
+                "LAPTOP-001".to_string(),
+            )))
             .unwrap();
         assert_eq!(Some(laptop), retrieved);
     }
@@ -941,7 +983,9 @@ mod redb_tests {
 
         // Query by in_stock = true
         let results = product_tree
-            .get_by_secondary_key(ProductSecondaryKeys::InStock(ProductInStockSecondaryKey(true)))
+            .get_by_secondary_key(ProductSecondaryKeys::InStock(ProductInStockSecondaryKey(
+                true,
+            )))
             .unwrap();
 
         assert_eq!(2, results.len(), "Should find 2 in-stock products");
@@ -971,7 +1015,9 @@ mod indexeddb_tests {
 
     #[wasm_bindgen_test]
     async fn test_indexeddb_crud_operations() {
-        let store = IndexedDBStore::<TestDefinition>::new("test_crud_db").await.unwrap();
+        let store = IndexedDBStore::<TestDefinition>::new("test_crud_db")
+            .await
+            .unwrap();
         let user_tree = store.open_tree::<User>();
 
         // CREATE
@@ -981,7 +1027,10 @@ mod indexeddb_tests {
             email: "alice@example.com".to_string(),
             age: 30,
         };
-        assert!(user_tree.put(alice.clone()).await.is_ok(), "Failed to insert user");
+        assert!(
+            user_tree.put(alice.clone()).await.is_ok(),
+            "Failed to insert user"
+        );
 
         // READ
         let retrieved = user_tree.get(UserPrimaryKey(1)).await.unwrap();
@@ -994,7 +1043,10 @@ mod indexeddb_tests {
             email: "alice_new@example.com".to_string(),
             age: 31,
         };
-        assert!(user_tree.put(updated_alice.clone()).await.is_ok(), "Failed to update user");
+        assert!(
+            user_tree.put(updated_alice.clone()).await.is_ok(),
+            "Failed to update user"
+        );
 
         let retrieved = user_tree.get(UserPrimaryKey(1)).await.unwrap();
         assert_eq!(Some(updated_alice), retrieved, "Updated user doesn't match");
@@ -1009,7 +1061,9 @@ mod indexeddb_tests {
 
     #[wasm_bindgen_test]
     async fn test_indexeddb_secondary_key_single_result() {
-        let store = IndexedDBStore::<TestDefinition>::new("test_sec_single_db").await.unwrap();
+        let store = IndexedDBStore::<TestDefinition>::new("test_sec_single_db")
+            .await
+            .unwrap();
         let user_tree = store.open_tree::<User>();
 
         let alice = User {
@@ -1042,7 +1096,9 @@ mod indexeddb_tests {
 
     #[wasm_bindgen_test]
     async fn test_indexeddb_secondary_key_multiple_results() {
-        let store = IndexedDBStore::<TestDefinition>::new("test_sec_multi_db").await.unwrap();
+        let store = IndexedDBStore::<TestDefinition>::new("test_sec_multi_db")
+            .await
+            .unwrap();
         let user_tree = store.open_tree::<User>();
 
         let users = vec![
@@ -1083,7 +1139,9 @@ mod indexeddb_tests {
 
     #[wasm_bindgen_test]
     async fn test_indexeddb_multiple_models() {
-        let store = IndexedDBStore::<TestDefinition>::new("test_multi_models_db").await.unwrap();
+        let store = IndexedDBStore::<TestDefinition>::new("test_multi_models_db")
+            .await
+            .unwrap();
 
         // Test User model
         let user_tree = store.open_tree::<User>();
@@ -1110,13 +1168,18 @@ mod indexeddb_tests {
         assert_eq!(Some(alice), user_tree.get(UserPrimaryKey(1)).await.unwrap());
         assert_eq!(
             Some(laptop),
-            product_tree.get(ProductPrimaryKey("LAPTOP-001".to_string())).await.unwrap()
+            product_tree
+                .get(ProductPrimaryKey("LAPTOP-001".to_string()))
+                .await
+                .unwrap()
         );
     }
 
     #[wasm_bindgen_test]
     async fn test_indexeddb_iteration() {
-        let store = IndexedDBStore::<TestDefinition>::new("test_iter_db").await.unwrap();
+        let store = IndexedDBStore::<TestDefinition>::new("test_iter_db")
+            .await
+            .unwrap();
         let user_tree = store.open_tree::<User>();
 
         let users = vec![
@@ -1157,10 +1220,15 @@ mod indexeddb_tests {
 
     #[wasm_bindgen_test]
     async fn test_indexeddb_clear_and_len() {
-        let store = IndexedDBStore::<TestDefinition>::new("test_clear_db").await.unwrap();
+        let store = IndexedDBStore::<TestDefinition>::new("test_clear_db")
+            .await
+            .unwrap();
         let user_tree = store.open_tree::<User>();
 
-        assert!(user_tree.is_empty().await.unwrap(), "Tree should be empty initially");
+        assert!(
+            user_tree.is_empty().await.unwrap(),
+            "Tree should be empty initially"
+        );
         assert_eq!(0, user_tree.len().await.unwrap(), "Length should be 0");
 
         let alice = User {
@@ -1171,16 +1239,24 @@ mod indexeddb_tests {
         };
         user_tree.put(alice).await.unwrap();
 
-        assert!(!user_tree.is_empty().await.unwrap(), "Tree should not be empty");
+        assert!(
+            !user_tree.is_empty().await.unwrap(),
+            "Tree should not be empty"
+        );
         assert_eq!(1, user_tree.len().await.unwrap(), "Length should be 1");
 
         user_tree.clear().await.unwrap();
-        assert!(user_tree.is_empty().await.unwrap(), "Tree should be empty after clear");
+        assert!(
+            user_tree.is_empty().await.unwrap(),
+            "Tree should be empty after clear"
+        );
     }
 
     #[wasm_bindgen_test]
     async fn test_indexeddb_string_primary_key() {
-        let store = IndexedDBStore::<TestDefinition>::new("test_string_pk_db").await.unwrap();
+        let store = IndexedDBStore::<TestDefinition>::new("test_string_pk_db")
+            .await
+            .unwrap();
         let product_tree = store.open_tree::<Product>();
 
         let laptop = Product {
@@ -1202,7 +1278,9 @@ mod indexeddb_tests {
 
     #[wasm_bindgen_test]
     async fn test_indexeddb_secondary_key_with_bool() {
-        let store = IndexedDBStore::<TestDefinition>::new("test_bool_sec_db").await.unwrap();
+        let store = IndexedDBStore::<TestDefinition>::new("test_bool_sec_db")
+            .await
+            .unwrap();
         let product_tree = store.open_tree::<Product>();
 
         let products = vec![
@@ -1235,7 +1313,9 @@ mod indexeddb_tests {
 
         // Query by in_stock = true
         let results = product_tree
-            .get_by_secondary_key(ProductSecondaryKeys::InStock(ProductInStockSecondaryKey(true)))
+            .get_by_secondary_key(ProductSecondaryKeys::InStock(ProductInStockSecondaryKey(
+                true,
+            )))
             .await
             .unwrap();
 

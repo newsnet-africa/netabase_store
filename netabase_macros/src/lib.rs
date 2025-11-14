@@ -810,15 +810,22 @@ pub fn netabase_definition_module(name: TokenStream, input: TokenStream) -> Toke
     let (defin, def_key) = visitor.generate_definitions(definition, definition_key);
 
     // Generate redb table definitions struct
-    let tables_struct = generators::table_definitions::generate_tables_struct(&visitor.modules, definition);
-    let tables_impl = generators::table_definitions::generate_tables_impl(&visitor.modules, definition);
+    let tables_struct =
+        generators::table_definitions::generate_tables_struct(&visitor.modules, definition);
+    let tables_impl =
+        generators::table_definitions::generate_tables_impl(&visitor.modules, definition);
     let tables_name = syn::Ident::new(&format!("{}Tables", definition), definition.span());
 
-    let trait_impls = visitor.generate_definition_trait_impls(definition, definition_key, &tables_name);
+    let trait_impls =
+        visitor.generate_definition_trait_impls(definition, definition_key, &tables_name);
 
     // Generate discriminant type names for compile-time assertions
-    let discriminant_name = syn::Ident::new(&format!("{}Discriminant", definition), definition.span());
-    let key_discriminant_name = syn::Ident::new(&format!("{}Discriminant", definition_key), definition_key.span());
+    let discriminant_name =
+        syn::Ident::new(&format!("{}Discriminant", definition), definition.span());
+    let key_discriminant_name = syn::Ident::new(
+        &format!("{}Discriminant", definition_key),
+        definition_key.span(),
+    );
 
     // Generate compile-time assertions for discriminant trait bounds
     let discriminant_assertions: syn::Item = syn::parse_quote! {

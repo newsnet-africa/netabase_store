@@ -720,7 +720,10 @@ where
     }
 
     /// Find models by secondary key using the secondary key index
-    pub fn get_by_secondary_key(&self, secondary_key: <M::Keys as NetabaseModelTraitKey<D>>::SecondaryKey) -> Result<Vec<M>, NetabaseError>
+    pub fn get_by_secondary_key(
+        &self,
+        secondary_key: <M::Keys as NetabaseModelTraitKey<D>>::SecondaryKey,
+    ) -> Result<Vec<M>, NetabaseError>
     where
         M::Keys: for<'a> From<<M::PrimaryKey as redb::Value>::SelfType<'a>>,
     {

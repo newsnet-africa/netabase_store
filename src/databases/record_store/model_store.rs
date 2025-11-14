@@ -45,9 +45,9 @@ use std::str::FromStr;
 use strum::IntoDiscriminant;
 
 #[cfg(feature = "libp2p")]
-use libp2p::kad::{Record, RecordKey as Key};
-#[cfg(feature = "libp2p")]
 use libp2p::kad::store::{Error, Result};
+#[cfg(feature = "libp2p")]
+use libp2p::kad::{Record, RecordKey as Key};
 
 /// A record key that includes the model discriminant
 ///
@@ -115,8 +115,8 @@ impl ModelRecordKey {
             .position(|&b| b == b':')
             .ok_or(Error::MaxRecords)?;
 
-        let discriminant = String::from_utf8(bytes[..separator_pos].to_vec())
-            .map_err(|_| Error::MaxRecords)?;
+        let discriminant =
+            String::from_utf8(bytes[..separator_pos].to_vec()).map_err(|_| Error::MaxRecords)?;
         let key_bytes = bytes[separator_pos + 1..].to_vec();
 
         Ok(Self {

@@ -1,7 +1,4 @@
-use syn::{
-    Field, PathSegment, Token,
-    punctuated::Punctuated,
-};
+use syn::{Field, PathSegment, Token, punctuated::Punctuated};
 
 pub struct ModelKeyInfo<'ast> {
     pub primary_keys: &'ast Field,

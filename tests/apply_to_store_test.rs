@@ -9,7 +9,7 @@
 
 #![cfg(all(feature = "paxos", feature = "libp2p", feature = "sled"))]
 
-use netabase_store::{netabase, netabase_definition_module, NetabaseModel};
+use netabase_store::{NetabaseModel, netabase, netabase_definition_module};
 
 // Define the schema with test models inside
 #[netabase_definition_module(TestDefinition, TestDefinitionKeys)]
@@ -112,8 +112,8 @@ fn test_apply_to_store_actually_stores_data() {
     // This test verifies that apply_to_store actually persists data
     // that can be retrieved later
 
-    use libp2p::kad::store::RecordStore;
     use libp2p::kad::RecordKey;
+    use libp2p::kad::store::RecordStore;
     use netabase_store::databases::sled_store::SledStore;
 
     let mut store = SledStore::<TestDefinition>::temp().unwrap();

@@ -1,6 +1,5 @@
 #![cfg(not(target_arch = "wasm32"))]
 #![cfg(not(feature = "paxos"))]
-
 #![cfg(all(feature = "libp2p", feature = "native"))]
 
 use libp2p::kad::store::RecordStore;
@@ -12,7 +11,7 @@ use netabase_store::databases::sled_store::SledStore;
 #[netabase_definition_module(DhtDefinition, DhtKeys)]
 mod dht_schema {
     use netabase_deps::{bincode, serde};
-    use netabase_macros::{netabase, NetabaseModel};
+    use netabase_macros::{NetabaseModel, netabase};
 
     #[derive(
         NetabaseModel,

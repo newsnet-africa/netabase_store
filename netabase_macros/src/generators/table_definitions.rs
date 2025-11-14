@@ -23,10 +23,7 @@ use crate::util::append_ident;
 ///     }
 /// }
 /// ```
-pub fn generate_tables_struct(
-    modules: &Vec<ModuleInfo<'_>>,
-    definition: &Ident,
-) -> ItemStruct {
+pub fn generate_tables_struct(modules: &Vec<ModuleInfo<'_>>, definition: &Ident) -> ItemStruct {
     let tables_name = Ident::new(&format!("{}Tables", definition), definition.span());
 
     // Generate fields for each model
@@ -69,10 +66,7 @@ pub fn generate_tables_struct(
 }
 
 /// Generate the implementation for the tables struct with a const constructor
-pub fn generate_tables_impl(
-    modules: &Vec<ModuleInfo<'_>>,
-    definition: &Ident,
-) -> TokenStream {
+pub fn generate_tables_impl(modules: &Vec<ModuleInfo<'_>>, definition: &Ident) -> TokenStream {
     let tables_name = Ident::new(&format!("{}Tables", definition), definition.span());
 
     // Generate initializers for each field

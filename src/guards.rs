@@ -394,10 +394,8 @@ where
         K: for<'a> From<K::SelfType<'a>>,
         V: for<'a> From<V::SelfType<'a>>,
     {
-        self.map(|result| {
-            result.map(|(k, v)| (K::from(k), V::from(v)))
-        })
-        .collect()
+        self.map(|result| result.map(|(k, v)| (K::from(k), V::from(v))))
+            .collect()
     }
 
     /// Filter items by a predicate on the borrowed value.

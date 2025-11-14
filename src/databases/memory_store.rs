@@ -191,9 +191,10 @@ where
 
     /// Clear all data from the store.
     pub fn clear(&self) -> Result<(), NetabaseError> {
-        let mut data = self.data.write().map_err(|_| {
-            NetabaseError::Storage("Failed to acquire write lock".to_string())
-        })?;
+        let mut data = self
+            .data
+            .write()
+            .map_err(|_| NetabaseError::Storage("Failed to acquire write lock".to_string()))?;
         data.clear();
         Ok(())
     }
@@ -341,19 +342,23 @@ where
 
         // Insert into primary tree
         {
-            let mut data = self.data.write().map_err(|_| {
-                NetabaseError::Storage("Failed to acquire write lock".to_string())
-            })?;
+            let mut data = self
+                .data
+                .write()
+                .map_err(|_| NetabaseError::Storage("Failed to acquire write lock".to_string()))?;
 
-            let tree = data.entry(self.tree_name.clone()).or_insert_with(HashMap::new);
+            let tree = data
+                .entry(self.tree_name.clone())
+                .or_insert_with(HashMap::new);
             tree.insert(key_bytes.clone(), value_bytes.to_vec());
         }
 
         // Insert secondary key indexes
         if !secondary_keys.is_empty() {
-            let mut data = self.data.write().map_err(|_| {
-                NetabaseError::Storage("Failed to acquire write lock".to_string())
-            })?;
+            let mut data = self
+                .data
+                .write()
+                .map_err(|_| NetabaseError::Storage("Failed to acquire write lock".to_string()))?;
 
             let sec_tree = data
                 .entry(self.secondary_tree_name.clone())
@@ -369,13 +374,17 @@ where
     }
 
     /// Get a model by its primary key.
-    pub fn get(&self, key: <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+    pub fn get(
+        &self,
+        key: <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey,
+    ) -> Result<Option<M>, NetabaseError> {
         let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())
             .map_err(crate::error::EncodingDecodingError::from)?;
 
-        let data = self.data.read().map_err(|_| {
-            NetabaseError::Storage("Failed to acquire read lock".to_string())
-        })?;
+        let data = self
+            .data
+            .read()
+            .map_err(|_| NetabaseError::Storage("Failed to acquire read lock".to_string()))?;
 
         if let Some(tree) = data.get(&self.tree_name) {
             if let Some(value_bytes) = tree.get(&key_bytes) {
@@ -394,7 +403,10 @@ where
     }
 
     /// Delete a model by its primary key.
-    pub fn remove(&self, key: <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+    pub fn remove(
+        &self,
+        key: <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey,
+    ) -> Result<Option<M>, NetabaseError> {
         let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())
             .map_err(crate::error::EncodingDecodingError::from)?;
 
@@ -402,9 +414,10 @@ where
         let model = self.get(key.clone())?;
 
         if let Some(ref m) = model {
-            let mut data = self.data.write().map_err(|_| {
-                NetabaseError::Storage("Failed to acquire write lock".to_string())
-            })?;
+            let mut data = self
+                .data
+                .write()
+                .map_err(|_| NetabaseError::Storage("Failed to acquire write lock".to_string()))?;
 
             // Remove from primary tree
             if let Some(tree) = data.get_mut(&self.tree_name) {
@@ -455,9 +468,10 @@ where
 
     /// Clear all models from the tree.
     pub fn clear(&self) -> Result<(), NetabaseError> {
-        let mut data = self.data.write().map_err(|_| {
-            NetabaseError::Storage("Failed to acquire write lock".to_string())
-        })?;
+        let mut data = self
+            .data
+            .write()
+            .map_err(|_| NetabaseError::Storage("Failed to acquire write lock".to_string()))?;
 
         if let Some(tree) = data.get_mut(&self.tree_name) {
             tree.clear();
@@ -490,16 +504,18 @@ where
         secondary_key: <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey,
     ) -> Result<Vec<M>, NetabaseError>
     where
-        <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey: bincode::Decode<()>,
+        <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey:
+            bincode::Decode<()>,
     {
         let sec_key_bytes = bincode::encode_to_vec(&secondary_key, bincode::config::standard())
             .map_err(crate::error::EncodingDecodingError::from)?;
 
         // First, collect all primary keys
         let primary_keys = {
-            let data = self.data.read().map_err(|_| {
-                NetabaseError::Storage("Failed to acquire read lock".to_string())
-            })?;
+            let data = self
+                .data
+                .read()
+                .map_err(|_| NetabaseError::Storage("Failed to acquire read lock".to_string()))?;
 
             let mut keys = Vec::new();
 
@@ -596,7 +612,13 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
     <D as strum::IntoDiscriminant>::Discriminant: std::convert::AsRef<str>,
 {
-    type Item = Result<(<M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey, M), NetabaseError>;
+    type Item = Result<
+        (
+            <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey,
+            M,
+        ),
+        NetabaseError,
+    >;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.current >= self.entries.len() {
@@ -607,10 +629,10 @@ where
         self.current += 1;
 
         let result = (|| {
-            let (key, _) = bincode::decode_from_slice::<<M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey, _>(
-                key_bytes,
-                bincode::config::standard(),
-            )
+            let (key, _) = bincode::decode_from_slice::<
+                <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey,
+                _,
+            >(key_bytes, bincode::config::standard())
             .map_err(crate::error::EncodingDecodingError::from)?;
 
             #[cfg(feature = "native")]
@@ -637,7 +659,8 @@ impl<'db, D, M> NetabaseTreeSync<'db, D, M> for MemoryStoreTree<'db, D, M>
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
     M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone,
-    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey: bincode::Decode<()> + Clone,
+    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey:
+        bincode::Decode<()> + Clone,
     <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey: bincode::Decode<()>,
     <D as IntoDiscriminant>::Discriminant: Clone
         + Copy
@@ -702,7 +725,8 @@ impl<'db, D, M> crate::traits::store_ops::StoreOps<D, M> for MemoryStoreTree<'db
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
     M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + bincode::Decode<()>,
-    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey: bincode::Decode<()> + Clone,
+    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey:
+        bincode::Decode<()> + Clone,
     <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey: bincode::Decode<()>,
     <D as IntoDiscriminant>::Discriminant: Clone
         + Copy
@@ -738,18 +762,22 @@ where
             .map_err(crate::error::EncodingDecodingError::from)?;
 
         {
-            let mut data = self.data.write().map_err(|_| {
-                NetabaseError::Storage("Failed to acquire write lock".to_string())
-            })?;
+            let mut data = self
+                .data
+                .write()
+                .map_err(|_| NetabaseError::Storage("Failed to acquire write lock".to_string()))?;
 
-            let tree = data.entry(self.tree_name.clone()).or_insert_with(HashMap::new);
+            let tree = data
+                .entry(self.tree_name.clone())
+                .or_insert_with(HashMap::new);
             tree.insert(key_bytes, value_bytes);
         }
 
         if !secondary_keys.is_empty() {
-            let mut data = self.data.write().map_err(|_| {
-                NetabaseError::Storage("Failed to acquire write lock".to_string())
-            })?;
+            let mut data = self
+                .data
+                .write()
+                .map_err(|_| NetabaseError::Storage("Failed to acquire write lock".to_string()))?;
 
             let sec_tree = data
                 .entry(self.secondary_tree_name.clone())
@@ -764,13 +792,17 @@ where
         Ok(())
     }
 
-    fn get_raw(&self, key: <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+    fn get_raw(
+        &self,
+        key: <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey,
+    ) -> Result<Option<M>, NetabaseError> {
         let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())
             .map_err(crate::error::EncodingDecodingError::from)?;
 
-        let data = self.data.read().map_err(|_| {
-            NetabaseError::Storage("Failed to acquire read lock".to_string())
-        })?;
+        let data = self
+            .data
+            .read()
+            .map_err(|_| NetabaseError::Storage("Failed to acquire read lock".to_string()))?;
 
         if let Some(tree) = data.get(&self.tree_name) {
             if let Some(value_bytes) = tree.get(&key_bytes) {
@@ -784,16 +816,20 @@ where
         Ok(None)
     }
 
-    fn remove_raw(&self, key: <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+    fn remove_raw(
+        &self,
+        key: <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey,
+    ) -> Result<Option<M>, NetabaseError> {
         let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())
             .map_err(crate::error::EncodingDecodingError::from)?;
 
         let model = self.get_raw(key.clone())?;
 
         if let Some(ref m) = model {
-            let mut data = self.data.write().map_err(|_| {
-                NetabaseError::Storage("Failed to acquire write lock".to_string())
-            })?;
+            let mut data = self
+                .data
+                .write()
+                .map_err(|_| NetabaseError::Storage("Failed to acquire write lock".to_string()))?;
 
             if let Some(tree) = data.get_mut(&self.tree_name) {
                 tree.remove(&key_bytes);
@@ -823,7 +859,8 @@ impl<'db, D, M> crate::traits::store_ops::StoreOpsSecondary<D, M> for MemoryStor
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + ToIVec + From<M>,
     M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + bincode::Decode<()>,
-    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey: bincode::Decode<()> + Clone,
+    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey:
+        bincode::Decode<()> + Clone,
     <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey: bincode::Decode<()>,
     <D as IntoDiscriminant>::Discriminant: Clone
         + Copy
@@ -861,11 +898,15 @@ impl<D, M> crate::traits::store_ops::OpenTree<D, M> for MemoryStore<D>
 where
     D: NetabaseDefinitionTrait + TryFrom<M> + crate::traits::convert::ToIVec + From<M>,
     M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone + bincode::Decode<()>,
-    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey: bincode::Decode<()> + Clone,
+    <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey:
+        bincode::Decode<()> + Clone,
     <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey: bincode::Decode<()>,
     <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
 {
-    type Tree<'a> = MemoryStoreTree<'a, D, M> where Self: 'a;
+    type Tree<'a>
+        = MemoryStoreTree<'a, D, M>
+    where
+        Self: 'a;
 
     fn open_tree(&self) -> Self::Tree<'_> {
         MemoryStoreTree::new(Arc::clone(&self.data), M::DISCRIMINANT)

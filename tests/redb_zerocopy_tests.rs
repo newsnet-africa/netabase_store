@@ -6,7 +6,7 @@
 #![cfg(all(feature = "redb", not(feature = "paxos")))]
 
 use netabase_store::databases::redb_zerocopy::*;
-use netabase_store::{netabase, netabase_definition_module, NetabaseModel};
+use netabase_store::{NetabaseModel, netabase, netabase_definition_module};
 
 // Test definition and models
 #[netabase_definition_module(TestDef, TestKeys)]
@@ -169,7 +169,9 @@ fn test_secondary_index() {
     let txn = store.begin_read().unwrap();
     let tree = txn.open_tree::<User>().unwrap();
     let result = tree
-        .get_by_secondary_key(&UserSecondaryKeys::Email(UserEmailSecondaryKey("alice@example.com".to_string())))
+        .get_by_secondary_key(&UserSecondaryKeys::Email(UserEmailSecondaryKey(
+            "alice@example.com".to_string(),
+        )))
         .unwrap();
 
     assert_eq!(result.len(), 1);
@@ -234,7 +236,13 @@ fn test_remove_many() {
     // Remove multiple
     let mut txn = store.begin_write().unwrap();
     let mut tree = txn.open_tree::<User>().unwrap();
-    let removed = tree.remove_many(vec![UserPrimaryKey(1), UserPrimaryKey(3), UserPrimaryKey(5)]).unwrap();
+    let removed = tree
+        .remove_many(vec![
+            UserPrimaryKey(1),
+            UserPrimaryKey(3),
+            UserPrimaryKey(5),
+        ])
+        .unwrap();
     assert_eq!(removed.len(), 3);
     drop(tree);
     txn.commit().unwrap();

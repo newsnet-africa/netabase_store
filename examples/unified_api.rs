@@ -2,13 +2,12 @@
 ///!
 ///! This example shows how to use NetabaseStore<D, Backend> to write
 ///! backend-agnostic code that works with any storage backend.
-
-use netabase_store::{netabase_definition_module, NetabaseStore};
+use netabase_store::{NetabaseStore, netabase_definition_module};
 
 // Define a simple data model
 #[netabase_definition_module(Definition, DefinitionKeys)]
 pub mod definitions {
-    use netabase_store::{netabase, NetabaseModel};
+    use netabase_store::{NetabaseModel, netabase};
 
     #[derive(
         NetabaseModel,
@@ -87,7 +86,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  ✓ Found user by email");
 
     // Access Redb-specific features
-    println!("  ℹ Redb-specific: Tree names: {:?}", redb_store.tree_names());
+    println!(
+        "  ℹ Redb-specific: Tree names: {:?}",
+        redb_store.tree_names()
+    );
     println!();
 
     println!("✓ All tests passed!");

@@ -2,7 +2,7 @@
 
 #![cfg(all(feature = "redb", not(feature = "paxos")))]
 
-use netabase_store::{netabase, netabase_definition_module, NetabaseModel};
+use netabase_store::{NetabaseModel, netabase, netabase_definition_module};
 
 #[netabase_definition_module(SimpleDef, SimpleKeys)]
 mod simple_models {

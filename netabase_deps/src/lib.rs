@@ -46,11 +46,11 @@ pub mod __private {
 
 // Also provide direct access for convenience
 pub use bincode;
+pub use blake3;
 pub use derive_more;
-pub use serde;
-pub use sled;
+pub use paxakos;
 #[cfg(feature = "redb")]
 pub use redb;
+pub use serde;
+pub use sled;
 pub use strum;
-pub use paxakos;
-pub use blake3;

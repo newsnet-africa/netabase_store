@@ -205,15 +205,15 @@ mod tests {
 
         assert_eq!(config.path, PathBuf::from("/tmp/test.db"));
         assert_eq!(config.cache_size_mb, 512);
-        assert_eq!(config.create_if_missing, false);
+        assert!(!config.create_if_missing);
     }
 
     #[test]
     fn test_file_config_defaults() {
         let config = FileConfig::new("/tmp/default.db");
         assert_eq!(config.cache_size_mb, 256);
-        assert_eq!(config.create_if_missing, true);
-        assert_eq!(config.truncate, false);
+        assert!(config.create_if_missing);
+        assert!(!config.truncate);
     }
 
     #[test]

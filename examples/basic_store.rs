@@ -1,6 +1,6 @@
-use netabase_store::{netabase_definition_module, NetabaseStore};
 use netabase_store::traits::model::NetabaseModelTrait;
 use netabase_store::traits::store_ops::OpenTree;
+use netabase_store::{NetabaseStore, netabase_definition_module};
 
 #[netabase_definition_module(ExampleDefs, ExampleDefKeys)]
 pub mod definitions {
@@ -30,8 +30,11 @@ use definitions::*;
 fn main() {
     // Use the unified NetabaseStore API with Sled backend
     let store = NetabaseStore::<ExampleDefs, _>::sled(
-        tempfile::tempdir().expect("Failed to create temp dir").path()
-    ).expect("The store failed to open");
+        tempfile::tempdir()
+            .expect("Failed to create temp dir")
+            .path(),
+    )
+    .expect("The store failed to open");
 
     let user_tree = store.open_tree::<User>();
 
