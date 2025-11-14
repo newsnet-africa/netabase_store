@@ -30,6 +30,7 @@ record-store = ["libp2p"]
 # paxos is native-only (uses threading/networking)
 paxos = ["dep:paxakos"]
 uniffi = ["netabase_macros/uniffi"]
+memory = ["default"]
 
 [dependencies]
 anyhow = "1.0.100"
