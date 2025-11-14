@@ -86,10 +86,7 @@ use super::iterator::SledIter;
 /// assert!(deleted.is_some());
 /// ```
 ///
-/// # See Also
 ///
-/// - [`NetabaseTreeSync`] - The unified trait interface this implements
-/// - [`SledStore`] - The parent store that creates trees
 pub struct SledStoreTree<'db, D, M>
 where
     D: NetabaseDefinitionTrait,
