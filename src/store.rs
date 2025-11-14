@@ -258,7 +258,7 @@ where
     /// let post = Post { id: "post-1".to_string(), title: "Hello".to_string() };
     /// tree.put(post.clone())?;
     ///
-    /// let retrieved = tree.get(post.primary_key())?.unwrap();
+    /// let retrieved = tree.get(PostKey::Primary(post.primary_key()))?.unwrap();
     /// assert_eq!(retrieved, post);
     /// # Ok(())
     /// # }
@@ -290,29 +290,20 @@ where
     /// }
     /// use my_models::*;
     ///
-    /// // Generic function that works with any backend
-    /// fn create_and_test_store<B>(path: &str) -> Result<(), Box<dyn std::error::Error>>
-    /// where
-    ///     B: BackendConstructor<MyDef> + 'static,
-    ///     for<'a> NetabaseStore<MyDef, B>: netabase_store::traits::store_ops::OpenTree<MyDef, Item>,
-    /// {
-    ///     let store = NetabaseStore::<MyDef, B>::new(path)?;
-    ///     let tree = store.open_tree::<Item>();
-    ///
-    ///     let item = Item { id: 1, data: "test".to_string() };
-    ///     tree.put(item.clone())?;
-    ///
-    ///     let retrieved = tree.get(item.primary_key())?.unwrap();
-    ///     assert_eq!(retrieved, item);
-    ///     Ok(())
-    /// }
-    ///
+    /// // Example using generic new() method with concrete backend
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # use netabase_store::databases::sled_store::SledStore;
-    /// # let temp_dir = tempfile::tempdir()?;
-    /// # create_and_test_store::<SledStore<MyDef>>(
-    /// #     temp_dir.path().join("test.db").to_str().unwrap()
-    /// # )?;
+    /// use netabase_store::databases::sled_store::SledStore;
+    /// let temp_dir = tempfile::tempdir()?;
+    /// let store = NetabaseStore::<MyDef, SledStore<MyDef>>::new(
+    ///     temp_dir.path().join("test.db")
+    /// )?;
+    ///
+    /// let tree = store.open_tree::<Item>();
+    /// let item = Item { id: 1, data: "test".to_string() };
+    /// tree.put(item.clone())?;
+    ///
+    /// let retrieved = tree.get(item.primary_key())?.unwrap();
+    /// assert_eq!(retrieved, item);
     /// # Ok(())
     /// # }
     /// ```
@@ -441,7 +432,7 @@ where
     /// # }
     /// # use models::*;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let store = NetabaseStore::sled("./my_database")?;
+    /// let store = NetabaseStore::<MyDefinition, _>::sled("./my_database")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -474,7 +465,7 @@ where
     /// # }
     /// # use models::*;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let store = NetabaseStore::temp()?;
+    /// let store = NetabaseStore::<MyDefinition, _>::temp()?;
     /// # Ok(())
     /// # }
     /// ```
@@ -511,7 +502,7 @@ where
     /// # }
     /// # use models::*;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let store = NetabaseStore::redb("./my_database.redb")?;
+    /// let store = NetabaseStore::<MyDefinition, _>::redb("./my_database.redb")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -623,8 +614,8 @@ where
     /// # }
     /// # use models::*;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let store = NetabaseStore::sled("./db")?;
-    /// let txn = store.read();
+    /// # let store = NetabaseStore::<MyDefinition, _>::sled("./db")?;
+    /// let mut txn = store.read();
     /// let tree = txn.open_tree::<User>();
     /// let user = tree.get(UserPrimaryKey(1))?;
     /// # Ok(())

@@ -251,7 +251,7 @@ where
     /// # fn example<S: OpenTree<MyDef, User>>(store: &S) -> Result<(), Box<dyn std::error::Error>> {
     /// # let user = User { id: 1, name: "Alice".to_string() };
     /// use netabase_store::traits::store_ops::StoreOps;
-    /// let tree = store.open_tree::<User>();
+    /// let tree = store.open_tree();
     /// tree.put_raw(user)?;
     /// # Ok(())
     /// # }

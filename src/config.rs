@@ -12,15 +12,16 @@ use typed_builder::TypedBuilder;
 ///
 /// ```
 /// use netabase_store::config::FileConfig;
+/// use std::path::PathBuf;
 ///
 /// // Create with defaults
 /// let config = FileConfig::builder()
-///     .path("my_database.db")
+///     .path(PathBuf::from("my_database.db"))
 ///     .build();
 ///
 /// // Customize options
 /// let config = FileConfig::builder()
-///     .path("/data/store.db")
+///     .path(PathBuf::from("/data/store.db"))
 ///     .cache_size_mb(512)
 ///     .create_if_missing(true)
 ///     .build();
@@ -112,7 +113,7 @@ impl Default for MemoryConfig {
 /// use netabase_store::config::IndexedDBConfig;
 ///
 /// let config = IndexedDBConfig::builder()
-///     .database_name("my_app_store")
+///     .database_name("my_app_store".to_string())
 ///     .version(2)
 ///     .build();
 /// ```

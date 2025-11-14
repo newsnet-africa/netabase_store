@@ -39,15 +39,17 @@ use std::path::Path;
 /// # }
 /// # use models::*;
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// // Unified API across all backends
-/// let config = FileConfig::new("my_store.db");
-/// let store = SledStore::<MyDef>::new(config)?;
+/// use netabase_store::traits::backend_store::BackendStore;
+/// // Unified API across all backends via BackendStore trait
+/// let temp_dir = tempfile::tempdir()?;
+/// let config = FileConfig::new(temp_dir.path().join("my_store.db"));
+/// let store = <SledStore<MyDef> as BackendStore<MyDef>>::new(config.clone())?;
 ///
 /// // Or open existing
-/// let store = SledStore::<MyDef>::open(config)?;
+/// let store = <SledStore<MyDef> as BackendStore<MyDef>>::open(config)?;
 ///
 /// // Temporary store
-/// let temp_store = SledStore::<MyDef>::temp()?;
+/// let temp_store = <SledStore<MyDef> as BackendStore<MyDef>>::temp()?;
 /// # Ok(())
 /// # }
 /// ```
