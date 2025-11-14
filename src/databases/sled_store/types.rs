@@ -2,9 +2,6 @@
 
 use std::marker::PhantomData;
 
-use crate::traits::definition::NetabaseDefinitionTrait;
-use crate::traits::model::NetabaseModelTrait;
-
 /// Operation to be performed on secondary index after transaction commits.
 ///
 /// This enum is used to defer secondary key operations until after a transaction
@@ -18,6 +15,7 @@ pub enum SecondaryKeyOp {
 }
 
 /// Helper to maintain phantom data for unused generic parameters.
+#[allow(dead_code)]
 pub(super) struct Phantom<D, M> {
     pub(super) _d: PhantomData<D>,
     pub(super) _m: PhantomData<M>,

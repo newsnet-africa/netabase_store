@@ -44,7 +44,7 @@
 use crate::error::NetabaseError;
 use crate::traits::definition::NetabaseDefinitionTrait;
 use crate::traits::model::NetabaseModelTrait;
-use crate::traits::store_ops::{OpenTree, StoreOps};
+use crate::traits::store_ops::OpenTree;
 use std::marker::PhantomData;
 use std::path::Path;
 
