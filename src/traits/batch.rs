@@ -4,10 +4,10 @@
 //! backend implementations. Batching is crucial for performance when inserting
 //! or updating multiple records.
 
-use crate::{MaybeSend, MaybeSync};
 use crate::error::NetabaseError;
-use crate::traits::model::NetabaseModelTrait;
 use crate::traits::definition::NetabaseDefinitionTrait;
+use crate::traits::model::NetabaseModelTrait;
+use crate::{MaybeSend, MaybeSync, NetabaseModelTraitKey};
 
 /// A batch operation builder for accumulating database operations.
 ///
@@ -30,12 +30,34 @@ use crate::traits::definition::NetabaseDefinitionTrait;
 ///
 /// # Example Flow
 ///
-/// ```ignore
-/// let mut batch = store.batch_builder();
+/// ```no_run
+/// # use netabase_store::netabase_definition_module;
+/// # use netabase_store::traits::batch::{Batchable, BatchBuilder};
+/// # #[netabase_definition_module(MyDef, MyKeys)]
+/// # mod models {
+/// #     use netabase_store::{NetabaseModel, netabase};
+/// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+/// #              bincode::Encode, bincode::Decode,
+/// #              serde::Serialize, serde::Deserialize)]
+/// #     #[netabase(MyDef)]
+/// #     pub struct User {
+/// #         #[primary_key]
+/// #         pub id: u64,
+/// #         pub name: String,
+/// #     }
+/// # }
+/// # use models::*;
+/// # fn example<T: Batchable<MyDef, User>>(tree: &T) -> Result<(), Box<dyn std::error::Error>> {
+/// # let user1 = User { id: 1, name: "Alice".to_string() };
+/// # let user2 = User { id: 2, name: "Bob".to_string() };
+/// # let old_user_id = UserPrimaryKey(3);
+/// let mut batch = tree.create_batch()?;
 /// batch.put(user1)?;
 /// batch.put(user2)?;
 /// batch.remove(old_user_id)?;
 /// batch.commit()?;  // All operations applied atomically
+/// # Ok(())
+/// # }
 /// ```
 pub trait BatchBuilder<D, M>
 where
@@ -87,7 +109,10 @@ where
     ///
     /// - The operation is not immediately executed
     /// - The operation will be executed when `commit()` is called
-    fn remove(&mut self, key: M::PrimaryKey) -> Result<(), NetabaseError>;
+    fn remove(
+        &mut self,
+        key: <M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey,
+    ) -> Result<(), NetabaseError>;
 
     /// Commit all batched operations atomically
     ///
@@ -116,12 +141,33 @@ where
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// # use netabase_store::netabase_definition_module;
+/// # use netabase_store::traits::batch::{Batchable, BatchBuilder};
+/// # #[netabase_definition_module(MyDef, MyKeys)]
+/// # mod models {
+/// #     use netabase_store::{NetabaseModel, netabase};
+/// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+/// #              bincode::Encode, bincode::Decode,
+/// #              serde::Serialize, serde::Deserialize)]
+/// #     #[netabase(MyDef)]
+/// #     pub struct User {
+/// #         #[primary_key]
+/// #         pub id: u64,
+/// #         pub name: String,
+/// #     }
+/// # }
+/// # use models::*;
+/// # fn example<T: Batchable<MyDef, User>>(user_tree: &T) -> Result<(), Box<dyn std::error::Error>> {
+/// # let user1 = User { id: 1, name: "Alice".to_string() };
+/// # let user2 = User { id: 2, name: "Bob".to_string() };
 /// // Using batch operations
-/// let batch = user_tree.create_batch()?;
+/// let mut batch = user_tree.create_batch()?;
 /// batch.put(user1)?;
 /// batch.put(user2)?;
 /// batch.commit()?;
+/// # Ok(())
+/// # }
 /// ```
 pub trait Batchable<D, M>
 where
@@ -219,7 +265,7 @@ where
     /// - If any operation fails, all operations are rolled back
     fn remove_batch<I>(&self, keys: I) -> Result<(), NetabaseError>
     where
-        I: IntoIterator<Item = M::PrimaryKey>,
+        I: IntoIterator<Item = <M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey>,
     {
         let mut batch = self.create_batch()?;
         for key in keys {
@@ -263,11 +309,20 @@ where
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```no_run
+/// # use netabase_store::traits::batch::CrossTreeBatchable;
+/// # fn example<S: CrossTreeBatchable>(store: &S) -> Result<(), Box<dyn std::error::Error>> {
+/// # let user_bytes = vec![1, 2, 3];
+/// # let user_key = vec![1];
+/// # let post_bytes = vec![4, 5, 6];
+/// # let post_key = vec![2];
+/// use netabase_store::traits::batch::CrossTreeBatchBuilder;
 /// let mut batch = store.create_cross_tree_batch()?;
-/// batch.put_for_tree("User", user)?;
-/// batch.put_for_tree("Post", post)?;
+/// batch.put_raw("User", user_key, user_bytes)?;
+/// batch.put_raw("Post", post_key, post_bytes)?;
 /// batch.commit()?;  // Both user and post saved atomically
+/// # Ok(())
+/// # }
 /// ```
 pub trait CrossTreeBatchable {
     /// The cross-tree batch builder type

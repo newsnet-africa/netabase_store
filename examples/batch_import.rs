@@ -10,6 +10,8 @@
 //! cargo run --example batch_import --features native
 //! ```
 
+use netabase_store::NetabaseStore;
+use netabase_store::traits::store_ops::OpenTree;
 use netabase_store::netabase_definition_module;
 use netabase_store::traits::batch::{BatchBuilder, Batchable};
 use std::time::Instant;
@@ -47,7 +49,7 @@ fn main() -> anyhow::Result<()> {
     println!("=== Batch Import Example ===\n");
 
     // Create a temporary store
-    let store = netabase_store::databases::sled_store::SledStore::<CatalogDefinition>::temp()?;
+    let store = NetabaseStore::<CatalogDefinition, _>::temp()?;
     let book_tree = store.open_tree::<Book>();
 
     // Simulate importing from an external data source
@@ -81,7 +83,7 @@ fn main() -> anyhow::Result<()> {
 
 /// Import books using batch operations
 fn import_books(
-    book_tree: &netabase_store::databases::sled_store::SledStoreTree<CatalogDefinition, Book>,
+    book_tree: &netabase_store::databases::sled_store::SledStoreTree<'_, CatalogDefinition, Book>,
     books: Vec<Book>,
 ) -> anyhow::Result<()> {
     const BATCH_SIZE: usize = 100;
@@ -131,7 +133,7 @@ fn generate_sample_books() -> Vec<Book> {
 
 /// Print statistics about the imported data
 fn print_statistics(
-    book_tree: &netabase_store::databases::sled_store::SledStoreTree<CatalogDefinition, Book>,
+    book_tree: &netabase_store::databases::sled_store::SledStoreTree<'_, CatalogDefinition, Book>,
 ) -> anyhow::Result<()> {
     println!("\n--- Catalog Statistics ---");
 
@@ -149,7 +151,7 @@ fn print_statistics(
 
 /// Demonstrate batch updates: mark all Fiction books as unavailable
 fn batch_update_availability(
-    book_tree: &netabase_store::databases::sled_store::SledStoreTree<CatalogDefinition, Book>,
+    book_tree: &netabase_store::databases::sled_store::SledStoreTree<'_, CatalogDefinition, Book>,
 ) -> anyhow::Result<()> {
     // Get all Fiction books
     let fiction_books = book_tree.get_by_secondary_key(BookSecondaryKeys::Genre(

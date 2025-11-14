@@ -18,6 +18,7 @@ impl<'a> DefinitionsVisitor<'a> {
         &self,
         definition: &Ident,
         definition_key: &Ident,
+        tables_name: &Ident,
     ) -> proc_macro2::TokenStream {
         let models = self
             .modules
@@ -43,6 +44,9 @@ impl<'a> DefinitionsVisitor<'a> {
         // These are public methods on the Definition type, not trait methods
         let record_store_methods = crate::generators::record_store::generate_trait_methods(&self.modules, definition, definition_key);
 
+        // Generate AsRef and Borrow implementations for all model types
+        let as_ref_borrow_impls = def_gen::generate_as_ref_borrow_impls(&self.modules, definition);
+
         // panic!("{:?}", into_inner.to_string());
         quote::quote! {
             // Helper functions for RecordStore operations
@@ -54,6 +58,13 @@ impl<'a> DefinitionsVisitor<'a> {
 
             impl ::netabase_store::traits::definition::NetabaseDefinitionTrait for #definition {
                 type Keys = #definition_key;
+                #[cfg(feature = "redb")]
+                type Tables = #tables_name;
+
+                #[cfg(feature = "redb")]
+                fn tables() -> Self::Tables {
+                    #tables_name::new()
+                }
             }
 
             // Implement RecordStoreExt trait for RecordStore helper methods
@@ -68,6 +79,9 @@ impl<'a> DefinitionsVisitor<'a> {
 
             impl ::netabase_store::traits::convert::ToIVec for #definition {}
             impl ::netabase_store::traits::convert::ToIVec for #definition_key {}
+
+            // AsRef and Borrow implementations for all inner model types
+            #as_ref_borrow_impls
 
             // Apply-to-store implementation for Paxos consensus
             // (only generated when paxos and libp2p features are enabled)
@@ -308,6 +322,83 @@ pub mod def_gen {
                     Ok(())
                 }
             }
+        }
+    }
+
+    /// Generate AsRef and Borrow trait implementations for all inner model types
+    ///
+    /// This allows users to access the inner model through the Definition enum wrapper
+    /// without unwrapping, cloning, or consuming the enum.
+    ///
+    /// # Example
+    /// ```ignore
+    /// fn process_user<T: AsRef<User>>(user: T) {
+    ///     let user_ref = user.as_ref();
+    ///     // ... use user_ref
+    /// }
+    ///
+    /// let def = MyDefinition::User(user);
+    /// process_user(&def); // Works due to AsRef<User> impl
+    /// ```
+    ///
+    /// # Note
+    /// These implementations will panic if called on the wrong variant.
+    /// Users should ensure they're calling as_ref/borrow on the correct variant,
+    /// or use the safe TryInto approach instead.
+    pub fn generate_as_ref_borrow_impls(
+        modules: &Vec<ModuleInfo<'_>>,
+        definition: &Ident,
+    ) -> proc_macro2::TokenStream {
+        let impls: Vec<proc_macro2::TokenStream> = modules
+            .iter()
+            .flat_map(|module| {
+                module.models.iter().map(|model_struct| {
+                    let model_name = &model_struct.ident;
+
+                    // Build the full path to the model type
+                    let mut model_path = module.path.clone();
+                    model_path.push(model_name.clone().into());
+
+                    // Generate AsRef implementation
+                    let as_ref_impl = quote::quote! {
+                        impl ::std::convert::AsRef<#model_path> for #definition {
+                            fn as_ref(&self) -> &#model_path {
+                                match self {
+                                    Self::#model_name(model) => model,
+                                    _ => panic!(
+                                        "Attempted to access {} from wrong variant. Use TryInto for safe variant access.",
+                                        stringify!(#model_name)
+                                    ),
+                                }
+                            }
+                        }
+                    };
+
+                    // Generate Borrow implementation
+                    let borrow_impl = quote::quote! {
+                        impl ::std::borrow::Borrow<#model_path> for #definition {
+                            fn borrow(&self) -> &#model_path {
+                                match self {
+                                    Self::#model_name(model) => model,
+                                    _ => panic!(
+                                        "Attempted to borrow {} from wrong variant. Use TryInto for safe variant access.",
+                                        stringify!(#model_name)
+                                    ),
+                                }
+                            }
+                        }
+                    };
+
+                    quote::quote! {
+                        #as_ref_impl
+                        #borrow_impl
+                    }
+                })
+            })
+            .collect();
+
+        quote::quote! {
+            #(#impls)*
         }
     }
 }

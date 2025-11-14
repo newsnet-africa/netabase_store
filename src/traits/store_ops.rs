@@ -4,9 +4,10 @@
 //! needed for put and get requests at the tree level. This trait is used by
 //! the `NetabaseStore` macro to generate efficient RecordStore implementations.
 
+use crate::NetabaseModelTraitKey;
 use crate::error::NetabaseError;
-use crate::traits::model::NetabaseModelTrait;
 use crate::traits::definition::NetabaseDefinitionTrait;
+use crate::traits::model::NetabaseModelTrait;
 
 /// Core store operations for a single tree/table.
 ///
@@ -75,7 +76,10 @@ where
     /// # Implementation Notes
     ///
     /// - The model should be retrieved directly, not wrapped in a Definition enum
-    fn get_raw(&self, key: M::PrimaryKey) -> Result<Option<M>, NetabaseError>;
+    fn get_raw(
+        &self,
+        key: <M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey,
+    ) -> Result<Option<M>, NetabaseError>;
 
     /// Delete a model by its primary key
     ///
@@ -93,7 +97,10 @@ where
     ///
     /// - The operation should clean up secondary key indexes
     /// - The operation should be atomic
-    fn remove_raw(&self, key: M::PrimaryKey) -> Result<Option<M>, NetabaseError>;
+    fn remove_raw(
+        &self,
+        key: <M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey,
+    ) -> Result<Option<M>, NetabaseError>;
 
     /// Get the discriminant name for this tree
     ///
@@ -130,7 +137,7 @@ where
     /// * `Err(NetabaseError)` if the operation failed
     fn get_by_secondary_key_raw(
         &self,
-        secondary_key: M::SecondaryKeys,
+        secondary_key: <M::Keys as NetabaseModelTraitKey<D>>::SecondaryKey,
     ) -> Result<Vec<M>, NetabaseError>;
 }
 
@@ -208,20 +215,46 @@ where
 {
     /// The tree/table type returned by `open_tree`
     ///
-    /// This type must implement `StoreOps<D, M>` to provide storage operations
-    type Tree: StoreOps<D, M>;
+    /// This type must implement `StoreOps<D, M>` to provide storage operations.
+    /// The lifetime parameter ensures that trees cannot outlive their parent store.
+    type Tree<'a>: StoreOps<D, M>
+    where
+        Self: 'a;
 
     /// Open a tree/table/object-store for the given model type
     ///
     /// # Returns
     ///
-    /// A tree instance that provides `StoreOps` for the model type `M`
+    /// A tree instance that provides `StoreOps` for the model type `M`.
+    /// The returned tree is bound to the lifetime of this store, ensuring it cannot outlive the database.
     ///
     /// # Example
     ///
-    /// ```ignore
+    /// ```no_run
+    /// # use netabase_store::netabase_definition_module;
+    /// # use netabase_store::traits::store_ops::OpenTree;
+    /// # use netabase_store::traits::model::NetabaseModelTrait;
+    /// # #[netabase_definition_module(MyDef, MyKeys)]
+    /// # mod models {
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(MyDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn example<S: OpenTree<MyDef, User>>(store: &S) -> Result<(), Box<dyn std::error::Error>> {
+    /// # let user = User { id: 1, name: "Alice".to_string() };
+    /// use netabase_store::traits::store_ops::StoreOps;
     /// let tree = store.open_tree::<User>();
     /// tree.put_raw(user)?;
+    /// # Ok(())
+    /// # }
     /// ```
-    fn open_tree(&self) -> Self::Tree;
+    fn open_tree(&self) -> Self::Tree<'_>;
 }

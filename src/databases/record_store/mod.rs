@@ -13,6 +13,7 @@
 //!
 //! # Recommended Usage
 //!
+#![allow(dead_code)] // Items used only in specific feature configurations
 //! Use the `ModelRecordStore` trait for type-safe operations:
 //!
 //! ```ignore

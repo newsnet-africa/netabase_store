@@ -14,6 +14,9 @@ proc-macro = true
 [features]
 libp2p = []
 uniffi = ["dep:uniffi"]
+redb = []
+sled = []
+redb-zerocopy = ["redb"]
 
 [dependencies]
 uniffi = { version = "0.28", optional = true }

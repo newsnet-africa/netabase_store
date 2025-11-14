@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, sync]
   pull_request:
     branches: [main, develop]
 
@@ -11,52 +11,126 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test:
-    name: Test Suite
+  # Test with individual backends
+  test-sled:
+    name: Test Sled Backend
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        rust: [stable, beta]
-        include:
-          - os: ubuntu-latest
-            rust: nightly
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
         with:
-          toolchain: ${{ matrix.rust }}
+          key: test-sled-${{ matrix.os }}
 
-      - name: Cache cargo registry
-        uses: actions/cache@v4
+      - name: Run tests (sled only)
+        run: cargo test --lib --features sled --verbose
+
+      - name: Run comprehensive tests (sled)
+        run: cargo test --test comprehensive_store_tests --features sled --verbose
+
+  test-redb:
+    name: Test Redb Backend
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          key: test-redb-${{ matrix.os }}
 
-      - name: Cache cargo index
-        uses: actions/cache@v4
+      - name: Run tests (redb only)
+        run: cargo test --lib --features redb --verbose
+
+  test-redb-zerocopy:
+    name: Test Redb ZeroCopy Backend
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
         with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+          key: test-zerocopy-${{ matrix.os }}
 
-      - name: Cache cargo build
-        uses: actions/cache@v4
+      - name: Run tests (redb-zerocopy only)
+        run: cargo test --lib --features redb-zerocopy --verbose
+
+      - name: Run zerocopy tests
+        run: cargo test --test redb_zerocopy_tests --features redb-zerocopy --verbose
+
+  test-native:
+    name: Test Native (All Backends)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
         with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          key: test-native
 
-      - name: Run tests (all features)
-        run: cargo test --all-features --verbose
+      - name: Run tests (native - all backends)
+        run: cargo test --lib --features native --verbose
 
-      - name: Run tests (no default features)
-        run: cargo test --no-default-features --verbose
+      - name: Run sled store tests
+        run: cargo test --test sled_store_tests --features native --verbose
 
-      - name: Run tests (native only)
-        run: cargo test --features native --verbose
+      - name: Run cross-store tests
+        run: cargo test --test cross_store_compat_tests --features native --verbose
+
+  test-combinations:
+    name: Test Feature Combinations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: test-combinations
+
+      - name: Test sled + redb
+        run: cargo test --lib --features "sled,redb" --verbose
+
+      - name: Test sled + redb + redb-zerocopy
+        run: cargo test --lib --features "sled,redb,redb-zerocopy" --verbose
+
+      - name: Test with libp2p
+        run: cargo test --lib --features "native,libp2p" --verbose
 
   bench:
     name: Benchmarks
@@ -68,7 +142,12 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Run benchmarks (check only)
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: bench
+
+      - name: Check benchmarks compile
         run: cargo bench --features native --no-run
 
   examples:
@@ -81,5 +160,38 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Build examples
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: examples
+
+      - name: Build examples (native)
         run: cargo build --examples --features native --verbose
+
+      - name: Build config showcase example
+        run: cargo build --example config_api_showcase --features "native,redb-zerocopy" --verbose
+
+      - name: Build redb examples
+        run: cargo build --example redb_basic --example redb_zerocopy --features "redb,redb-zerocopy" --verbose
+
+  # Quick smoke test to ensure basic functionality
+  smoke-test:
+    name: Smoke Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: smoke
+
+      - name: Run basic_store example
+        run: timeout 30 cargo run --example basic_store --features native
+
+      - name: Run config showcase example
+        run: timeout 30 cargo run --example config_api_showcase --features "native,redb-zerocopy"

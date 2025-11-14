@@ -1,6 +1,8 @@
 use syn::{Ident, ItemEnum, ItemStruct, parse_quote};
 
-use crate::{util::append_ident, visitors::model_visitor::ModelVisitor};
+use crate::{
+    generators::type_utils::get_type_width, util::append_ident, visitors::model_visitor::ModelVisitor,
+};
 
 impl<'a> ModelVisitor<'a> {
     pub fn generate_keys(&self) -> (ItemStruct, Vec<ItemStruct>, ItemEnum, ItemEnum) {
@@ -9,9 +11,9 @@ impl<'a> ModelVisitor<'a> {
             Err(e) => panic!("{}", e),
         };
         let primary_key_id = p_keys.ident.clone();
-        let secondary_newtypes = self.generate_secondary_keys_newtypes();
-        let secondary_keys = self.generate_secondary_keys(&secondary_newtypes);
-        let secondary_newtypes = secondary_newtypes.iter().map(|(s, _)| s.clone()).collect();
+        let secondary_newtypes_with_variants = self.generate_secondary_keys_newtypes();
+        let secondary_keys = self.generate_secondary_keys(&secondary_newtypes_with_variants);
+        let secondary_newtypes = secondary_newtypes_with_variants.iter().map(|(s, _)| s.clone()).collect();
         let secondary_key_id = secondary_keys.ident.clone();
         let name = match self.name {
             Some(n) => append_ident(n, "Key"),
@@ -29,6 +31,204 @@ impl<'a> ModelVisitor<'a> {
         );
 
         (p_keys, secondary_newtypes, secondary_keys, keys_enum)
+    }
+
+    /// Generate convenience extension traits for secondary keys
+    /// This allows ergonomic API like: "user@email.com".as_user_email_key()
+    pub fn generate_key_extension_traits(&self) -> Vec<proc_macro2::TokenStream> {
+        let model_name = match self.name {
+            Some(n) => n,
+            None => return vec![],
+        };
+
+        let key = match &self.key {
+            Some(k) => k,
+            None => return vec![],
+        };
+
+        let secondary_keys_ty = append_ident(model_name, "SecondaryKeys");
+        let mut traits = Vec::new();
+
+        for field in &key.secondary_keys {
+            let field_name = field.ident.as_ref().expect("Secondary key must have name");
+            let field_type = &field.ty;
+
+            // Convert field name to UpperCamelCase for the variant
+            let variant_name = {
+                let upper = heck::AsUpperCamelCase(field_name.to_string());
+                Ident::new(&upper.to_string(), proc_macro2::Span::call_site())
+            };
+
+            // Create the newtype name
+            let newtype_name = format!("{}{}", model_name, append_ident(&variant_name, "SecondaryKey"));
+            let newtype_ident = Ident::new(&newtype_name, proc_macro2::Span::call_site());
+
+            // Create trait name: As{Model}{Field}Key
+            let trait_name = format!("As{}{}", model_name, variant_name);
+            let trait_ident = Ident::new(&trait_name, proc_macro2::Span::call_site());
+
+            // Create method name: as_{model}_{field}_key (lowercase with underscores)
+            let method_name = format!("as_{}_{}_key",
+                heck::AsSnakeCase(model_name.to_string()),
+                heck::AsSnakeCase(field_name.to_string())
+            );
+            let method_ident = Ident::new(&method_name, proc_macro2::Span::call_site());
+
+            // Determine if the inner type is String or &str to provide implementations
+            let type_string = quote::quote!(#field_type).to_string();
+
+            if type_string.contains("String") {
+                // For String types, implement for String, &str, and &String
+                traits.push(quote::quote! {
+                    /// Extension trait for ergonomic secondary key construction.
+                    ///
+                    /// This trait enables convenient conversion of string values to secondary keys.
+                    pub trait #trait_ident {
+                        /// Convert this value into a secondary key for querying.
+                        fn #method_ident(self) -> #secondary_keys_ty;
+                    }
+
+                    impl #trait_ident for String {
+                        fn #method_ident(self) -> #secondary_keys_ty {
+                            #secondary_keys_ty::#variant_name(#newtype_ident(self))
+                        }
+                    }
+
+                    impl #trait_ident for &str {
+                        fn #method_ident(self) -> #secondary_keys_ty {
+                            #secondary_keys_ty::#variant_name(#newtype_ident(self.to_string()))
+                        }
+                    }
+
+                    impl<'a> #trait_ident for &'a String {
+                        fn #method_ident(self) -> #secondary_keys_ty {
+                            #secondary_keys_ty::#variant_name(#newtype_ident(self.clone()))
+                        }
+                    }
+                });
+            } else {
+                // For non-String types, implement for the type and its reference
+                traits.push(quote::quote! {
+                    /// Extension trait for ergonomic secondary key construction.
+                    pub trait #trait_ident {
+                        /// Convert this value into a secondary key for querying.
+                        fn #method_ident(self) -> #secondary_keys_ty;
+                    }
+
+                    impl #trait_ident for #field_type {
+                        fn #method_ident(self) -> #secondary_keys_ty {
+                            #secondary_keys_ty::#variant_name(#newtype_ident(self))
+                        }
+                    }
+
+                    impl #trait_ident for &#field_type
+                    where
+                        #field_type: Clone,
+                    {
+                        fn #method_ident(self) -> #secondary_keys_ty {
+                            #secondary_keys_ty::#variant_name(#newtype_ident(self.clone()))
+                        }
+                    }
+                });
+            }
+        }
+
+        traits
+    }
+
+    pub fn generate_borrow_impls(&self) -> Vec<proc_macro2::TokenStream> {
+        let model_name = match self.name {
+            Some(n) => n,
+            None => panic!("Visitor error (parsing struct name?)"),
+        };
+
+        let mut impls = Vec::new();
+
+        // Get primary key info
+        let key = match &self.key {
+            Some(k) => k,
+            None => return impls,
+        };
+
+        let primary_key_ty = append_ident(model_name, "PrimaryKey");
+        let primary_inner_ty = &key.primary_keys.ty;
+
+        // 1. Primary key newtype implements Borrow<InnerType>
+        impls.push(quote::quote! {
+            impl ::std::borrow::Borrow<#primary_inner_ty> for #primary_key_ty {
+                fn borrow(&self) -> &#primary_inner_ty {
+                    &self.0
+                }
+            }
+        });
+
+        // 2. Each secondary key newtype implements Borrow<InnerType>
+        let secondary_newtypes = self.generate_secondary_keys_newtypes();
+        for (newtype_struct, _variant_name) in &secondary_newtypes {
+            let newtype_ty = &newtype_struct.ident;
+            // Extract inner type from the newtype struct
+            if let syn::Fields::Unnamed(fields) = &newtype_struct.fields {
+                if let Some(field) = fields.unnamed.first() {
+                    let inner_ty = &field.ty;
+                    impls.push(quote::quote! {
+                        impl ::std::borrow::Borrow<#inner_ty> for #newtype_ty {
+                            fn borrow(&self) -> &#inner_ty {
+                                &self.0
+                            }
+                        }
+                    });
+                }
+            }
+        }
+
+        // 3. SecondaryKeys enum implements Borrow<VariantType> for each variant
+        let secondary_keys_ty = append_ident(model_name, "SecondaryKeys");
+        for (newtype_struct, variant_name) in &secondary_newtypes {
+            let newtype_ty = &newtype_struct.ident;
+            impls.push(quote::quote! {
+                impl ::std::borrow::Borrow<#newtype_ty> for #secondary_keys_ty {
+                    fn borrow(&self) -> &#newtype_ty {
+                        match self {
+                            Self::#variant_name(inner) => inner,
+                            _ => panic!(
+                                "Attempted to borrow {} from wrong SecondaryKeys variant. Use pattern matching for safe access.",
+                                stringify!(#newtype_ty)
+                            ),
+                        }
+                    }
+                }
+            });
+        }
+
+        // 4. Main Keys enum implements Borrow<PrimaryKey> and Borrow<SecondaryKeys>
+        let keys_ty = append_ident(model_name, "Key");
+        impls.push(quote::quote! {
+            impl ::std::borrow::Borrow<#primary_key_ty> for #keys_ty {
+                fn borrow(&self) -> &#primary_key_ty {
+                    match self {
+                        Self::Primary(key) => key,
+                        _ => panic!(
+                            "Attempted to borrow PrimaryKey from Secondary variant. Use pattern matching for safe access."
+                        ),
+                    }
+                }
+            }
+        });
+
+        impls.push(quote::quote! {
+            impl ::std::borrow::Borrow<#secondary_keys_ty> for #keys_ty {
+                fn borrow(&self) -> &#secondary_keys_ty {
+                    match self {
+                        Self::Secondary(keys) => keys,
+                        _ => panic!(
+                            "Attempted to borrow SecondaryKeys from Primary variant. Use pattern matching for safe access."
+                        ),
+                    }
+                }
+            }
+        });
+
+        impls
     }
 
     pub fn generate_model_trait_impl(&self) -> Vec<proc_macro2::TokenStream> {
@@ -49,7 +249,7 @@ impl<'a> ModelVisitor<'a> {
             None => panic!("Primary key not found"),
         };
 
-        // Get secondary key field identifiers
+        // Get secondary key field identifiers for HashMap construction
         let secondary_fields: Vec<_> = match &self.key {
             Some(k) => k
                 .secondary_keys
@@ -62,14 +262,34 @@ impl<'a> ModelVisitor<'a> {
                         proc_macro2::Span::call_site(),
                     );
                     quote::quote! {
-                        #secondary_keys_ty::#variant(self.#field_name.clone().into())
+                        {
+                            use ::netabase_store::strum::IntoDiscriminant;
+                            let key = #secondary_keys_ty::#variant(self.#field_name.clone().into());
+                            let discriminant = key.clone().into();
+                            (discriminant, key)
+                        }
                     }
                 })
                 .collect(),
             None => vec![],
         };
 
+        // Use discriminant name for both trait implementation and redb TypeName
+        // This ensures consistency when models are used across different definition enums
         let discriminant_name = model_name.to_string();
+        let primary_key_name_str = format!("{}::PrimaryKey", discriminant_name);
+        let secondary_keys_name_str = format!("{}::SecondaryKeys", discriminant_name);
+        let keys_name_str = format!("{}::Key", discriminant_name);
+
+        // Calculate fixed width for primary key (newtype wrapper)
+        // Primary key is a newtype like UserPrimaryKey(u64), so we check the inner type
+        let _primary_key_fixed_width = match &self.key {
+            Some(k) => match get_type_width(&k.primary_keys.ty) {
+                Some(width) => quote::quote! { Some(#width) },
+                None => quote::quote! { None },
+            },
+            None => quote::quote! { None },
+        };
 
         // Generics support removed - not yet implemented
         // Extract generics information
@@ -81,6 +301,13 @@ impl<'a> ModelVisitor<'a> {
         //     None => (quote::quote! {}, quote::quote! {}, quote::quote! {}),
         // };
 
+        // Check if we have secondary keys for has_secondary()
+        let has_secondary_impl = if secondary_fields.is_empty() {
+            quote::quote! { false }
+        } else {
+            quote::quote! { true }
+        };
+
         self.definitions.iter().map(|def_path| {
             quote::quote! {
                 impl ::netabase_store::traits::model::NetabaseModelTrait<#def_path> for #model_name {
@@ -91,12 +318,28 @@ impl<'a> ModelVisitor<'a> {
                     const DISCRIMINANT:<#def_path as ::netabase_store::strum::IntoDiscriminant>::Discriminant
                         = <#def_path as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#model_name;
 
+                    // For redb feature: BorrowedType is same as Self for bincode implementation
+                    #[cfg(feature = "redb")]
+                    type BorrowedType<'a> = #model_name;
+
+                    // For redb feature: key() method that returns the full Keys enum
+                    #[cfg(feature = "redb")]
+                    fn key(&self) -> Self::Keys {
+                        #keys_ty::Primary(self.primary_key())
+                    }
+
+                    // For redb feature: has_secondary() check
+                    #[cfg(feature = "redb")]
+                    fn has_secondary(&self) -> bool {
+                        #has_secondary_impl
+                    }
+
                     fn primary_key(&self) -> Self::PrimaryKey {
                         #primary_key_ty(self.#primary_field.clone())
                     }
 
-                    fn secondary_keys(&self) -> Vec<Self::SecondaryKeys> {
-                        vec![#(#secondary_fields),*]
+                    fn secondary_keys(&self) -> ::std::collections::HashMap<<Self::SecondaryKeys as ::netabase_store::strum::IntoDiscriminant>::Discriminant, Self::SecondaryKeys> {
+                        ::std::collections::HashMap::from([#(#secondary_fields),*])
                     }
 
                     fn discriminant_name() -> &'static str {
@@ -104,21 +347,186 @@ impl<'a> ModelVisitor<'a> {
                     }
                 }
 
-                impl ::netabase_store::traits::model::NetabaseModelTraitKey<#def_path> for #primary_key_ty {
-
-                    const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant
-                        = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#keys_ty;
-                }
-                impl ::netabase_store::traits::model::NetabaseModelTraitKey<#def_path> for #secondary_keys_ty {
-
-                    const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant
-                        = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#keys_ty;
-                }
+                // Only the Keys enum implements NetabaseModelTraitKey (with associated types)
+                // PrimaryKey and SecondaryKeys types only implement InnerKey
                 impl ::netabase_store::traits::model::NetabaseModelTraitKey<#def_path> for #keys_ty {
+                    type PrimaryKey = #primary_key_ty;
+                    type SecondaryKey = #secondary_keys_ty;
 
                     const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant
                         = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#keys_ty;
                 }
+
+                // redb trait implementations (only when redb feature is enabled)
+                // For redb, we use owned types for SelfType since bincode requires ownership
+                // and we implement Borrow<Self> which is automatic for all types
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::netabase_deps::redb::Value for #model_name {
+                    type SelfType<'a> = #model_name where Self: 'a;
+                    type AsBytes<'a> = Vec<u8> where Self: 'a;
+
+                    fn fixed_width() -> Option<usize> {
+                        None
+                    }
+
+                    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+                    where
+                        Self: 'a,
+                    {
+                        ::netabase_store::bincode::decode_from_slice(data, ::netabase_store::bincode::config::standard())
+                            .unwrap()
+                            .0
+                    }
+
+                    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+                    where
+                        Self: 'a,
+                        Self: 'b,
+                    {
+                        ::netabase_store::bincode::encode_to_vec(value, ::netabase_store::bincode::config::standard()).unwrap()
+                    }
+
+                    fn type_name() -> ::netabase_store::netabase_deps::redb::TypeName {
+                        ::netabase_store::netabase_deps::redb::TypeName::new(#discriminant_name)
+                    }
+                }
+
+
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::netabase_deps::redb::Value for #primary_key_ty {
+                    type SelfType<'a> = #primary_key_ty where Self: 'a;
+                    type AsBytes<'a> = Vec<u8> where Self: 'a;
+
+                    fn fixed_width() -> Option<usize> {
+                        // Must return None when using bincode encoding
+                        // Even though the inner type might be fixed-width (e.g., u64),
+                        // bincode adds metadata that makes the encoded size variable
+                        None
+                    }
+
+                    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+                    where
+                        Self: 'a,
+                    {
+                        ::netabase_store::bincode::decode_from_slice(data, ::netabase_store::bincode::config::standard())
+                            .unwrap()
+                            .0
+                    }
+
+                    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+                    where
+                        Self: 'a,
+                        Self: 'b,
+                    {
+                        ::netabase_store::bincode::encode_to_vec(value, ::netabase_store::bincode::config::standard()).unwrap()
+                    }
+
+                    fn type_name() -> ::netabase_store::netabase_deps::redb::TypeName {
+                        ::netabase_store::netabase_deps::redb::TypeName::new(#primary_key_name_str)
+                    }
+                }
+
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::netabase_deps::redb::Key for #primary_key_ty {
+                    fn compare(data1: &[u8], data2: &[u8]) -> ::std::cmp::Ordering {
+                        use ::netabase_store::netabase_deps::redb::Value;
+                        Self::from_bytes(data1).cmp(&Self::from_bytes(data2))
+                    }
+                }
+
+                // Implement InnerKey marker trait for primary key
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::traits::model::InnerKey for #primary_key_ty {}
+
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::netabase_deps::redb::Value for #secondary_keys_ty {
+                    type SelfType<'a> = #secondary_keys_ty where Self: 'a;
+                    type AsBytes<'a> = Vec<u8> where Self: 'a;
+
+                    fn fixed_width() -> Option<usize> {
+                        None
+                    }
+
+                    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+                    where
+                        Self: 'a,
+                    {
+                        ::netabase_store::bincode::decode_from_slice(data, ::netabase_store::bincode::config::standard())
+                            .unwrap()
+                            .0
+                    }
+
+                    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+                    where
+                        Self: 'a,
+                        Self: 'b,
+                    {
+                        ::netabase_store::bincode::encode_to_vec(value, ::netabase_store::bincode::config::standard()).unwrap()
+                    }
+
+                    fn type_name() -> ::netabase_store::netabase_deps::redb::TypeName {
+                        ::netabase_store::netabase_deps::redb::TypeName::new(#secondary_keys_name_str)
+                    }
+                }
+
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::netabase_deps::redb::Key for #secondary_keys_ty {
+                    fn compare(data1: &[u8], data2: &[u8]) -> ::std::cmp::Ordering {
+                        use ::netabase_store::netabase_deps::redb::Value;
+                        Self::from_bytes(data1).cmp(&Self::from_bytes(data2))
+                    }
+                }
+
+                // Implement InnerKey marker trait for secondary keys
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::traits::model::InnerKey for #secondary_keys_ty {}
+
+                // Keys enum (wrapper for Primary and Secondary) redb implementations
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::netabase_deps::redb::Value for #keys_ty {
+                    type SelfType<'a> = #keys_ty where Self: 'a;
+                    type AsBytes<'a> = Vec<u8> where Self: 'a;
+
+                    fn fixed_width() -> Option<usize> {
+                        None
+                    }
+
+                    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+                    where
+                        Self: 'a,
+                    {
+                        ::netabase_store::bincode::decode_from_slice(data, ::netabase_store::bincode::config::standard())
+                            .unwrap()
+                            .0
+                    }
+
+                    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+                    where
+                        Self: 'a,
+                        Self: 'b,
+                    {
+                        ::netabase_store::bincode::encode_to_vec(value, ::netabase_store::bincode::config::standard()).unwrap()
+                    }
+
+                    fn type_name() -> ::netabase_store::netabase_deps::redb::TypeName {
+                        ::netabase_store::netabase_deps::redb::TypeName::new(#keys_name_str)
+                    }
+                }
+
+                #[cfg(feature = "redb")]
+                impl ::netabase_store::netabase_deps::redb::Key for #keys_ty {
+                    fn compare(data1: &[u8], data2: &[u8]) -> ::std::cmp::Ordering {
+                        use ::netabase_store::netabase_deps::redb::Value;
+                        Self::from_bytes(data1).cmp(&Self::from_bytes(data2))
+                    }
+                }
+
+                // Note: No need to implement From<SelfType> for Keys enum
+                // For bincode implementation, SelfType<'a> = Self, so:
+                // - From<UserKey> is the reflexive impl (automatically provided)
+                // - From<PrimaryKey> and From<SecondaryKeys> come from derive_more::From
+                // These are sufficient to satisfy the From<SelfType<'a>> bounds in the trait
+
             }
         }).collect::<Vec<proc_macro2::TokenStream>>()
     }
@@ -178,12 +586,10 @@ mod key_gen {
                         panic!("Struct fields must be named")
                     };
                     // Prefix secondary key type with model name to avoid conflicts
-                    let type_name = format!("{}{}", model_name, append_ident(&ident, "SecondaryKey"));
+                    let type_name =
+                        format!("{}{}", model_name, append_ident(&ident, "SecondaryKey"));
                     let type_ident = Ident::new(&type_name, proc_macro2::Span::call_site());
-                    (
-                        Self::generate_newtype(f, &type_ident),
-                        ident,
-                    )
+                    (Self::generate_newtype(f, &type_ident), ident)
                 })
                 .collect()
         }
@@ -208,7 +614,7 @@ mod key_gen {
                     ::netabase_store::derive_more::From, ::netabase_store::derive_more::TryInto,
                     ::netabase_store::bincode::Encode, ::netabase_store::bincode::Decode
                 )]
-                #[strum_discriminants(derive(::netabase_store::strum::Display,
+                #[strum_discriminants(derive(Hash, ::netabase_store::strum::Display,
                 ::netabase_store::strum::AsRefStr ))]
                 pub enum #name {
                     #(#list),*

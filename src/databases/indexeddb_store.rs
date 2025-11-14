@@ -234,7 +234,7 @@ where
 
         // Handle secondary keys using secondary trees
         let secondary_keys = model.secondary_keys();
-        for sec_key in secondary_keys {
+        for sec_key in secondary_keys.values() {
             self.insert_secondary_key(&sec_key, &primary_key).await?;
         }
 
@@ -325,7 +325,7 @@ where
         // Clean up secondary keys
         if let Some(ref m) = model {
             let secondary_keys = m.secondary_keys();
-            for sec_key in secondary_keys {
+            for sec_key in secondary_keys.values() {
                 self.remove_secondary_key(&sec_key, &key).await?;
             }
         }

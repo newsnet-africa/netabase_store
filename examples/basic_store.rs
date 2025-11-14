@@ -1,6 +1,6 @@
-use crate::definitions::*;
-use netabase_store::model::NetabaseModelTrait;
-use netabase_store::netabase_definition_module;
+use netabase_store::{netabase_definition_module, NetabaseStore};
+use netabase_store::traits::model::NetabaseModelTrait;
+use netabase_store::traits::store_ops::OpenTree;
 
 #[netabase_definition_module(ExampleDefs, ExampleDefKeys)]
 pub mod definitions {
@@ -25,10 +25,15 @@ pub mod definitions {
     }
 }
 
+use definitions::*;
+
 fn main() {
-    let db = netabase_store::databases::sled_store::SledStore::<ExampleDefs>::temp()
-        .expect("The store failed to open");
-    let user_tree = db.open_tree::<User>();
+    // Use the unified NetabaseStore API with Sled backend
+    let store = NetabaseStore::<ExampleDefs, _>::sled(
+        tempfile::tempdir().expect("Failed to create temp dir").path()
+    ).expect("The store failed to open");
+
+    let user_tree = store.open_tree::<User>();
 
     let user = User {
         name: "It's You!".to_string(),
@@ -70,4 +75,6 @@ fn main() {
 
     assert!(put_result.is_ok());
     assert!(get_result.is_ok());
+
+    println!("\n✓ Basic store operations completed successfully!");
 }
