@@ -275,10 +275,11 @@
 //! ### Using IndexedDB Backend (WASM)
 //!
 //! IndexedDB backend provides persistent storage in web browsers.
-//! This example requires the `wasm` feature and can only run in browsers:
+//! This example requires the `wasm` feature and wasm32 target:
 //!
-//! ```rust,ignore
-//! // This example requires the `wasm` feature and wasm32 target
+//! ```
+//! # #[cfg(all(target_arch = "wasm32", feature = "wasm"))]
+//! # {
 //! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
 //! use netabase_store::databases::indexeddb_store::IndexedDBStore;
 //! use netabase_store::traits::tree::NetabaseTreeAsync;
@@ -329,6 +330,7 @@
 //!
 //!     Ok(())
 //! }
+//! # }
 //! ```
 //!
 //! ## Batch Operations
@@ -401,7 +403,7 @@
 //!
 //! ### Usage Example
 //!
-//! ```rust,ignore
+//! ```no_run
 //! // This example requires the `redb-zerocopy` feature
 //! use netabase_store::{NetabaseStore, netabase_definition_module, NetabaseModel};
 //! use netabase_store::traits::model::NetabaseModelTrait;

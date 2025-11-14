@@ -16,7 +16,7 @@
 #![allow(dead_code)] // Items used only in specific feature configurations
 //! Use the `ModelRecordStore` trait for type-safe operations:
 //!
-//! ```ignore
+//! ```no_run
 //! use netabase_store::databases::record_store::model_store::ModelRecordStore;
 //!
 //! // Store a model

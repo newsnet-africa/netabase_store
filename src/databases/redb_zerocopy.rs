@@ -68,20 +68,70 @@
 //!
 //! ### Standard API (redb_store) - Simple & Convenient
 //!
-//! ```ignore
+//! ```no_run
+//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//! use netabase_store::databases::redb_store::RedbStore;
+//! use netabase_store::traits::tree::NetabaseTreeSync;
+//! use netabase_store::traits::model::NetabaseModelTrait;
+//!
+//! #[netabase_definition_module(MyDef, MyKeys)]
+//! mod models {
+//!     use netabase_store::{NetabaseModel, netabase};
+//!     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+//!              bincode::Encode, bincode::Decode,
+//!              serde::Serialize, serde::Deserialize)]
+//!     #[netabase(MyDef)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: u64,
+//!         pub name: String,
+//!     }
+//! }
+//! use models::*;
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let store = RedbStore::<MyDef>::new("./db.redb")?;
 //! let tree = store.open_tree::<User>();
-//! tree.put(user)?; // Auto-commits (1 transaction per operation)
-//! let user = tree.get(key)?; // Always clones
+//! let user = User { id: 1, name: "Alice".into() };
+//! tree.put(user.clone())?; // Auto-commits (1 transaction per operation)
+//! let retrieved = tree.get(&1)?; // Always clones
+//! assert_eq!(retrieved, Some(user));
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ### Zero-Copy API (redb_zerocopy) - High Performance
 //!
-//! ```ignore
+//! ```no_run
+//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//! use netabase_store::databases::redb_zerocopy::RedbZerocopyStore;
+//! use netabase_store::traits::model::NetabaseModelTrait;
+//!
+//! #[netabase_definition_module(MyDef, MyKeys)]
+//! mod models {
+//!     use netabase_store::{NetabaseModel, netabase};
+//!     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+//!              bincode::Encode, bincode::Decode,
+//!              serde::Serialize, serde::Deserialize)]
+//!     #[netabase(MyDef)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: u64,
+//!         pub name: String,
+//!     }
+//! }
+//! use models::*;
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let store = RedbZerocopyStore::<MyDef>::new("./db.redb")?;
+//! let user = User { id: 1, name: "Alice".into() };
 //! let mut txn = store.begin_write()?;
 //! let mut tree = txn.open_tree::<User>()?;
 //! tree.put(user)?; // Batched in transaction
 //! drop(tree);
 //! txn.commit()?; // Explicit commit
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## When to Use
