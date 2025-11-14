@@ -141,24 +141,28 @@ pub mod blog_schema {
 use blog_schema::*;
 ```
 
-### 2. Use with NetabaseStore (Recommended)
+### 2. Create a Store with Unified Configuration API (Recommended)
 
-The unified `NetabaseStore` provides a consistent API across all backends:
+The unified configuration system provides consistent backend initialization:
 
 ```rust
-use netabase_store::NetabaseStore;
+use netabase_store::config::FileConfig;
+use netabase_store::traits::backend_store::BackendStore;
+use netabase_store::databases::sled_store::SledStore;
 
 fn main() -> anyhow::Result<()> {
-    // Create a store with any backend - easily switch by changing one line!
+    // Create configuration - same for all file-based backends!
+    let config = FileConfig::builder()
+        .path("my_app.db".into())
+        .cache_size_mb(512)
+        .build();
 
-    // Option 1: Sled backend (high-performance)
-    let store = NetabaseStore::<BlogDefinition, _>::sled("./my_db")?;
+    // Initialize backend with BackendStore trait
+    let store = <SledStore<BlogDefinition> as BackendStore<BlogDefinition>>::new(config)?;
 
-    // Option 2: Redb backend (memory-efficient, ACID)
-    // let store = NetabaseStore::<BlogDefinition, _>::redb("./my_db.redb")?;
-
-    // Option 3: Temporary store for testing
-    // let store = NetabaseStore::<BlogDefinition, _>::temp()?;
+    // Switch backends by changing only the type - same config works!
+    // let store = <RedbStore<BlogDefinition> as BackendStore<BlogDefinition>>::new(config)?;
+    // let store = <RedbStoreZeroCopy<BlogDefinition> as BackendStore<BlogDefinition>>::new(config)?;
 
     // Open a tree for users - works identically across all backends
     let user_tree = store.open_tree::<User>();
@@ -194,35 +198,41 @@ fn main() -> anyhow::Result<()> {
 }
 ```
 
-### 3. Direct Backend Usage (Advanced)
+### 3. Alternative: Simple Configuration for Quick Setup
 
-You can also use backends directly for backend-specific features:
+For simple use cases, use the convenience constructors:
 
 ```rust
+use netabase_store::config::FileConfig;
+use netabase_store::traits::backend_store::BackendStore;
 use netabase_store::databases::sled_store::SledStore;
-use netabase_store::databases::redb_store::RedbStore;
 
-// Direct Sled usage
-let sled_store = SledStore::<BlogDefinition>::temp()?;
-let user_tree = sled_store.open_tree::<User>();
+// Simple constructor with defaults
+let config = FileConfig::new("my_app.db");
+let store = <SledStore<BlogDefinition> as BackendStore<BlogDefinition>>::open(config)?;
 
-// Direct Redb usage
-let redb_store = RedbStore::<BlogDefinition>::new("my_database.redb")?;
-let user_tree = redb_store.open_tree::<User>();
-
-// Both have identical APIs via NetabaseTreeSync trait
+// Or create a temporary database for testing
+let store = <SledStore<BlogDefinition> as BackendStore<BlogDefinition>>::temp()?;
 ```
 
 ### 4. Use with IndexedDB (WASM)
 
 ```rust
+use netabase_store::config::IndexedDBConfig;
+use netabase_store::traits::backend_store::BackendStore;
 use netabase_store::databases::indexeddb_store::IndexedDBStore;
 use netabase_store::traits::tree::NetabaseTreeAsync;
 
 #[cfg(target_arch = "wasm32")]
 async fn wasm_example() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a store in the browser
-    let store = IndexedDBStore::<BlogDefinition>::new("my_database").await?;
+    // Create configuration
+    let config = IndexedDBConfig::builder()
+        .database_name("my_database".to_string())
+        .version(1)
+        .build();
+
+    // Initialize IndexedDB store
+    let store = <IndexedDBStore<BlogDefinition> as BackendStore<BlogDefinition>>::new(config).await?;
 
     // Note: WASM uses async API
     let user_tree = store.open_tree::<User>();
@@ -320,9 +330,12 @@ let user_tree = store.open_tree::<User>();
 For high-performance bulk operations, use the convenient bulk methods:
 
 ```rust
-use netabase_store::NetabaseStore;
+use netabase_store::config::FileConfig;
+use netabase_store::traits::backend_store::BackendStore;
+use netabase_store::databases::sled_store::SledStore;
 
-let store = NetabaseStore::<BlogDefinition, _>::temp()?;
+// Create store with temporary database
+let store = <SledStore<BlogDefinition> as BackendStore<BlogDefinition>>::temp()?;
 let user_tree = store.open_tree::<User>();
 
 // Bulk insert - 8-9x faster than loop!
@@ -380,9 +393,13 @@ Bulk operations are:
 For maximum performance and atomicity, use the transaction API to reuse a single transaction across multiple operations:
 
 ```rust
-use netabase_store::NetabaseStore;
+use netabase_store::config::FileConfig;
+use netabase_store::traits::backend_store::BackendStore;
+use netabase_store::databases::sled_store::SledStore;
 
-let store = NetabaseStore::<BlogDefinition, _>::sled("./my_db")?;
+// Create store
+let config = FileConfig::new("my_db");
+let store = <SledStore<BlogDefinition> as BackendStore<BlogDefinition>>::new(config)?;
 
 // Read-only transaction - multiple concurrent reads allowed
 let txn = store.read();
@@ -462,9 +479,12 @@ let results: Vec<Vec<Article>> = article_tree.get_many_by_secondary_keys(keys)?;
 ### Multiple Models in One Store
 
 ```rust
-use netabase_store::NetabaseStore;
+use netabase_store::config::FileConfig;
+use netabase_store::traits::backend_store::BackendStore;
+use netabase_store::databases::sled_store::SledStore;
 
-let store = NetabaseStore::<BlogDefinition, _>::sled("blog_db")?;
+let config = FileConfig::new("blog_db");
+let store = <SledStore<BlogDefinition> as BackendStore<BlogDefinition>>::new(config)?;
 
 // Different trees for different models
 let user_tree = store.open_tree::<User>();
@@ -478,10 +498,11 @@ post_tree.put(post)?;
 ### Temporary Store for Testing
 
 ```rust
-use netabase_store::NetabaseStore;
+use netabase_store::traits::backend_store::BackendStore;
+use netabase_store::databases::sled_store::SledStore;
 
 // Perfect for unit tests - no I/O, no cleanup needed
-let store = NetabaseStore::<BlogDefinition, _>::temp()?;
+let store = <SledStore<BlogDefinition> as BackendStore<BlogDefinition>>::temp()?;
 let user_tree = store.open_tree::<User>();
 
 user_tree.put(user)?;
