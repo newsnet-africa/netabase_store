@@ -472,10 +472,9 @@ fn generate_to_borrowed_conversion(field_name: &Ident, ty: &Type) -> TokenStream
                     // Need to map the inner type
                     if let syn::PathArguments::AngleBracketed(args) = &last_segment.arguments
                         && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+                        && (is_string_type(inner) || is_vec_u8_type(inner))
                     {
-                        if is_string_type(inner) || is_vec_u8_type(inner) {
-                            return quote! { self.#field_name.as_deref() };
-                        }
+                        return quote! { self.#field_name.as_deref() };
                     }
                     quote! { self.#field_name }
                 }

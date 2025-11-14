@@ -77,7 +77,7 @@ where
     /// Create a new borrowed guard from a redb AccessGuard.
     ///
     /// This is an internal constructor used by the transaction API.
-    pub(crate) fn new(guard: redb::AccessGuard<'txn, M>) -> Self {
+    pub(crate) fn _new(guard: redb::AccessGuard<'txn, M>) -> Self {
         Self { guard }
     }
 
@@ -434,7 +434,7 @@ where
     /// # }
     /// # }
     /// ```
-    pub fn filter_borrowed<F>(self, mut predicate: F) -> FilterBorrowed<'txn, K, V, F>
+    pub fn filter_borrowed<F>(self, predicate: F) -> FilterBorrowed<'txn, K, V, F>
     where
         F: FnMut(&V::SelfType<'_>) -> bool,
     {
