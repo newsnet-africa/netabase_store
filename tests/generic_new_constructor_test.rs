@@ -292,5 +292,5 @@ fn test_new_with_backend_methods() {
 
     // Test tree_names (backend-specific)
     let tree_names = backend.tree_names();
-    assert!(tree_names.len() >= 0); // At least 0 trees initially
+    assert!(!tree_names.is_empty()); // At least 0 trees initially
 }

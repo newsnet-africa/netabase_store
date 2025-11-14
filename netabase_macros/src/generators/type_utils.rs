@@ -7,6 +7,7 @@
 //!
 //! Used by both zerocopy generator and model_key generator.
 
+#![allow(dead_code)] // Some utilities reserved for future use
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Fields, FieldsNamed, Type};

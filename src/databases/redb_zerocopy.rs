@@ -111,6 +111,7 @@ use crate::traits::backend_store::{BackendStore, PathBasedBackend};
 use crate::traits::definition::NetabaseDefinitionTrait;
 use crate::traits::model::{NetabaseModelTrait, NetabaseModelTraitKey};
 use crate::{MaybeSend, MaybeSync};
+#[allow(unused_imports)] // ReadableMultimapTable used in conditional compilation
 use redb::{
     Database, Key, MultimapTableDefinition, MultimapValue, ReadTransaction, ReadableDatabase,
     ReadableMultimapTable, ReadableTable, ReadableTableMetadata, TableDefinition, Value,

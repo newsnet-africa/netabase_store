@@ -283,7 +283,7 @@ impl<'a> ModelVisitor<'a> {
 
         // Calculate fixed width for primary key (newtype wrapper)
         // Primary key is a newtype like UserPrimaryKey(u64), so we check the inner type
-        let primary_key_fixed_width = match &self.key {
+        let _primary_key_fixed_width = match &self.key {
             Some(k) => match get_type_width(&k.primary_keys.ty) {
                 Some(width) => quote::quote! { Some(#width) },
                 None => quote::quote! { None },

@@ -13,6 +13,7 @@
 //! - `TxnGuard<ReadWrite>`: Exclusive write transaction with commit/rollback (Sled)
 //!
 //! # Examples
+#![allow(dead_code)] // Many items used only in specific feature configurations
 //!
 //! ## Read Transaction
 //! ```no_run
@@ -75,7 +76,7 @@ use crate::traits::model::NetabaseModelTrait;
 use std::marker::PhantomData;
 
 #[cfg(feature = "redb")]
-use redb::{ReadableDatabase, ReadableTable, ReadableTableMetadata};
+use redb::{ReadableDatabase, ReadableTable, ReadableTableMetadata, Value};
 
 #[cfg(feature = "redb")]
 use std::cell::RefCell;
@@ -530,7 +531,6 @@ where
                             //
                             // For lower overhead, use the Sled backend (~1.2x overhead instead of ~6.6x)
                             // See benchmarks: cargo bench --bench redb_wrapper_overhead --features "redb,libp2p"
-                            use redb::Value;
                             let value_ref = model_guard.value();
                             let v_bytes = M::as_bytes(&value_ref);
                             let model = bincode::decode_from_slice(
@@ -554,7 +554,6 @@ where
                         Some(model_guard) => {
                             // WORKAROUND: Re-serialization overhead for type safety
                             // (Same limitation as read transaction path above)
-                            use redb::Value;
                             let value_ref = model_guard.value();
                             let v_bytes = M::as_bytes(&value_ref);
                             let model = bincode::decode_from_slice(
@@ -1212,7 +1211,6 @@ where
                             let (k, _) = item.unwrap();
                             // WORKAROUND: Re-serialization overhead in clear()
                             // Same GAT limitation as get() - see detailed comment in get() method above
-                            use redb::Value;
                             let k_ref = k.value();
                             let k_bytes = <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey::as_bytes(&k_ref);
                             bincode::decode_from_slice(&k_bytes.as_ref(), bincode::config::standard()).unwrap().0
@@ -1233,7 +1231,6 @@ where
                             let (k, _) = item.unwrap();
                             // WORKAROUND: Re-serialization for secondary index keys
                             // Same GAT limitation affects CompositeKey type
-                            use redb::Value;
                             let k_ref = k.value();
                             let k_bytes = CompositeKey::<<M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey, <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey>::as_bytes(&k_ref);
                             bincode::decode_from_slice(&k_bytes.as_ref(), bincode::config::standard()).unwrap().0

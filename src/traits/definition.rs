@@ -269,21 +269,21 @@ where
     );
 
     /// Put this Definition into an IndexedDB store
-    #[cfg(all(feature = "indexeddb", target_arch = "wasm32"))]
+    #[cfg(all(feature = "wasm", target_arch = "wasm32"))]
     fn handle_indexeddb_put(
         &self,
         store: &crate::databases::indexeddb_store::IndexedDBStore<Self>,
     ) -> libp2p::kad::store::Result<()>;
 
     /// Get a Definition from an IndexedDB store using a RecordKey
-    #[cfg(all(feature = "indexeddb", target_arch = "wasm32"))]
+    #[cfg(all(feature = "wasm", target_arch = "wasm32"))]
     fn handle_indexeddb_get(
         store: &crate::databases::indexeddb_store::IndexedDBStore<Self>,
         key: &libp2p::kad::RecordKey,
     ) -> Option<(Self, libp2p::kad::Record)>;
 
     /// Remove from an IndexedDB store using a RecordKey
-    #[cfg(all(feature = "indexeddb", target_arch = "wasm32"))]
+    #[cfg(all(feature = "wasm", target_arch = "wasm32"))]
     fn handle_indexeddb_remove(
         store: &crate::databases::indexeddb_store::IndexedDBStore<Self>,
         key: &libp2p::kad::RecordKey,

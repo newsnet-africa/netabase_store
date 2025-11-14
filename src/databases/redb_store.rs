@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Some items used only in specific feature configurations
+
 use crate::config::FileConfig;
 use crate::error::NetabaseError;
 use crate::traits::backend_store::{BackendStore, PathBasedBackend};

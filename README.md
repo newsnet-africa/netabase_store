@@ -14,8 +14,15 @@ A type-safe, multi-backend key-value storage library for Rust with support for n
 - **🗄️ Multi-Backend Support**:
   - **Sled**: High-performance embedded database for native platforms
   - **Redb**: Memory-efficient embedded database with ACID guarantees
+  - **RedbZeroCopy**: Zero-copy variant for maximum performance (10-54x faster for bulk ops)
   - **IndexedDB**: Browser-based storage for WASM applications
   - **In-Memory**: Fast in-memory storage for testing and caching
+
+- **⚙️ Unified Configuration API**:
+  - `FileConfig`, `MemoryConfig`, `IndexedDBConfig` with builder pattern
+  - Consistent initialization across all backends
+  - Switch backends by changing one line of code
+  - Type-safe configuration with sensible defaults
 
 - **🔒 Type-Safe Schema Definition**:
   - Derive macros for automatic schema generation
@@ -26,7 +33,7 @@ A type-safe, multi-backend key-value storage library for Rust with support for n
 - **🌍 Cross-Platform**:
   - Unified API across native and WASM targets
   - Feature flags for platform-specific backends
-  - Seamless switching between backends
+  - Seamless switching between backends with same configuration
 
 - **⚡ High Performance**:
   - Transaction API with type-state pattern (10-100x faster for bulk ops)
@@ -92,6 +99,7 @@ netabase_store = { version = "0.0.2", default-features = false, features = ["was
 - `native` (default): Enable Sled and Redb backends
 - `sled`: Enable Sled backend only
 - `redb`: Enable Redb backend only
+- `redb-zerocopy`: Enable zero-copy Redb backend (high-performance variant)
 - `wasm`: Enable IndexedDB backend for WASM
 - `libp2p`: Enable libp2p integration
 - `record-store`: Enable RecordStore trait (requires `libp2p`)
@@ -234,6 +242,78 @@ async fn wasm_example() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 ## Advanced Usage
+
+### Configuration API
+
+The new unified configuration system provides consistent backend initialization across all database types:
+
+#### FileConfig - For File-Based Backends
+
+```rust
+use netabase_store::config::FileConfig;
+use netabase_store::traits::backend_store::BackendStore;
+use netabase_store::databases::sled_store::SledStore;
+
+// Method 1: Builder pattern (recommended)
+let config = FileConfig::builder()
+    .path("app_data.db".into())
+    .cache_size_mb(1024)
+    .truncate(true)
+    .build();
+
+let store = <SledStore<BlogDefinition> as BackendStore<BlogDefinition>>::new(config)?;
+
+// Method 2: Simple constructor
+let config = FileConfig::new("app_data.db");
+let store = <SledStore<BlogDefinition> as BackendStore<BlogDefinition>>::open(config)?;
+
+// Method 3: Temporary database
+let store = <SledStore<BlogDefinition> as BackendStore<BlogDefinition>>::temp()?;
+```
+
+#### Switching Backends with Same Config
+
+The power of the configuration API is that you can switch backends without changing your code:
+
+```rust
+use netabase_store::config::FileConfig;
+use netabase_store::traits::backend_store::BackendStore;
+
+let config = FileConfig::builder()
+    .path("my_app.db".into())
+    .cache_size_mb(512)
+    .build();
+
+// Try different backends - same config!
+#[cfg(feature = "sled")]
+let store = <SledStore<BlogDefinition> as BackendStore<BlogDefinition>>::new(config.clone())?;
+
+#[cfg(feature = "redb")]
+let store = <RedbStore<BlogDefinition> as BackendStore<BlogDefinition>>::new(config.clone())?;
+
+#[cfg(feature = "redb-zerocopy")]
+let store = <RedbStoreZeroCopy<BlogDefinition> as BackendStore<BlogDefinition>>::new(config)?;
+
+// All have the same API from this point on!
+let user_tree = store.open_tree::<User>();
+```
+
+#### Configuration Options Reference
+
+**FileConfig** (for Sled, Redb, RedbZeroCopy):
+- `path: PathBuf` - Database file/directory path
+- `cache_size_mb: usize` - Cache size in megabytes (default: 256)
+- `create_if_missing: bool` - Create if doesn't exist (default: true)
+- `truncate: bool` - Delete existing data (default: false)
+- `read_only: bool` - Open read-only (default: false)
+- `use_fsync: bool` - Fsync for durability (default: true)
+
+**MemoryConfig** (for in-memory backend):
+- `capacity: Option<usize>` - Optional capacity hint
+
+**IndexedDBConfig** (for WASM):
+- `database_name: String` - IndexedDB database name
+- `version: u32` - Schema version (default: 1)
 
 ### Batch Operations & Bulk Methods
 
