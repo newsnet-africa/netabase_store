@@ -3,7 +3,6 @@
 use super::{PROVIDED_TREE_NAME, PROVIDER_TREE_NAME, RecordStoreConfig, utils};
 use crate::databases::redb_store::RedbStore;
 use crate::traits::definition::NetabaseDefinitionTrait;
-use crate::{NetabaseModelTrait, NetabaseModelTraitKey};
 use libp2p::PeerId;
 use libp2p::kad::store::{Error, Result};
 use libp2p::kad::{ProviderRecord, RecordKey as Key};

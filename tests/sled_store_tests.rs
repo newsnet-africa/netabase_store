@@ -384,3 +384,246 @@ fn test_trait_implementations() {
 
     assert_eq!("User", User::discriminant_name());
 }
+
+// ============================================================================
+// Transaction Tests
+// ============================================================================
+
+#[test]
+fn test_transaction_basic() {
+    let store = SledStore::<BlogDefinition>::temp().unwrap();
+
+    // Insert users in a single transaction
+    store
+        .transaction::<User, _, _>(|txn_tree| {
+            let alice = User {
+                id: 1,
+                username: "alice".to_string(),
+                email: "alice@example.com".to_string(),
+            };
+            let bob = User {
+                id: 2,
+                username: "bob".to_string(),
+                email: "bob@example.com".to_string(),
+            };
+
+            txn_tree.put(alice)?;
+            txn_tree.put(bob)?;
+
+            Ok(())
+        })
+        .unwrap();
+
+    // Verify both users exist
+    let user_tree = store.open_tree::<User>();
+    let alice = user_tree.get(UserPrimaryKey(1)).unwrap();
+    let bob = user_tree.get(UserPrimaryKey(2)).unwrap();
+
+    assert!(alice.is_some());
+    assert!(bob.is_some());
+    assert_eq!("alice", alice.unwrap().username);
+    assert_eq!("bob", bob.unwrap().username);
+}
+
+#[test]
+fn test_transaction_read() {
+    let store = SledStore::<BlogDefinition>::temp().unwrap();
+
+    // Setup: Insert a user outside transaction
+    let user_tree = store.open_tree::<User>();
+    user_tree
+        .put(User {
+            id: 1,
+            username: "alice".to_string(),
+            email: "alice@example.com".to_string(),
+        })
+        .unwrap();
+
+    // Read within transaction
+    let result = store
+        .transaction::<User, _, _>(|txn_tree| {
+            let user = txn_tree.get(UserPrimaryKey(1))?;
+            Ok(user.map(|u| u.username))
+        })
+        .unwrap();
+
+    assert_eq!(Some("alice".to_string()), result);
+}
+
+#[test]
+fn test_transaction_remove() {
+    let store = SledStore::<BlogDefinition>::temp().unwrap();
+
+    // Setup: Insert a user
+    let user_tree = store.open_tree::<User>();
+    user_tree
+        .put(User {
+            id: 1,
+            username: "alice".to_string(),
+            email: "alice@example.com".to_string(),
+        })
+        .unwrap();
+
+    // Remove within transaction
+    store
+        .transaction::<User, _, _>(|txn_tree| {
+            txn_tree.remove(UserPrimaryKey(1))?;
+            Ok(())
+        })
+        .unwrap();
+
+    // Verify user is gone
+    let result = user_tree.get(UserPrimaryKey(1)).unwrap();
+    assert!(result.is_none());
+}
+
+#[test]
+fn test_transaction_bulk_insert() {
+    let store = SledStore::<BlogDefinition>::temp().unwrap();
+
+    // Insert 100 users in a single transaction
+    store
+        .transaction::<User, _, _>(|txn_tree| {
+            for i in 0..100 {
+                let user = User {
+                    id: i,
+                    username: format!("user{}", i),
+                    email: format!("user{}@example.com", i),
+                };
+                txn_tree.put(user)?;
+            }
+            Ok(())
+        })
+        .unwrap();
+
+    // Verify all users exist
+    let user_tree = store.open_tree::<User>();
+    assert_eq!(100, user_tree.len());
+
+    // Spot check a few users
+    let user0 = user_tree.get(UserPrimaryKey(0)).unwrap().unwrap();
+    assert_eq!("user0", user0.username);
+
+    let user50 = user_tree.get(UserPrimaryKey(50)).unwrap().unwrap();
+    assert_eq!("user50", user50.username);
+
+    let user99 = user_tree.get(UserPrimaryKey(99)).unwrap().unwrap();
+    assert_eq!("user99", user99.username);
+}
+
+#[test]
+fn test_transaction_update() {
+    let store = SledStore::<BlogDefinition>::temp().unwrap();
+
+    // Setup: Insert a user
+    let user_tree = store.open_tree::<User>();
+    user_tree
+        .put(User {
+            id: 1,
+            username: "alice".to_string(),
+            email: "alice@example.com".to_string(),
+        })
+        .unwrap();
+
+    // Update within transaction
+    store
+        .transaction::<User, _, _>(|txn_tree| {
+            let mut user = txn_tree.get(UserPrimaryKey(1))?.unwrap();
+            user.username = "alice_updated".to_string();
+            user.email = "alice_new@example.com".to_string();
+            txn_tree.put(user)?;
+            Ok(())
+        })
+        .unwrap();
+
+    // Verify update
+    let updated = user_tree.get(UserPrimaryKey(1)).unwrap().unwrap();
+    assert_eq!("alice_updated", updated.username);
+    assert_eq!("alice_new@example.com", updated.email);
+}
+
+#[test]
+fn test_transaction_atomic_transfer() {
+    let store = SledStore::<BlogDefinition>::temp().unwrap();
+
+    // Setup: Create two posts with different author_ids
+    let post_tree = store.open_tree::<Post>();
+    post_tree
+        .put(Post {
+            id: 1,
+            title: "Post 1".to_string(),
+            content: "Content 1".to_string(),
+            author_id: 1,
+            published: true,
+        })
+        .unwrap();
+
+    post_tree
+        .put(Post {
+            id: 2,
+            title: "Post 2".to_string(),
+            content: "Content 2".to_string(),
+            author_id: 2,
+            published: false,
+        })
+        .unwrap();
+
+    // Transaction: Atomically swap author_ids
+    store
+        .transaction::<Post, _, _>(|txn_tree| {
+            let mut post1 = txn_tree.get(PostPrimaryKey(1))?.unwrap();
+            let mut post2 = txn_tree.get(PostPrimaryKey(2))?.unwrap();
+
+            // Swap author_ids
+            let temp_author = post1.author_id;
+            post1.author_id = post2.author_id;
+            post2.author_id = temp_author;
+
+            txn_tree.put(post1)?;
+            txn_tree.put(post2)?;
+
+            Ok(())
+        })
+        .unwrap();
+
+    // Verify swap
+    let post1 = post_tree.get(PostPrimaryKey(1)).unwrap().unwrap();
+    let post2 = post_tree.get(PostPrimaryKey(2)).unwrap().unwrap();
+
+    assert_eq!(2, post1.author_id);
+    assert_eq!(1, post2.author_id);
+}
+
+#[test]
+fn test_transaction_return_value() {
+    let store = SledStore::<BlogDefinition>::temp().unwrap();
+
+    // Setup
+    let user_tree = store.open_tree::<User>();
+    for i in 0..10 {
+        user_tree
+            .put(User {
+                id: i,
+                username: format!("user{}", i),
+                email: format!("user{}@example.com", i),
+            })
+            .unwrap();
+    }
+
+    // Transaction that returns data
+    let usernames: Vec<String> = store
+        .transaction::<User, _, _>(|txn_tree| {
+            let mut names = Vec::new();
+            for i in 0..10 {
+                if let Some(user) = txn_tree.get(UserPrimaryKey(i))? {
+                    names.push(user.username);
+                }
+            }
+            Ok(names)
+        })
+        .unwrap();
+
+    assert_eq!(10, usernames.len());
+    assert_eq!("user0", usernames[0]);
+    assert_eq!("user9", usernames[9]);
+}

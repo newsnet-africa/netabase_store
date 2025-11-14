@@ -678,7 +678,7 @@ mod redb_tests {
         assert!(user_tree.insert(alice.clone()).is_ok(), "Failed to insert user");
 
         // READ
-        let retrieved = user_tree.get(UserPrimaryKey(1)).unwrap();
+        let retrieved = user_tree.get(UserKey::Primary(UserPrimaryKey(1))).unwrap();
         assert_eq!(Some(alice.clone()), retrieved, "Failed to retrieve user");
 
         // UPDATE
@@ -690,14 +690,14 @@ mod redb_tests {
         };
         assert!(user_tree.insert(updated_alice.clone()).is_ok(), "Failed to update user");
 
-        let retrieved = user_tree.get(UserPrimaryKey(1)).unwrap();
+        let retrieved = user_tree.get(UserKey::Primary(UserPrimaryKey(1))).unwrap();
         assert_eq!(Some(updated_alice), retrieved, "Updated user doesn't match");
 
         // DELETE
-        let removed = user_tree.remove(UserPrimaryKey(1)).unwrap();
+        let removed = user_tree.remove(UserKey::Primary(UserPrimaryKey(1))).unwrap();
         assert!(removed.is_some(), "Failed to remove user");
 
-        let retrieved = user_tree.get(UserPrimaryKey(1)).unwrap();
+        let retrieved = user_tree.get(UserKey::Primary(UserPrimaryKey(1))).unwrap();
         assert_eq!(None, retrieved, "User should be deleted");
     }
 
@@ -805,10 +805,10 @@ mod redb_tests {
         product_tree.insert(laptop.clone()).unwrap();
 
         // Verify both models are stored correctly
-        assert_eq!(Some(alice), user_tree.get(UserPrimaryKey(1)).unwrap());
+        assert_eq!(Some(alice), user_tree.get(UserKey::Primary(UserPrimaryKey(1))).unwrap());
         assert_eq!(
             Some(laptop),
-            product_tree.get(ProductPrimaryKey("LAPTOP-001".to_string())).unwrap()
+            product_tree.get(ProductKey::Primary(ProductPrimaryKey("LAPTOP-001".to_string()))).unwrap()
         );
     }
 
@@ -899,7 +899,7 @@ mod redb_tests {
         product_tree.insert(laptop.clone()).unwrap();
 
         let retrieved = product_tree
-            .get(ProductPrimaryKey("LAPTOP-001".to_string()))
+            .get(ProductKey::Primary(ProductPrimaryKey("LAPTOP-001".to_string())))
             .unwrap();
         assert_eq!(Some(laptop), retrieved);
     }

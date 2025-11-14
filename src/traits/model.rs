@@ -1,4 +1,5 @@
 use bincode::Decode;
+use redb::{Key, Value};
 use strum::IntoDiscriminant;
 
 use crate::definition::NetabaseDefinitionTrait;
@@ -56,8 +57,8 @@ use crate::{MaybeSend, MaybeSync};
 /// // Access primary key
 /// let pk = user.primary_key();  // Returns UserPrimaryKey(1)
 ///
-/// // Access secondary keys
-/// let sk = user.secondary_keys(); // Returns vec![EmailKey("alice@example.com"), AgeKey(30)]
+/// // Access secondary keys as a HashMap
+/// let sk = user.secondary_keys(); // Returns HashMap with discriminant -> key mappings
 /// ```
 ///
 /// # See Also
@@ -65,19 +66,15 @@ use crate::{MaybeSend, MaybeSync};
 /// - [`NetabaseModel` derive macro](crate::NetabaseModel) - Derives this trait
 /// - [`netabase_definition_module`](crate::netabase_definition_module) - Groups models into a schema
 /// - [`NetabaseTreeSync`](crate::traits::tree::NetabaseTreeSync) - CRUD operations on models
+#[cfg(not(feature = "redb"))]
 pub trait NetabaseModelTrait<D: NetabaseDefinitionTrait>:
-    bincode::Encode + Sized + Clone + MaybeSend + MaybeSync + 'static
+    bincode::Encode + bincode::Decode<()> + Sized + Clone + MaybeSend + MaybeSync + 'static
 where
     <D as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
-    <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseKeyDiscriminant,
+    <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant:
+        crate::traits::definition::NetabaseKeyDiscriminant,
 {
     const DISCRIMINANT: <D as IntoDiscriminant>::Discriminant;
-
-    /// The primary key type for this model
-    type PrimaryKey: NetabaseModelTraitKey<D>;
-
-    /// The secondary keys enum for this model
-    type SecondaryKeys: NetabaseModelTraitKey<D>;
 
     /// The keys enum that wraps both primary and secondary keys
     type Keys: NetabaseModelTraitKey<D>;
@@ -85,8 +82,57 @@ where
     /// Extract the primary key from the model instance
     fn primary_key(&self) -> Self::PrimaryKey;
 
-    /// Extract all secondary keys from the model instance
-    fn secondary_keys(&self) -> Vec<Self::SecondaryKeys>;
+    /// Extract all secondary keys from the model instance as a HashMap
+    ///
+    /// The HashMap is keyed by the secondary key discriminant, allowing direct
+    /// access to specific secondary keys without iteration.
+    fn secondary_keys(&self) -> std::collections::HashMap<<Self::SecondaryKeys as IntoDiscriminant>::Discriminant, Self::SecondaryKeys>
+    where
+        Self::SecondaryKeys: IntoDiscriminant;
+
+    /// Get the discriminant name for this model (used for tree names)
+    fn discriminant_name() -> &'static str;
+}
+
+#[cfg(feature = "redb")]
+pub trait NetabaseModelTrait<D: NetabaseDefinitionTrait>:
+    bincode::Encode + bincode::Decode<()> + Sized + Clone + MaybeSend + MaybeSync + 'static
+where
+    for<'a> Self: std::borrow::Borrow<<Self as Value>::SelfType<'a>>,
+    for<'a> Self: Value<SelfType<'a> = Self::BorrowedType<'a>>,
+    <D as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
+    <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant:
+        crate::traits::definition::NetabaseKeyDiscriminant,
+{
+    const DISCRIMINANT: <D as IntoDiscriminant>::Discriminant;
+
+    type BorrowedType<'a>;
+
+    /// The keys enum that wraps both primary and secondary keys
+    /// The Keys type must support conversion from both PrimaryKey and SecondaryKey
+    type Keys: NetabaseModelTraitKey<D, PrimaryKey = Self::PrimaryKey, SecondaryKey = Self::SecondaryKeys>
+        + From<Self::PrimaryKey>
+        + From<Self::SecondaryKeys>;
+
+    /// Primary key type (for backwards compatibility)
+    type PrimaryKey: InnerKey + bincode::Encode + Decode<()> + Clone + Ord;
+
+    /// Secondary keys type (for backwards compatibility)
+    type SecondaryKeys: InnerKey + bincode::Encode + Decode<()> + Clone + Ord + IntoDiscriminant;
+
+    fn key(&self) -> Self::Keys;
+    /// Extract the primary key from the model instance
+    fn primary_key(&self) -> Self::PrimaryKey;
+
+    /// Extract all secondary keys from the model instance as a HashMap
+    ///
+    /// The HashMap is keyed by the secondary key discriminant, allowing direct
+    /// access to specific secondary keys without iteration.
+    fn secondary_keys(&self) -> std::collections::HashMap<<Self::SecondaryKeys as IntoDiscriminant>::Discriminant, Self::SecondaryKeys>
+    where
+        Self::SecondaryKeys: IntoDiscriminant;
+
+    fn has_secondary(&self) -> bool;
 
     /// Get the discriminant name for this model (used for tree names)
     fn discriminant_name() -> &'static str;
@@ -95,11 +141,44 @@ where
 /// Marker trait for key types (both primary and secondary).
 ///
 /// This trait is automatically implemented by the macro-generated key types.
+#[cfg(not(feature = "redb"))]
 pub trait NetabaseModelTraitKey<D: NetabaseDefinitionTrait>:
-    bincode::Encode + Decode<()> + std::fmt::Debug + Clone + MaybeSend + MaybeSync + 'static
+    bincode::Encode + Decode<()> + std::fmt::Debug + Clone + MaybeSend + MaybeSync + 'static + Ord
 where
     <D as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
-    <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseKeyDiscriminant,
+    <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant:
+        crate::traits::definition::NetabaseKeyDiscriminant,
 {
     const DISCRIMINANT: <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant;
+    type PrimaryKey: bincode::Encode + Decode<()> + Clone + Ord;
+    type SecondaryKey: bincode::Encode + Decode<()> + Clone + Ord + IntoDiscriminant;
 }
+
+/// Marker trait for key types (both primary and secondary).
+///
+/// This trait is automatically implemented by the macro-generated key types.
+#[cfg(feature = "redb")]
+pub trait NetabaseModelTraitKey<D: NetabaseDefinitionTrait>:
+    bincode::Encode
+    + Decode<()>
+    + std::fmt::Debug
+    + Clone
+    + MaybeSend
+    + MaybeSync
+    + 'static
+    + Ord
+    + redb::Key
+    + redb::Value
+where
+    <D as IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
+    <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant:
+        crate::traits::definition::NetabaseKeyDiscriminant,
+    Self: Key,
+    for<'a> Self: std::borrow::Borrow<<Self as redb::Value>::SelfType<'a>>,
+{
+    const DISCRIMINANT: <<D as NetabaseDefinitionTrait>::Keys as IntoDiscriminant>::Discriminant;
+    type PrimaryKey: InnerKey + bincode::Encode + Decode<()> + Clone + Ord;
+    type SecondaryKey: InnerKey + bincode::Encode + Decode<()> + Clone + Ord + IntoDiscriminant;
+}
+
+pub trait InnerKey: Key + Value where for<'a> Self: std::borrow::Borrow<<Self as Value>::SelfType<'a>> {}
