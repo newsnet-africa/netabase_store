@@ -131,7 +131,7 @@
 //!
 //! All native backends support bulk operations for better performance:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! // ❌ Slow: Creates 1000 transactions
 //! for model in models {
 //!     tree.put(model)?;

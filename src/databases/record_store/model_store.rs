@@ -23,7 +23,7 @@
 //!
 //! # Usage
 //!
-//! ```ignore
+//! ```no_run
 //! use netabase_store::databases::record_store::model_store::ModelRecordStore;
 //!
 //! // Store a model (guaranteed to store User type, not Definition wrapper)

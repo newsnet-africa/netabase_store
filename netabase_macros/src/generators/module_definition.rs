@@ -311,7 +311,7 @@ pub mod def_gen {
                 /// Result indicating success or error
                 ///
                 /// # Example
-                /// ```ignore
+                /// ```no_run
                 /// use libp2p::kad::store::RecordStore;
                 ///
                 /// let entry = MyDefinition::User(user);
@@ -343,7 +343,7 @@ pub mod def_gen {
     /// without unwrapping, cloning, or consuming the enum.
     ///
     /// # Example
-    /// ```ignore
+    /// ```no_run
     /// fn process_user<T: AsRef<User>>(user: T) {
     ///     let user_ref = user.as_ref();
     ///     // ... use user_ref

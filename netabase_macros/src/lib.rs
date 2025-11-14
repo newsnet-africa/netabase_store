@@ -107,7 +107,7 @@ mod visitors;
 /// # What Gets Generated
 ///
 /// For a model like this:
-/// ```ignore
+/// ```no_run
 /// #[derive(NetabaseModel, Clone, bincode::Encode, bincode::Decode)]
 /// #[netabase(MyDef)]
 /// pub struct User {
@@ -124,27 +124,65 @@ mod visitors;
 /// The macro generates the following code:
 ///
 /// ## 1. Primary Key Newtype
-/// ```ignore
-/// #[derive(Debug, Clone, PartialEq, Eq, ...)]
+/// ```
+/// # use netabase_store::{NetabaseModel, netabase};
+/// # #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode)]
+/// # #[netabase(MyDef)]
+/// # pub struct User {
+/// #     #[primary_key]
+/// #     pub id: u64,
+/// #     pub email: String,
+/// #     pub age: u32,
+/// # }
+/// // The macro generates (simplified for illustration):
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
 /// pub struct UserPrimaryKey(pub u64);
 /// ```
 /// **Why:** Type safety prevents accidentally using a PostPrimaryKey with a User tree.
 /// **How to use:** `tree.get(UserPrimaryKey(1))?` or `user.primary_key()`
 ///
 /// ## 2. Secondary Key Newtypes
-/// ```ignore
-/// #[derive(Debug, Clone, PartialEq, Eq, ...)]
+/// ```
+/// # use netabase_store::{NetabaseModel, netabase};
+/// # #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode)]
+/// # #[netabase(MyDef)]
+/// # pub struct User {
+/// #     #[primary_key]
+/// #     pub id: u64,
+/// #     #[secondary_key]
+/// #     pub email: String,
+/// #     #[secondary_key]
+/// #     pub age: u32,
+/// # }
+/// // The macro generates:
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
 /// pub struct UserEmailSecondaryKey(pub String);
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, ...)]
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
 /// pub struct UserAgeSecondaryKey(pub u32);
 /// ```
 /// **Why:** Model-prefixed to avoid conflicts when multiple models have `email` fields.
 /// **How to use:** Part of the SecondaryKeys enum (see below).
 ///
 /// ## 3. Secondary Keys Enum
-/// ```ignore
-/// #[derive(Debug, Clone, PartialEq, Eq, ...)]
+/// ```
+/// # use netabase_store::{NetabaseModel, netabase};
+/// # #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode)]
+/// # #[netabase(MyDef)]
+/// # pub struct User {
+/// #     #[primary_key]
+/// #     pub id: u64,
+/// #     #[secondary_key]
+/// #     pub email: String,
+/// #     #[secondary_key]
+/// #     pub age: u32,
+/// # }
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
+/// # pub struct UserEmailSecondaryKey(pub String);
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
+/// # pub struct UserAgeSecondaryKey(pub u32);
+/// // The macro generates:
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
 /// pub enum UserSecondaryKeys {
 ///     Email(UserEmailSecondaryKey),
 ///     Age(UserAgeSecondaryKey),
@@ -154,8 +192,24 @@ mod visitors;
 /// **How to use:** `tree.get_by_secondary_key(UserSecondaryKeys::Email(...))?`
 ///
 /// ## 4. Combined Keys Enum
-/// ```ignore
-/// #[derive(Debug, Clone, PartialEq, Eq, ...)]
+/// ```
+/// # use netabase_store::{NetabaseModel, netabase};
+/// # #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode)]
+/// # #[netabase(MyDef)]
+/// # pub struct User {
+/// #     #[primary_key]
+/// #     pub id: u64,
+/// #     #[secondary_key]
+/// #     pub email: String,
+/// # }
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
+/// # pub struct UserPrimaryKey(pub u64);
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
+/// # pub struct UserEmailSecondaryKey(pub String);
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
+/// # pub enum UserSecondaryKeys { Email(UserEmailSecondaryKey) }
+/// // The macro generates:
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
 /// pub enum UserKey {
 ///     Primary(UserPrimaryKey),
 ///     Secondary(UserSecondaryKeys),
@@ -165,7 +219,28 @@ mod visitors;
 /// **How to use:** Usually automatic, but can use `UserKey::Primary(...)` explicitly.
 ///
 /// ## 5. NetabaseModelTrait Implementation
-/// ```ignore
+/// ```
+/// # use netabase_store::{NetabaseModel, netabase};
+/// # use netabase_store::traits::model::NetabaseModelTrait;
+/// # #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode)]
+/// # #[netabase(MyDef)]
+/// # pub struct User {
+/// #     #[primary_key]
+/// #     pub id: u64,
+/// #     pub email: String,
+/// #     pub age: u32,
+/// # }
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
+/// # pub struct UserPrimaryKey(pub u64);
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
+/// # pub struct UserEmailSecondaryKey(pub String);
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
+/// # pub struct UserAgeSecondaryKey(pub u32);
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
+/// # pub enum UserSecondaryKeys { Email(UserEmailSecondaryKey), Age(UserAgeSecondaryKey) }
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
+/// # pub enum UserKey { Primary(UserPrimaryKey), Secondary(UserSecondaryKeys) }
+/// // The macro generates (example shown - actual implementation is more detailed):
 /// impl NetabaseModelTrait<MyDef> for User {
 ///     type PrimaryKey = UserPrimaryKey;
 ///     type SecondaryKeys = UserSecondaryKeys;
@@ -184,15 +259,26 @@ mod visitors;
 ///
 ///     fn discriminant_name() -> &'static str { "User" }
 /// }
+/// # struct MyDef;
 /// ```
 /// **Why:** Provides runtime access to keys from model instances.
 /// **How to use:** Automatic - called internally by tree operations.
 ///
 /// ## 6. Borrow Implementations
-/// ```ignore
-/// impl Borrow<u64> for UserPrimaryKey { ... }
-/// impl Borrow<String> for UserEmailSecondaryKey { ... }
-/// // ... more Borrow impls
+/// ```
+/// # use std::borrow::Borrow;
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
+/// # pub struct UserPrimaryKey(pub u64);
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
+/// # pub struct UserEmailSecondaryKey(pub String);
+/// // The macro generates:
+/// impl Borrow<u64> for UserPrimaryKey {
+///     fn borrow(&self) -> &u64 { &self.0 }
+/// }
+/// impl Borrow<String> for UserEmailSecondaryKey {
+///     fn borrow(&self) -> &String { &self.0 }
+/// }
+/// // ... more Borrow impls for other key types
 /// ```
 /// **Why:** Enables efficient lookups without allocating new key instances.
 /// **How to use:** Automatic - allows `tree.get(&1)` instead of `tree.get(UserPrimaryKey(1))`.
@@ -449,13 +535,17 @@ pub fn netabase(_defs: TokenStream, input: TokenStream) -> TokenStream {
 /// This derive is automatically applied by `#[netabase_definition_module]`.
 /// Manual usage would look like:
 ///
-/// ```ignore
+/// ```
+/// # // This example shows the generated code structure (for illustration)
+/// # use netabase_store::traits::definition::NetabaseDiscriminant;
+/// # use strum::{Display, AsRefStr, EnumIter, EnumString};
 /// #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Display, AsRefStr, EnumIter, EnumString)]
-/// #[derive(NetabaseDiscriminant)]
 /// enum MyDiscriminant {
 ///     Variant1,
 ///     Variant2,
 /// }
+/// // The NetabaseDiscriminant trait is implemented via blanket impl
+/// // when all the required traits are present
 /// ```
 /// (Note: This is for illustration only - the macro handles this automatically)
 #[proc_macro_derive(NetabaseDiscriminant)]

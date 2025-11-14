@@ -43,7 +43,7 @@ impl VisitMut for RefFieldInjector {
 /// Inject the borrowed reference field into the user's struct
 ///
 /// This modifies the struct AST to add a field like:
-/// ```ignore
+/// ```no_run
 /// #[cfg(feature = "redb-zerocopy")]
 /// _borrowed_ref: OnceCell<UserBorrowed<'static>>
 /// ```
@@ -56,7 +56,13 @@ pub fn inject_ref_field(model: &mut ItemStruct) {
 /// Generate the borrowed reference type for a model
 ///
 /// For a struct like:
-/// ```ignore
+/// ```
+/// # struct User {
+/// #     id: u64,
+/// #     name: String,
+/// #     email: String,
+/// # }
+/// // Input:
 /// struct User {
 ///     id: u64,
 ///     name: String,
@@ -65,7 +71,13 @@ pub fn inject_ref_field(model: &mut ItemStruct) {
 /// ```
 ///
 /// Generates:
-/// ```ignore
+/// ```
+/// # struct UserRef<'a> {
+/// #     id: u64,
+/// #     name: &'a str,
+/// #     email: &'a str,
+/// # }
+/// // Output:
 /// struct UserRef<'a> {
 ///     id: u64,
 ///     name: &'a str,

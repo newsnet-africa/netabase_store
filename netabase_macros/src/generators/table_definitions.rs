@@ -8,7 +8,7 @@ use crate::util::append_ident;
 /// Generate a struct that holds redb TableDefinitions for all models in the schema
 ///
 /// This generates:
-/// ```ignore
+/// ```no_run
 /// pub struct {Definition}Tables {
 ///     pub users: redb::TableDefinition<'static, UserPrimaryKey, User>,
 ///     pub posts: redb::TableDefinition<'static, PostPrimaryKey, Post>,
