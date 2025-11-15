@@ -11,7 +11,7 @@
 //! # #[netabase_definition_module(MyDef, MyKeys)]
 //! # mod models {
 //! #     use netabase_store::*;
-//! #     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode)]
+//! #     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
 //! #     #[netabase(MyDef)]
 //! #     pub struct User {
 //! #         #[primary_key]
@@ -33,7 +33,7 @@
 //! // Read (cloned)
 //! let txn = store.begin_read()?;
 //! let tree = txn.open_tree::<User>()?;
-//! let user = tree.get(&1)?;
+//! let user = tree.get(&UserPrimaryKey::from(1))?;
 //! # Ok(())
 //! # }
 //! ```
@@ -65,25 +65,56 @@
 //!
 //! ### Old API (redb_store)
 //!
-//! ```rust,no_run
-//! # use netabase_store::*;
+//! ```no_run
+//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//! use netabase_store::databases::redb_store::RedbStore;
+//! use netabase_store::traits::tree::NetabaseTreeSync;
+//!
+//! #[netabase_definition_module(MyDef, MyKeys)]
+//! mod models {
+//!     use netabase_store::{NetabaseModel, netabase};
+//!     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
+//!     #[netabase(MyDef)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: u64,
+//!         pub name: String,
+//!     }
+//! }
+//! use models::*;
+//!
 //! # fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! # let store = todo!();
-//! # let user = todo!();
+//! let store = RedbStore::<MyDef>::new("app.redb")?;
 //! let tree = store.open_tree::<User>();
+//! let user = User { id: 1, name: "Alice".into() };
 //! tree.put(user)?; // Auto-commits (1 transaction per operation)
-//! let user = tree.get(key)?; // Always clones
+//! let retrieved = tree.get(UserKey::from(UserPrimaryKey::from(1)))?; // Always clones
 //! # Ok(())
 //! # }
 //! ```
 //!
 //! ### New API (redb_zerocopy)
 //!
-//! ```rust,no_run
-//! # use netabase_store::*;
+//! ```no_run
+//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//! use netabase_store::databases::redb_zerocopy::RedbStoreZeroCopy;
+//!
+//! #[netabase_definition_module(MyDef, MyKeys)]
+//! mod models {
+//!     use netabase_store::{NetabaseModel, netabase};
+//!     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
+//!     #[netabase(MyDef)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: u64,
+//!         pub name: String,
+//!     }
+//! }
+//! use models::*;
+//!
 //! # fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! # let store = todo!();
-//! # let user = todo!();
+//! let store = RedbStoreZeroCopy::<MyDef>::new("app.redb")?;
+//! let user = User { id: 1, name: "Alice".into() };
 //! let mut txn = store.begin_write()?;
 //! let mut tree = txn.open_tree::<User>()?;
 //! tree.put(user)?; // Batched in transaction
@@ -668,11 +699,23 @@ where
 ///
 /// ```rust,no_run
 /// # use netabase_store::*;
+/// # use netabase_store::databases::redb_zerocopy::*;
+/// # #[netabase_definition_module(MyDef, MyKeys)]
+/// # mod models {
+/// #     use netabase_store::*;
+/// #     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
+/// #     #[netabase(MyDef)]
+/// #     pub struct User {
+/// #         #[primary_key]
+/// #         pub id: u64,
+/// #         pub name: String,
+/// #     }
+/// # }
+/// # use models::*;
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// # let store = todo!();
-/// # let user1 = todo!();
-/// # let user2 = todo!();
-/// # use netabase_store::databases::redb_zerocopy::with_write_transaction;
+/// # let store = RedbStoreZeroCopy::<MyDef>::new("app.redb")?;
+/// # let user1 = User { id: 1, name: "Alice".into() };
+/// # let user2 = User { id: 2, name: "Bob".into() };
 /// with_write_transaction(&store, |txn| {
 ///     let mut tree = txn.open_tree::<User>()?;
 ///     tree.put(user1)?;
@@ -702,13 +745,24 @@ where
 ///
 /// ```rust,no_run
 /// # use netabase_store::*;
+/// # use netabase_store::databases::redb_zerocopy::*;
+/// # #[netabase_definition_module(MyDef, MyKeys)]
+/// # mod models {
+/// #     use netabase_store::*;
+/// #     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
+/// #     #[netabase(MyDef)]
+/// #     pub struct User {
+/// #         #[primary_key]
+/// #         pub id: u64,
+/// #         pub name: String,
+/// #     }
+/// # }
+/// # use models::*;
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// # let store = todo!();
-/// # let user_id = 1u64;
-/// # use netabase_store::databases::redb_zerocopy::with_read_transaction;
+/// # let store = RedbStoreZeroCopy::<MyDef>::new("app.redb")?;
 /// let user = with_read_transaction(&store, |txn| {
 ///     let tree = txn.open_tree::<User>()?;
-///     tree.get(&user_id)
+///     tree.get(&UserPrimaryKey::from(1))
 /// })?;
 /// # Ok(())
 /// # }

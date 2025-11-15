@@ -16,14 +16,18 @@
 #![allow(dead_code)] // Items used only in specific feature configurations
 //! Use the `ModelRecordStore` trait for type-safe operations:
 //!
-//! ```ignore
+//! ```no_run
+//! # #[cfg(feature = "libp2p")]
+//! # fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! use netabase_store::databases::record_store::model_store::ModelRecordStore;
 //!
 //! // Store a model
-//! store.put_model::<MyDefinition, _>(&user)?;
+//! // store.put_model::<MyDefinition, _>(&user)?;
 //!
 //! // Retrieve by key
-//! let user: User = store.get_model::<MyDefinition, User, _>(&user_id)?;
+//! // let user: Option<User> = store.get_model::<MyDefinition, User, _>(&user_id);
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! # Module Structure

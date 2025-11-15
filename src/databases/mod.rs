@@ -131,14 +131,22 @@
 ///!
 ///! All native backends support bulk operations for better performance:
 ///!
-///! ```rust,ignore
+///! ```no_run
+///! # use netabase_store::databases::memory_store::MemoryStore;
+///! # struct MyDefinition;
+///! # struct MyModel;
+///! # impl MyModel { fn new() -> Self { MyModel } }
+///! # let models: Vec<MyModel> = vec![];
+///! # let store = MemoryStore::<MyDefinition>::new();
+///! # let tree = store.open_tree::<MyModel>();
 ///! // ❌ Slow: Creates 1000 transactions
-///! for model in models {
+///! for model in models.clone() {
 ///!     tree.put(model)?;
 ///! }
 ///!
 ///! // ✅ Fast: Single transaction
 ///! tree.put_many(models)?;  // 8-9x faster!
+///! # Ok::<(), Box<dyn std::error::Error>>(())
 ///! ```
 ///!
 ///! Available bulk methods:

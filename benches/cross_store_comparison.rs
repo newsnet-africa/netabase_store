@@ -3,18 +3,61 @@
 
 //! Cross-Store Comparison Benchmark
 //!
-//! This benchmark compares all available storage implementations:
-//! - Raw Sled
-//! - Wrapper Sled
-//! - Raw Redb
-//! - Wrapper Redb (standard API with auto-commit)
-//! - Zerocopy Redb (explicit transaction API)
+//! Comprehensive performance comparison across all storage implementations and API levels.
 //!
-//! Each implementation is tested on the same operations:
-//! - Insert (sequential writes)
-//! - Get (sequential reads)
-//! - Bulk operations
-//! - Secondary key lookups
+//! ## Benchmark Dimensions
+//!
+//! 1. **Store Type**: `sled`, `redb`
+//! 2. **API Level**: `raw`, `wrapper`, `zerocopy` (redb only)
+//! 3. **Operation Mode**: `loop` (per-item), `batch`, `txn` (transaction)
+//! 4. **Operation Type**: `insert`, `get`, `bulk_ops`, `secondary_query`
+//!
+//! ## Naming Convention
+//!
+//! Benchmark IDs: `{store}_{api}_{mode}`
+//!
+//! Examples:
+//! - `sled_raw_loop` - Raw sled, individual inserts
+//! - `sled_raw_batch` - Raw sled, batched inserts
+//! - `sled_wrapper_loop` - Sled wrapper, per-item (N transactions)
+//! - `sled_wrapper_batch` - Sled wrapper, batched (1 transaction)
+//! - `sled_wrapper_txn` - Sled wrapper, explicit transaction
+//! - `redb_raw_txn` - Raw redb (always uses transactions)
+//! - `redb_wrapper_loop` - Redb wrapper, per-item (N transactions)
+//! - `redb_wrapper_bulk` - Redb wrapper, put_many (1 transaction)
+//! - `redb_zerocopy_loop` - Zerocopy redb, loop in transaction
+//! - `redb_zerocopy_bulk` - Zerocopy redb, put_many in transaction
+//!
+//! ## Comparison Matrix
+//!
+//! This enables these comparisons:
+//!
+//! ### 1. Raw vs Raw (Baseline Store Comparison)
+//! - `sled_raw_*` vs `redb_raw_txn`
+//! - Measures inherent performance differences between stores
+//!
+//! ### 2. Raw vs Wrapper (Overhead Analysis - Per Store)
+//! - `sled_raw_*` vs `sled_wrapper_*`
+//! - `redb_raw_txn` vs `redb_wrapper_*`
+//! - Measures overhead of type-safety and auto-indexing
+//!
+//! ### 3. Wrapper vs Zerocopy (API Comparison - Redb Only)
+//! - `redb_wrapper_*` vs `redb_zerocopy_*`
+//! - Measures benefit of explicit transaction API
+//!
+//! ### 4. Wrapper vs Wrapper (Cross-Store, Same Abstraction)
+//! - `sled_wrapper_*` vs `redb_wrapper_*` vs `redb_zerocopy_*`
+//! - Fair comparison at same API level
+//!
+//! ### 5. Loop vs Batch vs Transaction (Operation Mode)
+//! - `*_loop` vs `*_batch` vs `*_txn` (within same store/API)
+//! - Measures batching/transaction benefits
+//!
+//! ## Expected Results
+//!
+//! - Wrapper overhead: 5-15% (type safety + auto-indexing)
+//! - Batch vs loop: 5-10x faster (transaction reduction)
+//! - Zerocopy vs wrapper: 10-50% faster for bulk operations
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use netabase_macros::netabase_definition_module;
@@ -95,6 +138,42 @@ fn bench_cross_store_insert(c: &mut Criterion) {
             });
         });
 
+        // 1b. Raw Sled with Batch (manual index, batched for comparison with wrapper batch)
+        group.bench_with_input(BenchmarkId::new("sled_raw_batch", size), size, |b, &size| {
+            b.iter(|| {
+                let temp_dir = tempfile::TempDir::new().unwrap();
+                let db = sled::open(temp_dir.path()).unwrap();
+                let articles_tree = db.open_tree(SLED_ARTICLES_TREE).unwrap();
+                let author_index = db.open_tree(SLED_AUTHOR_INDEX_TREE).unwrap();
+
+                // Prepare all data first
+                let mut articles_batch = sled::Batch::default();
+                let mut index_batch = sled::Batch::default();
+
+                for i in 0u64..size {
+                    let article = Article {
+                        id: i,
+                        title: format!("Article {}", i),
+                        content: format!("Content for article {}", i),
+                        author_id: i % 10,
+                    };
+                    let encoded = bincode::encode_to_vec(&article, bincode::config::standard()).unwrap();
+                    articles_batch.insert(&i.to_be_bytes(), encoded.as_slice());
+
+                    // Secondary index
+                    let index_key = format!("{}:{}", article.author_id, i);
+                    index_batch.insert(index_key.as_bytes(), &[]);
+                }
+
+                // Apply batches atomically
+                articles_tree.apply_batch(articles_batch).unwrap();
+                author_index.apply_batch(index_batch).unwrap();
+                articles_tree.flush().unwrap();
+
+                black_box(articles_tree.len());
+            });
+        });
+
         // 2. Wrapper Sled (type-safe API, auto-index, per-item insert = N transactions)
         group.bench_with_input(BenchmarkId::new("sled_wrapper_loop", size), size, |b, &size| {
             b.iter(|| {
@@ -111,6 +190,31 @@ fn bench_cross_store_insert(c: &mut Criterion) {
                     };
                     article_tree.put(article).unwrap();
                 }
+
+                black_box(article_tree.len());
+            });
+        });
+
+        // 2b. Wrapper Sled with Batch (type-safe API, auto-index, batched insert)
+        group.bench_with_input(BenchmarkId::new("sled_wrapper_batch", size), size, |b, &size| {
+            use netabase_store::traits::batch::{Batchable, BatchBuilder};
+
+            b.iter(|| {
+                let temp_dir = tempfile::TempDir::new().unwrap();
+                let store = SledStore::<BenchDefinition>::new(temp_dir.path()).unwrap();
+                let article_tree = store.open_tree::<Article>();
+
+                let mut batch = article_tree.create_batch().unwrap();
+                for i in 0u64..size {
+                    let article = Article {
+                        id: i,
+                        title: format!("Article {}", i),
+                        content: format!("Content for article {}", i),
+                        author_id: i % 10,
+                    };
+                    batch.put(article).unwrap();
+                }
+                batch.commit().unwrap();
 
                 black_box(article_tree.len());
             });

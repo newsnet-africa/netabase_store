@@ -44,9 +44,14 @@ impl VisitMut for RefFieldInjector {
 /// Inject the borrowed reference field into the user's struct
 ///
 /// This modifies the struct AST to add a field like:
-/// ```ignore
+/// ```
+/// # // The macro generates (simplified for illustration):
+/// # struct UserBorrowed;
 /// #[cfg(feature = "redb-zerocopy")]
-/// _borrowed_ref: OnceCell<UserBorrowed<'static>>
+/// # #[allow(unused)]
+/// # struct Example {
+/// _borrowed_ref: std::cell::OnceCell<UserBorrowed>
+/// # }
 /// ```
 pub fn inject_ref_field(model: &mut ItemStruct) {
     let borrowed_name = Ident::new(&format!("{}Borrowed", model.ident), model.ident.span());
@@ -57,7 +62,9 @@ pub fn inject_ref_field(model: &mut ItemStruct) {
 /// Generate the borrowed reference type for a model
 ///
 /// For a struct like:
-/// ```ignore
+/// ```
+/// # // Input (user's model):
+/// # #[allow(unused)]
 /// struct User {
 ///     id: u64,
 ///     name: String,
@@ -65,8 +72,12 @@ pub fn inject_ref_field(model: &mut ItemStruct) {
 /// }
 /// ```
 ///
-/// Generates:
-/// ```ignore
+/// The macro generates:
+/// ```
+/// # // The macro generates (simplified for illustration):
+/// # #[cfg(feature = "redb-zerocopy")]
+/// #[derive(Debug, Clone, Copy)]
+/// # #[allow(unused)]
 /// struct UserRef<'a> {
 ///     id: u64,
 ///     name: &'a str,
@@ -109,8 +120,15 @@ pub fn generate_borrowed_type(model: &ItemStruct) -> TokenStream {
 
 /// Generate the `as_ref()` conversion method
 ///
-/// Generates:
-/// ```ignore
+/// The macro generates:
+/// ```
+/// # // The macro generates (simplified for illustration):
+/// # #[cfg(feature = "redb-zerocopy")]
+/// # #[derive(Clone, Copy)]
+/// # struct UserRef<'a> { id: u64, name: &'a str, email: &'a str }
+/// # #[cfg(feature = "redb-zerocopy")]
+/// # struct User { id: u64, name: String, email: String }
+/// # #[cfg(feature = "redb-zerocopy")]
 /// impl User {
 ///     pub fn as_ref(&self) -> UserRef<'_> {
 ///         UserRef {
@@ -154,9 +172,16 @@ pub fn generate_as_ref_method(model: &ItemStruct) -> TokenStream {
 
 /// Generate the ouroboros self-referential wrapper
 ///
-/// This creates a struct that holds owned data and borrows from it:
-/// ```ignore
-/// #[ouroboros::self_referencing]
+/// This creates a struct that holds owned data and borrows from it.
+/// The macro generates (simplified for illustration):
+/// ```
+/// # // The macro generates (simplified for illustration):
+/// # #[cfg(feature = "redb-zerocopy")]
+/// # #[derive(Clone, Copy)]
+/// # struct UserRef<'a> { id: u64, name: &'a str, email: &'a str }
+/// # #[cfg(feature = "redb-zerocopy")]
+/// #[derive(ouroboros::self_referencing)]
+/// # #[allow(unused)]
 /// struct UserBorrowed {
 ///     id: u64,
 ///     name: String,
@@ -299,11 +324,22 @@ pub fn generate_borrow_impl(model: &ItemStruct) -> TokenStream {
             /// need the data to outlive a function call.
             ///
             /// # Example
-            /// ```ignore
-            /// let user = User { /* ... */ };
+            /// ```no_run
+            /// # #[cfg(feature = "redb-zerocopy")]
+            /// # {
+            /// # #[derive(Clone)] struct User { id: u64, name: String }
+            /// # #[derive(Clone, Copy)] struct UserRef<'a> { id: u64, name: &'a str }
+            /// # struct UserBorrowed;
+            /// # impl User {
+            /// #     fn with_borrowed<F, R>(self, f: F) -> R where F: for<'a> FnOnce(&UserRef<'a>) -> R {
+            /// #         f(&UserRef { id: self.id, name: &self.name })
+            /// #     }
+            /// # }
+            /// let user = User { id: 1, name: "Alice".to_string() };
             /// user.with_borrowed(|user_ref| {
             ///     println!("Name: {}", user_ref.name);  // Zero-copy!
             /// });
+            /// # }
             /// ```
             pub fn with_borrowed<F, R>(self, f: F) -> R
             where
@@ -318,8 +354,16 @@ pub fn generate_borrow_impl(model: &ItemStruct) -> TokenStream {
 
 /// Generate the `From` trait for converting borrowed back to owned
 ///
-/// Generates:
-/// ```ignore
+/// The macro generates:
+/// ```
+/// # // The macro generates (simplified for illustration):
+/// # #[cfg(feature = "redb-zerocopy")]
+/// # #[derive(Clone, Copy)]
+/// # struct UserRef<'a> { id: u64, name: &'a str, email: &'a str }
+/// # #[cfg(feature = "redb-zerocopy")]
+/// # #[derive(Clone)]
+/// # struct User { id: u64, name: String, email: String }
+/// # #[cfg(feature = "redb-zerocopy")]
 /// impl<'a> From<UserRef<'a>> for User {
 ///     fn from(r: UserRef<'a>) -> Self {
 ///         User {

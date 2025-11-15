@@ -418,16 +418,19 @@ mod redb_tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let path = temp_dir.path().join("test.redb");
         let mut store = NetabaseStore::<TestDefinition, _>::redb(&path).unwrap();
-        let tree = store.open_tree::<Product>();
 
-        tree.put(Product {
-            id: 1,
-            name: "Test".to_string(),
-            price: 100,
-            category: "Test".to_string(),
-            in_stock: true,
-        })
-        .unwrap();
+        // Insert data in a scope to ensure tree is dropped before integrity check
+        {
+            let tree = store.open_tree::<Product>();
+            tree.put(Product {
+                id: 1,
+                name: "Test".to_string(),
+                price: 100,
+                category: "Test".to_string(),
+                in_stock: true,
+            })
+            .unwrap();
+        } // tree is dropped here, releasing the database reference
 
         // Test check_integrity (Redb-specific)
         let is_valid = store.check_integrity().unwrap();

@@ -107,7 +107,8 @@ mod visitors;
 /// # What Gets Generated
 ///
 /// For a model like this:
-/// ```ignore
+/// ```
+/// # use netabase_store::{NetabaseModel, netabase};
 /// #[derive(NetabaseModel, Clone, bincode::Encode, bincode::Decode)]
 /// #[netabase(MyDef)]
 /// pub struct User {
@@ -124,27 +125,34 @@ mod visitors;
 /// The macro generates the following code:
 ///
 /// ## 1. Primary Key Newtype
-/// ```ignore
-/// #[derive(Debug, Clone, PartialEq, Eq, ...)]
+/// ```
+/// // The macro generates (simplified for illustration):
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
 /// pub struct UserPrimaryKey(pub u64);
 /// ```
 /// **Why:** Type safety prevents accidentally using a PostPrimaryKey with a User tree.
 /// **How to use:** `tree.get(UserPrimaryKey(1))?` or `user.primary_key()`
 ///
 /// ## 2. Secondary Key Newtypes
-/// ```ignore
-/// #[derive(Debug, Clone, PartialEq, Eq, ...)]
+/// ```
+/// // The macro generates (simplified for illustration):
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
 /// pub struct UserEmailSecondaryKey(pub String);
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, ...)]
+/// #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
 /// pub struct UserAgeSecondaryKey(pub u32);
 /// ```
 /// **Why:** Model-prefixed to avoid conflicts when multiple models have `email` fields.
 /// **How to use:** Part of the SecondaryKeys enum (see below).
 ///
 /// ## 3. Secondary Keys Enum
-/// ```ignore
-/// #[derive(Debug, Clone, PartialEq, Eq, ...)]
+/// ```
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
+/// # pub struct UserEmailSecondaryKey(pub String);
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
+/// # pub struct UserAgeSecondaryKey(pub u32);
+/// // The macro generates (simplified for illustration):
+/// #[derive(Debug, Clone, PartialEq, Eq, bincode::Encode, bincode::Decode)]
 /// pub enum UserSecondaryKeys {
 ///     Email(UserEmailSecondaryKey),
 ///     Age(UserAgeSecondaryKey),
@@ -154,8 +162,13 @@ mod visitors;
 /// **How to use:** `tree.get_by_secondary_key(UserSecondaryKeys::Email(...))?`
 ///
 /// ## 4. Combined Keys Enum
-/// ```ignore
-/// #[derive(Debug, Clone, PartialEq, Eq, ...)]
+/// ```
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
+/// # pub struct UserPrimaryKey(pub u64);
+/// # #[derive(Debug, Clone, PartialEq, Eq, bincode::Encode, bincode::Decode)]
+/// # pub enum UserSecondaryKeys { Email(String), Age(u32) }
+/// // The macro generates (simplified for illustration):
+/// #[derive(Debug, Clone, PartialEq, Eq, bincode::Encode, bincode::Decode)]
 /// pub enum UserKey {
 ///     Primary(UserPrimaryKey),
 ///     Secondary(UserSecondaryKeys),
@@ -165,7 +178,21 @@ mod visitors;
 /// **How to use:** Usually automatic, but can use `UserKey::Primary(...)` explicitly.
 ///
 /// ## 5. NetabaseModelTrait Implementation
-/// ```ignore
+/// ```
+/// # use netabase_store::traits::model::NetabaseModelTrait;
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
+/// # pub struct UserPrimaryKey(pub u64);
+/// # #[derive(Debug, Clone, PartialEq, Eq, bincode::Encode, bincode::Decode)]
+/// # pub struct UserEmailSecondaryKey(pub String);
+/// # #[derive(Debug, Clone, PartialEq, Eq, bincode::Encode, bincode::Decode)]
+/// # pub struct UserAgeSecondaryKey(pub u32);
+/// # #[derive(Debug, Clone, PartialEq, Eq, bincode::Encode, bincode::Decode)]
+/// # pub enum UserSecondaryKeys { Email(UserEmailSecondaryKey), Age(UserAgeSecondaryKey) }
+/// # #[derive(Debug, Clone, PartialEq, Eq, bincode::Encode, bincode::Decode)]
+/// # pub enum UserKey { Primary(UserPrimaryKey), Secondary(UserSecondaryKeys) }
+/// # pub struct MyDef;
+/// # #[derive(Clone)] pub struct User { pub id: u64, pub email: String, pub age: u32 }
+/// // The macro generates (simplified for illustration):
 /// impl NetabaseModelTrait<MyDef> for User {
 ///     type PrimaryKey = UserPrimaryKey;
 ///     type SecondaryKeys = UserSecondaryKeys;
@@ -189,9 +216,19 @@ mod visitors;
 /// **How to use:** Automatic - called internally by tree operations.
 ///
 /// ## 6. Borrow Implementations
-/// ```ignore
-/// impl Borrow<u64> for UserPrimaryKey { ... }
-/// impl Borrow<String> for UserEmailSecondaryKey { ... }
+/// ```
+/// # use std::borrow::Borrow;
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
+/// # pub struct UserPrimaryKey(pub u64);
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
+/// # pub struct UserEmailSecondaryKey(pub String);
+/// // The macro generates (simplified for illustration):
+/// impl Borrow<u64> for UserPrimaryKey {
+///     fn borrow(&self) -> &u64 { &self.0 }
+/// }
+/// impl Borrow<String> for UserEmailSecondaryKey {
+///     fn borrow(&self) -> &String { &self.0 }
+/// }
 /// // ... more Borrow impls
 /// ```
 /// **Why:** Enables efficient lookups without allocating new key instances.
@@ -450,7 +487,9 @@ pub fn netabase(_defs: TokenStream, input: TokenStream) -> TokenStream {
 /// This derive is automatically applied by `#[netabase_definition_module]`.
 /// Manual usage would look like:
 ///
-/// ```ignore
+/// ```
+/// # use netabase_store::netabase_store_derive::NetabaseDiscriminant;
+/// # use strum_macros::{Display, AsRefStr, EnumIter, EnumString};
 /// #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Display, AsRefStr, EnumIter, EnumString)]
 /// #[derive(NetabaseDiscriminant)]
 /// enum MyDiscriminant {
@@ -502,7 +541,8 @@ pub fn netabase_discriminant_derive(input: TokenStream) -> TokenStream {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
+/// # use netabase_store::{NetabaseModel, netabase};
 /// #[derive(NetabaseModel, Clone, bincode::Encode, bincode::Decode)]
 /// #[cfg_attr(feature = "redb-zerocopy", redb_zerocopy)]
 /// #[netabase(BlogDefinition)]
@@ -515,7 +555,10 @@ pub fn netabase_discriminant_derive(input: TokenStream) -> TokenStream {
 /// ```
 ///
 /// This modifies the struct to add:
-/// ```ignore
+/// ```
+/// # #[cfg(feature = "redb-zerocopy")]
+/// # struct UserBorrowed;
+/// // The macro adds this field when feature "redb-zerocopy" is enabled:
 /// #[cfg(feature = "redb-zerocopy")]
 /// _borrowed_ref: std::cell::OnceCell<UserBorrowed>
 /// ```
@@ -593,25 +636,31 @@ pub fn redb_zerocopy(_attr: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// For a definition module with models `User` and `Post`:
 ///
-/// ```ignore
+/// ```
+/// # use netabase_store::{NetabaseModel, netabase, netabase_definition_module};
 /// #[netabase_definition_module(BlogSchema, BlogKeys)]
 /// mod blog {
-///     #[derive(NetabaseModel, ...)]
+///     use netabase_store::{NetabaseModel, netabase};
+///     #[derive(NetabaseModel, Clone, bincode::Encode, bincode::Decode)]
 ///     #[netabase(BlogSchema)]
-///     pub struct User { #[primary_key] pub id: u64, ... }
+///     pub struct User { #[primary_key] pub id: u64 }
 ///
-///     #[derive(NetabaseModel, ...)]
+///     #[derive(NetabaseModel, Clone, bincode::Encode, bincode::Decode)]
 ///     #[netabase(BlogSchema)]
-///     pub struct Post { #[primary_key] pub id: String, ... }
+///     pub struct Post { #[primary_key] pub id: String }
 /// }
 /// ```
 ///
 /// The macro generates:
 ///
 /// ## 1. Definition Enum
-/// ```ignore
-/// #[derive(Clone, Debug, PartialEq, Eq, bincode::Encode, bincode::Decode, ...)]
-/// #[derive(strum::EnumDiscriminants, strum::IntoStaticStr, ...)]
+/// ```
+/// # #[derive(Clone, bincode::Encode, bincode::Decode)] pub struct User { pub id: u64 }
+/// # #[derive(Clone, bincode::Encode, bincode::Decode)] pub struct Post { pub id: String }
+/// # use strum_macros::{EnumIter, Display, AsRefStr, EnumString};
+/// // The macro generates (simplified for illustration):
+/// #[derive(Clone, Debug, PartialEq, Eq, bincode::Encode, bincode::Decode)]
+/// #[derive(strum::EnumDiscriminants, strum::IntoStaticStr)]
 /// #[strum_discriminants(derive(EnumIter, Display, AsRefStr, EnumString, Hash))]
 /// #[strum_discriminants(name(BlogSchemaDiscriminant))]
 /// pub enum BlogSchema {
@@ -623,7 +672,10 @@ pub fn redb_zerocopy(_attr: TokenStream, input: TokenStream) -> TokenStream {
 /// **How to use:** Usually automatic, but can do `BlogSchema::User(user)` explicitly.
 ///
 /// ## 2. Discriminant Enum (Auto-generated by strum)
-/// ```ignore
+/// ```
+/// # use strum_macros::{EnumIter, Display, AsRefStr, EnumString};
+/// // The macro generates (via strum):
+/// #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, EnumIter, Display, AsRefStr, EnumString)]
 /// pub enum BlogSchemaDiscriminant {
 ///     User,
 ///     Post,
@@ -633,8 +685,11 @@ pub fn redb_zerocopy(_attr: TokenStream, input: TokenStream) -> TokenStream {
 /// **How to use:** Automatic - used internally to identify which model type.
 ///
 /// ## 3. Keys Enum
-/// ```ignore
-/// #[derive(Clone, Debug, PartialEq, Eq, bincode::Encode, bincode::Decode, ...)]
+/// ```
+/// # #[derive(Clone, bincode::Encode, bincode::Decode)] pub enum UserKey { Primary(u64) }
+/// # #[derive(Clone, bincode::Encode, bincode::Decode)] pub enum PostKey { Primary(String) }
+/// // The macro generates (simplified for illustration):
+/// #[derive(Clone, Debug, PartialEq, Eq, bincode::Encode, bincode::Decode)]
 /// #[derive(strum::EnumDiscriminants)]
 /// #[strum_discriminants(name(BlogKeysDiscriminant))]
 /// pub enum BlogKeys {
@@ -646,19 +701,34 @@ pub fn redb_zerocopy(_attr: TokenStream, input: TokenStream) -> TokenStream {
 /// **How to use:** `tree.get_by_key(BlogKeys::UserKey(UserKey::Primary(...)))?`
 ///
 /// ## 4. Table Definitions Struct (Redb only)
-/// ```ignore
+/// ```
+/// # #[cfg(feature = "redb")]
+/// # use redb::{TableDefinition, MultimapTableDefinition};
+/// # use netabase_store::databases::redb_store::BincodeWrapper;
+/// # type UserPrimaryKey = u64;
+/// # type User = ();
+/// # type PostPrimaryKey = String;
+/// # type Post = ();
+/// # type CompositeKey = ();
+/// // The macro generates (simplified for illustration):
 /// pub struct BlogSchemaTables {
 ///     pub user: TableDefinition<'static, BincodeWrapper<UserPrimaryKey>, BincodeWrapper<User>>,
-///     pub user_secondary: MultimapTableDefinition<'static, BincodeWrapper<CompositeKey<...>>, ()>,
+///     pub user_secondary: MultimapTableDefinition<'static, BincodeWrapper<CompositeKey>, ()>,
 ///     pub post: TableDefinition<'static, BincodeWrapper<PostPrimaryKey>, BincodeWrapper<Post>>,
-///     pub post_secondary: MultimapTableDefinition<'static, BincodeWrapper<CompositeKey<...>>, ()>,
+///     pub post_secondary: MultimapTableDefinition<'static, BincodeWrapper<CompositeKey>, ()>,
 /// }
 /// ```
 /// **Why:** Redb requires static table definitions for zero-copy operations.
 /// **How to use:** Automatic - accessed via `store.tables()`.
 ///
 /// ## 5. NetabaseDefinitionTrait Implementation
-/// ```ignore
+/// ```
+/// # use netabase_store::traits::definition::NetabaseDefinitionTrait;
+/// # #[derive(Clone, bincode::Encode, bincode::Decode)] pub enum BlogSchema { User(()) }
+/// # #[derive(Clone, bincode::Encode, bincode::Decode)] pub enum BlogKeys { UserKey(()) }
+/// # #[derive(Clone, Copy)] pub enum BlogSchemaDiscriminant { User }
+/// # pub struct BlogSchemaTables;
+/// // The macro generates (simplified for illustration):
 /// impl NetabaseDefinitionTrait for BlogSchema {
 ///     type Keys = BlogKeys;
 ///     type Discriminant = BlogSchemaDiscriminant;
@@ -669,7 +739,11 @@ pub fn redb_zerocopy(_attr: TokenStream, input: TokenStream) -> TokenStream {
 /// **How to use:** Automatic - used by `SledStore<BlogSchema>`, etc.
 ///
 /// ## 6. Conversion Traits
-/// ```ignore
+/// ```
+/// # #[derive(Clone, bincode::Encode, bincode::Decode)] pub struct User { pub id: u64 }
+/// # #[derive(Clone, bincode::Encode, bincode::Decode)] pub struct Post { pub id: String }
+/// # #[derive(Clone, bincode::Encode, bincode::Decode)] pub enum BlogSchema { User(User), Post(Post) }
+/// // The macro generates (simplified for illustration):
 /// // Convert from specific model to definition
 /// impl From<User> for BlogSchema {
 ///     fn from(value: User) -> Self { BlogSchema::User(value) }
@@ -704,30 +778,60 @@ pub fn redb_zerocopy(_attr: TokenStream, input: TokenStream) -> TokenStream {
 /// # Common Patterns
 ///
 /// ## Creating a Store with a Definition
-/// ```ignore
+/// ```no_run
+/// # use netabase_store::databases::sled_store::SledStore;
+/// # #[cfg(feature = "redb")]
+/// # use netabase_store::databases::redb_store::RedbStore;
+/// # #[derive(Clone, bincode::Encode, bincode::Decode)] pub enum BlogSchema { User(()) }
+/// # fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let store = SledStore::<BlogSchema>::new("./blog.db")?;
 /// // Or
+/// # #[cfg(feature = "redb")]
 /// let store = RedbStore::<BlogSchema>::new("./blog.redb")?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// ## Opening Trees for Different Models
-/// ```ignore
+/// ```no_run
+/// # use netabase_store::databases::sled_store::SledStore;
+/// # use netabase_store::traits::tree::NetabaseTreeSync;
+/// # #[derive(Clone, bincode::Encode, bincode::Decode)] pub struct User { pub id: u64 }
+/// # #[derive(Clone, bincode::Encode, bincode::Decode)] pub struct Post { pub id: String }
+/// # #[derive(Clone, bincode::Encode, bincode::Decode)] pub enum BlogSchema { User(User), Post(Post) }
+/// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// # let store = SledStore::<BlogSchema>::temp()?;
 /// let users = store.open_tree::<User>();
 /// let posts = store.open_tree::<Post>();
 ///
-/// users.put(User { id: 1, ... })?;
-/// posts.put(Post { id: "post-1".into(), ... })?;
+/// users.put(User { id: 1 })?;
+/// posts.put(Post { id: "post-1".into() })?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// ## Working with the Definition Enum
-/// ```ignore
+/// ```
+/// # #[derive(Clone, bincode::Encode, bincode::Decode)] pub struct User { pub id: u64 }
+/// # #[derive(Clone, bincode::Encode, bincode::Decode)] pub enum BlogSchema { User(User) }
+/// # impl From<User> for BlogSchema { fn from(u: User) -> Self { BlogSchema::User(u) } }
+/// # impl TryFrom<BlogSchema> for User {
+/// #     type Error = String;
+/// #     fn try_from(s: BlogSchema) -> Result<Self, String> {
+/// #         match s { BlogSchema::User(u) => Ok(u) }
+/// #     }
+/// # }
+/// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// # let user = User { id: 1 };
 /// // Store any model in the definition
-/// let item: BlogSchema = user.into();
+/// let item: BlogSchema = user.clone().into();
 /// // Or
 /// let item = BlogSchema::User(user);
 ///
 /// // Extract specific model back
 /// let user: User = item.try_into()?;
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Troubleshooting

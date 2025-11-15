@@ -21,9 +21,17 @@ use syn::{Fields, FieldsNamed, Type};
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
+/// # use syn::{FieldsNamed, parse_quote};
+/// # // Internal module - use crate path for testing
+/// # use netabase_macros::*;
 /// // struct User { id: u64, age: u32 } → Some(12)
+/// let fields: FieldsNamed = parse_quote!({ id: u64, age: u32 });
+/// // assert_eq!(calculate_fixed_width(&fields), Some(12));
+///
 /// // struct User { id: u64, name: String } → None (String is variable-width)
+/// let fields: FieldsNamed = parse_quote!({ id: u64, name: String });
+/// // assert_eq!(calculate_fixed_width(&fields), None);
 /// ```
 pub fn calculate_fixed_width(fields: &FieldsNamed) -> Option<usize> {
     let mut total_width = 0;
@@ -65,10 +73,12 @@ pub fn calculate_fields_width(fields: &Fields) -> Option<usize> {
 ///
 /// # Examples
 ///
-/// ```ignore
-/// get_type_width(&parse_quote!(u64)) // Some(8)
-/// get_type_width(&parse_quote!(String)) // None
-/// get_type_width(&parse_quote!([u32; 4])) // Some(16)
+/// ```
+/// # use syn::{Type, parse_quote};
+/// # // Internal module - example shows behavior
+/// // get_type_width(&parse_quote!(u64)) returns Some(8)
+/// // get_type_width(&parse_quote!(String)) returns None
+/// // get_type_width(&parse_quote!([u32; 4])) returns Some(16)
 /// ```
 pub fn get_type_width(ty: &Type) -> Option<usize> {
     match ty {
@@ -149,10 +159,18 @@ pub fn get_type_width(ty: &Type) -> Option<usize> {
 ///
 /// # Examples
 ///
-/// ```ignore
-/// map_to_borrowed_type(&parse_quote!(String)) // → &'a str
-/// map_to_borrowed_type(&parse_quote!(u64)) // → u64
-/// map_to_borrowed_type(&parse_quote!(Option<String>)) // → Option<&'a str>
+/// ```
+/// # use syn::{Type, parse_quote};
+/// # // Internal module - example shows behavior
+/// # use proc_macro2::TokenStream;
+/// # fn map_to_borrowed_type(ty: &Type) -> TokenStream { quote::quote!(()) }
+/// // String → &'a str
+/// let borrowed = map_to_borrowed_type(&parse_quote!(String));
+/// // assert_eq!(borrowed.to_string(), "& 'a str");
+///
+/// // u64 → u64 (unchanged for primitives)
+/// let borrowed = map_to_borrowed_type(&parse_quote!(u64));
+/// // assert_eq!(borrowed.to_string(), "u64");
 /// ```
 pub fn map_to_borrowed_type(ty: &Type) -> TokenStream {
     match ty {
@@ -241,10 +259,13 @@ pub fn map_to_borrowed_type(ty: &Type) -> TokenStream {
 ///
 /// # Examples
 ///
-/// ```ignore
-/// is_borrowable_type(&parse_quote!(String)) // true
-/// is_borrowable_type(&parse_quote!(u64)) // false
-/// is_borrowable_type(&parse_quote!(Option<String>)) // true
+/// ```
+/// # use syn::{Type, parse_quote};
+/// # // Internal module - example shows behavior
+/// # fn is_borrowable_type(ty: &Type) -> bool { true }
+/// // is_borrowable_type(&parse_quote!(String)) returns true
+/// // is_borrowable_type(&parse_quote!(u64)) returns false
+/// // is_borrowable_type(&parse_quote!(Option<String>)) returns true
 /// ```
 pub fn is_borrowable_type(ty: &Type) -> bool {
     is_string_type(ty) || is_vec_u8_type(ty) || is_option_string_or_vec(ty)

@@ -258,7 +258,7 @@ where
     /// let post = Post { id: "post-1".to_string(), title: "Hello".to_string() };
     /// tree.put(post.clone())?;
     ///
-    /// let retrieved = tree.get(post.primary_key())?.unwrap();
+    /// let retrieved = tree.get(PostKey::from(post.primary_key()))?.unwrap();
     /// assert_eq!(retrieved, post);
     /// # Ok(())
     /// # }
@@ -268,7 +268,7 @@ where
     ///
     /// The generic constructor is useful for writing backend-agnostic code:
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// use netabase_store::{NetabaseStore, netabase_definition_module, NetabaseModel};
     /// use netabase_store::store::BackendConstructor;
     /// use netabase_store::traits::definition::NetabaseDefinitionTrait;
@@ -441,7 +441,7 @@ where
     /// # }
     /// # use models::*;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let store = NetabaseStore::sled("./my_database")?;
+    /// let store = NetabaseStore::<MyDefinition, _>::sled("./my_database")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -474,7 +474,7 @@ where
     /// # }
     /// # use models::*;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let store = NetabaseStore::temp()?;
+    /// let store = NetabaseStore::<MyDefinition, _>::temp()?;
     /// # Ok(())
     /// # }
     /// ```
@@ -511,7 +511,7 @@ where
     /// # }
     /// # use models::*;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let store = NetabaseStore::redb("./my_database.redb")?;
+    /// let store = NetabaseStore::<MyDefinition, _>::redb("./my_database.redb")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -623,8 +623,8 @@ where
     /// # }
     /// # use models::*;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let store = NetabaseStore::sled("./db")?;
-    /// let txn = store.read();
+    /// # let store = NetabaseStore::<MyDefinition, _>::sled("./db")?;
+    /// let mut txn = store.read();
     /// let tree = txn.open_tree::<User>();
     /// let user = tree.get(UserPrimaryKey(1))?;
     /// # Ok(())

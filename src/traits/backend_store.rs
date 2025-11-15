@@ -39,12 +39,8 @@ use std::path::Path;
 /// # }
 /// # use models::*;
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// // Unified API across all backends
-/// let config = FileConfig::new("my_store.db");
-/// let store = SledStore::<MyDef>::new(config)?;
-///
-/// // Or open existing
-/// let store = SledStore::<MyDef>::open(config)?;
+/// // Create a new store
+/// let store = SledStore::<MyDef>::new("my_store.db")?;
 ///
 /// // Temporary store
 /// let temp_store = SledStore::<MyDef>::temp()?;

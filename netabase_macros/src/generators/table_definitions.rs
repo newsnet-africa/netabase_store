@@ -7,14 +7,25 @@ use crate::util::append_ident;
 
 /// Generate a struct that holds redb TableDefinitions for all models in the schema
 ///
-/// This generates:
-/// ```ignore
-/// pub struct {Definition}Tables {
-///     pub users: redb::TableDefinition<'static, UserPrimaryKey, User>,
-///     pub posts: redb::TableDefinition<'static, PostPrimaryKey, Post>,
+/// The macro generates (simplified for illustration):
+/// ```
+/// # // The macro generates (simplified for illustration):
+/// # #[cfg(feature = "redb")]
+/// # #[allow(unused)]
+/// # mod example {
+/// # use netabase_store::redb;
+/// # use netabase_store::databases::redb_store::BincodeWrapper;
+/// # struct User;
+/// # struct UserPrimaryKey;
+/// # struct Post;
+/// # struct PostPrimaryKey;
+/// #[derive(Clone, Copy)]
+/// pub struct MyDefinitionTables {
+///     pub users: redb::TableDefinition<'static, BincodeWrapper<UserPrimaryKey>, BincodeWrapper<User>>,
+///     pub posts: redb::TableDefinition<'static, BincodeWrapper<PostPrimaryKey>, BincodeWrapper<Post>>,
 /// }
 ///
-/// impl {Definition}Tables {
+/// impl MyDefinitionTables {
 ///     pub const fn new() -> Self {
 ///         Self {
 ///             users: redb::TableDefinition::new("users"),
@@ -22,6 +33,7 @@ use crate::util::append_ident;
 ///         }
 ///     }
 /// }
+/// # }
 /// ```
 pub fn generate_tables_struct(
     modules: &Vec<ModuleInfo<'_>>,

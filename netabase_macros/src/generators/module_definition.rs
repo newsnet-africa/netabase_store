@@ -299,11 +299,22 @@ pub mod def_gen {
                 /// Result indicating success or error
                 ///
                 /// # Example
-                /// ```ignore
-                /// use libp2p::kad::store::RecordStore;
-                ///
+                /// ```no_run
+                /// # #[cfg(all(feature = "paxos", feature = "libp2p"))]
+                /// # fn example() -> Result<(), String> {
+                /// # use netabase_store::libp2p::kad::store::RecordStore;
+                /// # struct User;
+                /// # #[derive(Clone)]
+                /// # enum MyDefinition { User(User) }
+                /// # impl MyDefinition {
+                /// #     fn apply_to_store<S: RecordStore>(&self, store: &mut S) -> Result<(), String> { Ok(()) }
+                /// # }
+                /// # let user = User;
+                /// # let mut store = netabase_store::databases::memory_store::MemoryStore::<MyDefinition>::new();
                 /// let entry = MyDefinition::User(user);
                 /// entry.apply_to_store(&mut store)?;
+                /// # Ok(())
+                /// # }
                 /// ```
                 ///
                 /// # Notes
@@ -331,12 +342,21 @@ pub mod def_gen {
     /// without unwrapping, cloning, or consuming the enum.
     ///
     /// # Example
-    /// ```ignore
+    /// ```no_run
+    /// # #[derive(Clone)]
+    /// # struct User { id: u64 }
+    /// # #[derive(Clone)]
+    /// # enum MyDefinition { User(User) }
+    /// # impl AsRef<User> for MyDefinition {
+    /// #     fn as_ref(&self) -> &User {
+    /// #         match self { Self::User(u) => u, }
+    /// #     }
+    /// # }
     /// fn process_user<T: AsRef<User>>(user: T) {
     ///     let user_ref = user.as_ref();
     ///     // ... use user_ref
     /// }
-    ///
+    /// # let user = User { id: 1 };
     /// let def = MyDefinition::User(user);
     /// process_user(&def); // Works due to AsRef<User> impl
     /// ```

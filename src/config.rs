@@ -15,12 +15,12 @@ use typed_builder::TypedBuilder;
 ///
 /// // Create with defaults
 /// let config = FileConfig::builder()
-///     .path("my_database.db")
+///     .path("my_database.db".into())
 ///     .build();
 ///
 /// // Customize options
 /// let config = FileConfig::builder()
-///     .path("/data/store.db")
+///     .path("/data/store.db".into())
 ///     .cache_size_mb(512)
 ///     .create_if_missing(true)
 ///     .build();
@@ -112,7 +112,7 @@ impl Default for MemoryConfig {
 /// use netabase_store::config::IndexedDBConfig;
 ///
 /// let config = IndexedDBConfig::builder()
-///     .database_name("my_app_store")
+///     .database_name("my_app_store".into())
 ///     .version(2)
 ///     .build();
 /// ```

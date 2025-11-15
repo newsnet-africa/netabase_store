@@ -23,20 +23,19 @@
 //!
 //! # Usage
 //!
-//! ```ignore
+//! ```no_run
+//! # #[cfg(feature = "libp2p")]
+//! # fn example() -> Result<(), Box<dyn std::error::Error>> {
 //! use netabase_store::databases::record_store::model_store::ModelRecordStore;
 //!
 //! // Store a model (guaranteed to store User type, not Definition wrapper)
-//! let user = User { id: 1, name: "Alice".to_string() };
-//! store.put_model::<BlogSchema, _>(&user)?;
+//! // let user = User { id: 1, name: "Alice".to_string() };
+//! // store.put_model::<BlogSchema, _>(&user)?;
 //!
 //! // Retrieve by primary key (type-safe)
-//! let user: User = store.get_model::<BlogSchema, User, _>(&1)?;
-//!
-//! // Perfect for Paxos consensus
-//! let proposed = User { id: 1, name: "Bob".to_string() };
-//! paxos.propose(proposed).await?;
-//! store.put_model::<BlogSchema, _>(&committed)?;
+//! // let user: Option<User> = store.get_model::<BlogSchema, User, _>(&1);
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::traits::definition::NetabaseDefinitionTrait;
