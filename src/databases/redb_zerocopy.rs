@@ -94,7 +94,7 @@
 //! let tree = store.open_tree::<User>();
 //! let user = User { id: 1, name: "Alice".into() };
 //! tree.put(user.clone())?; // Auto-commits (1 transaction per operation)
-//! let retrieved = tree.get(&1)?; // Always clones
+//! let retrieved = tree.get(UserKey::Primary(UserPrimaryKey(1)))?; // Always clones
 //! assert_eq!(retrieved, Some(user));
 //! # Ok(())
 //! # }
@@ -104,7 +104,7 @@
 //!
 //! ```no_run
 //! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
-//! use netabase_store::databases::redb_zerocopy::RedbZerocopyStore;
+//! use netabase_store::databases::redb_zerocopy::RedbStoreZeroCopy;
 //! use netabase_store::traits::model::NetabaseModelTrait;
 //!
 //! #[netabase_definition_module(MyDef, MyKeys)]
@@ -123,7 +123,7 @@
 //! use models::*;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let store = RedbZerocopyStore::<MyDef>::new("./db.redb")?;
+//! let store = RedbStoreZeroCopy::<MyDef>::new("./db.redb")?;
 //! let user = User { id: 1, name: "Alice".into() };
 //! let mut txn = store.begin_write()?;
 //! let mut tree = txn.open_tree::<User>()?;

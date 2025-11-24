@@ -405,7 +405,8 @@
 //!
 //! ```no_run
 //! // This example requires the `redb-zerocopy` feature
-//! use netabase_store::{NetabaseStore, netabase_definition_module, NetabaseModel};
+//! use netabase_store::{netabase_definition_module, NetabaseModel};
+//! use netabase_store::databases::redb_zerocopy::RedbStoreZeroCopy;
 //! use netabase_store::traits::model::NetabaseModelTrait;
 //!
 //! #[netabase_definition_module(AppDef, AppKeys)]
@@ -428,7 +429,7 @@
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! # let temp_dir = tempfile::tempdir()?;
 //! // Create a zero-copy store
-//! let store = NetabaseStore::redb_zerocopy(temp_dir.path().join("app.redb"))?;
+//! let store = RedbStoreZeroCopy::<AppDef>::new(temp_dir.path().join("app.redb"))?;
 //!
 //! // Write transaction - batch multiple operations
 //! let mut write_txn = store.begin_write()?;

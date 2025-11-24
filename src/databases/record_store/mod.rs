@@ -14,9 +14,9 @@
 //! # Recommended Usage
 //!
 #![allow(dead_code)] // Items used only in specific feature configurations
-//! Use the `ModelRecordStore` trait for type-safe operations:
+//! Use the `ModelRecordStore` trait for type-safe operations (requires `libp2p` feature):
 //!
-//! ```no_run
+//! ```text
 //! use netabase_store::databases::record_store::model_store::ModelRecordStore;
 //!
 //! // Store a model

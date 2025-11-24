@@ -23,7 +23,8 @@
 //!
 //! # Usage
 //!
-//! ```no_run
+//! Requires `libp2p` feature:
+//! ```text
 //! use netabase_store::databases::record_store::model_store::ModelRecordStore;
 //!
 //! // Store a model (guaranteed to store User type, not Definition wrapper)

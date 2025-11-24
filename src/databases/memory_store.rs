@@ -339,6 +339,9 @@ where
         let value_bytes = definition.to_ivec()?;
         #[cfg(all(feature = "wasm", not(feature = "native")))]
         let value_bytes = definition.to_vec()?;
+        #[cfg(not(any(feature = "native", feature = "wasm")))]
+        let value_bytes = bincode::encode_to_vec(&definition, bincode::config::standard())
+            .map_err(crate::error::EncodingDecodingError::from)?;
 
         // Insert into primary tree
         {
@@ -392,6 +395,12 @@ where
                 let definition = D::from_ivec(&value_bytes.as_slice().into())?;
                 #[cfg(all(feature = "wasm", not(feature = "native")))]
                 let definition = D::from_vec(value_bytes.as_slice())?;
+                #[cfg(not(any(feature = "native", feature = "wasm")))]
+                let definition: D = {
+                    let (def, _) = bincode::decode_from_slice(value_bytes.as_slice(), bincode::config::standard())
+                        .map_err(crate::error::EncodingDecodingError::from)?;
+                    def
+                };
                 match M::try_from(definition) {
                     Ok(model) => return Ok(Some(model)),
                     Err(_) => return Ok(None),
@@ -639,6 +648,12 @@ where
             let definition = D::from_ivec(&value_bytes.as_slice().into())?;
             #[cfg(all(feature = "wasm", not(feature = "native")))]
             let definition = D::from_vec(value_bytes.as_slice())?;
+            #[cfg(not(any(feature = "native", feature = "wasm")))]
+            let definition: D = {
+                let (def, _) = bincode::decode_from_slice(value_bytes.as_slice(), bincode::config::standard())
+                    .map_err(crate::error::EncodingDecodingError::from)?;
+                def
+            };
             let model = M::try_from(definition).map_err(|_| {
                 crate::error::NetabaseError::Conversion(
                     crate::error::EncodingDecodingError::Decoding(

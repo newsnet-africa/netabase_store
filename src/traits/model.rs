@@ -1,4 +1,5 @@
 use bincode::Decode;
+#[cfg(feature = "redb")]
 use redb::{Key, Value};
 use strum::IntoDiscriminant;
 
@@ -77,7 +78,18 @@ where
     const DISCRIMINANT: <D as IntoDiscriminant>::Discriminant;
 
     /// The keys enum that wraps both primary and secondary keys
-    type Keys: NetabaseModelTraitKey<D>;
+    /// The Keys type must support conversion from both PrimaryKey and SecondaryKey
+    type Keys: NetabaseModelTraitKey<D, PrimaryKey = Self::PrimaryKey, SecondaryKey = Self::SecondaryKeys>
+        + From<Self::PrimaryKey>
+        + From<Self::SecondaryKeys>;
+
+    /// Primary key type
+    type PrimaryKey: bincode::Encode + Decode<()> + Clone + Ord;
+
+    /// Secondary keys type
+    type SecondaryKeys: bincode::Encode + Decode<()> + Clone + Ord + IntoDiscriminant;
+
+    fn key(&self) -> Self::Keys;
 
     /// Extract the primary key from the model instance
     fn primary_key(&self) -> Self::PrimaryKey;
@@ -94,6 +106,8 @@ where
     >
     where
         Self::SecondaryKeys: IntoDiscriminant;
+
+    fn has_secondary(&self) -> bool;
 
     /// Get the discriminant name for this model (used for tree names)
     fn discriminant_name() -> &'static str;
@@ -191,8 +205,13 @@ where
     type SecondaryKey: InnerKey + bincode::Encode + Decode<()> + Clone + Ord + IntoDiscriminant;
 }
 
+#[cfg(feature = "redb")]
 pub trait InnerKey: Key + Value
 where
     for<'a> Self: std::borrow::Borrow<<Self as Value>::SelfType<'a>>,
 {
+}
+
+#[cfg(not(feature = "redb"))]
+pub trait InnerKey: bincode::Encode + Decode<()> + Clone + Ord {
 }
