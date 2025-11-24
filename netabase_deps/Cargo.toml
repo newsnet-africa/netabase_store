@@ -1,6 +1,6 @@
 [package]
 name = "netabase_deps"
-version = "0.0.5"
+version = "0.0.6"
 edition = "2024"
 description = "Re-exports of dependencies for netabase macro hygiene"
 license = "GPL-3.0-only"
