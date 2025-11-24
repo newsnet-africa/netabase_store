@@ -31,6 +31,6 @@ strum = { version = "0.27.2", features = ["derive", "strum_macros"] }
 strum_macros = "0.27.2"
 syn = { version = "2.0.106", features = ["visit", "visit-mut", "full", "parsing"] }
 thiserror = "2.0.17"
-netabase_deps = { version = "0.0.5", path = "../netabase_deps" }
+netabase_deps = { version = "0.0.6", path = "../netabase_deps" }
 paxakos = "0.13.0"
 
