@@ -3,16 +3,19 @@
 //! These implementations work with any Definition type by using the macro-generated
 //! helper methods on the Definition enum to dispatch to the appropriate model operations.
 
-use crate::{
-    databases::{redb_store::RedbStore, sled_store::SledStore},
-    traits::definition::{NetabaseDefinitionTrait, RecordStoreExt},
-};
+#[cfg(feature = "sled")]
+use crate::databases::sled_store::SledStore;
+#[cfg(feature = "redb")]
+use crate::databases::redb_store::RedbStore;
+#[cfg(any(feature = "sled", feature = "redb"))]
+use crate::traits::definition::{NetabaseDefinitionTrait, RecordStoreExt};
 
-#[cfg(feature = "libp2p")]
+#[cfg(all(feature = "libp2p", any(feature = "sled", feature = "redb")))]
 use libp2p::kad::{
     ProviderRecord, Record, RecordKey,
     store::{RecordStore, Result as RecordStoreResult},
 };
+#[cfg(all(feature = "libp2p", any(feature = "sled", feature = "redb")))]
 use std::borrow::Cow;
 
 /// Generic RecordStore implementation for `SledStore<D>`

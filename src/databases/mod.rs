@@ -18,14 +18,28 @@
 //! - **Enable with**: `features = ["redb"]`
 //!
 //! Example:
-//! ```rust,no_run
-//! # use netabase_store::databases::redb_store::RedbStore;
+//! ```no_run
+//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//! use netabase_store::databases::redb_store::RedbStore;
+//! use netabase_store::traits::batch::Batchable;
+//!
+//! #[netabase_definition_module(MyDef, MyKeys)]
+//! mod models {
+//!     use netabase_store::{NetabaseModel, netabase};
+//!     #[derive(NetabaseModel, Clone, Debug,
+//!              bincode::Encode, bincode::Decode,
+//!              serde::Serialize, serde::Deserialize)]
+//!     #[netabase(MyDef)]
+//!     pub struct User { #[primary_key] pub id: u64, pub name: String }
+//! }
+//! use models::*;
+//!
 //! # fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! # let models = vec![];
-//! let store = RedbStore::<MyDefinition>::new("./database.redb")?;
-//! let tree = store.open_tree::<MyModel>();
+//! let store = RedbStore::<MyDef>::new("./database.redb")?;
+//! let tree = store.open_tree::<User>();
 //!
 //! // Bulk insert - 8-9x faster than loop
+//! let models = vec![User { id: 1, name: "Alice".into() }];
 //! tree.put_many(models)?;
 //! # Ok(())
 //! # }
@@ -39,15 +53,27 @@
 //! - **Enable with**: `features = ["redb", "redb-zerocopy"]`
 //!
 //! Example:
-//! ```rust,no_run
-//! # use netabase_store::databases::redb_zerocopy::{RedbStoreZeroCopy, with_write_transaction};
-//! # fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! # let models = vec![];
-//! let store = RedbStoreZeroCopy::<MyDefinition>::new("./database.redb")?;
+//! ```no_run
+//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//! use netabase_store::databases::redb_zerocopy::{RedbStoreZeroCopy, with_write_transaction};
+//!
+//! #[netabase_definition_module(MyDef, MyKeys)]
+//! mod models {
+//!     use netabase_store::{NetabaseModel, netabase};
+//!     #[derive(NetabaseModel, Clone, Debug,
+//!              bincode::Encode, bincode::Decode,
+//!              serde::Serialize, serde::Deserialize)]
+//!     #[netabase(MyDef)]
+//!     pub struct User { #[primary_key] pub id: u64, pub name: String }
+//! }
+//! use models::*;
+//!
+//! # fn example() -> Result<(), netabase_store::error::NetabaseError> {
+//! let store = RedbStoreZeroCopy::<MyDef>::new("./database.redb")?;
 //!
 //! with_write_transaction(&store, |txn| {
-//!     let mut tree = txn.open_tree::<MyModel>()?;
-//!     tree.put_many(models)?;
+//!     let mut tree = txn.open_tree::<User>()?;
+//!     tree.put_many(vec![User { id: 1, name: "Alice".into() }])?;
 //!     Ok(())
 //! })?;
 //! # Ok(())
@@ -61,11 +87,24 @@
 //! - **Enable with**: `features = ["sled"]`
 //!
 //! Example:
-//! ```rust,no_run
-//! # use netabase_store::databases::sled_store::SledStore;
+//! ```no_run
+//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//! use netabase_store::databases::sled_store::SledStore;
+//!
+//! #[netabase_definition_module(MyDef, MyKeys)]
+//! mod models {
+//!     use netabase_store::{NetabaseModel, netabase};
+//!     #[derive(NetabaseModel, Clone, Debug,
+//!              bincode::Encode, bincode::Decode,
+//!              serde::Serialize, serde::Deserialize)]
+//!     #[netabase(MyDef)]
+//!     pub struct User { #[primary_key] pub id: u64, pub name: String }
+//! }
+//! use models::*;
+//!
 //! # fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let store = SledStore::<MyDefinition>::new("./database")?;
-//! let tree = store.open_tree::<MyModel>();
+//! let store = SledStore::<MyDef>::new("./database")?;
+//! let tree = store.open_tree::<User>();
 //! # Ok(())
 //! # }
 //! ```
@@ -78,16 +117,11 @@
 //! - **Note**: All operations are async
 //! - **Enable with**: `features = ["wasm"]` on wasm32 targets
 //!
-//! Example:
-//! ```rust,no_run
-//! # use netabase_store::databases::indexeddb_store::IndexedDBStore;
-//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! # let model = todo!();
-//! let store = IndexedDBStore::<MyDefinition>::new("my_db").await?;
-//! let tree = store.open_tree::<MyModel>();
-//! tree.put(model).await?;
-//! # Ok(())
-//! # }
+//! Example (requires wasm32 target):
+//! ```text
+//! let store = IndexedDBStore::<MyDef>::new("my_db").await?;
+//! let tree = store.open_tree::<User>();
+//! tree.put(user).await?;
 //! ```
 //!
 //! ### Testing Backend
@@ -99,10 +133,23 @@
 //! - **Always available**: No feature flag needed
 //!
 //! Example:
-//! ```rust,no_run
-//! # use netabase_store::databases::memory_store::MemoryStore;
-//! let store = MemoryStore::<MyDefinition>::new();
-//! let tree = store.open_tree::<MyModel>();
+//! ```
+//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//! use netabase_store::databases::memory_store::MemoryStore;
+//!
+//! #[netabase_definition_module(MyDef, MyKeys)]
+//! mod models {
+//!     use netabase_store::{NetabaseModel, netabase};
+//!     #[derive(NetabaseModel, Clone, Debug,
+//!              bincode::Encode, bincode::Decode,
+//!              serde::Serialize, serde::Deserialize)]
+//!     #[netabase(MyDef)]
+//!     pub struct User { #[primary_key] pub id: u64, pub name: String }
+//! }
+//! use models::*;
+//!
+//! let store = MemoryStore::<MyDef>::new();
+//! let tree = store.open_tree::<User>();
 //! ```
 //!
 //! ## Performance Comparison
@@ -131,7 +178,7 @@
 //!
 //! All native backends support bulk operations for better performance:
 //!
-//! ```rust,no_run
+//! ```text
 //! // ❌ Slow: Creates 1000 transactions
 //! for model in models {
 //!     tree.put(model)?;

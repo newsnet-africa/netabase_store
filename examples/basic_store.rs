@@ -1,5 +1,4 @@
 use netabase_store::traits::model::NetabaseModelTrait;
-use netabase_store::traits::store_ops::OpenTree;
 use netabase_store::{NetabaseStore, netabase_definition_module};
 
 #[netabase_definition_module(ExampleDefs, ExampleDefKeys)]

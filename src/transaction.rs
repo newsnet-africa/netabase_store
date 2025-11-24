@@ -123,6 +123,10 @@ pub(crate) enum TxnBackend<'db, D> {
 
     #[cfg(feature = "redb")]
     Redb(RedbTxnBackend<'db, D>),
+
+    /// Phantom variant to ensure the type parameters are used when no backend is enabled.
+    #[cfg(not(any(feature = "sled", feature = "redb")))]
+    _Phantom(PhantomData<(&'db (), D)>),
 }
 
 /// Sled transaction backend.
@@ -160,6 +164,10 @@ pub(crate) enum TreeBackend<'txn, D, M> {
 
     #[cfg(feature = "redb")]
     Redb(RedbTreeBackend<'txn, D, M>),
+
+    /// Phantom variant to ensure the type parameters are used when no backend is enabled.
+    #[cfg(not(any(feature = "sled", feature = "redb")))]
+    _Phantom(PhantomData<(&'txn (), D, M)>),
 }
 
 /// Sled tree backend.
@@ -330,6 +338,13 @@ where
                     _mode: PhantomData,
                 }
             }
+            #[cfg(not(any(feature = "sled", feature = "redb")))]
+            TxnBackend::_Phantom(_) => {
+                TreeView {
+                    backend: TreeBackend::_Phantom(PhantomData),
+                    _mode: PhantomData,
+                }
+            }
         }
     }
 }
@@ -389,6 +404,8 @@ where
                 }
                 Ok(())
             }
+            #[cfg(not(any(feature = "sled", feature = "redb")))]
+            TxnBackend::_Phantom(_) => Ok(()),
         }
     }
 
@@ -570,6 +587,8 @@ where
                     Err(NetabaseError::Storage("No transaction available".into()))
                 }
             }
+            #[cfg(not(any(feature = "sled", feature = "redb")))]
+            TreeBackend::_Phantom(_) => Ok(None),
         }
     }
 
@@ -743,6 +762,8 @@ where
 
                 Ok(results)
             }
+            #[cfg(not(any(feature = "sled", feature = "redb")))]
+            TreeBackend::_Phantom(_) => Ok(Vec::new()),
         }
     }
 
@@ -777,6 +798,8 @@ where
                     Err(NetabaseError::Storage("No transaction available".into()))
                 }
             }
+            #[cfg(not(any(feature = "sled", feature = "redb")))]
+            TreeBackend::_Phantom(_) => Ok(0),
         }
     }
 
@@ -922,6 +945,8 @@ where
 
                 Ok(results)
             }
+            #[cfg(not(any(feature = "sled", feature = "redb")))]
+            TreeBackend::_Phantom(_) => Ok(Vec::new()),
         }
     }
 
@@ -1037,6 +1062,8 @@ where
                     ))
                 }
             }
+            #[cfg(not(any(feature = "sled", feature = "redb")))]
+            TreeBackend::_Phantom(_) => Ok(()),
         }
     }
 
@@ -1147,6 +1174,8 @@ where
                     ))
                 }
             }
+            #[cfg(not(any(feature = "sled", feature = "redb")))]
+            TreeBackend::_Phantom(_) => Ok(model),
         }
     }
 
@@ -1252,6 +1281,8 @@ where
                     ))
                 }
             }
+            #[cfg(not(any(feature = "sled", feature = "redb")))]
+            TreeBackend::_Phantom(_) => Ok(()),
         }
     }
 
