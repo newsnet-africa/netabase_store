@@ -1680,7 +1680,7 @@ dependencies = [
 
 [[package]]
 name = "netabase_deps"
-version = "0.0.3"
+version = "0.0.5"
 dependencies = [
  "bincode 2.0.1",
  "blake3",
@@ -1694,7 +1694,7 @@ dependencies = [
 
 [[package]]
 name = "netabase_macros"
-version = "0.0.3"
+version = "0.0.5"
 dependencies = [
  "anyhow",
  "bincode 2.0.1",
@@ -1714,7 +1714,7 @@ dependencies = [
 
 [[package]]
 name = "netabase_store"
-version = "0.0.3"
+version = "0.0.5"
 dependencies = [
  "anyhow",
  "bincode 2.0.1",
