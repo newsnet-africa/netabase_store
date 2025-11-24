@@ -343,6 +343,18 @@ impl<'a> ModelVisitor<'a> {
                         #has_secondary_impl
                     }
 
+                    // For non-redb feature: key() method that returns the full Keys enum
+                    #[cfg(not(feature = "redb"))]
+                    fn key(&self) -> Self::Keys {
+                        #keys_ty::Primary(self.primary_key())
+                    }
+
+                    // For non-redb feature: has_secondary() check
+                    #[cfg(not(feature = "redb"))]
+                    fn has_secondary(&self) -> bool {
+                        #has_secondary_impl
+                    }
+
                     fn primary_key(&self) -> Self::PrimaryKey {
                         #primary_key_ty(self.#primary_field.clone())
                     }
