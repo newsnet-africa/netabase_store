@@ -3,7 +3,7 @@
 //! These tests verify the RedbStoreZeroCopy API works correctly with
 //! explicit transaction management and bulk operations.
 
-#![cfg(all(feature = "redb", not(feature = "paxos")))]
+#![cfg(feature = "redb")]
 
 use netabase_store::databases::redb_zerocopy::*;
 use netabase_store::{NetabaseModel, netabase, netabase_definition_module};

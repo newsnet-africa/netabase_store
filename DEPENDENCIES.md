@@ -21,7 +21,6 @@ You don't need to add:
 - ✅ `derive_more` - Re-exported by netabase_store
 - ✅ `strum` - Re-exported by netabase_store
 - ✅ `blake3` - Re-exported by netabase_store
-- ✅ `paxakos` - Re-exported by netabase_store (if using paxos feature)
 
 ## Why Do I Need bincode and serde?
 
@@ -81,7 +80,6 @@ From `netabase_store`, you can access (for direct usage in your code):
 | `netabase_store::derive_more` | Derive utilities (From, TryInto) | No - re-exported |
 | `netabase_store::strum` | Enum utilities | No - re-exported |
 | `netabase_store::blake3` | Hashing | No - re-exported |
-| `netabase_store::paxakos` | Consensus | No - re-exported |
 
 ## When You Need Extra Dependencies
 

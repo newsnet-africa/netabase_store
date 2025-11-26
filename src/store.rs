@@ -518,7 +518,7 @@ where
 #[cfg(feature = "memory")]
 impl<D> NetabaseStore<D, crate::databases::memory_store::MemoryStore<D>>
 where
-    D: NetabaseDefinitionTrait,
+    D: NetabaseDefinitionTrait + crate::convert::ToIVec,
     <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
 {
     /// Create a new in-memory store.

@@ -317,71 +317,45 @@ impl<'a> ModelVisitor<'a> {
             quote::quote! { true }
         };
 
-        self.definitions.iter().map(|def_path| {
-            quote::quote! {
-                impl ::netabase_store::traits::model::NetabaseModelTrait<#def_path> for #model_name {
-                    type PrimaryKey = #primary_key_ty;
-                    type SecondaryKeys = #secondary_keys_ty;
-                    type Keys = #keys_ty;
-
-                    const DISCRIMINANT:<#def_path as ::netabase_store::strum::IntoDiscriminant>::Discriminant
-                        = <#def_path as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#model_name;
+        #[cfg(feature = "redb")]
+        let redb_cfg = quote::quote! {
 
                     // For redb feature: BorrowedType is same as Self for bincode implementation
-                    #[cfg(feature = "redb")]
                     type BorrowedType<'a> = #model_name;
 
                     // For redb feature: key() method that returns the full Keys enum
-                    #[cfg(feature = "redb")]
                     fn key(&self) -> Self::Keys {
                         #keys_ty::Primary(self.primary_key())
                     }
 
                     // For redb feature: has_secondary() check
-                    #[cfg(feature = "redb")]
                     fn has_secondary(&self) -> bool {
                         #has_secondary_impl
                     }
+        };
+        #[cfg(not(feature = "redb"))]
+        let redb_cfg = quote::quote! {
 
                     // For non-redb feature: key() method that returns the full Keys enum
-                    #[cfg(not(feature = "redb"))]
                     fn key(&self) -> Self::Keys {
                         #keys_ty::Primary(self.primary_key())
                     }
 
                     // For non-redb feature: has_secondary() check
-                    #[cfg(not(feature = "redb"))]
                     fn has_secondary(&self) -> bool {
                         #has_secondary_impl
                     }
+        };
 
-                    fn primary_key(&self) -> Self::PrimaryKey {
-                        #primary_key_ty(self.#primary_field.clone())
-                    }
+        #[cfg(not(feature = "redb"))]
+        let redb_impls = quote::quote! {};
 
-                    fn secondary_keys(&self) -> ::std::collections::HashMap<<Self::SecondaryKeys as ::netabase_store::strum::IntoDiscriminant>::Discriminant, Self::SecondaryKeys> {
-                        ::std::collections::HashMap::from([#(#secondary_fields),*])
-                    }
-
-                    fn discriminant_name() -> &'static str {
-                        #discriminant_name
-                    }
-                }
-
-                // Only the Keys enum implements NetabaseModelTraitKey (with associated types)
-                // PrimaryKey and SecondaryKeys types only implement InnerKey
-                impl ::netabase_store::traits::model::NetabaseModelTraitKey<#def_path> for #keys_ty {
-                    type PrimaryKey = #primary_key_ty;
-                    type SecondaryKey = #secondary_keys_ty;
-
-                    const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant
-                        = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#keys_ty;
-                }
+        #[cfg(feature = "redb")]
+        let redb_impls = quote::quote! {
 
                 // redb trait implementations (only when redb feature is enabled)
                 // For redb, we use owned types for SelfType since bincode requires ownership
                 // and we implement Borrow<Self> which is automatic for all types
-                #[cfg(feature = "redb")]
                 impl ::netabase_store::netabase_deps::redb::Value for #model_name {
                     type SelfType<'a> = #model_name where Self: 'a;
                     type AsBytes<'a> = Vec<u8> where Self: 'a;
@@ -413,7 +387,6 @@ impl<'a> ModelVisitor<'a> {
                 }
 
 
-                #[cfg(feature = "redb")]
                 impl ::netabase_store::netabase_deps::redb::Value for #primary_key_ty {
                     type SelfType<'a> = #primary_key_ty where Self: 'a;
                     type AsBytes<'a> = Vec<u8> where Self: 'a;
@@ -447,7 +420,6 @@ impl<'a> ModelVisitor<'a> {
                     }
                 }
 
-                #[cfg(feature = "redb")]
                 impl ::netabase_store::netabase_deps::redb::Key for #primary_key_ty {
                     fn compare(data1: &[u8], data2: &[u8]) -> ::std::cmp::Ordering {
                         use ::netabase_store::netabase_deps::redb::Value;
@@ -456,10 +428,8 @@ impl<'a> ModelVisitor<'a> {
                 }
 
                 // Implement InnerKey marker trait for primary key
-                #[cfg(feature = "redb")]
                 impl ::netabase_store::traits::model::InnerKey for #primary_key_ty {}
 
-                #[cfg(feature = "redb")]
                 impl ::netabase_store::netabase_deps::redb::Value for #secondary_keys_ty {
                     type SelfType<'a> = #secondary_keys_ty where Self: 'a;
                     type AsBytes<'a> = Vec<u8> where Self: 'a;
@@ -490,7 +460,6 @@ impl<'a> ModelVisitor<'a> {
                     }
                 }
 
-                #[cfg(feature = "redb")]
                 impl ::netabase_store::netabase_deps::redb::Key for #secondary_keys_ty {
                     fn compare(data1: &[u8], data2: &[u8]) -> ::std::cmp::Ordering {
                         use ::netabase_store::netabase_deps::redb::Value;
@@ -499,11 +468,9 @@ impl<'a> ModelVisitor<'a> {
                 }
 
                 // Implement InnerKey marker trait for secondary keys
-                #[cfg(feature = "redb")]
                 impl ::netabase_store::traits::model::InnerKey for #secondary_keys_ty {}
 
                 // Keys enum (wrapper for Primary and Secondary) redb implementations
-                #[cfg(feature = "redb")]
                 impl ::netabase_store::netabase_deps::redb::Value for #keys_ty {
                     type SelfType<'a> = #keys_ty where Self: 'a;
                     type AsBytes<'a> = Vec<u8> where Self: 'a;
@@ -534,7 +501,6 @@ impl<'a> ModelVisitor<'a> {
                     }
                 }
 
-                #[cfg(feature = "redb")]
                 impl ::netabase_store::netabase_deps::redb::Key for #keys_ty {
                     fn compare(data1: &[u8], data2: &[u8]) -> ::std::cmp::Ordering {
                         use ::netabase_store::netabase_deps::redb::Value;
@@ -548,6 +514,81 @@ impl<'a> ModelVisitor<'a> {
                 // - From<PrimaryKey> and From<SecondaryKeys> come from derive_more::From
                 // These are sufficient to satisfy the From<SelfType<'a>> bounds in the trait
 
+        };
+
+        // Check that the #[netabase(...)] attribute was provided
+        if self.definitions.is_empty() {
+            panic!(
+                "\n\n\
+                 ════════════════════════════════════════════════════════════════\n\
+                 ❌ Missing #[netabase(...)] attribute on struct `{}`\n\
+                 ════════════════════════════════════════════════════════════════\n\
+                 \n\
+                 You must add the #[netabase(YourDefinition)] attribute to link\n\
+                 this model to a definition enum.\n\
+                 \n\
+                 Example:\n\
+                 \n\
+                 #[derive(NetabaseModel, Clone, bincode::Encode, bincode::Decode)]\n\
+                 #[netabase(AppSchema)]  // <- Add this line!\n\
+                 pub struct {} {{\n\
+                     #[primary_key]\n\
+                     pub id: u64,\n\
+                 }}\n\
+                 \n\
+                 See the documentation for more details.\n\
+                 ════════════════════════════════════════════════════════════════\n\
+                 ",
+                model_name, model_name
+            );
+        }
+
+        self.definitions.iter().map(|def_path| {
+            quote::quote! {
+                impl ::netabase_store::traits::model::NetabaseModelTrait<#def_path> for #model_name {
+                    type PrimaryKey = #primary_key_ty;
+                    type SecondaryKeys = #secondary_keys_ty;
+                    type Keys = #keys_ty;
+
+                    const DISCRIMINANT:<#def_path as ::netabase_store::strum::IntoDiscriminant>::Discriminant
+                        = <#def_path as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#model_name;
+
+                    // For redb feature: BorrowedType is same as Self for bincode implementation
+                    type BorrowedType<'a> = #model_name;
+
+                    // For redb feature: key() method that returns the full Keys enum
+                    fn key(&self) -> Self::Keys {
+                        #keys_ty::Primary(self.primary_key())
+                    }
+
+                    // For redb feature: has_secondary() check
+                    fn has_secondary(&self) -> bool {
+                        #has_secondary_impl
+                    }
+                    fn primary_key(&self) -> Self::PrimaryKey {
+                        #primary_key_ty(self.#primary_field.clone())
+                    }
+
+                    fn secondary_keys(&self) -> ::std::collections::HashMap<<Self::SecondaryKeys as ::netabase_store::strum::IntoDiscriminant>::Discriminant, Self::SecondaryKeys> {
+                        ::std::collections::HashMap::from([#(#secondary_fields),*])
+                    }
+
+                    fn discriminant_name() -> &'static str {
+                        #discriminant_name
+                    }
+                }
+
+                // Only the Keys enum implements NetabaseModelTraitKey (with associated types)
+                // PrimaryKey and SecondaryKeys types only implement InnerKey
+                impl ::netabase_store::traits::model::NetabaseModelTraitKey<#def_path> for #keys_ty {
+                    type PrimaryKey = #primary_key_ty;
+                    type SecondaryKey = #secondary_keys_ty;
+
+                    const DISCRIMINANT:<<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant
+                        = <<#def_path as ::netabase_store::traits::definition::NetabaseDefinitionTrait>::Keys as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#keys_ty;
+                }
+
+                #redb_impls
             }
         }).collect::<Vec<proc_macro2::TokenStream>>()
     }
@@ -561,13 +602,31 @@ mod key_gen {
     };
 
     impl<'a> ModelVisitor<'a> {
-        fn generate_newtype(field: &Field, name: &Ident) -> ItemStruct {
+        fn generate_newtype(field: &Field, name: &Ident) -> (ItemStruct, ItemStruct) {
             let ty = &field.ty;
-            parse_quote!(
-                #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, ::netabase_store::derive_more::From, ::netabase_store::derive_more::Into,
-                    ::netabase_store::bincode::Encode, ::netabase_store::bincode::Decode
-                )]
-                pub struct #name(pub #ty);
+
+            #[cfg(feature = "uniffi")]
+            let uniffi = quote::quote! {
+                #[derive(::netabase_store::netabase_deps::uniffi::Record)]
+            };
+
+            #[cfg(not(feature = "uniffi"))]
+            let uniffi = quote::quote! {};
+
+            let uniffi_name = append_ident(name, "UniffiType");
+            let uniout = parse_quote!(
+                #uniffi
+                pub struct #uniffi_name(pub #ty);
+            );
+
+            (
+                parse_quote!(
+                    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, ::netabase_store::derive_more::From, ::netabase_store::derive_more::Into,
+                        ::netabase_store::bincode::Encode, ::netabase_store::bincode::Decode
+                    )]
+                    pub struct #name(pub #ty);
+                ),
+                uniout,
             )
         }
 
@@ -580,10 +639,7 @@ mod key_gen {
                 Some(n) => n,
                 None => return Err(NetabaseModelDeriveError::MacroVisitorError),
             };
-            Ok(Self::generate_newtype(
-                key.primary_keys,
-                &append_ident(name, "PrimaryKey"),
-            ))
+            Ok(Self::generate_newtype(key.primary_keys, &append_ident(name, "PrimaryKey")).0)
         }
 
         pub fn generate_secondary_keys_newtypes(&self) -> Vec<(ItemStruct, Ident)> {
@@ -610,7 +666,7 @@ mod key_gen {
                     let type_name =
                         format!("{}{}", model_name, append_ident(&ident, "SecondaryKey"));
                     let type_ident = Ident::new(&type_name, proc_macro2::Span::call_site());
-                    (Self::generate_newtype(f, &type_ident), ident)
+                    (Self::generate_newtype(f, &type_ident).0, ident)
                 })
                 .collect()
         }

@@ -14,9 +14,10 @@ derive_more = { version = "2.0.1", features = ["from", "try_into", "into"] }
 serde = { version = "1.0", features = ["derive"] }
 sled = "0.34.7"
 strum = { version = "0.27.2", features = ["derive", "strum_macros"] }
-paxakos = "0.13.0"
 blake3 = "1.5"
 redb = { version = "3.1.0", optional = true }
+uniffi = { version = "*"}
+libp2p = {version = "*", features = ["kad"]}
 
 [features]
 redb = ["dep:redb"]

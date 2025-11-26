@@ -79,30 +79,63 @@ A type-safe, multi-backend key-value storage library for Rust with support for n
 Add to your `Cargo.toml`:
 
 ```toml
-[dependencies]
-netabase_store = "0.0.3"
+[package]
+name = "my_project"
+version = "0.1.0"
+edition = "2021"
 
-# Required dependencies for macros to work
+# Features must be enabled in your crate for macro-generated code
+[features]
+default = ["native", "redb"]
+native = ["netabase_store/native"]
+redb = ["netabase_store/redb"]
+
+[dependencies]
+netabase_store = { version = "0.0.6", features = ["native", "redb"] }
+
+# Required dependencies
 bincode = { version = "2.0", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 strum = { version = "0.27.2", features = ["derive"] }
 derive_more = { version = "2.0.1", features = ["from", "try_into", "into"] }
-anyhow = "1.0"  # Optional, for error handling
-
-# For WASM support
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-netabase_store = { version = "0.0.2", default-features = false, features = ["wasm"] }
+libp2p = "0.56"
+anyhow = "1.0"
 ```
 
-### Feature Flags
+### Feature Flags (CRITICAL!)
 
-- `native` (default): Enable Sled and Redb backends
-- `sled`: Enable Sled backend only
-- `redb`: Enable Redb backend only
-- `redb-zerocopy`: Enable zero-copy Redb backend (high-performance variant)
-- `wasm`: Enable IndexedDB backend for WASM
-- `libp2p`: Enable libp2p integration
-- `record-store`: Enable RecordStore trait (requires `libp2p`)
+**You MUST enable at least one backend feature. Without features, the library will not compile.**
+
+#### Backend Features:
+- `native` - **(Recommended)** Enables both Sled and Redb backends for desktop/server
+- `sled` - Sled backend only (high-performance embedded database)
+- `redb` - Redb backend only (memory-efficient, ACID compliant)
+  - **Note:** When using `redb`, the macro generates a `Tables` type and `tables()` method
+- `redb-zerocopy` - Zero-copy Redb variant (maximum performance, requires `redb`)
+- `wasm` - IndexedDB backend for browser/WASM applications
+- `memory` - In-memory backend for testing
+
+#### Integration Features:
+- `libp2p` - Enable libp2p integration for distributed systems
+- `record-store` - Enable RecordStore trait (requires `libp2p`)
+
+#### Common Configurations:
+
+```toml
+# For desktop/server applications (recommended):
+# NOTE: 'redb' is required for macro-generated code to compile
+netabase_store = { version = "0.0.6", features = ["native", "redb"] }
+
+# For WASM/browser applications:
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+netabase_store = { version = "0.0.6", default-features = false, features = ["wasm"] }
+
+# For specific backend with libp2p:
+netabase_store = { version = "0.0.6", features = ["sled", "libp2p"] }
+
+# For Redb with zero-copy optimization:
+netabase_store = { version = "0.0.6", features = ["redb-zerocopy"] }
+```
 
 ## Quick Start
 
@@ -116,7 +149,7 @@ use netabase_store::traits::model::NetabaseModelTrait;
 pub mod blog_schema {
     use netabase_store::{NetabaseModel, netabase};
 
-    #[derive(NetabaseModel, bincode::Encode, bincode::Decode, Clone, Debug)]
+    #[derive(NetabaseModel, bincode::Encode, bincode::Decode, Clone, Debug, serde::Serialize, serde::Deserialize)]
     #[netabase(BlogDefinition)]
     pub struct User {
         #[primary_key]
@@ -126,7 +159,7 @@ pub mod blog_schema {
         pub email: String,
     }
 
-    #[derive(NetabaseModel, bincode::Encode, bincode::Decode, Clone, Debug)]
+    #[derive(NetabaseModel, bincode::Encode, bincode::Decode, Clone, Debug, serde::Serialize, serde::Deserialize)]
     #[netabase(BlogDefinition)]
     pub struct Post {
         #[primary_key]
@@ -171,9 +204,13 @@ fn main() -> anyhow::Result<()> {
     };
     user_tree.put(user.clone())?;
 
-    // Get by primary key
+    // Get by primary key - use the generated type
     let retrieved = user_tree.get(UserPrimaryKey(1))?.unwrap();
     assert_eq!(retrieved.username, "alice");
+
+    // Alternative: use primary_key() method
+    let retrieved2 = user_tree.get(user.primary_key())?.unwrap();
+    assert_eq!(retrieved2.username, "alice");
 
     // Query by secondary key
     let users_by_email = user_tree.get_by_secondary_key(
@@ -315,17 +352,21 @@ let user_tree = store.open_tree::<User>();
 - `database_name: String` - IndexedDB database name
 - `version: u32` - Schema version (default: 1)
 
-### Batch Operations & Bulk Methods
+### Bulk Operations with Transactions
 
-For high-performance bulk operations, use the convenient bulk methods:
+For high-performance bulk operations, use the **transaction API** (10-100x faster than individual operations):
 
 ```rust
 use netabase_store::NetabaseStore;
 
-let store = NetabaseStore::<BlogDefinition, _>::temp()?;
-let user_tree = store.open_tree::<User>();
+let store = NetabaseStore::<BlogDefinition, _>::sled("./my_db")?;
 
-// Bulk insert - 8-9x faster than loop!
+// Create a write transaction for bulk operations
+// NOTE: write() returns TxnGuard directly, not a Result
+let mut txn = store.write();
+let mut user_tree = txn.open_tree::<User>();
+
+// Bulk insert - 8-9x faster than individual puts!
 let users: Vec<User> = (0..1000)
     .map(|i| User {
         id: i,
@@ -334,24 +375,38 @@ let users: Vec<User> = (0..1000)
     })
     .collect();
 
-user_tree.put_many(users)?;  // Single transaction
+// All inserts in a single transaction
+user_tree.put_many(users)?;
 
-// Bulk read
+// Bulk read within transaction
 let keys: Vec<UserPrimaryKey> = (0..100).map(UserPrimaryKey).collect();
 let users: Vec<Option<User>> = user_tree.get_many(keys)?;
 
-// Bulk secondary key queries
-let email_keys = vec![
-    UserSecondaryKeys::Email(UserEmailSecondaryKey("alice@example.com".to_string())),
-    UserSecondaryKeys::Email(UserEmailSecondaryKey("bob@example.com".to_string())),
-];
-let results: Vec<Vec<User>> = user_tree.get_many_by_secondary_keys(email_keys)?;
+// Commit all changes atomically
+txn.commit()?;
 ```
 
-**Bulk Methods:**
+**Transaction Methods:**
 - `put_many(Vec<M>)` - Insert multiple models in one transaction
-- `get_many(Vec<M::Keys>)` - Read multiple models in one transaction
-- `get_many_by_secondary_keys(Vec<SecondaryKey>)` - Query multiple secondary keys in one transaction
+- `get_many(Vec<M::PrimaryKey>)` - Read multiple models in one transaction
+
+**Backend-Specific Bulk Methods:**
+
+For Redb, you can also use direct bulk methods without transactions:
+```rust
+use netabase_store::databases::redb_store::RedbStore;
+
+let store = RedbStore::<BlogDefinition>::new("./my_db.redb")?;
+let user_tree = store.open_tree::<User>();
+
+// Redb supports direct bulk operations
+user_tree.put_many(users)?;
+```
+
+**Performance Benefits:**
+- ⚡ **10-100x faster** than individual operations
+- 🔒 **Atomic**: All succeed or all fail
+- 📦 **Efficient**: Single transaction reduces overhead
 
 **Or use the batch API for more control:**
 
@@ -385,13 +440,14 @@ use netabase_store::NetabaseStore;
 let store = NetabaseStore::<BlogDefinition, _>::sled("./my_db")?;
 
 // Read-only transaction - multiple concurrent reads allowed
+// NOTE: read() and write() return guards directly, not Results
 let txn = store.read();
 let user_tree = txn.open_tree::<User>();
 let user = user_tree.get(UserPrimaryKey(1))?;
 // Transaction auto-closes on drop
 
 // Read-write transaction - exclusive access, atomic commit
-let mut txn = store.write()?;
+let mut txn = store.write();
 let mut user_tree = txn.open_tree::<User>();
 
 // All operations share the same transaction
@@ -816,7 +872,8 @@ tree.put_many(users)?;  // 8-9x faster!
 
 ```rust
 // For write-heavy workloads
-let mut txn = store.write()?;
+// NOTE: write() returns TxnGuard directly, not a Result
+let mut txn = store.write();
 let mut tree = txn.open_tree::<User>();
 
 for user in users {

@@ -1,10 +1,9 @@
 #![cfg(not(target_arch = "wasm32"))]
-#![cfg(not(feature = "paxos"))]
 
 //! Comprehensive tests for netabase_store
 //!
 //! These tests verify that netabase_store works correctly as a standalone
-//! crate without requiring netabase or paxos features.
+//! crate.
 
 #![cfg(feature = "sled")]
 

@@ -19,7 +19,6 @@
 //! 1. **Embedding model type info in keys** - enables efficient routing without value decoding
 //! 2. **Providing typed operations** - work with models directly, not byte vectors
 //! 3. **Enforcing storage guarantees** - ensures models (not Definitions) are stored
-//! 4. **Enabling Paxos integration** - consensus can work directly with models
 //!
 //! # Usage
 //!
@@ -33,11 +32,6 @@
 //!
 //! // Retrieve by primary key (type-safe)
 //! let user: User = store.get_model::<BlogSchema, User, _>(&1)?;
-//!
-//! // Perfect for Paxos consensus
-//! let proposed = User { id: 1, name: "Bob".to_string() };
-//! paxos.propose(proposed).await?;
-//! store.put_model::<BlogSchema, _>(&committed)?;
 //! ```
 
 use crate::traits::definition::NetabaseDefinitionTrait;

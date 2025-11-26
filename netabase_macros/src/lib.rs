@@ -5,7 +5,10 @@ use syn::{
     visit::Visit,
 };
 
-use crate::visitors::{definitions_visitor::DefinitionsVisitor, model_visitor::ModelVisitor};
+use crate::visitors::{
+    definitions_visitor::DefinitionsVisitor, model_visitor::ModelVisitor,
+    uniffi_visitor::UniffiVisitor,
+};
 
 mod errors;
 mod generators;
@@ -478,6 +481,16 @@ pub fn netabase_model_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let mut visitor = ModelVisitor::default();
     visitor.visit_derive_input(&input);
+    let mut uniffi_visitor = UniffiVisitor::default();
+    #[cfg(feature = "uniffi")]
+    let uniffi_struct = {
+        uniffi_visitor.visit_derive_input(&input);
+        uniffi_visitor.generate_uniffi_type()
+    };
+
+    #[cfg(not(feature = "uniffi"))]
+    let uniffi_struct = quote::quote! {};
+
     let (p, sl, s, k) = visitor.generate_keys();
     let trait_impl = visitor.generate_model_trait_impl();
     let borrow_impls = visitor.generate_borrow_impls();
@@ -491,6 +504,7 @@ pub fn netabase_model_derive(input: TokenStream) -> TokenStream {
         #(#trait_impl)*
         #(#borrow_impls)*
         #(#extension_traits)*
+        #uniffi_struct
     }
     .into()
 }
@@ -969,8 +983,66 @@ pub fn netabase_definition_module(name: TokenStream, input: TokenStream) -> Toke
     visitor.visit_item_mod(&def_module);
     let list = match Punctuated::<Ident, Token![,]>::parse_terminated.parse(name) {
         Ok(l) => l,
-        Err(e) => panic!("Error parsing Definitions module: {e}"),
+        Err(e) => panic!(
+            "\n\n\
+             ════════════════════════════════════════════════════════════════\n\
+             ❌ netabase_definition_module Error\n\
+             ════════════════════════════════════════════════════════════════\n\
+             \n\
+             Failed to parse the definition module parameters.\n\
+             \n\
+             Expected format:\n\
+               #[netabase_definition_module(DefinitionName, KeysName)]\n\
+               mod your_module {{ ... }}\n\
+             \n\
+             Example:\n\
+               #[netabase_definition_module(BlogSchema, BlogKeys)]\n\
+               mod blog {{\n\
+                   use netabase_store::{{NetabaseModel, netabase}};\n\
+                   \n\
+                   #[derive(NetabaseModel, Clone, bincode::Encode, bincode::Decode)]\n\
+                   #[netabase(BlogSchema)]\n\
+                   pub struct User {{\n\
+                       #[primary_key]\n\
+                       pub id: u64,\n\
+                   }}\n\
+               }}\n\
+             \n\
+             Parsing error: {}\n\
+             \n\
+             ════════════════════════════════════════════════════════════════\n\
+             ",
+            e
+        ),
     };
+    // Validate that exactly 2 parameters were provided
+    if list.len() != 2 {
+        panic!(
+            "\n\n\
+             ════════════════════════════════════════════════════════════════\n\
+             ❌ netabase_definition_module Error\n\
+             ════════════════════════════════════════════════════════════════\n\
+             \n\
+             Expected exactly 2 parameters, but got {}.\n\
+             \n\
+             Required format:\n\
+               #[netabase_definition_module(DefinitionName, KeysName)]\n\
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\
+                                           Must provide exactly 2 names\n\
+             \n\
+             Example:\n\
+               #[netabase_definition_module(BlogSchema, BlogKeys)]\n\
+               mod blog {{ ... }}\n\
+             \n\
+             Note: The first parameter is the definition name, and the second\n\
+             is the keys enum name. Both are required.\n\
+             \n\
+             ════════════════════════════════════════════════════════════════\n\
+             ",
+            list.len()
+        );
+    }
+
     let definition = list.first().unwrap();
     let definition_key = list.last().unwrap();
     let (defin, def_key) = visitor.generate_definitions(definition, definition_key);
@@ -1011,6 +1083,14 @@ pub fn netabase_definition_module(name: TokenStream, input: TokenStream) -> Toke
         c.push(syn::Item::Struct(tables_struct));
         c.push(discriminant_assertions);
     };
+
+    // #[cfg(feature = "uniffi")]
+    let uniffi_scaffolding = quote::quote! {
+
+        ::netabase_store::netabase_deps::uniffi::setup_scaffolding!();
+    };
+    // #[cfg(not(feature = "uniffi"))]
+    // let uniffi_scaffolding = quote::quote! {};
 
     quote! {
         #def_module

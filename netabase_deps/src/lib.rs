@@ -34,9 +34,6 @@ pub mod __private {
     /// Enum utilities and derive macros
     pub use strum;
 
-    /// Paxos consensus library
-    pub use paxakos;
-
     /// Blake3 cryptographic hash function
     pub use blake3;
 
@@ -48,9 +45,10 @@ pub mod __private {
 pub use bincode;
 pub use blake3;
 pub use derive_more;
-pub use paxakos;
+pub use libp2p;
 #[cfg(feature = "redb")]
 pub use redb;
 pub use serde;
 pub use sled;
 pub use strum;
+pub use uniffi;
