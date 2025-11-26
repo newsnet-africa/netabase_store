@@ -55,8 +55,9 @@ pub fn generate_helper_functions(
         })
         .collect();
 
-    quote! {
-        #[cfg(feature = "libp2p")]
+    // Only generate if libp2p feature is enabled at macro compile time
+    #[cfg(feature = "libp2p")]
+    let helper_code = quote! {
         mod #helper_mod_name {
             use super::*;
 
@@ -97,7 +98,12 @@ pub fn generate_helper_functions(
 
             pub(super) use decode_record_key;
         }
-    }
+    };
+
+    #[cfg(not(feature = "libp2p"))]
+    let helper_code = quote! {};
+
+    helper_code
 }
 
 /// Generate trait method implementations for RecordStoreExt trait
@@ -105,8 +111,10 @@ pub fn generate_helper_functions(
 /// Returns just the method definitions (not wrapped in an impl block) to be
 /// inserted into the trait impl block in module_definition.rs
 ///
-/// Generates separate methods for each store backend (sled, redb, memory, indexeddb)
+/// Generates separate methods for each store backend (sled, redb, memory, wasm)
 /// to avoid trait bound issues with generic S parameters.
+///
+/// IMPORTANT: This uses conditional compilation on variables, NOT in generated code!
 pub fn generate_trait_methods(
     modules: &[ModuleInfo],
     definition: &Ident,
@@ -126,14 +134,16 @@ pub fn generate_trait_methods(
         definition.span(),
     );
 
-    quote! {
-        // Sled store methods
-        #[cfg(feature = "sled")]
-        fn handle_sled_put(&self, store: &::netabase_store::databases::sled_store::SledStore<Self>) -> ::libp2p::kad::store::Result<()>
+    // Conditionally generate methods based on macro's compile-time features
+    // NO cfg attributes in the generated code!
+
+    #[cfg(feature = "sled")]
+    let sled_methods = quote! {
+        fn handle_sled_put(&self, store: &::netabase_store::databases::sled_store::SledStore<Self>) -> ::netabase_store::netabase_deps::libp2p::kad::store::Result<()>
         where
             #open_tree_bounds
         {
-            use ::libp2p::kad::store::Error;
+            use ::netabase_store::netabase_deps::libp2p::kad::store::Error;
             use ::netabase_store::traits::store_ops::StoreOps;
 
             // Match on self variant to extract inner model and store it
@@ -142,8 +152,7 @@ pub fn generate_trait_methods(
             Err(Error::MaxRecords)
         }
 
-        #[cfg(feature = "sled")]
-        fn handle_sled_get(store: &::netabase_store::databases::sled_store::SledStore<Self>, key: &::libp2p::kad::RecordKey) -> Option<(Self, ::libp2p::kad::Record)>
+        fn handle_sled_get(store: &::netabase_store::databases::sled_store::SledStore<Self>, key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey) -> Option<(Self, ::netabase_store::netabase_deps::libp2p::kad::Record)>
         where
             #open_tree_bounds
         {
@@ -160,8 +169,7 @@ pub fn generate_trait_methods(
             None
         }
 
-        #[cfg(feature = "sled")]
-        fn handle_sled_remove(store: &::netabase_store::databases::sled_store::SledStore<Self>, key: &::libp2p::kad::RecordKey)
+        fn handle_sled_remove(store: &::netabase_store::databases::sled_store::SledStore<Self>, key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey)
         where
             #open_tree_bounds
         {
@@ -176,21 +184,24 @@ pub fn generate_trait_methods(
             }
         }
 
-        #[cfg(feature = "sled")]
-        fn handle_sled_records<'a>(store: &'a ::netabase_store::databases::sled_store::SledStore<Self>) -> Box<dyn Iterator<Item = std::borrow::Cow<'a, ::libp2p::kad::Record>> + 'a>
+        fn handle_sled_records<'a>(store: &'a ::netabase_store::databases::sled_store::SledStore<Self>) -> Box<dyn Iterator<Item = std::borrow::Cow<'a, ::netabase_store::netabase_deps::libp2p::kad::Record>> + 'a>
         where
             #open_tree_bounds
         {
             Box::new(RecordsIterGenerated::new(store))
         }
+    };
 
-        // Redb store methods
-        #[cfg(feature = "redb")]
-        fn handle_redb_put(&self, store: &::netabase_store::databases::redb_store::RedbStore<Self>) -> ::libp2p::kad::store::Result<()>
+    #[cfg(not(feature = "sled"))]
+    let sled_methods = quote! {};
+
+    #[cfg(feature = "redb")]
+    let redb_methods = quote! {
+        fn handle_redb_put(&self, store: &::netabase_store::databases::redb_store::RedbStore<Self>) -> ::netabase_store::netabase_deps::libp2p::kad::store::Result<()>
         where
             #open_tree_bounds
         {
-            use ::libp2p::kad::store::Error;
+            use ::netabase_store::netabase_deps::libp2p::kad::store::Error;
             use ::netabase_store::traits::store_ops::StoreOps;
 
             // Match on self variant to extract inner model and store it
@@ -199,8 +210,7 @@ pub fn generate_trait_methods(
             Err(Error::MaxRecords)
         }
 
-        #[cfg(feature = "redb")]
-        fn handle_redb_get(store: &::netabase_store::databases::redb_store::RedbStore<Self>, key: &::libp2p::kad::RecordKey) -> Option<(Self, ::libp2p::kad::Record)>
+        fn handle_redb_get(store: &::netabase_store::databases::redb_store::RedbStore<Self>, key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey) -> Option<(Self, ::netabase_store::netabase_deps::libp2p::kad::Record)>
         where
             #open_tree_bounds
         {
@@ -217,8 +227,7 @@ pub fn generate_trait_methods(
             None
         }
 
-        #[cfg(feature = "redb")]
-        fn handle_redb_remove(store: &::netabase_store::databases::redb_store::RedbStore<Self>, key: &::libp2p::kad::RecordKey)
+        fn handle_redb_remove(store: &::netabase_store::databases::redb_store::RedbStore<Self>, key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey)
         where
             #open_tree_bounds
         {
@@ -233,21 +242,24 @@ pub fn generate_trait_methods(
             }
         }
 
-        #[cfg(feature = "redb")]
-        fn handle_redb_records<'a>(store: &'a ::netabase_store::databases::redb_store::RedbStore<Self>) -> Box<dyn Iterator<Item = std::borrow::Cow<'a, ::libp2p::kad::Record>> + 'a>
+        fn handle_redb_records<'a>(store: &'a ::netabase_store::databases::redb_store::RedbStore<Self>) -> Box<dyn Iterator<Item = std::borrow::Cow<'a, ::netabase_store::netabase_deps::libp2p::kad::Record>> + 'a>
         where
             #open_tree_bounds
         {
             Box::new(RecordsIterRedb::new(store))
         }
+    };
 
-        // Memory store methods
-        #[cfg(feature = "memory")]
-        fn handle_memory_put(&self, store: &::netabase_store::databases::memory_store::MemoryStore<Self>) -> ::libp2p::kad::store::Result<()>
+    #[cfg(not(feature = "redb"))]
+    let redb_methods = quote! {};
+
+    #[cfg(feature = "memory")]
+    let memory_methods = quote! {
+        fn handle_memory_put(&self, store: &::netabase_store::databases::memory_store::MemoryStore<Self>) -> ::netabase_store::netabase_deps::libp2p::kad::store::Result<()>
         where
             #open_tree_bounds
         {
-            use ::libp2p::kad::store::Error;
+            use ::netabase_store::netabase_deps::libp2p::kad::store::Error;
             use ::netabase_store::traits::store_ops::StoreOps;
 
             // Match on self variant to extract inner model and store it
@@ -256,8 +268,7 @@ pub fn generate_trait_methods(
             Err(Error::MaxRecords)
         }
 
-        #[cfg(feature = "memory")]
-        fn handle_memory_get(store: &::netabase_store::databases::memory_store::MemoryStore<Self>, key: &::libp2p::kad::RecordKey) -> Option<(Self, ::libp2p::kad::Record)>
+        fn handle_memory_get(store: &::netabase_store::databases::memory_store::MemoryStore<Self>, key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey) -> Option<(Self, ::netabase_store::netabase_deps::libp2p::kad::Record)>
         where
             #open_tree_bounds
         {
@@ -274,8 +285,7 @@ pub fn generate_trait_methods(
             None
         }
 
-        #[cfg(feature = "memory")]
-        fn handle_memory_remove(store: &::netabase_store::databases::memory_store::MemoryStore<Self>, key: &::libp2p::kad::RecordKey)
+        fn handle_memory_remove(store: &::netabase_store::databases::memory_store::MemoryStore<Self>, key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey)
         where
             #open_tree_bounds
         {
@@ -289,14 +299,19 @@ pub fn generate_trait_methods(
                 #remove_match_arms
             }
         }
+    };
 
-        // IndexedDB store methods
-        #[cfg(all(feature = "indexeddb", target_arch = "wasm32"))]
-        fn handle_indexeddb_put(&self, store: &::netabase_store::databases::indexeddb_store::IndexedDBStore<Self>) -> ::libp2p::kad::store::Result<()>
+    #[cfg(not(feature = "memory"))]
+    let memory_methods = quote! {};
+
+    // Wasm methods require both wasm feature AND wasm32 target
+    #[cfg(all(feature = "wasm", target_arch = "wasm32"))]
+    let wasm_methods = quote! {
+        fn handle_indexeddb_put(&self, store: &::netabase_store::databases::indexeddb_store::IndexedDBStore<Self>) -> ::netabase_store::netabase_deps::libp2p::kad::store::Result<()>
         where
             #open_tree_bounds
         {
-            use ::libp2p::kad::store::Error;
+            use ::netabase_store::netabase_deps::libp2p::kad::store::Error;
             use ::netabase_store::traits::store_ops::StoreOps;
 
             // Match on self variant to extract inner model and store it
@@ -305,8 +320,7 @@ pub fn generate_trait_methods(
             Err(Error::MaxRecords)
         }
 
-        #[cfg(all(feature = "indexeddb", target_arch = "wasm32"))]
-        fn handle_indexeddb_get(store: &::netabase_store::databases::indexeddb_store::IndexedDBStore<Self>, key: &::libp2p::kad::RecordKey) -> Option<(Self, ::libp2p::kad::Record)>
+        fn handle_indexeddb_get(store: &::netabase_store::databases::indexeddb_store::IndexedDBStore<Self>, key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey) -> Option<(Self, ::netabase_store::netabase_deps::libp2p::kad::Record)>
         where
             #open_tree_bounds
         {
@@ -323,8 +337,7 @@ pub fn generate_trait_methods(
             None
         }
 
-        #[cfg(all(feature = "indexeddb", target_arch = "wasm32"))]
-        fn handle_indexeddb_remove(store: &::netabase_store::databases::indexeddb_store::IndexedDBStore<Self>, key: &::libp2p::kad::RecordKey)
+        fn handle_indexeddb_remove(store: &::netabase_store::databases::indexeddb_store::IndexedDBStore<Self>, key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey)
         where
             #open_tree_bounds
         {
@@ -338,6 +351,17 @@ pub fn generate_trait_methods(
                 #remove_match_arms
             }
         }
+    };
+
+    #[cfg(not(all(feature = "wasm", target_arch = "wasm32")))]
+    let wasm_methods = quote! {};
+
+    // Combine all conditionally generated methods
+    quote! {
+        #sled_methods
+        #redb_methods
+        #memory_methods
+        #wasm_methods
     }
 }
 
@@ -369,15 +393,12 @@ pub fn generate_record_store_impl(
     definition: &Ident,
     definition_key: &Ident,
 ) -> proc_macro2::TokenStream {
-    let records_iter_impl = generate_records_iter_impl(modules, definition, definition_key);
-
-    // Generate RedbStore-specific implementations
-    let redb_impl = generate_redb_record_store_impl(modules, definition, definition_key);
-
-    quote! {
-
+    // Conditionally generate sled-specific code
+    #[cfg(feature = "sled")]
+    let sled_code = {
+        let records_iter_impl = generate_records_iter_impl(modules, definition, definition_key);
+        quote! {
             /// Generic records iterator for sled stores
-            #[cfg(feature = "sled")]
             pub fn record_store_records_sled(
                 store: &::netabase_store::databases::sled_store::SledStore<#definition>
             ) -> RecordsIterGenerated<'_> {
@@ -385,25 +406,22 @@ pub fn generate_record_store_impl(
             }
 
             /// Generic add_provider for sled stores
-            #[cfg(feature = "sled")]
             pub fn record_store_add_provider_sled(
                 store: &mut ::netabase_store::databases::sled_store::SledStore<#definition>,
-                record: ::libp2p::kad::ProviderRecord
-            ) -> ::libp2p::kad::store::Result<()> {
+                record: ::netabase_store::netabase_deps::libp2p::kad::ProviderRecord
+            ) -> ::netabase_store::netabase_deps::libp2p::kad::store::Result<()> {
                 store.add_provider_internal(record)
             }
 
             /// Generic providers for sled stores
-            #[cfg(feature = "sled")]
             pub fn record_store_providers_sled(
                 store: &::netabase_store::databases::sled_store::SledStore<#definition>,
-                key: &::libp2p::kad::RecordKey
-            ) -> Vec<::libp2p::kad::ProviderRecord> {
+                key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey
+            ) -> Vec<::netabase_store::netabase_deps::libp2p::kad::ProviderRecord> {
                 store.providers_internal(key).unwrap_or_default()
             }
 
             /// Generic provided for sled stores
-            #[cfg(feature = "sled")]
             pub fn record_store_provided_sled(
                 store: &::netabase_store::databases::sled_store::SledStore<#definition>
             ) -> ProvidedIterGenerated<'_> {
@@ -411,35 +429,73 @@ pub fn generate_record_store_impl(
             }
 
             /// Generic remove_provider for sled stores
-            #[cfg(feature = "sled")]
             pub fn record_store_remove_provider_sled(
                 store: &mut ::netabase_store::databases::sled_store::SledStore<#definition>,
-                key: &::libp2p::kad::RecordKey,
-                provider: &::libp2p::PeerId
+                key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey,
+                provider: &::netabase_store::netabase_deps::libp2p::PeerId
             ) {
                 store.remove_provider_internal(key, provider)
             }
 
+            #records_iter_impl
+
+            // Provider records iterator
+            pub struct ProvidedIterGenerated<'a> {
+                inner: ::sled::Iter,
+                _phantom: std::marker::PhantomData<&'a ()>,
+            }
+
+            impl<'a> ProvidedIterGenerated<'a> {
+                fn new(store: &'a ::netabase_store::databases::sled_store::SledStore<#definition>) -> Self {
+                    let tree = store.db().open_tree("__libp2p_provided")
+                        .expect("Failed to open provided tree");
+                    ProvidedIterGenerated {
+                        inner: tree.iter(),
+                        _phantom: std::marker::PhantomData,
+                    }
+                }
+            }
+
+            impl<'a> Iterator for ProvidedIterGenerated<'a> {
+                type Item = std::borrow::Cow<'a, ::netabase_store::netabase_deps::libp2p::kad::ProviderRecord>;
+
+                fn next(&mut self) -> Option<Self::Item> {
+                    self.inner.next().and_then(|result| {
+                        result.ok().and_then(|(_, v)| {
+                            use ::netabase_store::databases::record_store::utils::decode_provider;
+                            decode_provider(&v).ok().map(std::borrow::Cow::Owned)
+                        })
+                    })
+                }
+            }
+        }
+    };
+
+    #[cfg(not(feature = "sled"))]
+    let sled_code = quote! {};
+
+    // Conditionally generate redb-specific code
+    #[cfg(feature = "redb")]
+    let redb_code = {
+        let redb_impl = generate_redb_record_store_impl(modules, definition, definition_key);
+        quote! {
             /// Generic add_provider for redb stores
-            #[cfg(feature = "redb")]
             pub fn record_store_add_provider_redb(
                 store: &mut ::netabase_store::databases::redb_store::RedbStore<#definition>,
-                record: ::libp2p::kad::ProviderRecord
-            ) -> ::libp2p::kad::store::Result<()> {
+                record: ::netabase_store::netabase_deps::libp2p::kad::ProviderRecord
+            ) -> ::netabase_store::netabase_deps::libp2p::kad::store::Result<()> {
                 store.add_provider_internal(record)
             }
 
             /// Generic providers for redb stores
-            #[cfg(feature = "redb")]
             pub fn record_store_providers_redb(
                 store: &::netabase_store::databases::redb_store::RedbStore<#definition>,
-                key: &::libp2p::kad::RecordKey
-            ) -> Vec<::libp2p::kad::ProviderRecord> {
+                key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey
+            ) -> Vec<::netabase_store::netabase_deps::libp2p::kad::ProviderRecord> {
                 store.providers_internal(key).unwrap_or_default()
             }
 
             /// Generic provided for redb stores
-            #[cfg(feature = "redb")]
             pub fn record_store_provided_redb(
                 store: &::netabase_store::databases::redb_store::RedbStore<#definition>
             ) -> ProvidedIterRedb<'_> {
@@ -447,83 +503,31 @@ pub fn generate_record_store_impl(
             }
 
             /// Generic remove_provider for redb stores
-            #[cfg(feature = "redb")]
             pub fn record_store_remove_provider_redb(
                 store: &mut ::netabase_store::databases::redb_store::RedbStore<#definition>,
-                key: &::libp2p::kad::RecordKey,
-                provider: &::libp2p::PeerId
+                key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey,
+                provider: &::netabase_store::netabase_deps::libp2p::PeerId
             ) {
                 store.remove_provider_internal(key, provider)
             }
 
             /// Generic records for redb stores
-            #[cfg(feature = "redb")]
             pub fn record_store_records_redb(
                 store: &::netabase_store::databases::redb_store::RedbStore<#definition>
             ) -> RecordsIterRedb<'_> {
                 RecordsIterRedb::new(store)
             }
 
-        // RecordStore implementations removed - these should be implemented generically in netabase
-        // instead of being generated for each concrete Definition type
-        // The helper methods above (handle_record_store_put, etc.) support the generic implementations
-
-        // Declarative macro to encode record key format: <discriminant_bytes>:<key_bytes>
-        // Uses the concrete definition type to avoid generic parameter issues
-        macro_rules! encode_record_key {
-            ($discriminant:expr, $key_bytes:expr, $def_type:ty) => {{
-                // Encode discriminant as bytes
-                let disc_bytes = ::netabase_store::bincode::encode_to_vec(
-                    &$discriminant,
-                    ::netabase_store::bincode::config::standard()
-                ).expect("Discriminant encoding should not fail");
-
-                // Combine: <discriminant_bytes>:<key_bytes>
-                let mut combined = disc_bytes;
-                combined.push(b':');
-                combined.extend_from_slice($key_bytes);
-
-                ::libp2p::kad::RecordKey::from(combined)
-            }};
+            #redb_impl
         }
+    };
 
-        #records_iter_impl
+    #[cfg(not(feature = "redb"))]
+    let redb_code = quote! {};
 
-        // Provider records iterator
-        #[cfg(feature = "sled")]
-        pub struct ProvidedIterGenerated<'a> {
-            inner: ::sled::Iter,
-            _phantom: std::marker::PhantomData<&'a ()>,
-        }
-
-        #[cfg(feature = "sled")]
-        impl<'a> ProvidedIterGenerated<'a> {
-            fn new(store: &'a ::netabase_store::databases::sled_store::SledStore<#definition>) -> Self {
-                let tree = store.db().open_tree("__libp2p_provided")
-                    .expect("Failed to open provided tree");
-                ProvidedIterGenerated {
-                    inner: tree.iter(),
-                    _phantom: std::marker::PhantomData,
-                }
-            }
-        }
-
-        #[cfg(feature = "sled")]
-        impl<'a> Iterator for ProvidedIterGenerated<'a> {
-            type Item = std::borrow::Cow<'a, ::libp2p::kad::ProviderRecord>;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                self.inner.next().and_then(|result| {
-                    result.ok().and_then(|(_, v)| {
-                        use ::netabase_store::databases::record_store::utils::decode_provider;
-                        decode_provider(&v).ok().map(std::borrow::Cow::Owned)
-                    })
-                })
-            }
-        }
-
-        // RedbStore RecordStore implementation
-        #redb_impl
+    quote! {
+        #sled_code
+        #redb_code
     }
 }
 
@@ -628,116 +632,7 @@ fn generate_instance_get_match_arms(
                         ).ok()?;
 
                         // Return Definition and Record
-                        return Some((definition.clone(), ::libp2p::kad::Record {
-                            key: key.clone(),
-                            value,
-                            publisher: None,
-                            expires: None,
-                        }));
-                    }
-                }
-            })
-        })
-        .collect();
-
-    quote! {
-        match discriminant {
-            #(#arms)*
-            _ => {}
-        }
-    }
-}
-
-/// Generate match arms for put operations (legacy - being phased out)
-///
-/// Routes to correct tree based on discriminant and uses StoreOps::put_raw
-fn generate_put_match_arms(
-    modules: &[ModuleInfo],
-    _definition: &Ident,
-) -> proc_macro2::TokenStream {
-    let arms: Vec<_> = modules
-        .iter()
-        .flat_map(|module| {
-            module.models.iter().map(|model| {
-                let model_name = &model.ident;
-                let model_path = if module.path.is_empty() {
-                    quote! { #model_name }
-                } else {
-                    let path = &module.path;
-                    quote! { #path::#model_name }
-                };
-
-                quote! {
-                    disc if disc.to_string() == stringify!(#model_name) => {
-                        // Decode the value directly as the model
-                        let (model, _): (#model_path, _) = ::netabase_store::bincode::decode_from_slice(
-                            &record.value,
-                            ::netabase_store::bincode::config::standard()
-                        ).map_err(|_| Error::ValueTooLarge)?;
-
-                        // Open the tree for this model
-                        let tree = self.open_tree::<#model_path>();
-
-                        // Use StoreOps::put_raw to store the model directly
-                        tree.put_raw(model).map_err(|_| Error::MaxRecords)?;
-
-                        return Ok(());
-                    }
-                }
-            })
-        })
-        .collect();
-
-    quote! {
-        match discriminant {
-            #(#arms)*
-            _ => {}
-        }
-    }
-}
-
-/// Generate match arms for get operations
-///
-/// Routes to correct tree based on discriminant, fetches model, wraps in Definition
-fn generate_get_match_arms(modules: &[ModuleInfo], definition: &Ident) -> proc_macro2::TokenStream {
-    let arms: Vec<_> = modules
-        .iter()
-        .flat_map(|module| {
-            module.models.iter().map(|model| {
-                let model_name = &model.ident;
-                let model_path = if module.path.is_empty() {
-                    quote! { #model_name }
-                } else {
-                    let path = &module.path;
-                    quote! { #path::#model_name }
-                };
-
-                quote! {
-                    disc if disc.to_string() == stringify!(#model_name) => {
-                        // Decode the primary key from key_bytes
-                        let (primary_key, _): (<#model_path as ::netabase_store::traits::model::NetabaseModelTrait<#definition>>::PrimaryKey, _) =
-                            ::netabase_store::bincode::decode_from_slice(
-                                &key_bytes,
-                                ::netabase_store::bincode::config::standard()
-                            ).ok()?;
-
-                        // Open the tree for this model
-                        let tree = self.open_tree::<#model_path>();
-
-                        // Use StoreOps::get_raw to fetch the model
-                        let model = tree.get_raw(primary_key).ok()??;
-
-                        // Wrap in Definition for Kad network
-                        let definition = #definition::#model_name(model);
-
-                        // Encode as Definition for the Record value
-                        let value = ::netabase_store::bincode::encode_to_vec(
-                            &definition,
-                            ::netabase_store::bincode::config::standard()
-                        ).ok()?;
-
-                        // Return as Record
-                        return Some(std::borrow::Cow::Owned(::libp2p::kad::Record {
+                        return Some((definition.clone(), ::netabase_store::netabase_deps::libp2p::kad::Record {
                             key: key.clone(),
                             value,
                             publisher: None,
@@ -871,8 +766,8 @@ fn generate_records_iter_impl(
                                         &definition,
                                         ::netabase_store::bincode::config::standard()
                                     ) {
-                                        return Some(std::borrow::Cow::Owned(::libp2p::kad::Record {
-                                            key: ::libp2p::kad::RecordKey::from(key_bytes),
+                                        return Some(std::borrow::Cow::Owned(::netabase_store::netabase_deps::libp2p::kad::Record {
+                                            key: ::netabase_store::netabase_deps::libp2p::kad::RecordKey::from(key_bytes),
                                             value,
                                             publisher: None,
                                             expires: None,
@@ -889,7 +784,6 @@ fn generate_records_iter_impl(
 
     quote! {
         // Iterator over all records, wrapping models in Definition
-        #[cfg(feature = "sled")]
         pub struct RecordsIterGenerated<'a> {
             discriminants: Vec<<#definition as ::netabase_store::strum::IntoDiscriminant>::Discriminant>,
             current_discriminant_index: usize,
@@ -897,7 +791,6 @@ fn generate_records_iter_impl(
             store: &'a ::netabase_store::databases::sled_store::SledStore<#definition>,
         }
 
-        #[cfg(feature = "sled")]
         impl<'a> RecordsIterGenerated<'a> {
             fn new(store: &'a ::netabase_store::databases::sled_store::SledStore<#definition>) -> Self {
                 use ::netabase_store::strum::IntoEnumIterator;
@@ -914,9 +807,8 @@ fn generate_records_iter_impl(
             }
         }
 
-        #[cfg(feature = "sled")]
         impl<'a> Iterator for RecordsIterGenerated<'a> {
-            type Item = std::borrow::Cow<'a, ::libp2p::kad::Record>;
+            type Item = std::borrow::Cow<'a, ::netabase_store::netabase_deps::libp2p::kad::Record>;
 
             fn next(&mut self) -> Option<Self::Item> {
                 use ::netabase_store::strum::IntoDiscriminant;
@@ -973,15 +865,10 @@ fn generate_redb_record_store_impl(
     definition: &Ident,
     definition_key: &Ident,
 ) -> proc_macro2::TokenStream {
-    let _put_match_arms = generate_put_match_arms(modules, definition);
-    let _get_match_arms = generate_get_match_arms(modules, definition);
-    let _remove_match_arms = generate_remove_match_arms(modules, definition_key);
     let redb_records_iter_impl =
         generate_redb_records_iter_impl(modules, definition, definition_key);
 
     quote! {
-        // RecordStore implementation removed - should be implemented generically in netabase
-        // All redb-specific code is wrapped in the redb_records_iter_impl with proper cfg guards
         #redb_records_iter_impl
     }
 }
@@ -1041,8 +928,8 @@ fn generate_redb_records_iter_impl(
                                         &definition,
                                         ::netabase_store::bincode::config::standard()
                                     ) {
-                                        records.push(::libp2p::kad::Record {
-                                            key: ::libp2p::kad::RecordKey::from(key_bytes),
+                                        records.push(::netabase_store::netabase_deps::libp2p::kad::Record {
+                                            key: ::netabase_store::netabase_deps::libp2p::kad::RecordKey::from(key_bytes),
                                             value,
                                             publisher: None,
                                             expires: None,
@@ -1059,13 +946,11 @@ fn generate_redb_records_iter_impl(
 
     quote! {
         // RedbStore iterator over all records
-        #[cfg(feature = "redb")]
         pub struct RecordsIterRedb<'a> {
-            records: std::vec::IntoIter<::libp2p::kad::Record>,
+            records: std::vec::IntoIter<::netabase_store::netabase_deps::libp2p::kad::Record>,
             _phantom: std::marker::PhantomData<&'a ()>,
         }
 
-        #[cfg(feature = "redb")]
         impl<'a> RecordsIterRedb<'a> {
             fn new(store: &'a ::netabase_store::databases::redb_store::RedbStore<#definition>) -> Self {
                 use ::netabase_store::strum::IntoEnumIterator;
@@ -1114,9 +999,8 @@ fn generate_redb_records_iter_impl(
             }
         }
 
-        #[cfg(feature = "redb")]
         impl<'a> Iterator for RecordsIterRedb<'a> {
-            type Item = std::borrow::Cow<'a, ::libp2p::kad::Record>;
+            type Item = std::borrow::Cow<'a, ::netabase_store::netabase_deps::libp2p::kad::Record>;
 
             fn next(&mut self) -> Option<Self::Item> {
                 self.records.next().map(std::borrow::Cow::Owned)
@@ -1124,13 +1008,11 @@ fn generate_redb_records_iter_impl(
         }
 
         // RedbStore provider records iterator
-        #[cfg(feature = "redb")]
         pub struct ProvidedIterRedb<'a> {
-            records: std::vec::IntoIter<::libp2p::kad::ProviderRecord>,
+            records: std::vec::IntoIter<::netabase_store::netabase_deps::libp2p::kad::ProviderRecord>,
             _phantom: std::marker::PhantomData<&'a ()>,
         }
 
-        #[cfg(feature = "redb")]
         impl<'a> ProvidedIterRedb<'a> {
             fn new(store: &'a ::netabase_store::databases::redb_store::RedbStore<#definition>) -> Self {
                 use ::netabase_store::redb::{ReadableDatabase, ReadableTable};
@@ -1163,9 +1045,8 @@ fn generate_redb_records_iter_impl(
             }
         }
 
-        #[cfg(feature = "redb")]
         impl<'a> Iterator for ProvidedIterRedb<'a> {
-            type Item = std::borrow::Cow<'a, ::libp2p::kad::ProviderRecord>;
+            type Item = std::borrow::Cow<'a, ::netabase_store::netabase_deps::libp2p::kad::ProviderRecord>;
 
             fn next(&mut self) -> Option<Self::Item> {
                 self.records.next().map(std::borrow::Cow::Owned)

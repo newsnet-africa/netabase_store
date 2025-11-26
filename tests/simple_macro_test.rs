@@ -1,6 +1,6 @@
 //! Minimal test to debug macro generation issues
 
-#![cfg(all(feature = "redb", not(feature = "paxos")))]
+#![cfg(feature = "redb")]
 
 use netabase_store::{NetabaseModel, netabase, netabase_definition_module};
 

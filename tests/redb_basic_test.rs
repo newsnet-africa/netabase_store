@@ -2,7 +2,7 @@
 //!
 //! Tests the standard redb_store.rs implementation (not zerocopy)
 
-#![cfg(all(feature = "redb", not(feature = "paxos")))]
+#![cfg(feature = "redb")]
 
 use netabase_store::databases::redb_store::RedbStore;
 use netabase_store::{NetabaseModel, netabase, netabase_definition_module};

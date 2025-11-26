@@ -1,5 +1,4 @@
 #![cfg(feature = "native")]
-#![cfg(not(feature = "paxos"))]
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use netabase_macros::netabase_definition_module;

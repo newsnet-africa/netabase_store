@@ -3,7 +3,7 @@
 //! These tests verify that the zero-copy implementation works correctly
 //! and that guards can be returned with proper lifetimes.
 
-#![cfg(all(feature = "redb", feature = "redb-zerocopy", not(feature = "paxos")))]
+#![cfg(all(feature = "redb", feature = "redb-zerocopy"))]
 
 use netabase_store::{netabase_definition_module, NetabaseModel};
 use netabase_store::databases::redb_zerocopy::*;

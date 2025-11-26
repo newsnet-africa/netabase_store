@@ -1,5 +1,4 @@
 #![cfg(not(target_arch = "wasm32"))]
-#![cfg(not(feature = "paxos"))]
 #![cfg(all(feature = "libp2p", feature = "native"))]
 
 use libp2p::kad::store::RecordStore;

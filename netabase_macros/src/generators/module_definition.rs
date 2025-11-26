@@ -34,9 +34,6 @@ impl<'a> DefinitionsVisitor<'a> {
             definition_key,
         );
 
-        // Generate apply_to_store implementation for Paxos consensus
-        let apply_to_store_impl = def_gen::generate_apply_to_store_impl(&self.modules, definition);
-
         // Generate helper functions needed by RecordStoreExt trait methods
         let helper_functions = crate::generators::record_store::generate_helper_functions(
             &self.modules,
@@ -55,7 +52,32 @@ impl<'a> DefinitionsVisitor<'a> {
         // Generate AsRef and Borrow implementations for all model types
         let as_ref_borrow_impls = def_gen::generate_as_ref_borrow_impls(&self.modules, definition);
 
-        // panic!("{:?}", into_inner.to_string());
+        // Generate Tables impl based on MACRO's features, not user's features!
+        // This is checked at macro expansion time, so no cfg in generated code.
+        #[cfg(feature = "redb")]
+        let tables_impl = quote::quote! {
+            type Tables = #tables_name;
+
+            fn tables() -> Self::Tables {
+                #tables_name::new()
+            }
+        };
+
+        #[cfg(not(feature = "redb"))]
+        let tables_impl = quote::quote! {};
+
+        #[cfg(not(feature = "redb"))]
+        let libp2p_impl = quote::quote! {};
+        #[cfg(feature = "libp2p")]
+        let libp2p_impl = quote::quote! {
+
+            // RecordStoreExt trait - conditional on libp2p feature
+            // This trait is only defined when libp2p is enabled, so cfg is necessary
+            impl ::netabase_store::traits::definition::RecordStoreExt for #definition {
+                #record_store_methods
+            }
+        };
+
         quote::quote! {
             // Helper functions for RecordStore operations
             #helper_functions
@@ -64,23 +86,18 @@ impl<'a> DefinitionsVisitor<'a> {
             // Must be before trait impl because trait methods call these functions
             #record_store_impl
 
+            // NO cfg attributes in generated code!
+            // The macro checks its OWN features at expansion time and generates
+            // the appropriate code. Users don't need any features enabled!
             impl ::netabase_store::traits::definition::NetabaseDefinitionTrait for #definition {
                 type Keys = #definition_key;
-                #[cfg(feature = "redb")]
-                type Tables = #tables_name;
 
-                #[cfg(feature = "redb")]
-                fn tables() -> Self::Tables {
-                    #tables_name::new()
-                }
+                // This is generated based on netabase_macros' features,
+                // not the user's features. No feature bleeding!
+                #tables_impl
             }
 
-            // Implement RecordStoreExt trait for RecordStore helper methods
-            #[cfg(feature = "libp2p")]
-            impl ::netabase_store::traits::definition::RecordStoreExt for #definition {
-                #record_store_methods
-            }
-
+            #libp2p_impl
             impl ::netabase_store::traits::definition::NetabaseDefinitionTraitKey for #definition_key {
 
             }
@@ -90,10 +107,6 @@ impl<'a> DefinitionsVisitor<'a> {
 
             // AsRef and Borrow implementations for all inner model types
             #as_ref_borrow_impls
-
-            // Apply-to-store implementation for Paxos consensus
-            // (only generated when paxos and libp2p features are enabled)
-            #apply_to_store_impl
         }
     }
 }
@@ -188,10 +201,12 @@ pub mod def_gen {
             }
         };
 
-        if cfg!(feature = "uniffi") {
-            let uniffi_attr: syn::Attribute = parse_quote!(#[derive(uniffi::Enum)]);
-            def_enum.attrs.push(uniffi_attr);
-        }
+        // #[cfg(feature = "uniffi")]
+        // {
+        //     let uniffi_attr: syn::Attribute =
+        //         parse_quote!(#[derive(::netabase_store::uniffi::Enum)]);
+        //     def_enum.attrs.push(uniffi_attr);
+        // }
 
         // Create key discriminant type name
         let key_discriminant_name = syn::Ident::new(
@@ -216,125 +231,14 @@ pub mod def_gen {
             }
         };
 
-        if cfg!(feature = "uniffi") {
-            let uniffi_attr: syn::Attribute = parse_quote!(#[derive(uniffi::Enum)]);
-            def_key_enum.attrs.push(uniffi_attr);
-        }
+        // #[cfg(feature = "uniffi")]
+        // {
+        //     let uniffi_attr: syn::Attribute =
+        //         parse_quote!(#[derive(::netabase_store::uniffi::Enum)]);
+        //     def_key_enum.attrs.push(uniffi_attr);
+        // }
 
         (def_enum, def_key_enum)
-    }
-
-    /// Generate the apply_to_store implementation for Paxos consensus
-    ///
-    /// This method enables Paxos to apply committed entries to the store by
-    /// routing each Definition variant to the appropriate store operation.
-    pub fn generate_apply_to_store_impl(
-        modules: &Vec<ModuleInfo<'_>>,
-        definition: &Ident,
-    ) -> proc_macro2::TokenStream {
-        // Generate match arms for each model variant
-        let match_arms: Vec<proc_macro2::TokenStream> = modules
-            .iter()
-            .flat_map(|module| {
-                module.models.iter().map(|model_struct| {
-                    let model_name = &model_struct.ident;
-
-                    // Generate match arm that converts Definition variant to Record and stores it
-                    quote::quote! {
-                        Self::#model_name(model) => {
-                            // Convert the model to a libp2p Record
-                            use ::netabase_store::traits::model::NetabaseModelTrait;
-                            use ::netabase_store::convert::ToIVec;
-
-                            // Create the record key: <discriminant>:<primary_key>
-                            let discriminant = ::netabase_store::strum::IntoEnumIterator::iter::<
-                                <Self as ::netabase_store::strum::IntoDiscriminant>::Discriminant
-                            >()
-                            .find(|d| d.as_ref() == stringify!(#model_name))
-                            .ok_or_else(|| format!("Invalid discriminant for {}", stringify!(#model_name)))?;
-
-                            let primary_key = model.primary_key();
-                            let discriminant_bytes = discriminant.as_ref().as_bytes();
-                            let key_bytes = primary_key.to_ivec()
-                                .map_err(|e| format!("Failed to serialize key: {}", e))?;
-
-                            let mut record_key = Vec::with_capacity(discriminant_bytes.len() + 1 + key_bytes.len());
-                            record_key.extend_from_slice(discriminant_bytes);
-                            record_key.push(b':');
-                            record_key.extend_from_slice(&key_bytes);
-
-                            // Serialize the model
-                            let value = ::netabase_store::bincode::encode_to_vec(
-                                model,
-                                ::netabase_store::bincode::config::standard()
-                            ).map_err(|e| format!("Failed to serialize model: {}", e))?;
-
-                            // Create the Record
-                            #[cfg(feature = "libp2p")]
-                            {
-                                let record = ::netabase_store::libp2p::kad::Record {
-                                    key: ::netabase_store::libp2p::kad::RecordKey::new(&record_key),
-                                    value,
-                                    publisher: None,
-                                    expires: None,
-                                };
-
-                                // Put the record into the store
-                                store.put(record)
-                                    .map_err(|e| format!("Failed to put record: {:?}", e))?;
-                            }
-
-                            #[cfg(not(feature = "libp2p"))]
-                            {
-                                return Err(format!("apply_to_store requires libp2p feature"));
-                            }
-                        }
-                    }
-                })
-            })
-            .collect();
-
-        quote::quote! {
-            #[cfg(all(feature = "paxos", feature = "libp2p"))]
-            impl #definition {
-                /// Apply this definition entry to a store
-                ///
-                /// This method is used by Paxos consensus to apply committed entries
-                /// to the local database. It routes each variant to the appropriate
-                /// tree in the store by converting the model to a libp2p Record and
-                /// storing it.
-                ///
-                /// # Parameters
-                /// - `store`: Mutable reference to any type that implements RecordStore
-                ///
-                /// # Returns
-                /// Result indicating success or error
-                ///
-                /// # Example
-                /// ```no_run
-                /// use libp2p::kad::store::RecordStore;
-                ///
-                /// let entry = MyDefinition::User(user);
-                /// entry.apply_to_store(&mut store)?;
-                /// ```
-                ///
-                /// # Notes
-                /// This method is only available when both `paxos` and `libp2p` features
-                /// are enabled, as it's specifically designed for consensus integration.
-                pub fn apply_to_store<S>(
-                    &self,
-                    store: &mut S,
-                ) -> Result<(), String>
-                where
-                    S: ::netabase_store::libp2p::kad::store::RecordStore,
-                {
-                    match self {
-                        #(#match_arms)*
-                    }
-                    Ok(())
-                }
-            }
-        }
     }
 
     /// Generate AsRef and Borrow trait implementations for all inner model types

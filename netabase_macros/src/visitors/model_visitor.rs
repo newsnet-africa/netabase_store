@@ -22,7 +22,19 @@ impl<'a> Visit<'a> for ModelVisitor<'a> {
         // self.generics = Some(&i.generics);
         self.key = match ModelKeyInfo::find_keys(extract_fields(i)) {
             Ok(k) => Some(k),
-            Err(e) => panic!("Error parsing Model: {e}"),
+            Err(e) => panic!(
+                "\n\n\
+                 ════════════════════════════════════════════════════════════════\n\
+                 ❌ NetabaseModel Derive Error in struct `{}`\n\
+                 ════════════════════════════════════════════════════════════════\n\
+                 \n\
+                 {}\n\
+                 \n\
+                 ════════════════════════════════════════════════════════════════\n\
+                 ",
+                i.ident,
+                e
+            ),
         };
         self.definitions = Self::find_definitions(i);
         self.links = ModelLinkInfo::find_link(extract_fields(i)).collect();

@@ -1,5 +1,4 @@
 #![cfg(feature = "native")]
-#![cfg(not(feature = "paxos"))]
 
 //! Cross-Store Comparison Benchmark
 //!
