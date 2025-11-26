@@ -21,7 +21,7 @@ memory = []
 wasm = []
 
 [dependencies]
-uniffi = { version = "*", features = ["bindgen", "build", "cli", "ffi-trace", "scaffolding-ffi-buffer-fns"], optional = true }
+uniffi = { version = "*", optional = true }
 anyhow = "1.0.100"
 bincode = { version = "2.0", features = ["derive", "serde"] }
 derive_more = { version = "2.0.1", features = ["from", "try_into", "into"] }
