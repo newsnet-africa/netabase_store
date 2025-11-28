@@ -693,8 +693,10 @@ pub mod error;
 #[cfg(all(feature = "redb", feature = "redb-zerocopy"))]
 pub mod guards;
 pub mod store;
+pub mod subscription;
 pub mod traits;
 pub mod transaction;
+pub mod utils;
 
 // Re-export netabase_deps for users of the macros
 pub use netabase_deps;
@@ -703,8 +705,11 @@ pub use netabase_deps::*;
 // Re-export macros for convenience
 pub use netabase_macros::*;
 pub use store::NetabaseStore;
+pub use subscription::subscription_tree::DefaultSubscriptionManager;
+pub use traits::subscription::subscription_tree::ModelHash;
 pub use traits::*;
 pub use transaction::{ReadOnly, ReadWrite, TreeView, TxnGuard};
+pub use utils::{NetabaseDateTime, chrono};
 
 // Re-export zero-copy redb types for convenience
 #[cfg(all(feature = "redb", feature = "redb-zerocopy"))]

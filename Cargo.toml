@@ -45,6 +45,8 @@ strum = { version = "0.27.2", features = ["derive", "strum_macros"] }
 thiserror = "2.0.17"
 getrandom = { version = "0.2", features = ["js"] }
 typed-builder = "0.20"
+rs_merkle = "1.4"
+
 
 # Native-only dependencies (not compatible with WASM)
 sled = { version = "0.34.7", optional = true }
@@ -102,4 +104,3 @@ required-features = ["native"]
 [[example]]
 name = "unified_api"
 required-features = ["native"]
-
