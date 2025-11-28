@@ -5,6 +5,7 @@ pub mod definition;
 pub mod key;
 pub mod model;
 pub mod store_ops;
+pub mod subscription;
 pub mod tree;
 
 // Re-export commonly used types

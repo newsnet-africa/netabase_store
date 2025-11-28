@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{
     DeriveInput, Ident, ItemMod, Token, parse::Parser, parse_macro_input, punctuated::Punctuated,
     visit::Visit,
@@ -978,9 +978,25 @@ pub fn redb_zerocopy(_attr: TokenStream, input: TokenStream) -> TokenStream {
 /// - [`netabase`] - Attribute linking models to definitions
 #[proc_macro_attribute]
 pub fn netabase_definition_module(name: TokenStream, input: TokenStream) -> TokenStream {
+    use generators::streams;
+
     let mut def_module = parse_macro_input!(input as ItemMod);
     let mut visitor = DefinitionsVisitor::default();
     visitor.visit_item_mod(&def_module);
+
+    // Check for streams attribute and extract topics
+    let mut streams_topics: Option<Vec<String>> = None;
+    for attr in &def_module.attrs {
+        if attr.path().is_ident("streams") {
+            if let Ok(topics_list) =
+                attr.parse_args_with(Punctuated::<Ident, Token![,]>::parse_terminated)
+            {
+                streams_topics = Some(topics_list.iter().map(|ident| ident.to_string()).collect());
+            }
+            break;
+        }
+    }
+
     let list = match Punctuated::<Ident, Token![,]>::parse_terminated.parse(name) {
         Ok(l) => l,
         Err(e) => panic!(
@@ -1054,8 +1070,17 @@ pub fn netabase_definition_module(name: TokenStream, input: TokenStream) -> Toke
         generators::table_definitions::generate_tables_impl(&visitor.modules, definition);
     let tables_name = syn::Ident::new(&format!("{}Tables", definition), definition.span());
 
-    let trait_impls =
-        visitor.generate_definition_trait_impls(definition, definition_key, &tables_name);
+    let trait_impls = if streams_topics.is_some() {
+        let manager_name = format_ident!("{}SubscriptionManager", definition);
+        visitor.generate_definition_trait_impls_with_subscriptions(
+            definition,
+            definition_key,
+            &tables_name,
+            &manager_name,
+        )
+    } else {
+        visitor.generate_definition_trait_impls(definition, definition_key, &tables_name)
+    };
 
     // Generate discriminant type names for compile-time assertions
     let discriminant_name =
@@ -1085,17 +1110,87 @@ pub fn netabase_definition_module(name: TokenStream, input: TokenStream) -> Toke
     };
 
     // #[cfg(feature = "uniffi")]
-    let uniffi_scaffolding = quote::quote! {
+    let _uniffi_scaffolding = quote::quote! {
 
         ::netabase_store::netabase_deps::uniffi::setup_scaffolding!();
     };
     // #[cfg(not(feature = "uniffi"))]
-    // let uniffi_scaffolding = quote::quote! {};
+    // let _uniffi_scaffolding = quote::quote! {};
+
+    // Generate streams code if streams attribute is present
+    let streams_code = if let Some(topic_strings) = streams_topics {
+        let subscriptions_enum_name = format_ident!("{}Subscriptions", definition);
+
+        let manager_name = format_ident!("{}SubscriptionManager", definition);
+
+        let streams_enum =
+            streams::generate_streams_enum(&subscriptions_enum_name, definition, &topic_strings);
+        let tree_impls = streams::generate_subscription_tree_impls(
+            &subscriptions_enum_name,
+            definition,
+            &topic_strings,
+        );
+        let store_impls = streams::generate_store_subscription_impls(
+            definition,
+            &subscriptions_enum_name,
+            &topic_strings,
+        );
+        let database_integration = streams::generate_database_integration(
+            definition,
+            &subscriptions_enum_name,
+            &topic_strings,
+        );
+        let utilities = streams::generate_subscription_utilities(
+            definition,
+            &subscriptions_enum_name,
+            &topic_strings,
+        );
+
+        quote! {
+            #streams_enum
+            #tree_impls
+            #store_impls
+            #database_integration
+            #utilities
+        }
+    } else {
+        quote! {}
+    };
 
     quote! {
         #def_module
         #trait_impls
         #tables_impl
+        #streams_code
     }
     .into()
+}
+
+/// Marker attribute for subscription streams functionality.
+///
+/// This attribute is used to mark a module with subscription topics that will be
+/// processed by the netabase_definition_module macro.
+///
+/// # Usage
+///
+/// ```rust
+/// use netabase_store::{netabase_definition_module, streams};
+///
+/// #[netabase_definition_module(BlogDefinition, BlogKeys)]
+/// #[streams(UserTopic, PostTopic, CommentTopic)]
+/// mod blog {
+///     // Your models here
+/// }
+/// ```
+///
+/// The streams attribute is processed by netabase_definition_module and generates:
+/// - A `BlogDefinitionSubscriptions` enum with variants for each topic
+/// - Implementation of `Subscriptions` trait for `BlogDefinition`
+/// - Subscription tree implementations for efficient data synchronization
+/// - A subscription manager for handling multiple topics
+///
+#[proc_macro_attribute]
+pub fn streams(_topics: TokenStream, input: TokenStream) -> TokenStream {
+    // This is just a marker attribute - the actual processing happens in netabase_definition_module
+    input
 }
