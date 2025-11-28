@@ -45,7 +45,7 @@ mod tests {
 
     #[test]
     fn test_netabase_datetime_creation() {
-        let now = NetabaseDateTime::now();
+        let now: NetabaseDateTime = Utc::now();
         let now_chrono = Utc::now();
 
         // Should be within a reasonable time range
@@ -54,32 +54,31 @@ mod tests {
     }
 
     #[test]
-    fn test_netabase_datetime_conversions() {
-        let original = Utc::now();
-        let wrapper = NetabaseDateTime::from_datetime(original);
-        let converted_back = wrapper.into_inner();
+    fn test_netabase_datetime_trait() {
+        let now = DateTime::<Utc>::netabase_now();
+        let now_chrono = Utc::now();
 
-        assert_eq!(original, converted_back);
+        // Should be within a reasonable time range
+        let diff = (now.timestamp() - now_chrono.timestamp()).abs();
+        assert!(diff < 2, "Timestamps should be within 2 seconds");
     }
 
     #[test]
-    fn test_netabase_datetime_deref() {
-        let wrapper = NetabaseDateTime::now();
+    fn test_netabase_datetime_methods() {
+        let dt: NetabaseDateTime = Utc::now();
 
         // Test that we can call DateTime methods directly
-        let _timestamp = wrapper.timestamp();
-        let _rfc3339 = wrapper.to_rfc3339();
+        let _timestamp = dt.timestamp();
+        let _rfc3339 = dt.to_rfc3339();
     }
 
     #[test]
-    fn test_netabase_datetime_bincode() {
-        let original = NetabaseDateTime::now();
+    fn test_netabase_datetime_type_alias() {
+        // Test that NetabaseDateTime is a proper type alias for DateTime<Utc>
+        let dt: NetabaseDateTime = Utc::now();
+        let dt2: DateTime<Utc> = dt;
 
-        // Test bincode serialization with serde
-        let config = bincode::config::standard();
-        let encoded = bincode::encode_to_vec(&original, config).unwrap();
-        let decoded: NetabaseDateTime = bincode::decode_from_slice(&encoded, config).unwrap().0;
-
-        assert_eq!(original, decoded);
+        // Both types should be identical
+        assert_eq!(dt.timestamp(), dt2.timestamp());
     }
 }

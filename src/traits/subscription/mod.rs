@@ -223,6 +223,56 @@ impl<T: AsRef<[u8]>> IntoModelHash for T {
     }
 }
 
+/// Trait for database stores that support subscription functionality
+///
+/// This trait enables automatic subscription tracking when implementing stores
+/// integrate with the subscription system.
+pub trait SubscriptionStore<S: Subscriptions>: 'static + MaybeSend + MaybeSync {
+    /// The type of subscription manager used by this store
+    type Manager: SubscriptionManager<S, TopicType = S::Subscriptions>;
+
+    /// Get a reference to the subscription manager
+    fn subscription_manager(&self) -> Option<&Self::Manager>;
+
+    /// Get a mutable reference to the subscription manager
+    fn subscription_manager_mut(&mut self) -> Option<&mut Self::Manager>;
+
+    /// Check if subscription tracking is enabled for this store
+    fn subscriptions_enabled(&self) -> bool {
+        self.subscription_manager().is_some()
+    }
+
+    /// Subscribe an item to a topic when it's added to the store
+    fn auto_subscribe<T>(
+        &mut self,
+        topic: <S as Subscriptions>::Subscriptions,
+        key: Vec<u8>,
+        data: &T,
+    ) -> Result<(), NetabaseError>
+    where
+        T: AsRef<[u8]>,
+    {
+        if let Some(manager) = self.subscription_manager_mut() {
+            manager.subscribe_item(topic, key, data)
+        } else {
+            Ok(()) // No-op if subscriptions not enabled
+        }
+    }
+
+    /// Unsubscribe an item from a topic when it's removed from the store
+    fn auto_unsubscribe(
+        &mut self,
+        topic: <S as Subscriptions>::Subscriptions,
+        key: &[u8],
+    ) -> Result<Option<ModelHash>, NetabaseError> {
+        if let Some(manager) = self.subscription_manager_mut() {
+            manager.unsubscribe_item(topic, key)
+        } else {
+            Ok(None) // No-op if subscriptions not enabled
+        }
+    }
+}
+
 /// Trait for filtering subscription data
 ///
 /// This trait allows customizing which data gets included in subscription trees
