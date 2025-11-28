@@ -253,57 +253,6 @@ pub fn generate_trait_methods(
     #[cfg(not(feature = "redb"))]
     let redb_methods = quote! {};
 
-    #[cfg(feature = "memory")]
-    let memory_methods = quote! {
-        fn handle_memory_put(&self, store: &::netabase_store::databases::memory_store::MemoryStore<Self>) -> ::netabase_store::netabase_deps::libp2p::kad::store::Result<()>
-        where
-            #open_tree_bounds
-        {
-            use ::netabase_store::netabase_deps::libp2p::kad::store::Error;
-            use ::netabase_store::traits::store_ops::StoreOps;
-
-            // Match on self variant to extract inner model and store it
-            #instance_put_match_arms
-
-            Err(Error::MaxRecords)
-        }
-
-        fn handle_memory_get(store: &::netabase_store::databases::memory_store::MemoryStore<Self>, key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey) -> Option<(Self, ::netabase_store::netabase_deps::libp2p::kad::Record)>
-        where
-            #open_tree_bounds
-        {
-            use ::netabase_store::traits::definition::NetabaseDefinitionTrait;
-            use ::netabase_store::traits::store_ops::StoreOps;
-            use ::netabase_store::strum::IntoDiscriminant;
-
-            // Decode key to get discriminant and primary key bytes
-            let (discriminant, key_bytes) = #helper_mod_name::decode_record_key!(key, #definition, #definition_key)?;
-
-            // Match discriminant to route to correct tree and wrap in Definition
-            #instance_get_match_arms
-
-            None
-        }
-
-        fn handle_memory_remove(store: &::netabase_store::databases::memory_store::MemoryStore<Self>, key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey)
-        where
-            #open_tree_bounds
-        {
-            use ::netabase_store::traits::definition::NetabaseDefinitionTrait;
-            use ::netabase_store::traits::store_ops::StoreOps;
-            use ::netabase_store::strum::IntoDiscriminant;
-
-            // Decode key to get discriminant and primary key bytes
-            if let Some((discriminant, key_bytes)) = #helper_mod_name::decode_record_key!(key, #definition, #definition_key) {
-                // Match discriminant to route to correct tree
-                #remove_match_arms
-            }
-        }
-    };
-
-    #[cfg(not(feature = "memory"))]
-    let memory_methods = quote! {};
-
     // Wasm methods require both wasm feature AND wasm32 target
     #[cfg(all(feature = "wasm", target_arch = "wasm32"))]
     let wasm_methods = quote! {
@@ -360,7 +309,6 @@ pub fn generate_trait_methods(
     quote! {
         #sled_methods
         #redb_methods
-        #memory_methods
         #wasm_methods
     }
 }

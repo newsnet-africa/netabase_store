@@ -6,6 +6,18 @@
 //! - Achieve 10-100x better performance for bulk operations
 //! - Ensure consistency (all operations succeed or all fail)
 //!
+//! ## Backend Support:
+//! This example uses Sled, but batch operations work identically on:
+//! - **Sled**: ✅ Full support (demonstrated here)
+//! - **Redb**: ✅ Full support (same API)
+//!
+//! ## API Consistency:
+//! All sync backends use identical batch API:
+//! - `tree.create_batch()` - Create a batch
+//! - `batch.put(model)` - Add items to batch
+//! - `batch.remove(key)` - Remove items in batch
+//! - `batch.commit()` - Commit atomically
+//!
 //! Run this example with:
 //! ```bash
 //! cargo run --example batch_operations --features native
@@ -67,7 +79,9 @@ use models::*;
 fn main() -> anyhow::Result<()> {
     println!("=== Netabase Store: Batch Operations Example ===\n");
 
-    // Create a temporary store
+    // Create a temporary store (uses Sled by default)
+    // ✅ Backend Note: This works identically with Redb backend
+    // To use Redb instead: NetabaseStore::redb("./my_db.redb")?
     let store = NetabaseStore::<AppDefinition, _>::temp()?;
     let product_tree = store.open_tree::<Product>();
 
@@ -91,16 +105,22 @@ fn main() -> anyhow::Result<()> {
     println!("----------------------------------");
     cross_model_example(&store)?;
 
-    println!("\n✅ All batch operation examples completed successfully!");
+    println!("✅ All batch operation examples completed successfully!");
+    println!("\n💡 Backend Compatibility:");
+    println!("   This example uses Sled, but BOTH sync backends support batch operations:");
+    println!("   • Sled: Native, persistent (shown here)");
+    println!("   • Redb: Native, persistent (same API)");
+    println!("\n   For testing: Use temp() methods for fast, isolated tests");
 
     Ok(())
 }
 
 /// Example 1: Basic batch insert of multiple products
+/// ✅ This API works identically on Sled and Redb backends
 fn basic_batch_example(
     product_tree: &netabase_store::databases::sled_store::SledStoreTree<'_, AppDefinition, Product>,
 ) -> anyhow::Result<()> {
-    // Create a batch
+    // Create a batch - API is identical on all backends
     let mut batch = product_tree.create_batch()?;
 
     // Add multiple products to the batch
@@ -212,6 +232,7 @@ fn performance_comparison(
 }
 
 /// Example 3: Mixed batch operations (both puts and removes)
+/// ✅ Mixed operations work the same way on both sync backends
 fn mixed_batch_operations(
     product_tree: &netabase_store::databases::sled_store::SledStoreTree<'_, AppDefinition, Product>,
 ) -> anyhow::Result<()> {
@@ -266,6 +287,7 @@ fn mixed_batch_operations(
 }
 
 /// Example 4: Using batches with multiple model types
+/// ✅ Both backends support batches across multiple models
 fn cross_model_example(
     store: &NetabaseStore<
         AppDefinition,

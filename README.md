@@ -113,7 +113,7 @@ anyhow = "1.0"
   - **Note:** When using `redb`, the macro generates a `Tables` type and `tables()` method
 - `redb-zerocopy` - Zero-copy Redb variant (maximum performance, requires `redb`)
 - `wasm` - IndexedDB backend for browser/WASM applications
-- `memory` - In-memory backend for testing
+
 
 #### Integration Features:
 - `libp2p` - Enable libp2p integration for distributed systems
@@ -278,6 +278,99 @@ async fn wasm_example() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+### Backend Comparison & Selection Guide
+
+All backends share the same core API through traits, but have different characteristics:
+
+#### 🔹 **Sled** (Recommended for Most Cases)
+- **Type**: Native, persistent, sync
+- **Use Cases**: General-purpose applications, desktop apps, servers
+- **Strengths**: 
+  - Excellent write performance
+  - Crash-safe with recovery
+  - Mature and battle-tested
+  - Simple file-based storage
+- **API Example**: 
+  ```rust
+  let store = NetabaseStore::<BlogDefinition, _>::sled("./my_db")?;
+  let tree = store.open_tree::<User>();
+  tree.put(user)?; // Synchronous operations
+  ```
+
+#### 🔹 **Redb** (Optimized for Reads)
+- **Type**: Native, persistent, sync
+- **Use Cases**: Read-heavy workloads, embedded databases
+- **Strengths**:
+  - Zero-copy reads (fastest read performance)
+  - Memory-efficient
+  - ACID compliant
+  - Smaller file size than Sled
+- **API Example**:
+  ```rust
+  let store = NetabaseStore::<BlogDefinition, _>::redb("./my_db.redb")?;
+  let tree = store.open_tree::<User>();
+  tree.put(user)?; // Synchronous operations
+  ```
+
+#### 🔹 **RedbZeroCopy** (Advanced, Explicit Transactions)
+- **Type**: Native, persistent, explicit transactions
+- **Use Cases**: Maximum performance, explicit transaction control
+- **Strengths**:
+  - Zero-copy reads
+  - Explicit transaction API for fine-grained control
+  - Best performance for bulk operations
+- **API Difference**: Requires explicit transaction management
+  ```rust
+  use netabase_store::databases::redb_zerocopy::RedbStoreZeroCopy;
+  let store = RedbStoreZeroCopy::<BlogDefinition>::new("./my_db.redb")?;
+  
+  // Must use explicit transactions
+  let mut txn = store.begin_write()?;
+  let mut tree = txn.open_tree::<User>()?;
+  tree.put(user)?;
+  drop(tree);
+  txn.commit()?; // Must explicitly commit
+  ```
+
+
+
+#### 🔹 **IndexedDB** (Browser/WASM)
+- **Type**: WASM, persistent, async
+- **Use Cases**: Web applications, browser-based storage
+- **Strengths**:
+  - Native browser storage
+  - Persistent across sessions
+  - Standard web API
+- **API Difference**: All operations are async
+  ```rust
+  let store = IndexedDBStore::<BlogDefinition>::new("my_db").await?;
+  let tree = store.open_tree::<User>();
+  tree.put(user).await?; // Note: async operations
+  let result = tree.get(user.primary_key()).await?;
+  ```
+
+#### Quick Selection Guide
+
+| Backend | Persistence | Async | Best For | Avoid If |
+|---------|-------------|-------|----------|----------|
+| **Sled** | ✅ Disk | ❌ Sync | General purpose, high writes | WASM target |
+| **Redb** | ✅ Disk | ❌ Sync | Read-heavy, low memory | Need fastest writes |
+| **RedbZeroCopy** | ✅ Disk | ❌ Sync | Bulk ops, transaction control | Want simple API |
+| **IndexedDB** | ✅ Browser | ✅ Async | Web/WASM apps | Native targets |
+
+**Performance Notes**:
+- All backends support batch operations (10-100x faster for bulk inserts)
+- All backends support secondary key queries
+- All backends (except RedbZeroCopy) support the transaction API: `store.read()` and `store.write()`
+- Sled and Redb have similar performance, with Redb slightly faster for reads
+- For testing, use temp() methods for fast, isolated tests
+
+**API Compatibility**:
+- ✅ All sync backends (Sled, Redb) have identical APIs
+- ✅ RedbZeroCopy requires explicit transaction management
+- ⚠️ IndexedDB uses async (`.await`) for all operations
+- ✅ All backends support the same data models and secondary keys
+
 ## Advanced Usage
 
 ### Configuration API
@@ -390,23 +483,17 @@ txn.commit()?;
 - `put_many(Vec<M>)` - Insert multiple models in one transaction
 - `get_many(Vec<M::PrimaryKey>)` - Read multiple models in one transaction
 
-**Backend-Specific Bulk Methods:**
-
-For Redb, you can also use direct bulk methods without transactions:
-```rust
-use netabase_store::databases::redb_store::RedbStore;
-
-let store = RedbStore::<BlogDefinition>::new("./my_db.redb")?;
-let user_tree = store.open_tree::<User>();
-
-// Redb supports direct bulk operations
-user_tree.put_many(users)?;
-```
+**Backend Support:**
+- **Sled**: ✅ Full support via transactions and batch API
+- **Redb**: ✅ Full support via transactions and batch API  
+- Both backends provide identical API and performance benefits
 
 **Performance Benefits:**
 - ⚡ **10-100x faster** than individual operations
 - 🔒 **Atomic**: All succeed or all fail
 - 📦 **Efficient**: Single transaction reduces overhead
+
+For more examples, see `examples/batch_operations_all_backends.rs`
 
 **Or use the batch API for more control:**
 
@@ -425,10 +512,7 @@ for i in 0..1000 {
 batch.commit()?;
 ```
 
-Bulk operations are:
-- ⚡ **Faster**: 8-10x faster than individual operations
-- 🔒 **Atomic**: All succeed or all fail
-- 📦 **Efficient**: Single transaction reduces overhead
+The batch API provides fine-grained control and is supported on both sync backends (Sled, Redb).
 
 ### Transactions (New!)
 
@@ -480,6 +564,12 @@ let txn = store.read();  // ReadOnly transaction
 let tree = txn.open_tree::<User>();
 tree.put(user)?;  // ❌ Compile error: put() not available on ReadOnly!
 ```
+
+**Backend Support Notes:**
+- **Sled, Redb**: Full support for `store.read()` and `store.write()` transaction API
+- **RedbZeroCopy**: Uses explicit `store.begin_write()` and `txn.commit()` pattern (different API)
+- **IndexedDB**: Async operations, transactions handled internally by browser
+- See `examples/transactions.rs` for detailed examples
 
 ### Secondary Keys
 
@@ -1049,10 +1139,43 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for a deep dive into the library's desi
 
 See the [`test_netabase_store_usage`](../test_netabase_store_usage) crate for a complete working example.
 
-Additional examples in the repository:
-- `examples/basic_store.rs` - Basic CRUD operations
-- `examples/unified_api.rs` - Working with multiple backends
-- `tests/wasm_tests.rs` - WASM usage patterns
+### Core Examples
+- `examples/basic_store.rs` - Basic CRUD operations with Sled
+- `examples/unified_api.rs` - Working with the NetabaseStore unified API
+- `examples/config_api_showcase.rs` - Configuration system and backend switching
+
+
+
+### Single-Backend Examples
+- `examples/batch_operations.rs` - Batch operations (Sled-focused)
+- `examples/transactions.rs` - Transaction API (Sled-focused)
+- `examples/redb_basic.rs` - Redb-specific features
+- `examples/redb_zerocopy.rs` - RedbZeroCopy explicit transaction API
+- `examples/subscription_demo.rs` - Change notification system
+- `examples/subscription_streams.rs` - Advanced streaming examples
+
+### Test Examples
+- `tests/backend_crud_tests.rs` - Comprehensive CRUD tests for all backends
+- `tests/wasm_tests.rs` - WASM/IndexedDB usage patterns
+- `tests/comprehensive_store_tests.rs` - Full test suite
+
+### Running Examples
+
+```bash
+# Run multi-backend examples (automatically includes available backends)
+cargo run --example batch_operations_all_backends --features native
+cargo run --example transactions_all_backends --features native
+
+# Run with specific backends
+cargo run --example batch_operations_all_backends --features "sled,redb"
+cargo run --example transactions_all_backends --features "sled"
+
+# Run single-backend examples
+cargo run --example basic_store --features native
+cargo run --example redb_zerocopy --features redb-zerocopy
+```
+
+**Note**: Examples work with both Sled and Redb backends. Switch backends by changing the initialization method.
 
 ## Why Netabase Store?
 

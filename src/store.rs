@@ -93,12 +93,6 @@ where
     }
 }
 
-#[cfg(feature = "memory")]
-impl<D> BackendFor<D> for crate::databases::memory_store::MemoryStore<D> where
-    D: NetabaseDefinitionTrait
-{
-}
-
 /// Unified store wrapper providing a consistent API across all storage backends.
 ///
 /// This generic wrapper allows you to write backend-agnostic code while still
@@ -512,40 +506,6 @@ where
         Ok(Self::from_backend(
             crate::databases::redb_store::RedbStore::open(path)?,
         ))
-    }
-}
-
-#[cfg(feature = "memory")]
-impl<D> NetabaseStore<D, crate::databases::memory_store::MemoryStore<D>>
-where
-    D: NetabaseDefinitionTrait + crate::convert::ToIVec,
-    <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
-{
-    /// Create a new in-memory store.
-    ///
-    /// This is useful for testing or temporary storage.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use netabase_store::{NetabaseStore, netabase_definition_module};
-    /// # #[netabase_definition_module(MyDefinition, MyKeys)]
-    /// # mod models {
-    /// #     use netabase_store::{NetabaseModel, netabase};
-    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
-    /// #              bincode::Encode, bincode::Decode,
-    /// #              serde::Serialize, serde::Deserialize)]
-    /// #     #[netabase(MyDefinition)]
-    /// #     pub struct User {
-    /// #         #[primary_key]
-    /// #         pub id: u64,
-    /// #     }
-    /// # }
-    /// # use models::*;
-    /// let store = NetabaseStore::memory();
-    /// ```
-    pub fn memory() -> Self {
-        Self::from_backend(crate::databases::memory_store::MemoryStore::new())
     }
 }
 

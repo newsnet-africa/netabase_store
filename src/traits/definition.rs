@@ -225,27 +225,6 @@ where
         store: &'a crate::databases::redb_store::RedbStore<Self>,
     ) -> Box<dyn Iterator<Item = std::borrow::Cow<'a, libp2p::kad::Record>> + 'a>;
 
-    /// Put this Definition into a Memory store
-    #[cfg(feature = "memory")]
-    fn handle_memory_put(
-        &self,
-        store: &crate::databases::memory_store::MemoryStore<Self>,
-    ) -> libp2p::kad::store::Result<()>;
-
-    /// Get a Definition from a Memory store using a RecordKey
-    #[cfg(feature = "memory")]
-    fn handle_memory_get(
-        store: &crate::databases::memory_store::MemoryStore<Self>,
-        key: &libp2p::kad::RecordKey,
-    ) -> Option<(Self, libp2p::kad::Record)>;
-
-    /// Remove from a Memory store using a RecordKey
-    #[cfg(feature = "memory")]
-    fn handle_memory_remove(
-        store: &crate::databases::memory_store::MemoryStore<Self>,
-        key: &libp2p::kad::RecordKey,
-    );
-
     /// Put this Definition into an IndexedDB store
     #[cfg(all(feature = "wasm", target_arch = "wasm32"))]
     fn handle_indexeddb_put(

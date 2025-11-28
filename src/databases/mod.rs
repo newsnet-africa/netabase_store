@@ -124,34 +124,6 @@
 //! tree.put(user).await?;
 //! ```
 //!
-//! ### Testing Backend
-//!
-//! #### Memory Store (`memory_store`)
-//! - **Best for**: Unit tests, caching
-//! - **Features**: No I/O, no cleanup needed, fast
-//! - **Note**: Data is lost when dropped
-//! - **Always available**: No feature flag needed
-//!
-//! Example:
-//! ```
-//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
-//! use netabase_store::databases::memory_store::MemoryStore;
-//!
-//! #[netabase_definition_module(MyDef, MyKeys)]
-//! mod models {
-//!     use netabase_store::{NetabaseModel, netabase};
-//!     #[derive(NetabaseModel, Clone, Debug,
-//!              bincode::Encode, bincode::Decode,
-//!              serde::Serialize, serde::Deserialize)]
-//!     #[netabase(MyDef)]
-//!     pub struct User { #[primary_key] pub id: u64, pub name: String }
-//! }
-//! use models::*;
-//!
-//! let store = MemoryStore::<MyDef>::new();
-//! let tree = store.open_tree::<User>();
-//! ```
-//!
 //! ## Performance Comparison
 //!
 //! | Backend | Insert (1000 items) | Get (1000 items) | Best For |
@@ -159,7 +131,6 @@
 //! | Redb (bulk) | 3.10 ms | 382 µs | Write-heavy |
 //! | Sled | ~4 ms | ~305 µs | Read-heavy |
 //! | ZeroCopy | 3.51 ms | 692 µs | High-performance |
-//! | Memory | <1 ms | <50 µs | Testing |
 //!
 //! ## Choosing a Backend
 //!
@@ -172,7 +143,7 @@
 //!    - Use `indexeddb_store` (only option for WASM)
 //!
 //! 3. **For testing**:
-//!    - Use `memory_store` for fast, isolated tests
+//!    - Use temporary stores with `temp()` methods for fast, isolated tests
 //!
 //! ## Bulk Methods vs Transactions
 //!
@@ -204,9 +175,6 @@ pub mod sled_store;
 
 #[cfg(all(feature = "wasm", target_arch = "wasm32"))]
 pub mod indexeddb_store;
-
-// In-memory backend (always available)
-pub mod memory_store;
 
 // libp2p RecordStore implementation module (native-only, requires mio/networking)
 #[cfg(all(feature = "libp2p", not(target_arch = "wasm32")))]

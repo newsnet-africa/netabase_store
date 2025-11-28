@@ -3,6 +3,18 @@
 //! This example demonstrates the new type-safe transaction API with compile-time
 //! guarantees for read-only vs read-write access.
 //!
+//! ## Backend Support:
+//! This example uses Sled, but the transaction API works identically on:
+//! - **Sled**: ✅ Full support (demonstrated here)
+//! - **Redb**: ✅ Full support (same API)
+//!
+//! ## API Consistency:
+//! All sync backends use identical transaction API:
+//! - `store.read()` - Create read-only transaction
+//! - `store.write()` - Create read-write transaction
+//! - `txn.open_tree::<Model>()` - Open tree within transaction
+//! - `txn.commit()` - Commit changes
+//!
 //! Run with:
 //! ```bash
 //! cargo run --example transactions --features "native sled"
@@ -61,13 +73,17 @@ use schema::*;
 fn main() -> Result<()> {
     println!("🔥 Transaction API Example\n");
 
-    // Create a temporary store for this example
+    // Create a temporary store for this example (uses Sled by default)
+    // ✅ Backend Note: This works identically with Redb backend
+    // To use Redb instead: NetabaseStore::redb("./my_db.redb")?
     let store = NetabaseStore::<BlogDefinition, _>::temp()?;
     println!("✅ Created temporary Sled store\n");
+    println!("💡 Note: Transaction API is identical on Sled and Redb backends\n");
 
     // ========================================================================
     // Example 1: Read-Only Transaction
     // ========================================================================
+    // ✅ API Note: store.read() works identically on Sled and Redb
     println!("📖 Example 1: Read-Only Transaction");
     println!("   Multiple concurrent reads without blocking\n");
 
@@ -91,6 +107,7 @@ fn main() -> Result<()> {
     // ========================================================================
     // Example 2: Read-Write Transaction with Single Insert
     // ========================================================================
+    // ✅ API Note: store.write() works identically on all sync backends
     println!("✍️  Example 2: Read-Write Transaction (Single Insert)");
 
     {
@@ -113,6 +130,7 @@ fn main() -> Result<()> {
     // ========================================================================
     // Example 3: Bulk Inserts with Transaction (Performance Optimization)
     // ========================================================================
+    // ✅ Performance Note: All backends provide 10-100x speedup with transactions
     println!("⚡ Example 3: Bulk Inserts with Transaction");
     println!("   Single transaction for 1000 inserts (10-100x faster!)\n");
 
@@ -328,6 +346,10 @@ fn main() -> Result<()> {
     println!("   • Zero-cost abstractions (phantom types compile away)");
     println!("   • Automatic rollback on drop if not committed");
     println!("   • Works with both read-only and read-write operations");
+    println!("\n🔄 Backend Compatibility:");
+    println!("   • This example uses Sled, but the API is IDENTICAL on:");
+    println!("     - Redb: Same transaction API, zero-copy reads");
+    println!("   • For testing: Use temp() methods for fast, isolated tests");
 
     Ok(())
 }

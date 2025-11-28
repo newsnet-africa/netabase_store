@@ -28,7 +28,7 @@ redb-zerocopy = ["redb", "dep:ouroboros", "netabase_macros/redb-zerocopy"]
 libp2p = ["dep:libp2p", "netabase_macros/libp2p"]
 record-store = ["libp2p"]
 uniffi = ["netabase_macros/uniffi"]
-memory = ["default", "netabase_macros/memory"]
+
 wasm = ["web-sys", "js-sys", "wasm-bindgen", "wasm-bindgen-futures", "indexed_db_futures", "netabase_macros/wasm"]
 
 [dependencies]
