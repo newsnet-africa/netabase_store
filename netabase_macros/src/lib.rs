@@ -1,8 +1,8 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    DeriveInput, Ident, ItemMod, Token, parse::Parser, parse_macro_input, punctuated::Punctuated,
-    visit::Visit,
+    DeriveInput, Ident, ItemMod, Token, parse::Parser, parse_macro_input, parse_quote,
+    punctuated::Punctuated, visit::Visit,
 };
 
 use crate::visitors::{
@@ -496,6 +496,23 @@ pub fn netabase_model_derive(input: TokenStream) -> TokenStream {
     let borrow_impls = visitor.generate_borrow_impls();
     let extension_traits = visitor.generate_key_extension_traits();
 
+    // Generate relation types and traits if the model has RelationalLink fields
+    // Only enable enum generation to isolate trait implementation issues
+    let relations_enum = visitor
+        .generate_relations_enum()
+        .map(|e| quote! { #e })
+        .unwrap_or_else(|| quote::quote! {});
+    let relation_discriminant_impl = visitor
+        .generate_relation_discriminant_impl()
+        .unwrap_or_else(|| quote::quote! {});
+
+    // Temporarily disable relation trait implementation to fix trait bound errors
+    let relation_trait_impl = quote::quote! {};
+    let relation_helpers = quote::quote! {};
+    let relation_markers = quote::quote! {};
+    // Disable type alias generation to avoid conflicts
+    let relation_type_alias = quote::quote! {};
+
     quote! {
         #p
         #(#sl)*
@@ -504,6 +521,12 @@ pub fn netabase_model_derive(input: TokenStream) -> TokenStream {
         #(#trait_impl)*
         #(#borrow_impls)*
         #(#extension_traits)*
+        #relations_enum
+        #relation_discriminant_impl
+        #relation_trait_impl
+        #relation_helpers
+        #relation_markers
+        #relation_type_alias
         #uniffi_struct
     }
     .into()

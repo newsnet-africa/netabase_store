@@ -32,8 +32,7 @@ impl<'a> Visit<'a> for ModelVisitor<'a> {
                  \n\
                  ════════════════════════════════════════════════════════════════\n\
                  ",
-                i.ident,
-                e
+                i.ident, e
             ),
         };
         self.definitions = Self::find_definitions(i);

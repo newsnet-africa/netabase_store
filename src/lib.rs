@@ -725,6 +725,7 @@
 pub mod config;
 pub mod databases;
 pub mod error;
+pub mod links;
 // NOTE: Phase 4 - guards module re-enabled with proper architecture
 // Guard-based API now works with proper lifetime management
 #[cfg(all(feature = "redb", feature = "redb-zerocopy"))]

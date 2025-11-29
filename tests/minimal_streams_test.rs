@@ -16,6 +16,7 @@ mod test_module {
         bincode::Decode,
         Clone,
         Debug,
+        PartialEq,
         serde::Serialize,
         serde::Deserialize,
     )]

@@ -1,0 +1,910 @@
+//! Comprehensive example demonstrating RelationalLink functionality
+//!
+//! This example showcases all aspects of RelationalLink usage including:
+//! - Basic creation and manipulation
+//! - Hydration patterns
+//! - Performance considerations
+//! - Best practices for different use cases
+//! - Integration with storage backends
+
+use netabase_store::links::RelationalLink;
+use netabase_store::traits::links::link_utils;
+use netabase_store::*;
+use std::collections::HashMap;
+use std::error::Error;
+use std::time::Instant;
+
+// Define a comprehensive schema for our example
+#[netabase_definition_module(BlogDefinition, BlogDefinitionKey)]
+mod blog_schema {
+    use super::*;
+
+    #[derive(
+        NetabaseModel,
+        Clone,
+        Debug,
+        bincode::Encode,
+        bincode::Decode,
+        PartialEq,
+        serde::Serialize,
+        serde::Deserialize,
+    )]
+    #[netabase(BlogDefinition)]
+    pub struct User {
+        #[primary_key]
+        pub id: u64,
+        pub username: String,
+        pub email: String,
+        pub profile_url: Option<String>,
+        pub created_at: u64,
+    }
+
+    #[derive(
+        NetabaseModel,
+        Clone,
+        Debug,
+        bincode::Encode,
+        bincode::Decode,
+        PartialEq,
+        serde::Serialize,
+        serde::Deserialize,
+    )]
+    #[netabase(BlogDefinition)]
+    pub struct Category {
+        #[primary_key]
+        pub id: u64,
+        pub name: String,
+        pub description: String,
+        pub color: String,
+    }
+
+    #[derive(
+        NetabaseModel,
+        Clone,
+        Debug,
+        bincode::Encode,
+        bincode::Decode,
+        PartialEq,
+        serde::Serialize,
+        serde::Deserialize,
+    )]
+    #[netabase(BlogDefinition)]
+    pub struct Tag {
+        #[primary_key]
+        pub id: u64,
+        pub name: String,
+        pub usage_count: u64,
+    }
+
+    #[derive(
+        NetabaseModel,
+        Clone,
+        Debug,
+        bincode::Encode,
+        bincode::Decode,
+        PartialEq,
+        serde::Serialize,
+        serde::Deserialize,
+    )]
+    #[netabase(BlogDefinition)]
+    pub struct Post {
+        #[primary_key]
+        pub id: u64,
+        pub title: String,
+        pub content: String,
+        pub summary: String,
+        pub author_id: u64, // Traditional foreign key for comparison
+        pub category_id: u64,
+        pub created_at: u64,
+        pub updated_at: u64,
+        pub published: bool,
+        pub view_count: u64,
+    }
+
+    #[derive(
+        NetabaseModel,
+        Clone,
+        Debug,
+        bincode::Encode,
+        bincode::Decode,
+        PartialEq,
+        serde::Serialize,
+        serde::Deserialize,
+    )]
+    #[netabase(BlogDefinition)]
+    pub struct Comment {
+        #[primary_key]
+        pub id: u64,
+        pub content: String,
+        pub author_id: u64,
+        pub post_id: u64,
+        pub parent_comment_id: Option<u64>,
+        pub created_at: u64,
+        pub approved: bool,
+    }
+
+    // Models using RelationalLink for better relationship management
+    #[derive(Clone, Debug, bincode::Encode, bincode::Decode, PartialEq)]
+    pub struct PostWithLinks {
+        pub id: u64,
+        pub title: String,
+        pub content: String,
+        pub summary: String,
+        pub author: RelationalLink<BlogDefinition, User>,
+        pub category: RelationalLink<BlogDefinition, Category>,
+        pub tags: Vec<RelationalLink<BlogDefinition, Tag>>,
+        pub created_at: u64,
+        pub updated_at: u64,
+        pub published: bool,
+        pub view_count: u64,
+    }
+
+    #[derive(Clone, Debug, bincode::Encode, bincode::Decode, PartialEq)]
+    pub struct CommentWithLinks {
+        pub id: u64,
+        pub content: String,
+        pub author: RelationalLink<BlogDefinition, User>,
+        pub post: RelationalLink<BlogDefinition, Post>,
+        pub parent_comment: Option<RelationalLink<BlogDefinition, Comment>>,
+        pub created_at: u64,
+        pub approved: bool,
+    }
+
+    // Complex aggregation using RelationalLinks
+    #[derive(Clone, Debug, bincode::Encode, bincode::Decode, PartialEq)]
+    pub struct BlogSummary {
+        pub id: u64,
+        pub title: String,
+        pub description: String,
+        pub owner: RelationalLink<BlogDefinition, User>,
+        pub featured_posts: Vec<RelationalLink<BlogDefinition, Post>>,
+        pub popular_categories: Vec<RelationalLink<BlogDefinition, Category>>,
+        pub top_contributors: Vec<RelationalLink<BlogDefinition, User>>,
+        pub recent_comments: Vec<RelationalLink<BlogDefinition, Comment>>,
+        pub stats: BlogStats,
+    }
+
+    #[derive(Clone, Debug, bincode::Encode, bincode::Decode, PartialEq)]
+    pub struct BlogStats {
+        pub total_posts: u64,
+        pub total_comments: u64,
+        pub total_users: u64,
+        pub total_views: u64,
+    }
+}
+
+use blog_schema::*;
+
+#[cfg(feature = "native")]
+fn main() -> Result<(), Box<dyn Error>> {
+    println!("=== RelationalLink Showcase ===\n");
+
+    // Setup storage
+    let temp_dir = tempfile::tempdir()?;
+    let store =
+        netabase_store::databases::sled_store::SledStore::<BlogDefinition>::new(temp_dir.path())?;
+
+    // Run all examples
+    basic_relational_link_usage(&store)?;
+    hydration_patterns(&store)?;
+    collection_operations(&store)?;
+    performance_comparisons(&store)?;
+    lazy_loading_patterns(&store)?;
+    complex_relationship_modeling(&store)?;
+    serialization_examples()?;
+    best_practices_showcase(&store)?;
+
+    println!("\n=== All examples completed successfully! ===");
+    Ok(())
+}
+
+#[cfg(not(feature = "native"))]
+fn main() {
+    println!("This example requires the 'native' feature to be enabled.");
+    println!("Run with: cargo run --features native --example relational_links_showcase");
+}
+
+#[cfg(feature = "native")]
+fn basic_relational_link_usage(
+    store: &netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+) -> Result<(), Box<dyn Error>> {
+    println!("🔗 Basic RelationalLink Usage");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    // Create some basic entities
+    let author = User {
+        id: 1,
+        username: "jane_doe".to_string(),
+        email: "jane@example.com".to_string(),
+        profile_url: Some("https://example.com/jane".to_string()),
+        created_at: 1640995200,
+    };
+
+    let category = Category {
+        id: 1,
+        name: "Technology".to_string(),
+        description: "Posts about technology and programming".to_string(),
+        color: "#3498db".to_string(),
+    };
+
+    // Store the entities
+    let user_tree = store.open_tree();
+    let category_tree = store.open_tree();
+
+    user_tree.put_raw(author.clone())?;
+    category_tree.put_raw(category.clone())?;
+
+    // Demonstrate different ways to create RelationalLinks
+    println!("1. Creating RelationalLink variants:");
+
+    // Entity variant - contains the full object
+    let author_entity_link = RelationalLink::Entity(author.clone());
+    println!("   Entity link: Contains full user data");
+
+    // Reference variant - contains only the key
+    let author_ref_link = RelationalLink::from_key(author.id);
+    println!("   Reference link: Contains only user ID ({})", author.id);
+
+    // Using From trait
+    let author_from_link: RelationalLink<BlogDefinition, User> = author.clone().into();
+    println!("   From trait: Converts entity to Entity link");
+
+    // Verify they represent the same logical entity but are different variants
+    assert_eq!(
+        link_utils::extract_key(&author_entity_link),
+        link_utils::extract_key(&author_ref_link)
+    );
+    assert!(link_utils::is_entity(&author_entity_link));
+    assert!(!link_utils::is_entity(&author_ref_link));
+
+    println!("   ✓ All links point to the same logical entity\n");
+
+    // Create a post with mixed link types
+    let post_with_links = PostWithLinks {
+        id: 1,
+        title: "Understanding RelationalLinks".to_string(),
+        content: "This post explains how RelationalLinks work...".to_string(),
+        summary: "A guide to RelationalLinks".to_string(),
+        author: author_entity_link,                      // Full entity
+        category: RelationalLink::from_key(category.id), // Just reference
+        tags: vec![],                                    // Empty for this example
+        created_at: 1640995200,
+        updated_at: 1640995200,
+        published: true,
+        view_count: 0,
+    };
+
+    println!("2. Created PostWithLinks with mixed link types:");
+    println!("   Author: Entity variant (immediate access)");
+    println!("   Category: Reference variant (lazy loading)");
+
+    // Access the author immediately (no database lookup needed)
+    if let RelationalLink::Entity(post_author) = &post_with_links.author {
+        println!("   Author name: {}", post_author.username);
+    }
+
+    println!("   ✓ Mixed link types working correctly\n");
+    Ok(())
+}
+
+#[cfg(feature = "native")]
+fn hydration_patterns(
+    store: &netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+) -> Result<(), Box<dyn Error>> {
+    println!("💧 Hydration Patterns");
+    println!("━━━━━━━━━━━━━━━━━━━━━");
+
+    // Setup test data
+    let user = User {
+        id: 2,
+        username: "hydration_test".to_string(),
+        email: "hydration@example.com".to_string(),
+        profile_url: None,
+        created_at: 1640995200,
+    };
+
+    let user_tree = store.open_tree();
+    user_tree.put_raw(user.clone())?;
+
+    println!("1. Entity variant hydration (immediate):");
+    let entity_link = RelationalLink::Entity(user.clone());
+    let start = Instant::now();
+    let hydrated_entity = entity_link.hydrate(user_tree.clone())?;
+    let entity_duration = start.elapsed();
+
+    println!("   Result: {:?}", hydrated_entity.is_some());
+    println!("   Time: {:?} (immediate, no I/O)", entity_duration);
+
+    println!("\n2. Reference variant hydration (database lookup):");
+    let ref_link = RelationalLink::from_key(user.id);
+    let start = Instant::now();
+    let hydrated_ref = ref_link.hydrate(user_tree.clone())?;
+    let ref_duration = start.elapsed();
+
+    println!("   Result: {:?}", hydrated_ref.is_some());
+    println!("   Time: {:?} (requires database I/O)", ref_duration);
+
+    // Verify both return the same data
+    assert_eq!(hydrated_entity, hydrated_ref);
+    assert_eq!(hydrated_entity, Some(user));
+
+    println!("\n3. Missing entity handling:");
+    let missing_link = RelationalLink::<BlogDefinition, User>::from_key(999);
+    let missing_result = missing_link.hydrate(user_tree)?;
+    println!("   Missing entity result: {:?}", missing_result);
+    assert_eq!(missing_result, None);
+
+    println!("   ✓ Hydration patterns working correctly\n");
+    Ok(())
+}
+
+#[cfg(feature = "native")]
+fn collection_operations(
+    store: &netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+) -> Result<(), Box<dyn Error>> {
+    println!("📚 Collection Operations");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    // Create multiple entities
+    let tags = vec![
+        Tag {
+            id: 1,
+            name: "rust".to_string(),
+            usage_count: 100,
+        },
+        Tag {
+            id: 2,
+            name: "programming".to_string(),
+            usage_count: 150,
+        },
+        Tag {
+            id: 3,
+            name: "tutorial".to_string(),
+            usage_count: 75,
+        },
+    ];
+
+    let tag_tree = store.open_tree();
+    for tag in &tags {
+        tag_tree.put_raw(tag.clone())?;
+    }
+
+    println!("1. Creating collections of RelationalLinks:");
+
+    // Mixed collection: some entities, some references
+    let tag_links = vec![
+        RelationalLink::Entity(tags[0].clone()), // Full entity
+        RelationalLink::from_key(tags[1].id),    // Reference only
+        RelationalLink::Entity(tags[2].clone()), // Full entity
+    ];
+
+    println!("   Created {} mixed links", tag_links.len());
+
+    println!("\n2. Hydrating entire collection:");
+    let mut hydrated_tags = Vec::new();
+    for (i, link) in tag_links.iter().enumerate() {
+        let hydrated = link.clone().hydrate(tag_tree.clone())?;
+        if let Some(tag) = hydrated {
+            println!(
+                "   Tag {}: {} (usage: {})",
+                i + 1,
+                tag.name,
+                tag.usage_count
+            );
+            hydrated_tags.push(tag);
+        }
+    }
+
+    assert_eq!(hydrated_tags.len(), 3);
+
+    println!("\n3. Collection utility functions:");
+    let entity_count = tag_links
+        .iter()
+        .filter(|link| link_utils::is_entity(link))
+        .count();
+    let ref_count = tag_links.len() - entity_count;
+
+    println!("   Entity variants: {}", entity_count);
+    println!("   Reference variants: {}", ref_count);
+
+    // Extract all keys regardless of variant
+    let all_keys: Vec<u64> = tag_links
+        .iter()
+        .map(|link| link_utils::extract_key(link))
+        .collect();
+    println!("   All keys: {:?}", all_keys);
+
+    println!("   ✓ Collection operations working correctly\n");
+    Ok(())
+}
+
+#[cfg(feature = "native")]
+fn performance_comparisons(
+    store: &netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+) -> Result<(), Box<dyn Error>> {
+    println!("⚡ Performance Comparisons");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    // Create a large user for testing
+    let large_user = User {
+        id: 100,
+        username: "performance_test_user_with_very_long_name".to_string(),
+        email: "very.long.email.address@example-domain-name.com".to_string(),
+        profile_url: Some(
+            "https://example-domain.com/users/performance_test_user_with_very_long_name/profile"
+                .to_string(),
+        ),
+        created_at: 1640995200,
+    };
+
+    let user_tree = store.open_tree();
+    user_tree.put_raw(large_user.clone())?;
+
+    println!("1. Memory usage comparison:");
+
+    // Measure serialized sizes
+    let entity_link = RelationalLink::Entity(large_user.clone());
+    let ref_link = RelationalLink::from_key(large_user.id);
+
+    let entity_bytes = bincode::encode_to_vec(&entity_link, bincode::config::standard())?;
+    let ref_bytes = bincode::encode_to_vec(&ref_link, bincode::config::standard())?;
+
+    println!("   Entity link size: {} bytes", entity_bytes.len());
+    println!("   Reference link size: {} bytes", ref_bytes.len());
+    println!(
+        "   Space savings: {}x smaller",
+        entity_bytes.len() / ref_bytes.len()
+    );
+
+    println!("\n2. Creation performance (1000 iterations):");
+
+    let iterations = 1000;
+
+    // Entity creation
+    let start = Instant::now();
+    for _ in 0..iterations {
+        let _ = RelationalLink::Entity(large_user.clone());
+    }
+    let entity_creation_time = start.elapsed();
+
+    // Reference creation
+    let start = Instant::now();
+    for _ in 0..iterations {
+        let _ = RelationalLink::<BlogDefinition, User>::from_key(large_user.id);
+    }
+    let ref_creation_time = start.elapsed();
+
+    println!("   Entity creation: {:?}", entity_creation_time);
+    println!("   Reference creation: {:?}", ref_creation_time);
+    println!(
+        "   Reference is {}x faster",
+        entity_creation_time.as_nanos() / ref_creation_time.as_nanos()
+    );
+
+    println!("\n3. Hydration performance (100 iterations):");
+
+    let iterations = 100;
+
+    // Entity hydration (no I/O)
+    let entity_link = RelationalLink::Entity(large_user.clone());
+    let start = Instant::now();
+    for _ in 0..iterations {
+        let _ = entity_link.clone().hydrate(user_tree.clone())?;
+    }
+    let entity_hydration_time = start.elapsed();
+
+    // Reference hydration (requires I/O)
+    let ref_link = RelationalLink::from_key(large_user.id);
+    let start = Instant::now();
+    for _ in 0..iterations {
+        let _ = ref_link.clone().hydrate(user_tree.clone())?;
+    }
+    let ref_hydration_time = start.elapsed();
+
+    println!("   Entity hydration: {:?}", entity_hydration_time);
+    println!("   Reference hydration: {:?}", ref_hydration_time);
+    println!(
+        "   Entity is {}x faster",
+        ref_hydration_time.as_nanos() / entity_hydration_time.as_nanos()
+    );
+
+    println!("   ✓ Performance characteristics measured\n");
+    Ok(())
+}
+
+#[cfg(feature = "native")]
+fn lazy_loading_patterns(
+    store: &netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+) -> Result<(), Box<dyn Error>> {
+    println!("🔄 Lazy Loading Patterns");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    // Setup a realistic scenario: blog with many posts and users
+    let users: Vec<User> = (1..=20)
+        .map(|i| User {
+            id: i,
+            username: format!("user_{}", i),
+            email: format!("user{}@example.com", i),
+            profile_url: None,
+            created_at: 1640995200 + i * 3600,
+        })
+        .collect();
+
+    let posts: Vec<Post> = (1..=50)
+        .map(|i| Post {
+            id: i,
+            title: format!("Post {}", i),
+            content: format!("Content of post {}", i),
+            summary: format!("Summary {}", i),
+            author_id: ((i - 1) % 20) + 1, // Distribute among users
+            category_id: 1,
+            created_at: 1640995200 + i * 1800,
+            updated_at: 1640995200 + i * 1800,
+            published: true,
+            view_count: i * 10,
+        })
+        .collect();
+
+    // Store entities
+    let user_tree = store.open_tree();
+    let post_tree = store.open_tree();
+
+    for user in &users {
+        user_tree.put_raw(user.clone())?;
+    }
+    for post in &posts {
+        post_tree.put_raw(post.clone())?;
+    }
+
+    println!("1. Lazy loading scenario setup:");
+    println!("   Created {} users and {} posts", users.len(), posts.len());
+
+    println!("\n2. Reference-based lazy loading:");
+
+    // Create a blog summary with references (lazy loading)
+    let blog_summary = BlogSummary {
+        id: 1,
+        title: "My Awesome Blog".to_string(),
+        description: "A blog about technology and programming".to_string(),
+        owner: RelationalLink::from_key(1), // Reference to owner
+        featured_posts: posts
+            .iter()
+            .take(5)
+            .map(|p| RelationalLink::from_key(p.id))
+            .collect(),
+        popular_categories: vec![], // Skip for this example
+        top_contributors: users
+            .iter()
+            .take(3)
+            .map(|u| RelationalLink::from_key(u.id))
+            .collect(),
+        recent_comments: vec![], // Skip for this example
+        stats: BlogStats {
+            total_posts: posts.len() as u64,
+            total_comments: 0,
+            total_users: users.len() as u64,
+            total_views: posts.iter().map(|p| p.view_count).sum(),
+        },
+    };
+
+    println!("   Blog summary created with reference-based links");
+    println!(
+        "   Featured posts: {} (references only)",
+        blog_summary.featured_posts.len()
+    );
+    println!(
+        "   Top contributors: {} (references only)",
+        blog_summary.top_contributors.len()
+    );
+
+    println!("\n3. Selective hydration (loading only what's needed):");
+
+    // Load only the owner (immediate need)
+    let owner = blog_summary.owner.clone().hydrate(user_tree.clone())?;
+    if let Some(owner) = owner {
+        println!("   Blog owner: {} ({})", owner.username, owner.email);
+    }
+
+    // Load only the first featured post (on-demand)
+    if let Some(first_featured) = blog_summary.featured_posts.first() {
+        let post = first_featured.clone().hydrate(post_tree.clone())?;
+        if let Some(post) = post {
+            println!("   First featured post: '{}'", post.title);
+        }
+    }
+
+    println!(
+        "   ✓ Loaded only 2 entities out of {} available",
+        1 + blog_summary.featured_posts.len() + blog_summary.top_contributors.len()
+    );
+
+    println!("\n4. Batch loading pattern:");
+
+    // When we need multiple entities, load them all at once
+    let mut loaded_contributors = Vec::new();
+    for contributor_link in &blog_summary.top_contributors {
+        if let Some(contributor) = contributor_link.clone().hydrate(user_tree.clone())? {
+            loaded_contributors.push(contributor);
+        }
+    }
+
+    println!("   Loaded {} top contributors:", loaded_contributors.len());
+    for contributor in &loaded_contributors {
+        println!("   - {}", contributor.username);
+    }
+
+    println!("   ✓ Lazy loading patterns demonstrated\n");
+    Ok(())
+}
+
+#[cfg(feature = "native")]
+fn complex_relationship_modeling(
+    store: &netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+) -> Result<(), Box<dyn Error>> {
+    println!("🕸️  Complex Relationship Modeling");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    // Create a complex scenario with nested relationships
+    let author = User {
+        id: 50,
+        username: "prolific_author".to_string(),
+        email: "author@example.com".to_string(),
+        profile_url: Some("https://example.com/author".to_string()),
+        created_at: 1640995200,
+    };
+
+    let post = Post {
+        id: 100,
+        title: "Complex Relationships in Databases".to_string(),
+        content: "This post explores complex relationship modeling...".to_string(),
+        summary: "A deep dive into database relationships".to_string(),
+        author_id: author.id,
+        category_id: 1,
+        created_at: 1640995200,
+        updated_at: 1640995200,
+        published: true,
+        view_count: 1500,
+    };
+
+    let comment1 = Comment {
+        id: 1,
+        content: "Great explanation of RelationalLinks!".to_string(),
+        author_id: author.id,
+        post_id: post.id,
+        parent_comment_id: None,
+        created_at: 1640995300,
+        approved: true,
+    };
+
+    let comment2 = Comment {
+        id: 2,
+        content: "I agree with the previous comment.".to_string(),
+        author_id: author.id,
+        post_id: post.id,
+        parent_comment_id: Some(comment1.id), // Nested comment
+        created_at: 1640995400,
+        approved: true,
+    };
+
+    // Store all entities
+    let user_tree = store.open_tree();
+    let post_tree = store.open_tree();
+    let comment_tree = store.open_tree();
+
+    user_tree.put_raw(author.clone())?;
+    post_tree.put_raw(post.clone())?;
+    comment_tree.put_raw(comment1.clone())?;
+    comment_tree.put_raw(comment2.clone())?;
+
+    println!("1. Creating nested comment structure:");
+
+    // Create a comment with links to related entities
+    let comment_with_links = CommentWithLinks {
+        id: comment2.id,
+        content: comment2.content.clone(),
+        author: RelationalLink::Entity(author.clone()), // Immediate access
+        post: RelationalLink::from_key(post.id),        // Lazy load
+        parent_comment: Some(RelationalLink::from_key(comment1.id)), // Nested reference
+        created_at: comment2.created_at,
+        approved: comment2.approved,
+    };
+
+    println!("   Comment created with links to:");
+    println!("   - Author (Entity variant)");
+    println!("   - Post (Reference variant)");
+    println!("   - Parent comment (Optional Reference variant)");
+
+    println!("\n2. Traversing the relationship graph:");
+
+    // Access author immediately
+    if let RelationalLink::Entity(comment_author) = &comment_with_links.author {
+        println!("   Comment author: {}", comment_author.username);
+    }
+
+    // Load the post
+    let linked_post = comment_with_links.post.clone().hydrate(post_tree)?;
+    if let Some(linked_post) = linked_post {
+        println!("   Commented on post: '{}'", linked_post.title);
+    }
+
+    // Load parent comment if it exists
+    if let Some(parent_link) = &comment_with_links.parent_comment {
+        let parent_comment = parent_link.clone().hydrate(comment_tree)?;
+        if let Some(parent_comment) = parent_comment {
+            println!("   Reply to comment: '{}'", parent_comment.content);
+        }
+    }
+
+    println!("\n3. Relationship traversal patterns:");
+
+    // Pattern 1: Following a chain of relationships
+    println!("   Following relationship chain:");
+    println!("   Comment → Post → Author");
+
+    if let Some(post) = comment_with_links.post.clone().hydrate(post_tree)? {
+        let post_author = RelationalLink::<BlogDefinition, User>::from_key(post.author_id);
+        if let Some(author) = post_author.hydrate(user_tree)? {
+            println!("   Post '{}' by {}", post.title, author.username);
+        }
+    }
+
+    // Pattern 2: Bi-directional relationships
+    println!("   Bi-directional relationships:");
+    println!("   Comment ↔ Parent Comment ↔ Child Comments");
+
+    // In a real application, you might maintain reverse indexes or collections
+    let related_comments = vec![
+        RelationalLink::from_key(comment1.id),
+        RelationalLink::from_key(comment2.id),
+    ];
+
+    println!(
+        "   Found {} related comments in thread",
+        related_comments.len()
+    );
+
+    println!("   ✓ Complex relationship modeling demonstrated\n");
+    Ok(())
+}
+
+fn serialization_examples() -> Result<(), Box<dyn Error>> {
+    println!("💾 Serialization Examples");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    let user = User {
+        id: 1,
+        username: "serialization_test".to_string(),
+        email: "test@example.com".to_string(),
+        profile_url: None,
+        created_at: 1640995200,
+    };
+
+    println!("1. Basic serialization:");
+
+    // Entity variant serialization
+    let entity_link = RelationalLink::Entity(user.clone());
+    let entity_bytes = bincode::encode_to_vec(&entity_link, bincode::config::standard())?;
+    println!("   Entity variant: {} bytes", entity_bytes.len());
+
+    // Reference variant serialization
+    let ref_link = RelationalLink::<BlogDefinition, User>::from_key(user.id);
+    let ref_bytes = bincode::encode_to_vec(&ref_link, bincode::config::standard())?;
+    println!("   Reference variant: {} bytes", ref_bytes.len());
+
+    println!(
+        "   Size difference: {}x smaller for reference",
+        entity_bytes.len() / ref_bytes.len()
+    );
+
+    println!("\n2. Round-trip serialization:");
+
+    // Entity variant round trip
+    let decoded_entity: RelationalLink<BlogDefinition, User> =
+        bincode::decode_from_slice(&entity_bytes, bincode::config::standard())?.0;
+    println!("   Entity round trip: ✓");
+    assert_eq!(entity_link, decoded_entity);
+
+    // Reference variant round trip
+    let decoded_ref: RelationalLink<BlogDefinition, User> =
+        bincode::decode_from_slice(&ref_bytes, bincode::config::standard())?.0;
+    println!("   Reference round trip: ✓");
+    assert_eq!(ref_link, decoded_ref);
+
+    println!("\n3. Collection serialization:");
+
+    let mixed_links = vec![
+        RelationalLink::Entity(user.clone()),
+        RelationalLink::from_key(user.id),
+        RelationalLink::from_key(99), // Non-existent entity
+    ];
+
+    let collection_bytes = bincode::encode_to_vec(&mixed_links, bincode::config::standard())?;
+    println!(
+        "   Collection of 3 mixed links: {} bytes",
+        collection_bytes.len()
+    );
+
+    let decoded_collection: Vec<RelationalLink<BlogDefinition, User>> =
+        bincode::decode_from_slice(&collection_bytes, bincode::config::standard())?.0;
+    assert_eq!(mixed_links, decoded_collection);
+    println!("   Collection round trip: ✓");
+
+    println!("   ✓ Serialization working correctly\n");
+    Ok(())
+}
+
+#[cfg(feature = "native")]
+fn best_practices_showcase(
+    store: &netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+) -> Result<(), Box<dyn Error>> {
+    println!("💡 Best Practices Showcase");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    println!("1. When to use Entity vs Reference variants:");
+    println!("   📋 Use Entity variant when:");
+    println!("      • You have the entity data already loaded");
+    println!("      • You need immediate access without I/O");
+    println!("      • The entity is small and performance isn't critical");
+    println!("      • You're building the relationship graph in memory");
+
+    println!("   🔗 Use Reference variant when:");
+    println!("      • You want to minimize memory usage");
+    println!("      • You're implementing lazy loading");
+    println!("      • The entity is large and may not be needed");
+    println!("      • You're serializing data for network/storage");
+
+    println!("\n2. Performance optimization patterns:");
+
+    // Demonstrate efficient patterns
+    let author = User {
+        id: 200,
+        username: "optimization_demo".to_string(),
+        email: "demo@example.com".to_string(),
+        profile_url: None,
+        created_at: 1640995200,
+    };
+
+    let user_tree = store.open_tree();
+    user_tree.put_raw(author.clone())?;
+
+    // Pattern: Start with references, upgrade to entities when needed
+    let mut user_link = RelationalLink::<BlogDefinition, User>::from_key(author.id);
+    println!("   Pattern: Reference → Entity upgrade");
+    println!("   Initial: Reference variant (low memory)");
+
+    // When we need the entity, hydrate and cache it
+    if let Some(hydrated_user) = user_link.clone().hydrate(user_tree)? {
+        user_link = RelationalLink::Entity(hydrated_user);
+        println!("   Upgraded: Entity variant (immediate access)");
+    }
+
+    println!("\n3. Error handling patterns:");
+
+    // Handle missing entities gracefully
+    let missing_link = RelationalLink::<BlogDefinition, User>::from_key(999);
+    match missing_link.hydrate(user_tree)? {
+        Some(user) => println!("   Found user: {}", user.username),
+        None => println!("   ✓ Gracefully handled missing entity"),
+    }
+
+    println!("\n4. Type safety benefits:");
+    println!("   ✓ Compile-time guarantee of relationship correctness");
+    println!("   ✓ Cannot mix entities from different definitions");
+    println!("   ✓ Clear distinction between Entity and Reference variants");
+    println!("   ✓ Automatic serialization/deserialization");
+
+    println!("\n5. Common anti-patterns to avoid:");
+    println!("   ❌ Don't use Entity variant for large objects in collections");
+    println!("   ❌ Don't blindly hydrate all references at once");
+    println!("   ❌ Don't ignore the Option from hydrate() method");
+    println!("   ❌ Don't mix traditional foreign keys with RelationalLinks");
+
+    println!("\n6. Integration recommendations:");
+    println!("   ✅ Use RelationalLinks for new relationship modeling");
+    println!("   ✅ Implement caching layer for frequently accessed entities");
+    println!("   ✅ Use batch loading patterns for collections");
+    println!("   ✅ Consider memory vs. I/O trade-offs for your use case");
+
+    println!("   ✓ Best practices demonstrated\n");
+    Ok(())
+}

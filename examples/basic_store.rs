@@ -32,6 +32,7 @@ pub mod definitions {
         bincode::Decode,
         Clone,
         Debug,
+        PartialEq,
         serde::Serialize,
         serde::Deserialize,
     )]

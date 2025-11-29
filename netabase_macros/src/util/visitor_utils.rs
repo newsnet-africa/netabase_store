@@ -30,6 +30,7 @@ impl<'a> ModelKeyInfo<'a> {
 impl<'a> ModelLinkInfo<'a> {
     pub fn find_link(fields: &'a Fields) -> impl std::iter::Iterator<Item = ModelLinkInfo<'a>> {
         fields.iter().filter_map(|f| {
+            // Check for explicit #[link] attribute
             if let Some(attribute) = field_is_attribute(f, "link") {
                 let link_path = match Self::extract_path_from_metalist(attribute) {
                     Ok(r) => r,
@@ -38,6 +39,16 @@ impl<'a> ModelLinkInfo<'a> {
                 Some(ModelLinkInfo {
                     link_path,
                     link_field: f,
+                    is_relational_link: ModelLinkInfo::is_relational_link_type(&f.ty),
+                    linked_type: ModelLinkInfo::extract_linked_type(&f.ty),
+                })
+            } else if ModelLinkInfo::is_relational_link_type(&f.ty) {
+                // Auto-detect RelationalLink<D, M> types even without explicit #[link] attribute
+                Some(ModelLinkInfo {
+                    link_path: syn::punctuated::Punctuated::new(),
+                    link_field: f,
+                    is_relational_link: true,
+                    linked_type: ModelLinkInfo::extract_linked_type(&f.ty),
                 })
             } else {
                 None

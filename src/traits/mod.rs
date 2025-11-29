@@ -3,7 +3,9 @@ pub mod batch;
 pub mod convert;
 pub mod definition;
 pub mod key;
+pub mod links;
 pub mod model;
+pub mod relation;
 pub mod store_ops;
 pub mod subscription;
 pub mod tree;
@@ -14,3 +16,6 @@ pub use definition::{
     NetabaseKeyDiscriminant,
 };
 pub use model::{NetabaseModelTrait, NetabaseModelTraitKey};
+pub use relation::{
+    MultiModelStore, NetabaseRelationDiscriminant, NetabaseRelationTrait, RelationLink,
+};

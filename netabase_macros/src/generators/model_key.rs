@@ -26,7 +26,8 @@ impl<'a> ModelVisitor<'a> {
         let keys_enum: ItemEnum = parse_quote!(
             #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash,
             ::netabase_store::derive_more::From, ::netabase_store::derive_more::TryInto,
-                ::netabase_store::bincode::Encode, ::netabase_store::bincode::Decode
+                ::netabase_store::bincode::Encode, ::netabase_store::bincode::Decode,
+                ::netabase_store::serde::Serialize, ::netabase_store::serde::Deserialize
             )]
             pub enum #name {
                 Primary(#primary_key_id),
@@ -611,7 +612,8 @@ mod key_gen {
             (
                 parse_quote!(
                     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, ::netabase_store::derive_more::From, ::netabase_store::derive_more::Into,
-                        ::netabase_store::bincode::Encode, ::netabase_store::bincode::Decode
+                        ::netabase_store::bincode::Encode, ::netabase_store::bincode::Decode,
+                        ::netabase_store::serde::Serialize, ::netabase_store::serde::Deserialize
                     )]
                     pub struct #name(pub #ty);
                 ),
@@ -675,10 +677,12 @@ mod key_gen {
                 None => panic!("Visitor not initialised"),
             };
             parse_quote!(
-                #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, ::netabase_store::strum::EnumDiscriminants,
+                #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash,
+                    ::netabase_store::strum::EnumDiscriminants,
                     ::netabase_store::strum::Display,
                     ::netabase_store::derive_more::From, ::netabase_store::derive_more::TryInto,
-                    ::netabase_store::bincode::Encode, ::netabase_store::bincode::Decode
+                    ::netabase_store::bincode::Encode, ::netabase_store::bincode::Decode,
+                    ::netabase_store::serde::Serialize, ::netabase_store::serde::Deserialize
                 )]
                 #[strum_discriminants(derive(Hash, ::netabase_store::strum::Display,
                 ::netabase_store::strum::AsRefStr ))]

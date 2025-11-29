@@ -24,6 +24,7 @@ pub mod models {
         NetabaseModel,
         Clone,
         Debug,
+        PartialEq,
         bincode::Encode,
         bincode::Decode,
         serde::Serialize,

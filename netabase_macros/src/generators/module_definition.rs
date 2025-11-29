@@ -282,7 +282,7 @@ pub mod def_gen {
             syn::Ident::new(&format!("{}Discriminant", definition), definition.span());
 
         let def_enum: ItemEnum = parse_quote! {
-            #[derive(Debug, Clone, ::netabase_store::strum::EnumDiscriminants,
+            #[derive(Debug, Clone, PartialEq, ::netabase_store::strum::EnumDiscriminants,
                 ::netabase_store::derive_more::From,::netabase_store::derive_more::TryInto,
                 ::netabase_store::bincode::Encode, ::netabase_store::bincode::Decode,
                 ::netabase_store::serde::Serialize, ::netabase_store::serde::Deserialize,
