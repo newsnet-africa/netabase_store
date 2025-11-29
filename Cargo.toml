@@ -36,9 +36,9 @@ anyhow = "1.0.100"
 bincode = { version = "2.0", features = ["derive", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 derive_more = { version = "2.0.1", features = ["from", "try_into", "into"] }
-netabase_deps = { version = "0.0.6", path = "netabase_deps" }
+netabase_deps = { version = "0.0.7", path = "netabase_deps" }
 # Propagate features to macros so they generate the right code!
-netabase_macros = { version = "0.0.6", path = "netabase_macros", features = [] }
+netabase_macros = { version = "0.0.7", path = "netabase_macros", features = [] }
 # NOTE: Features are added dynamically based on parent features
 serde = { version = "1.0", features = ["derive"] }
 strum = { version = "0.27.2", features = ["derive", "strum_macros"] }
