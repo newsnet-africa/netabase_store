@@ -1,13 +1,13 @@
 //! DateTime utilities for bincode serialization support
 //!
-//! This module provides a simple type alias for DateTime<Utc> that works
+//! This module provides a simple type alias for `DateTime<Utc>` that works
 //! with both serde and bincode serialization.
 
 use chrono::{DateTime, Utc};
 
-/// Type alias for DateTime<Utc> used throughout netabase_store
+/// Type alias for `datetime<utc>` used throughout netabase_store
 ///
-/// This is simply chrono::DateTime<Utc>. When used in structs that derive
+/// This is simply `chrono::DateTime<Utc>`. When used in structs that derive
 /// bincode::Encode and bincode::Decode, you should also derive serde traits
 /// for maximum compatibility:
 ///

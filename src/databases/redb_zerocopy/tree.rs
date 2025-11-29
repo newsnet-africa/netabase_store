@@ -316,7 +316,7 @@ where
     ///
     /// # Returns
     ///
-    /// Vector of Option<model> in the same order as input keys
+    /// Vector of `Option<model>` in the same order as input keys
     pub fn remove_many(
         &mut self,
         keys: Vec<<M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey>,

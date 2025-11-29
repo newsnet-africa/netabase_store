@@ -16,10 +16,9 @@ A type-safe, multi-backend key-value storage library for Rust with support for n
   - **Redb**: Memory-efficient embedded database with ACID guarantees
   - **RedbZeroCopy**: Zero-copy variant for maximum performance (10-54x faster for bulk ops)
   - **IndexedDB**: Browser-based storage for WASM applications
-  - **In-Memory**: Fast in-memory storage for testing and caching
 
 - **⚙️ Unified Configuration API**:
-  - `FileConfig`, `MemoryConfig`, `IndexedDBConfig` with builder pattern
+  - `FileConfig`, `IndexedDBConfig` with builder pattern
   - Consistent initialization across all backends
   - Switch backends by changing one line of code
   - Type-safe configuration with sensible defaults
@@ -86,31 +85,29 @@ edition = "2021"
 
 # Features must be enabled in your crate for macro-generated code
 [features]
-default = ["native", "redb"]
+default = ["native"]
 native = ["netabase_store/native"]
-redb = ["netabase_store/redb"]
 
 [dependencies]
-netabase_store = { version = "0.0.6", features = ["native", "redb"] }
+netabase_store = { version = "0.0.6", features = ["native"] }
 
 # Required dependencies
 bincode = { version = "2.0", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 strum = { version = "0.27.2", features = ["derive"] }
 derive_more = { version = "2.0.1", features = ["from", "try_into", "into"] }
-libp2p = "0.56"
+libp2p = "0.56" # Optional, if you would like to use this as a persistent backend for [`libp2p-kad` RecordStore implementation](https://docs.rs/libp2p/latest/libp2p/kad/index.html)
 anyhow = "1.0"
 ```
 
-### Feature Flags (CRITICAL!)
+### Feature Flags
 
-**You MUST enable at least one backend feature. Without features, the library will not compile.**
+**The default feature set includes `native` which provides both Sled and Redb backends. You can customize features for your specific needs.**
 
 #### Backend Features:
 - `native` - **(Recommended)** Enables both Sled and Redb backends for desktop/server
 - `sled` - Sled backend only (high-performance embedded database)
 - `redb` - Redb backend only (memory-efficient, ACID compliant)
-  - **Note:** When using `redb`, the macro generates a `Tables` type and `tables()` method
 - `redb-zerocopy` - Zero-copy Redb variant (maximum performance, requires `redb`)
 - `wasm` - IndexedDB backend for browser/WASM applications
 
@@ -123,18 +120,20 @@ anyhow = "1.0"
 
 ```toml
 # For desktop/server applications (recommended):
-# NOTE: 'redb' is required for macro-generated code to compile
-netabase_store = { version = "0.0.6", features = ["native", "redb"] }
+netabase_store = { version = "0.0.6", features = ["native"] }
 
 # For WASM/browser applications:
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 netabase_store = { version = "0.0.6", default-features = false, features = ["wasm"] }
 
-# For specific backend with libp2p:
-netabase_store = { version = "0.0.6", features = ["sled", "libp2p"] }
+# For specific backend only:
+netabase_store = { version = "0.0.6", features = ["sled"] }
 
-# For Redb with zero-copy optimization:
+# For zero-copy redb optimization:
 netabase_store = { version = "0.0.6", features = ["redb-zerocopy"] }
+
+# For libp2p integration:
+netabase_store = { version = "0.0.6", features = ["native", "libp2p"] }
 ```
 
 ## Quick Start
@@ -438,8 +437,7 @@ let user_tree = store.open_tree::<User>();
 - `read_only: bool` - Open read-only (default: false)
 - `use_fsync: bool` - Fsync for durability (default: true)
 
-**MemoryConfig** (for in-memory backend):
-- `capacity: Option<usize>` - Optional capacity hint
+
 
 **IndexedDBConfig** (for WASM):
 - `database_name: String` - IndexedDB database name
@@ -876,8 +874,6 @@ See the existing backends for reference:
 - **`sled_store.rs`**: Example of sync backend with batch support
 - **`redb_store.rs`**: Example of transactional backend
 - **`indexeddb_store.rs`**: Example of async WASM backend
-- **`memory_store.rs`**: Simple in-memory implementation
-
 All existing code will work with your custom backend once you implement the traits!
 
 ## Performance
