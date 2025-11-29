@@ -250,7 +250,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use blog::*;
 
     #[test]
     fn test_subscription_topics() {

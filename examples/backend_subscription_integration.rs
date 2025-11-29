@@ -5,10 +5,8 @@
 
 use chrono::Utc;
 use netabase_store::{
-    NetabaseDateTime, NetabaseModel,
-    databases::sled_store::SledStore,
-    netabase, netabase_definition_module, streams,
-    traits::subscription::{SubscriptionManager, Subscriptions},
+    NetabaseDateTime, NetabaseModel, databases::sled_store::SledStore, netabase,
+    netabase_definition_module, streams, traits::subscription::Subscriptions,
 };
 
 // Define a blog schema with subscription streams

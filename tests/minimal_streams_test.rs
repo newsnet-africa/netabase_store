@@ -2,7 +2,7 @@
 
 use netabase_store::{
     NetabaseModel, netabase, netabase_definition_module, streams,
-    traits::subscription::{SubscriptionManager, SubscriptionTree, Subscriptions},
+    traits::subscription::SubscriptionTree,
 };
 
 #[netabase_definition_module(TestDef, TestKeys)]
@@ -52,7 +52,7 @@ fn test_streams_compilation() {
     let mut _manager = TestDefSubscriptionManager::new();
 
     // Test that subscription functionality works
-    let mut tree = Topic1SubscriptionTree::new();
+    let tree = Topic1SubscriptionTree::new();
     assert_eq!(tree.len(), 0);
 
     // Test that the manager can be used

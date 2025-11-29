@@ -3,7 +3,6 @@
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use netabase_macros::netabase_definition_module;
 use netabase_store::databases::sled_store::SledStore;
-use pprof::criterion::PProfProfiler;
 
 // Test schema
 #[netabase_definition_module(BenchDefinition, BenchKeys)]

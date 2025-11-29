@@ -1,13 +1,8 @@
-use netabase_store::error::NetabaseError;
-use netabase_store::store::BackendConstructor;
-use netabase_store::traits::model::NetabaseModelTrait;
-use netabase_store::traits::store_ops::OpenTree;
-use netabase_store::traits::tree::NetabaseTreeSync;
 /// Integration tests for the generic NetabaseStore::new() constructor
 ///
 /// These tests verify that the new() constructor works correctly with
 /// different backends and can be used in generic contexts.
-use netabase_store::{NetabaseModel, NetabaseStore, netabase_definition_module};
+use netabase_store::{NetabaseModelTrait, NetabaseStore, netabase_definition_module};
 use tempfile::TempDir;
 
 // Define a test schema

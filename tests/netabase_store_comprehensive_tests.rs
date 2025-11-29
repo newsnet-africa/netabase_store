@@ -420,7 +420,7 @@ mod redb_tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let path = temp_dir.path().join("test.redb");
         {
-            let mut store = NetabaseStore::<TestDefinition, _>::redb(&path).unwrap();
+            let store = NetabaseStore::<TestDefinition, _>::redb(&path).unwrap();
             let tree = store.open_tree::<Product>();
 
             tree.put(Product {

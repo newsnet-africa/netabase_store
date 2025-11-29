@@ -70,7 +70,7 @@ fn test_basic_crud() {
         email: "alice@example.com".into(),
     })
     .unwrap();
-    drop(tree);
+
     txn.commit().unwrap();
 
     // Read (owned)
@@ -98,7 +98,7 @@ fn test_put_many() {
     let mut txn = store.begin_write().unwrap();
     let mut tree = txn.open_tree::<User>().unwrap();
     tree.put_many(users).unwrap();
-    drop(tree);
+
     txn.commit().unwrap();
 
     // Verify count

@@ -14,6 +14,7 @@
 //!
 //! # Examples
 #![allow(dead_code)] // Many items used only in specific feature configurations
+#![allow(clippy::type_complexity)] // Complex generic types are unavoidable with redb
 //!
 //! ## Read Transaction
 //! ```no_run
@@ -87,6 +88,8 @@ use std::cell::RefCell;
 // CompositeKey is used for secondary index (secondary_key, primary_key) pairs.
 #[cfg(feature = "redb")]
 use crate::databases::redb_store::CompositeKey;
+
+// Complex redb types are defined inline for better clarity and to avoid lifetime issues
 
 /// Zero-cost marker type for read-only transactions.
 ///
@@ -646,7 +649,6 @@ where
     // See PHASE3_LIMITATION.md for details.
     // Cannot return guards that reference local table variables.
     // Phase 4 will use closure-based API instead.
-
     /// Get all models matching a secondary key.
     ///
     /// # Examples
@@ -730,7 +732,10 @@ where
                     // Iterate over secondary index
                     for item in sec_table.iter()? {
                         let (composite_key, _) = item?;
-                        let comp = composite_key.value();
+                        let comp: CompositeKey<
+                            <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey,
+                            <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey,
+                        > = composite_key.value();
 
                         if comp.secondary == secondary_key
                             && let Some(model) = self.get(comp.primary)?

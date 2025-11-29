@@ -91,7 +91,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(test)]
 mod tests {
-    use super::simple_blog::*;
+    use super::*;
 
     #[test]
     fn test_subscription_enum_generation() {

@@ -3,7 +3,7 @@
 
 use libp2p::kad::store::RecordStore;
 use libp2p::kad::{Record, RecordKey as Key};
-use netabase_macros::{netabase, netabase_definition_module};
+use netabase_macros::netabase_definition_module;
 use netabase_store::databases::sled_store::SledStore;
 
 // Test schema
@@ -74,7 +74,7 @@ fn test_cross_store_record_serialization() {
     // Encode as a Record (as would be done for DHT/P2P)
     let article_key = ArticlePrimaryKey(1);
     let key_bytes = bincode::encode_to_vec(
-        &DhtKeys::ArticleKey(dht_schema::ArticleKey::Primary(article_key)),
+        DhtKeys::ArticleKey(dht_schema::ArticleKey::Primary(article_key)),
         bincode::config::standard(),
     )
     .unwrap();
@@ -146,7 +146,7 @@ fn test_multi_model_record_parsing() {
     // Store Article as Record
     let article_key = ArticlePrimaryKey(100);
     let article_key_bytes = bincode::encode_to_vec(
-        &DhtKeys::ArticleKey(dht_schema::ArticleKey::Primary(article_key)),
+        DhtKeys::ArticleKey(dht_schema::ArticleKey::Primary(article_key)),
         bincode::config::standard(),
     )
     .unwrap();

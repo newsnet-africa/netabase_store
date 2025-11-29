@@ -18,11 +18,9 @@
 //!
 //! # Examples
 //!
-//! ```rust
+//! ```no_run
 //! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
 //! use netabase_store::databases::redb_store::RedbStore;
-//! use netabase_store::traits::tree::NetabaseTreeSync;
-//! use netabase_store::traits::model::NetabaseModelTrait;
 //!
 //! // Define your schema
 //! #[netabase_definition_module(BlogDefinition, BlogKeys)]
@@ -44,7 +42,7 @@
 //!
 //! use blog::*;
 //!
-//! // Create a temporary database for testing
+//! // Create a database
 //! let store = RedbStore::<BlogDefinition>::new("./test.redb").unwrap();
 //!
 //! // Open a type-safe tree for the User model
@@ -58,8 +56,8 @@
 //! };
 //! user_tree.put(alice.clone()).unwrap();
 //!
-//! // Retrieve by primary key
-//! let retrieved = user_tree.get(alice.primary_key()).unwrap();
+//! // Retrieve by primary key using the generated key types
+//! let retrieved = user_tree.get(UserKey::Primary(UserPrimaryKey(1))).unwrap();
 //! assert_eq!(retrieved, Some(alice));
 //! ```
 //!

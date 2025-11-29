@@ -4,7 +4,7 @@
 use libp2p::kad::store::RecordStore;
 use libp2p::kad::{ProviderRecord, Record, RecordKey as Key};
 use libp2p::{PeerId, multihash::Multihash};
-use netabase_macros::{netabase, netabase_definition_module};
+use netabase_macros::netabase_definition_module;
 use netabase_store::databases::sled_store::SledStore;
 use std::time::Instant;
 
@@ -55,7 +55,7 @@ fn put_get_remove_record() {
     // Create a test key based on TestModel
     let test_model_key = TestModelPrimaryKey(1);
     let key_bytes = bincode::encode_to_vec(
-        &TestKeys::TestModelKey(test_schema::TestModelKey::Primary(test_model_key)),
+        TestKeys::TestModelKey(test_schema::TestModelKey::Primary(test_model_key)),
         bincode::config::standard(),
     )
     .unwrap();
@@ -87,20 +87,12 @@ fn add_get_remove_provider() {
 
     let key = random_multihash();
     let provider_id = PeerId::random();
-    let provider_record = ProviderRecord::new(key.clone(), provider_id, Vec::new());
+    let rec = ProviderRecord::new(key, provider_id, Vec::new());
 
-    assert!(store.add_provider(provider_record.clone()).is_ok());
-    assert!(
-        store
-            .providers(&provider_record.key)
-            .contains(&provider_record)
-    );
-    store.remove_provider(&provider_record.key, &provider_id);
-    assert!(
-        !store
-            .providers(&provider_record.key)
-            .contains(&provider_record)
-    );
+    assert!(store.add_provider(rec.clone()).is_ok());
+    assert!(store.providers(&rec.key).contains(&rec));
+    store.remove_provider(&rec.key, &provider_id);
+    assert!(!store.providers(&rec.key).contains(&rec));
 }
 
 #[test]
@@ -142,13 +134,13 @@ fn max_providers_per_key() {
         .map(|_| PeerId::random())
         .collect::<Vec<_>>();
     for peer in peers {
-        let rec = ProviderRecord::new(key.clone(), peer, Vec::new());
+        let rec = ProviderRecord::new(key, peer, Vec::new());
         assert!(store.add_provider(rec).is_ok());
     }
 
     // The new provider cannot be added because the key is already saturated.
     let peer = PeerId::random();
-    let rec = ProviderRecord::new(key.clone(), peer, Vec::new());
+    let rec = ProviderRecord::new(key, peer, Vec::new());
     assert!(store.add_provider(rec.clone()).is_ok()); // Should silently ignore
     assert!(!store.providers(&rec.key).contains(&rec));
 }
@@ -188,7 +180,7 @@ fn records_iterator() {
             // Create proper keys using TestModelPrimaryKey
             let test_model_key = TestModelPrimaryKey(i);
             let key_bytes = bincode::encode_to_vec(
-                &TestKeys::TestModelKey(test_schema::TestModelKey::Primary(test_model_key)),
+                TestKeys::TestModelKey(test_schema::TestModelKey::Primary(test_model_key)),
                 bincode::config::standard(),
             )
             .unwrap();
