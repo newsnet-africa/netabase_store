@@ -5,29 +5,71 @@ This document provides a comprehensive technical overview of the netabase_store 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Macro System Deep Dive](#macro-system-deep-dive)
-3. [Backend Implementation](#backend-implementation)
-4. [NetabaseStore: Unified API Layer](#netabasestore-unified-api-layer)
-5. [Type System and Traits](#type-system-and-traits)
-6. [Data Serialization Flow](#data-serialization-flow)
-7. [Tree-Based Access Pattern](#tree-based-access-pattern)
-8. [libp2p Integration](#libp2p-integration)
+2. [Module Organization](#module-organization)
+3. [Backend Implementations](#backend-implementations)
+4. [Macro System Deep Dive](#macro-system-deep-dive)
+5. [NetabaseStore: Unified API Layer](#netabasestore-unified-api-layer)
+6. [Type System and Traits](#type-system-and-traits)
+7. [Data Serialization Flow](#data-serialization-flow)
+8. [Tree-Based Access Pattern](#tree-based-access-pattern)
+9. [libp2p Integration](#libp2p-integration)
 
 ---
 
 ## Overview
 
-Netabase Store is a type-safe, macro-driven database abstraction layer that supports multiple storage backends (Sled, Redb, IndexedDB) and integrates seamlessly with libp2p's Kademlia DHT for distributed storage.
+Netabase Store is a type-safe, macro-driven database abstraction layer that supports multiple storage backends (Sled, Redb, Redb ZeroCopy, IndexedDB) and integrates seamlessly with libp2p's Kademlia DHT for distributed storage.
 
 ### Key Design Principles
 
 1. **Type Safety:** Compile-time guarantees for data models and queries
 2. **Zero-Cost Abstractions:** Macros generate optimal code with no runtime overhead
-3. **Backend Agnostic:** Same API works across Sled, Redb, and IndexedDB
-4. **libp2p Compatible:** Direct integration with Kademlia RecordStore trait
-5. **Deterministic Serialization:** Consistent binary format using bincode
+3. **Backend Agnostic:** Same API works across all supported backends
+4. **Modular Architecture:** Clean separation of concerns for maintainability
+5. **libp2p Compatible:** Direct integration with Kademlia RecordStore trait
+6. **Deterministic Serialization:** Consistent binary format using bincode
 
 ### Architecture Layers
+
+1. **User Code Layer** - Models defined with derive macros
+2. **Generated Code Layer** - Macro-generated traits and types
+3. **Unified API Layer** - Common traits and abstractions
+4. **Backend Layer** - Modular storage implementations
+5. **Storage Layer** - Underlying database engines
+
+## Module Organization
+
+The codebase has been reorganized with a focus on separation of concerns and maintainability:
+
+```
+src/
+├── databases/              # Storage backend implementations
+│   ├── sled_store/         # Modular Sled backend
+│   │   ├── mod.rs         # Public API and re-exports
+│   │   ├── store.rs       # Store implementation
+│   │   ├── tree.rs        # Tree operations
+│   │   ├── batch.rs       # Batch operations
+│   │   └── trait_impls.rs # Trait implementations
+│   ├── redb_store/         # Modular Redb backend
+│   │   ├── mod.rs         # Public API and re-exports
+│   │   ├── store.rs       # Store implementation
+│   │   ├── tree.rs        # Tree CRUD operations
+│   │   ├── batch.rs       # Batch builder
+│   │   ├── iterator.rs    # Iterator implementations
+│   │   ├── types.rs       # Type definitions
+│   │   └── trait_impls.rs # Trait implementations
+│   ├── redb_zerocopy/      # High-performance Redb backend
+│   │   ├── mod.rs         # Public API and documentation
+│   │   ├── store.rs       # Store with transaction management
+│   │   ├── transaction.rs # Transaction types
+│   │   ├── tree.rs        # Zero-copy tree operations
+│   │   └── utils.rs       # Helper functions
+│   ├── indexeddb_store.rs  # WASM IndexedDB backend
+│   └── record_store/       # libp2p integration
+├── traits/                 # Common abstractions
+├── error/                  # Error handling
+└── lib.rs                 # Public API surface
+```
 
 ```
 ┌─────────────────────────────────────────────────────┐

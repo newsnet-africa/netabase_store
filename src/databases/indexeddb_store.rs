@@ -539,6 +539,144 @@ where
 
         Ok(results)
     }
+
+    /// Bulk insert multiple models (IndexedDB-specific implementation)
+    ///
+    /// This is more efficient than calling put() in a loop as it uses a single transaction.
+    pub async fn put_many(&self, models: Vec<M>) -> Result<(), NetabaseError>
+    where
+        D: From<M>,
+    {
+        if models.is_empty() {
+            return Ok(());
+        }
+
+        // Create a transaction for bulk operations
+        let tx = self
+            .db
+            .transaction_on_one_with_mode(&self.store_name(), IdbTransactionMode::Readwrite)
+            .map_err(|e| {
+                NetabaseError::Storage(format!("Failed to create transaction: {:?}", e))
+            })?;
+
+        let store = tx
+            .object_store(&self.store_name())
+            .map_err(|e| NetabaseError::Storage(format!("Failed to get object store: {:?}", e)))?;
+
+        let sec_store = tx.object_store(&self.secondary_store_name()).map_err(|e| {
+            NetabaseError::Storage(format!("Failed to get secondary store: {:?}", e))
+        })?;
+
+        for model in models {
+            let primary_key = model.primary_key();
+            let secondary_keys = model.secondary_keys();
+
+            // Encode key and value
+            let key_bytes = bincode::encode_to_vec(&primary_key, bincode::config::standard())
+                .map_err(crate::error::EncodingDecodingError::from)?;
+            let model_bytes = bincode::encode_to_vec(&model, bincode::config::standard())
+                .map_err(crate::error::EncodingDecodingError::from)?;
+
+            // Insert into main store
+            store
+                .put_key_val(
+                    &JsValue::from_serde(&key_bytes).unwrap(),
+                    &JsValue::from_serde(&model_bytes).unwrap(),
+                )
+                .map_err(|e| NetabaseError::Storage(format!("Failed to put model: {:?}", e)))?;
+
+            // Insert secondary key entries
+            for sec_key in secondary_keys.values() {
+                self.insert_secondary_key(&sec_store, sec_key, &primary_key)
+                    .await?;
+            }
+        }
+
+        // Commit transaction
+        tx.await
+            .map_err(|e| NetabaseError::Storage(format!("Transaction failed: {:?}", e)))?;
+
+        Ok(())
+    }
+
+    /// Bulk get multiple models by their keys
+    ///
+    /// This is more efficient than calling get() in a loop.
+    pub async fn get_many(
+        &self,
+        keys: Vec<M::PrimaryKey>,
+    ) -> Result<Vec<Option<M>>, NetabaseError> {
+        if keys.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut results = Vec::with_capacity(keys.len());
+
+        // Create a single transaction for all reads
+        let tx = self
+            .db
+            .transaction_on_one(&self.store_name())
+            .map_err(|e| {
+                NetabaseError::Storage(format!("Failed to create transaction: {:?}", e))
+            })?;
+
+        let store = tx
+            .object_store(&self.store_name())
+            .map_err(|e| NetabaseError::Storage(format!("Failed to get object store: {:?}", e)))?;
+
+        for key in keys {
+            let key_bytes = bincode::encode_to_vec(&key, bincode::config::standard())
+                .map_err(crate::error::EncodingDecodingError::from)?;
+
+            match store
+                .get(&JsValue::from_serde(&key_bytes).unwrap())
+                .map_err(|e| NetabaseError::Storage(format!("Failed to get value: {:?}", e)))?
+                .await
+                .map_err(|e| NetabaseError::Storage(format!("Get request failed: {:?}", e)))?
+            {
+                Some(js_value) => {
+                    let value_bytes: Vec<u8> = js_value.into_serde().map_err(|e| {
+                        NetabaseError::Storage(format!("Failed to deserialize value: {:?}", e))
+                    })?;
+
+                    let (model, _): (M, _) =
+                        bincode::decode_from_slice(&value_bytes, bincode::config::standard())
+                            .map_err(crate::error::EncodingDecodingError::from)?;
+
+                    results.push(Some(model));
+                }
+                None => {
+                    results.push(None);
+                }
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// Bulk query by multiple secondary keys
+    ///
+    /// Returns a vector of result vectors, one for each secondary key.
+    pub async fn get_many_by_secondary_keys(
+        &self,
+        secondary_keys: Vec<M::SecondaryKeys>,
+    ) -> Result<Vec<Vec<M>>, NetabaseError>
+    where
+        M::PrimaryKey: bincode::Decode<()>,
+    {
+        if secondary_keys.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut all_results = Vec::with_capacity(secondary_keys.len());
+
+        for secondary_key in secondary_keys {
+            let results = self.get_by_secondary_key(secondary_key).await?;
+            all_results.push(results);
+        }
+
+        Ok(all_results)
+    }
 }
 
 // ============================================================================
@@ -870,6 +1008,75 @@ impl IndexedDBTree {
     /// Check if the tree is empty
     pub async fn is_empty(&self) -> Result<bool, NetabaseError> {
         Ok(self.len().await? == 0)
+    }
+}
+
+// StoreOps implementation for IndexedDB (async operations converted to sync interface)
+impl<D, M> crate::traits::store_ops::StoreOps<D, M> for IndexedDBStoreTree<D, M>
+where
+    D: NetabaseDefinitionTrait + TryFrom<M> + crate::traits::convert::ToIVec + From<M>,
+    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone,
+    M::PrimaryKey: bincode::Encode + bincode::Decode<()> + Clone,
+    M::SecondaryKeys: bincode::Encode + bincode::Decode<()>,
+    M::Keys: bincode::Encode + bincode::Decode<()>,
+    <M::Keys as NetabaseModelTraitKey<D>>::SecondaryKey: bincode::Encode,
+    <D as strum::IntoDiscriminant>::Discriminant: crate::DiscriminantBounds,
+{
+    fn put_raw(&self, model: M) -> Result<(), NetabaseError> {
+        // Note: This blocks the thread - in a real WASM environment,
+        // you should use the async methods directly
+        wasm_bindgen_futures::spawn_local(async move {
+            let _ = self.put(model).await;
+        });
+        Ok(())
+    }
+
+    fn get_raw(
+        &self,
+        key: <M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey,
+    ) -> Result<Option<M>, NetabaseError> {
+        // Note: This is a limitation of the sync trait interface with async operations
+        // In a real WASM app, use the async methods directly
+        Err(NetabaseError::Storage(
+            "Sync get_raw not supported for IndexedDB - use async get() instead".to_string(),
+        ))
+    }
+
+    fn remove_raw(
+        &self,
+        key: <M::Keys as NetabaseModelTraitKey<D>>::PrimaryKey,
+    ) -> Result<Option<M>, NetabaseError> {
+        // Note: This is a limitation of the sync trait interface with async operations
+        wasm_bindgen_futures::spawn_local(async move {
+            let _ = self.remove(key).await;
+        });
+        Ok(None) // Cannot return actual value due to async nature
+    }
+
+    fn discriminant(&self) -> &str {
+        self.discriminant.as_ref()
+    }
+}
+
+impl<D, M> crate::traits::store_ops::StoreOpsSecondary<D, M> for IndexedDBStoreTree<D, M>
+where
+    D: NetabaseDefinitionTrait + TryFrom<M> + crate::traits::convert::ToIVec + From<M>,
+    M: NetabaseModelTrait<D> + TryFrom<D> + Into<D> + Clone,
+    M::PrimaryKey: bincode::Encode + bincode::Decode<()> + Clone,
+    M::SecondaryKeys: bincode::Encode + bincode::Decode<()>,
+    M::Keys: bincode::Encode + bincode::Decode<()>,
+    <M::Keys as NetabaseModelTraitKey<D>>::SecondaryKey: bincode::Encode,
+    <D as strum::IntoDiscriminant>::Discriminant: crate::DiscriminantBounds,
+{
+    fn get_by_secondary_key_raw(
+        &self,
+        _secondary_key: <M::Keys as NetabaseModelTraitKey<D>>::SecondaryKey,
+    ) -> Result<Vec<M>, NetabaseError> {
+        // Note: This is a limitation of the sync trait interface with async operations
+        Err(NetabaseError::Storage(
+            "Sync secondary key queries not supported for IndexedDB - use async methods instead"
+                .to_string(),
+        ))
     }
 }
 

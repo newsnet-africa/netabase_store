@@ -553,18 +553,7 @@ impl<'a> ModelVisitor<'a> {
                     const DISCRIMINANT:<#def_path as ::netabase_store::strum::IntoDiscriminant>::Discriminant
                         = <#def_path as ::netabase_store::strum::IntoDiscriminant>::Discriminant::#model_name;
 
-                    // For redb feature: BorrowedType is same as Self for bincode implementation
-                    type BorrowedType<'a> = #model_name;
-
-                    // For redb feature: key() method that returns the full Keys enum
-                    fn key(&self) -> Self::Keys {
-                        #keys_ty::Primary(self.primary_key())
-                    }
-
-                    // For redb feature: has_secondary() check
-                    fn has_secondary(&self) -> bool {
-                        #has_secondary_impl
-                    }
+                    #redb_cfg
                     fn primary_key(&self) -> Self::PrimaryKey {
                         #primary_key_ty(self.#primary_field.clone())
                     }

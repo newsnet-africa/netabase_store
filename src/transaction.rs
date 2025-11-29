@@ -78,6 +78,8 @@ use std::marker::PhantomData;
 #[cfg(feature = "redb")]
 use redb::{ReadableDatabase, ReadableTable, ReadableTableMetadata, Value};
 
+// Complex redb types are defined inline for better clarity and to avoid lifetime issues
+
 #[cfg(feature = "redb")]
 use std::cell::RefCell;
 
@@ -117,6 +119,7 @@ pub struct TxnGuard<'db, D, Mode> {
 }
 
 /// Backend-specific transaction implementation (hidden from users).
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum TxnBackend<'db, D> {
     #[cfg(feature = "sled")]
     Sled(SledTxnBackend<'db, D>),
@@ -339,12 +342,10 @@ where
                 }
             }
             #[cfg(not(any(feature = "sled", feature = "redb")))]
-            TxnBackend::_Phantom(_) => {
-                TreeView {
-                    backend: TreeBackend::_Phantom(PhantomData),
-                    _mode: PhantomData,
-                }
-            }
+            TxnBackend::_Phantom(_) => TreeView {
+                backend: TreeBackend::_Phantom(PhantomData),
+                _mode: PhantomData,
+            },
         }
     }
 }
@@ -551,7 +552,7 @@ where
                             let value_ref = model_guard.value();
                             let v_bytes = M::as_bytes(&value_ref);
                             let model = bincode::decode_from_slice(
-                                &v_bytes.as_ref(),
+                                v_bytes.as_ref(),
                                 bincode::config::standard(),
                             )
                             .map_err(crate::error::EncodingDecodingError::from)?
@@ -574,7 +575,7 @@ where
                             let value_ref = model_guard.value();
                             let v_bytes = M::as_bytes(&value_ref);
                             let model = bincode::decode_from_slice(
-                                &v_bytes.as_ref(),
+                                v_bytes.as_ref(),
                                 bincode::config::standard(),
                             )
                             .map_err(crate::error::EncodingDecodingError::from)?
@@ -641,7 +642,6 @@ where
     /// This returns the owned model, but you can use `.borrow()` to get zero-copy access.
     /// True zero-copy retrieval from database requires returning guards, see `get_borrowed_guard()`.
     /// For most use cases, using `user.borrow()` on the returned model is sufficient.
-
     // NOTE: get_borrowed_guard() attempted but blocked by architectural limitation.
     // See PHASE3_LIMITATION.md for details.
     // Cannot return guards that reference local table variables.
@@ -732,10 +732,10 @@ where
                         let (composite_key, _) = item?;
                         let comp = composite_key.value();
 
-                        if comp.secondary == secondary_key {
-                            if let Some(model) = self.get(comp.primary)? {
-                                results.push(model);
-                            }
+                        if comp.secondary == secondary_key
+                            && let Some(model) = self.get(comp.primary)?
+                        {
+                            results.push(model);
                         }
                     }
                 } else if let Some(ref write_txn) = *backend.txn_backend.write_txn.borrow() {
@@ -750,10 +750,10 @@ where
                         let (composite_key, _) = item?;
                         let comp = composite_key.value();
 
-                        if comp.secondary == secondary_key {
-                            if let Some(model) = self.get(comp.primary)? {
-                                results.push(model);
-                            }
+                        if comp.secondary == secondary_key
+                            && let Some(model) = self.get(comp.primary)?
+                        {
+                            results.push(model);
                         }
                     }
                 } else {
@@ -896,13 +896,13 @@ where
                         let k_bytes = <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey::as_bytes(&key_ref);
                         let v_bytes = M::as_bytes(&value_ref);
                         let k = bincode::decode_from_slice(
-                            &k_bytes.as_ref(),
+                            k_bytes.as_ref(),
                             bincode::config::standard(),
                         )
                         .map_err(crate::error::EncodingDecodingError::from)?
                         .0;
                         let v = bincode::decode_from_slice(
-                            &v_bytes.as_ref(),
+                            v_bytes.as_ref(),
                             bincode::config::standard(),
                         )
                         .map_err(crate::error::EncodingDecodingError::from)?
@@ -926,13 +926,13 @@ where
                         let k_bytes = <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey::as_bytes(&key_ref);
                         let v_bytes = M::as_bytes(&value_ref);
                         let k = bincode::decode_from_slice(
-                            &k_bytes.as_ref(),
+                            k_bytes.as_ref(),
                             bincode::config::standard(),
                         )
                         .map_err(crate::error::EncodingDecodingError::from)?
                         .0;
                         let v = bincode::decode_from_slice(
-                            &v_bytes.as_ref(),
+                            v_bytes.as_ref(),
                             bincode::config::standard(),
                         )
                         .map_err(crate::error::EncodingDecodingError::from)?
@@ -1244,7 +1244,7 @@ where
                             // Same GAT limitation as get() - see detailed comment in get() method above
                             let k_ref = k.value();
                             let k_bytes = <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey::as_bytes(&k_ref);
-                            bincode::decode_from_slice(&k_bytes.as_ref(), bincode::config::standard()).unwrap().0
+                            bincode::decode_from_slice(k_bytes.as_ref(), bincode::config::standard()).unwrap().0
                         }).collect()
                     };
 
@@ -1256,22 +1256,41 @@ where
                     }
 
                     // Clear secondary index
-                    let sec_keys_to_remove: Vec<CompositeKey<<M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey, <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey>> = {
+                    let composite_keys_to_remove: Vec<CompositeKey<
+                        <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey,
+                        <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey,
+                    >> = {
                         let sec_table = write_txn.open_table(sec_table_def)?;
-                        sec_table.iter()?.map(|item| {
-                            let (k, _) = item.unwrap();
-                            // WORKAROUND: Re-serialization for secondary index keys
-                            // Same GAT limitation affects CompositeKey type
-                            let k_ref = k.value();
-                            let k_bytes = CompositeKey::<<M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::SecondaryKey, <M::Keys as crate::traits::model::NetabaseModelTraitKey<D>>::PrimaryKey>::as_bytes(&k_ref);
-                            bincode::decode_from_slice(&k_bytes.as_ref(), bincode::config::standard()).unwrap().0
-                        }).collect()
+                        sec_table
+                            .iter()?
+                            .map(|item| {
+                                let (k, _) = item.unwrap();
+                                // WORKAROUND: Re-serialization for secondary index keys
+                                // Same GAT limitation affects CompositeKey type
+                                let k_ref = k.value();
+                                let k_bytes =
+                                    CompositeKey::<
+                                        <M::Keys as crate::traits::model::NetabaseModelTraitKey<
+                                            D,
+                                        >>::SecondaryKey,
+                                        <M::Keys as crate::traits::model::NetabaseModelTraitKey<
+                                            D,
+                                        >>::PrimaryKey,
+                                    >::as_bytes(&k_ref);
+                                bincode::decode_from_slice(
+                                    k_bytes.as_ref(),
+                                    bincode::config::standard(),
+                                )
+                                .unwrap()
+                                .0
+                            })
+                            .collect()
                     };
 
                     {
                         let mut sec_table = write_txn.open_table(sec_table_def)?;
-                        for key in sec_keys_to_remove {
-                            sec_table.remove(key)?;
+                        for sec_key in composite_keys_to_remove {
+                            sec_table.remove(sec_key)?;
                         }
                     }
                     Ok(())

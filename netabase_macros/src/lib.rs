@@ -481,11 +481,11 @@ pub fn netabase_model_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let mut visitor = ModelVisitor::default();
     visitor.visit_derive_input(&input);
-    let mut uniffi_visitor = UniffiVisitor::default();
+    let mut _uniffi_visitor = UniffiVisitor::default();
     #[cfg(feature = "uniffi")]
     let uniffi_struct = {
-        uniffi_visitor.visit_derive_input(&input);
-        uniffi_visitor.generate_uniffi_type()
+        _uniffi_visitor.visit_derive_input(&input);
+        _uniffi_visitor.generate_uniffi_type()
     };
 
     #[cfg(not(feature = "uniffi"))]
@@ -1093,12 +1093,12 @@ pub fn netabase_definition_module(name: TokenStream, input: TokenStream) -> Toke
     // Generate compile-time assertions for discriminant trait bounds
     let discriminant_assertions: syn::Item = syn::parse_quote! {
         const _: () = {
-            fn assert_discriminant<T: ::netabase_store::traits::definition::NetabaseDiscriminant>() {}
-            fn assert_key_discriminant<T: ::netabase_store::traits::definition::NetabaseKeyDiscriminant>() {}
-            fn _check() {
-                assert_discriminant::<#discriminant_name>();
-                assert_key_discriminant::<#key_discriminant_name>();
-            }
+            const fn assert_discriminant<T: ::netabase_store::traits::definition::NetabaseDiscriminant>() {}
+            const fn assert_key_discriminant<T: ::netabase_store::traits::definition::NetabaseKeyDiscriminant>() {}
+
+            // Call the assertions to prevent unreachable code warning
+            assert_discriminant::<#discriminant_name>();
+            assert_key_discriminant::<#key_discriminant_name>();
         };
     };
 
@@ -1120,8 +1120,6 @@ pub fn netabase_definition_module(name: TokenStream, input: TokenStream) -> Toke
     // Generate streams code if streams attribute is present
     let streams_code = if let Some(topic_strings) = streams_topics {
         let subscriptions_enum_name = format_ident!("{}Subscriptions", definition);
-
-        let manager_name = format_ident!("{}SubscriptionManager", definition);
 
         let streams_enum =
             streams::generate_streams_enum(&subscriptions_enum_name, definition, &topic_strings);

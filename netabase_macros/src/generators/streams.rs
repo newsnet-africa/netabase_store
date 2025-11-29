@@ -19,7 +19,7 @@ pub fn generate_streams_enum(
         .map(|topic| format_ident!("{}", topic))
         .collect();
 
-    let variant_strings: Vec<String> = topics.iter().cloned().collect();
+    let variant_strings: Vec<String> = topics.to_vec();
 
     quote! {
         /// Generated subscription topics enum
@@ -499,8 +499,6 @@ pub fn generate_database_integration(
     enum_name: &Ident,
     _topics: &[String],
 ) -> TokenStream {
-    let manager_name = format_ident!("{}SubscriptionManager", definition_name);
-
     quote! {
         /// Trait for database stores that support subscriptions
         pub trait SubscriptionStore {

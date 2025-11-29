@@ -6,14 +6,12 @@ use crate::error::NetabaseError;
 use crate::traits::convert::ToIVec;
 use crate::traits::definition::NetabaseDefinitionTrait;
 use crate::traits::model::{NetabaseModelTrait, NetabaseModelTraitKey};
-use crate::{MaybeSend, MaybeSync};
 
-use redb::{Database, MultimapTableDefinition, TableDefinition};
+use redb::{Database, MultimapTableDefinition, ReadableTable, TableDefinition};
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::str::FromStr;
 use std::sync::Arc;
-use strum::{IntoDiscriminant, IntoEnumIterator};
+use strum::IntoDiscriminant;
 
 use super::types::BincodeWrapper;
 

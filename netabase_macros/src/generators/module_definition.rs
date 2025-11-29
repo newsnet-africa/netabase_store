@@ -281,7 +281,7 @@ pub mod def_gen {
         let discriminant_name =
             syn::Ident::new(&format!("{}Discriminant", definition), definition.span());
 
-        let mut def_enum: ItemEnum = parse_quote! {
+        let def_enum: ItemEnum = parse_quote! {
             #[derive(Debug, Clone, ::netabase_store::strum::EnumDiscriminants,
                 ::netabase_store::derive_more::From,::netabase_store::derive_more::TryInto,
                 ::netabase_store::bincode::Encode, ::netabase_store::bincode::Decode,
@@ -311,7 +311,7 @@ pub mod def_gen {
             definition_key.span(),
         );
 
-        let mut def_key_enum: ItemEnum = parse_quote! {
+        let def_key_enum: ItemEnum = parse_quote! {
             #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash,
                 ::netabase_store::strum::EnumDiscriminants,
                 ::netabase_store::derive_more::From, ::netabase_store::derive_more::TryInto,

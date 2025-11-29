@@ -55,6 +55,7 @@ where
     }
 
     /// Get a reference to the Arc-wrapped database for transaction creation
+    #[allow(dead_code)]
     pub(crate) fn db_arc(&self) -> &Arc<Database> {
         &self.db
     }

@@ -5,14 +5,13 @@
 use crate::error::NetabaseError;
 use crate::traits::definition::NetabaseDefinitionTrait;
 use crate::traits::model::{NetabaseModelTrait, NetabaseModelTraitKey};
-use crate::{MaybeSend, MaybeSync};
 
 use redb::{
-    Database, MultimapTableDefinition, ReadableTable, ReadableTableMetadata, TableDefinition,
+    Database, MultimapTableDefinition, ReadableDatabase, ReadableTable, ReadableTableMetadata,
+    TableDefinition,
 };
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::str::FromStr;
 use std::sync::Arc;
 use strum::IntoDiscriminant;
 
@@ -206,7 +205,7 @@ where
 
             for model in models {
                 let key = model.key();
-                table.insert(&key, model.clone())?;
+                table.insert(&key, &model)?;
 
                 // Handle secondary keys
                 let primary_key = model.primary_key();
@@ -247,10 +246,7 @@ where
         let mut results = Vec::with_capacity(keys.len());
 
         for key in keys {
-            let model = match table.get(&key)? {
-                Some(model_guard) => Some(model_guard.value()),
-                None => None,
-            };
+            let model = table.get(&key)?.map(|model_guard| model_guard.value());
             results.push(model);
         }
 
@@ -368,8 +364,7 @@ where
         let mut results = Vec::new();
 
         // Get all primary keys for this secondary key from the multimap
-        use redb::ReadableMultimapTable;
-        for item in ReadableMultimapTable::get(&sec_table, secondary_key)? {
+        for item in sec_table.get(secondary_key)? {
             let prim_key_guard = item?;
             let prim_key = prim_key_guard.value();
 
@@ -423,12 +418,11 @@ where
 
         let mut all_results = Vec::with_capacity(secondary_keys.len());
 
-        use redb::ReadableMultimapTable;
         for secondary_key in secondary_keys {
             let mut results = Vec::new();
 
             // Get all primary keys for this secondary key from the multimap
-            for item in ReadableMultimapTable::get(&sec_table, secondary_key)? {
+            for item in sec_table.get(secondary_key)? {
                 let prim_key_guard = item?;
                 let prim_key = prim_key_guard.value();
 
