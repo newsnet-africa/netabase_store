@@ -27,7 +27,7 @@ pub fn generate_tables_struct(modules: &Vec<ModuleInfo<'_>>, definition: &Ident)
     let tables_name = Ident::new(&format!("{}Tables", definition), definition.span());
 
     // Generate fields for each model
-    let fields: Vec<TokenStream> = modules
+    let _fields: Vec<TokenStream> = modules
         .iter()
         .flat_map(|module| {
             module.models.iter().map(|model_struct| {
@@ -60,7 +60,7 @@ pub fn generate_tables_struct(modules: &Vec<ModuleInfo<'_>>, definition: &Ident)
     let out = parse_quote! {
         #[derive(Clone, Copy)]
         pub struct #tables_name {
-            #(#fields),*
+            #(#_fields),*
         }
     };
     #[cfg(not(feature = "redb"))]
@@ -72,14 +72,14 @@ pub fn generate_tables_struct(modules: &Vec<ModuleInfo<'_>>, definition: &Ident)
 }
 
 /// Generate the implementation for the tables struct with a const constructor
-pub fn generate_tables_impl(modules: &Vec<ModuleInfo<'_>>, definition: &Ident) -> TokenStream {
+pub fn generate_tables_impl(_modules: &Vec<ModuleInfo<'_>>, definition: &Ident) -> TokenStream {
     let tables_name = Ident::new(&format!("{}Tables", definition), definition.span());
 
     // Conditionally generate based on macro's compile-time features
     #[cfg(feature = "redb")]
     let impl_block = {
         // Generate initializers for each field
-        let field_inits: Vec<TokenStream> = modules
+        let field_inits: Vec<TokenStream> = _modules
             .iter()
             .flat_map(|module| {
                 module.models.iter().map(|model_struct| {

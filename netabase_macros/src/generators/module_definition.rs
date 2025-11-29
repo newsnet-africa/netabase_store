@@ -18,7 +18,7 @@ impl<'a> DefinitionsVisitor<'a> {
         &self,
         definition: &Ident,
         definition_key: &Ident,
-        tables_name: &Ident,
+        _tables_name: &Ident,
     ) -> proc_macro2::TokenStream {
         let models = self
             .modules
@@ -43,7 +43,7 @@ impl<'a> DefinitionsVisitor<'a> {
 
         // Generate inherent methods for RecordStore operations (libp2p feature)
         // These are public methods on the Definition type, not trait methods
-        let record_store_methods = crate::generators::record_store::generate_trait_methods(
+        let _record_store_methods = crate::generators::record_store::generate_trait_methods(
             &self.modules,
             definition,
             definition_key,
@@ -56,10 +56,10 @@ impl<'a> DefinitionsVisitor<'a> {
         // This is checked at macro expansion time, so no cfg in generated code.
         #[cfg(feature = "redb")]
         let tables_impl = quote::quote! {
-            type Tables = #tables_name;
+            type Tables = #_tables_name;
 
             fn tables() -> Self::Tables {
-                #tables_name::new()
+                #_tables_name::new()
             }
         };
 
@@ -74,7 +74,7 @@ impl<'a> DefinitionsVisitor<'a> {
             // RecordStoreExt trait - conditional on libp2p feature
             // This trait is only defined when libp2p is enabled, so cfg is necessary
             impl ::netabase_store::traits::definition::RecordStoreExt for #definition {
-                #record_store_methods
+                #_record_store_methods
             }
         };
 
@@ -119,7 +119,7 @@ impl<'a> DefinitionsVisitor<'a> {
         &self,
         definition: &Ident,
         definition_key: &Ident,
-        tables_name: &Ident,
+        _tables_name: &Ident,
         subscription_manager_name: &Ident,
     ) -> proc_macro2::TokenStream {
         let models = self
@@ -143,7 +143,7 @@ impl<'a> DefinitionsVisitor<'a> {
         );
 
         // Generate inherent methods for RecordStore operations (libp2p feature)
-        let record_store_methods = crate::generators::record_store::generate_trait_methods(
+        let _record_store_methods = crate::generators::record_store::generate_trait_methods(
             &self.modules,
             definition,
             definition_key,
@@ -155,10 +155,10 @@ impl<'a> DefinitionsVisitor<'a> {
         // Generate Tables impl based on MACRO's features, not user's features!
         #[cfg(feature = "redb")]
         let tables_impl = quote::quote! {
-            type Tables = #tables_name;
+            type Tables = #_tables_name;
 
             fn tables() -> Self::Tables {
-                #tables_name::new()
+                #_tables_name::new()
             }
         };
 
@@ -171,7 +171,7 @@ impl<'a> DefinitionsVisitor<'a> {
         let libp2p_impl = quote::quote! {
             // RecordStoreExt trait - conditional on libp2p feature
             impl ::netabase_store::traits::definition::RecordStoreExt for #definition {
-                #record_store_methods
+                #_record_store_methods
             }
         };
 

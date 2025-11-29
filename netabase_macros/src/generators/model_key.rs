@@ -286,9 +286,9 @@ impl<'a> ModelVisitor<'a> {
         // Use discriminant name for both trait implementation and redb TypeName
         // This ensures consistency when models are used across different definition enums
         let discriminant_name = model_name.to_string();
-        let primary_key_name_str = format!("{}::PrimaryKey", discriminant_name);
-        let secondary_keys_name_str = format!("{}::SecondaryKeys", discriminant_name);
-        let keys_name_str = format!("{}::Key", discriminant_name);
+        let _primary_key_name_str = format!("{}::PrimaryKey", discriminant_name);
+        let _secondary_keys_name_str = format!("{}::SecondaryKeys", discriminant_name);
+        let _keys_name_str = format!("{}::Key", discriminant_name);
 
         // Calculate fixed width for primary key (newtype wrapper)
         // Primary key is a newtype like UserPrimaryKey(u64), so we check the inner type
@@ -416,7 +416,7 @@ impl<'a> ModelVisitor<'a> {
                     }
 
                     fn type_name() -> ::netabase_store::netabase_deps::redb::TypeName {
-                        ::netabase_store::netabase_deps::redb::TypeName::new(#primary_key_name_str)
+                        ::netabase_store::netabase_deps::redb::TypeName::new(#_primary_key_name_str)
                     }
                 }
 
@@ -456,7 +456,7 @@ impl<'a> ModelVisitor<'a> {
                     }
 
                     fn type_name() -> ::netabase_store::netabase_deps::redb::TypeName {
-                        ::netabase_store::netabase_deps::redb::TypeName::new(#secondary_keys_name_str)
+                        ::netabase_store::netabase_deps::redb::TypeName::new(#_secondary_keys_name_str)
                     }
                 }
 
@@ -497,7 +497,7 @@ impl<'a> ModelVisitor<'a> {
                     }
 
                     fn type_name() -> ::netabase_store::netabase_deps::redb::TypeName {
-                        ::netabase_store::netabase_deps::redb::TypeName::new(#keys_name_str)
+                        ::netabase_store::netabase_deps::redb::TypeName::new(#_keys_name_str)
                     }
                 }
 
