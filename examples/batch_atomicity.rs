@@ -12,7 +12,6 @@
 use netabase_store::NetabaseStore;
 use netabase_store::netabase_definition_module;
 use netabase_store::traits::batch::{BatchBuilder, Batchable};
-use netabase_store::traits::store_ops::OpenTree;
 
 #[netabase_definition_module(BankDefinition, BankKeys)]
 pub mod models {

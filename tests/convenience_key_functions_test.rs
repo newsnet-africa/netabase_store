@@ -1,10 +1,8 @@
-use netabase_store::traits::model::NetabaseModelTrait;
-use netabase_store::traits::tree::NetabaseTreeSync;
 /// Integration tests for convenience extension traits for secondary keys
 ///
 /// These tests verify that the generated extension traits provide
 /// ergonomic APIs for creating secondary keys.
-use netabase_store::{NetabaseModel, netabase_definition_module};
+use netabase_store::netabase_definition_module;
 
 // Define a test schema with various secondary key types
 #[netabase_definition_module(TestDef, TestKeys)]

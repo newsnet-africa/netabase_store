@@ -131,19 +131,22 @@ pub fn generate_tables_impl(modules: &Vec<ModuleInfo<'_>>, definition: &Ident) -
 /// Convert PascalCase to snake_case
 fn to_snake_case(s: &str) -> String {
     let mut result = String::new();
-    let mut prev_is_uppercase = false;
+    let chars: Vec<char> = s.chars().collect();
 
-    for (i, ch) in s.chars().enumerate() {
+    for (i, ch) in chars.iter().enumerate() {
         if ch.is_uppercase() {
-            // Don't add underscore at the start
-            if i > 0 && !prev_is_uppercase {
+            // Add underscore before uppercase letter if:
+            // 1. Not at the start
+            // 2. Previous char is lowercase OR next char is lowercase (handles sequences like "HTTPResponse")
+            if i > 0
+                && (chars[i - 1].is_lowercase()
+                    || (i + 1 < chars.len() && chars[i + 1].is_lowercase()))
+            {
                 result.push('_');
             }
             result.push(ch.to_lowercase().next().unwrap());
-            prev_is_uppercase = true;
         } else {
-            result.push(ch);
-            prev_is_uppercase = false;
+            result.push(*ch);
         }
     }
 
@@ -158,7 +161,7 @@ mod tests {
     fn test_to_snake_case() {
         assert_eq!(to_snake_case("User"), "user");
         assert_eq!(to_snake_case("UserPost"), "user_post");
-        assert_eq!(to_snake_case("HTTPResponse"), "h_t_t_p_response");
+        assert_eq!(to_snake_case("HTTPResponse"), "http_response");
         assert_eq!(to_snake_case("simpleModel"), "simple_model");
     }
 }

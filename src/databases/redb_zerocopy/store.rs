@@ -22,24 +22,42 @@ use std::sync::Arc;
 /// # Examples
 ///
 /// ```no_run
-/// # use netabase_store::databases::redb_zerocopy::RedbStoreZeroCopy;
-/// # use netabase_store::error::NetabaseError;
-/// # use netabase_store::traits::definition::NetabaseDefinitionTrait;
-/// # struct MyDefinition;
-/// # impl NetabaseDefinitionTrait for MyDefinition {
-/// #     type Discriminant = u8;
-/// # }
+/// use netabase_store::databases::redb_zerocopy::RedbStoreZeroCopy;
+/// use netabase_store::{netabase_definition_module, NetabaseModel, netabase, error::NetabaseError};
+///
+/// // Define your schema using the macro
+/// #[netabase_definition_module(MyDefinition, MyKeys)]
+/// mod my_models {
+///     use netabase_store::{NetabaseModel, netabase};
+///
+///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+///              bincode::Encode, bincode::Decode,
+///              serde::Serialize, serde::Deserialize)]
+///     #[netabase(MyDefinition)]
+///     pub struct User {
+///         #[primary_key]
+///         pub id: u64,
+///         pub name: String,
+///     }
+/// }
+/// use my_models::*;
+///
+/// # fn main() -> Result<(), NetabaseError> {
 /// let store = RedbStoreZeroCopy::<MyDefinition>::new("./database.redb")?;
 ///
 /// // Begin a write transaction
 /// let mut write_txn = store.begin_write()?;
-/// // ... perform operations ...
+/// let mut tree = write_txn.open_tree::<User>()?;
+/// tree.put(User { id: 1, name: "Alice".to_string() })?;
+/// drop(tree);
 /// write_txn.commit()?;
 ///
 /// // Begin a read transaction
 /// let read_txn = store.begin_read()?;
-/// // ... perform read operations ...
-/// # Ok::<(), NetabaseError>(())
+/// let tree = read_txn.open_tree::<User>()?;
+/// let user = tree.get(&UserPrimaryKey(1))?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct RedbStoreZeroCopy<D>
 where
@@ -105,16 +123,34 @@ where
     /// # Examples
     ///
     /// ```no_run
-    /// # use netabase_store::databases::redb_zerocopy::RedbStoreZeroCopy;
-    /// # use netabase_store::error::NetabaseError;
-    /// # use netabase_store::traits::definition::NetabaseDefinitionTrait;
-    /// # struct MyDefinition;
-    /// # impl NetabaseDefinitionTrait for MyDefinition { type Discriminant = u8; }
-    /// # let store = RedbStoreZeroCopy::<MyDefinition>::new("./test.db")?;
+    /// use netabase_store::databases::redb_zerocopy::RedbStoreZeroCopy;
+    /// use netabase_store::{netabase_definition_module, NetabaseModel, netabase, error::NetabaseError};
+    ///
+    /// #[netabase_definition_module(MyDefinition, MyKeys)]
+    /// mod my_models {
+    ///     use netabase_store::{NetabaseModel, netabase};
+    ///
+    ///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    ///              bincode::Encode, bincode::Decode,
+    ///              serde::Serialize, serde::Deserialize)]
+    ///     #[netabase(MyDefinition)]
+    ///     pub struct User {
+    ///         #[primary_key]
+    ///         pub id: u64,
+    ///         pub name: String,
+    ///     }
+    /// }
+    /// use my_models::*;
+    ///
+    /// # fn main() -> Result<(), NetabaseError> {
+    /// let store = RedbStoreZeroCopy::<MyDefinition>::new("./test.db")?;
     /// let mut txn = store.begin_write()?;
-    /// // ... perform write operations ...
-    /// txn.commit()?;
-    /// # Ok::<(), NetabaseError>(())
+    /// let mut tree = txn.open_tree::<User>()?;
+    /// tree.put(User { id: 1, name: "Alice".to_string() })?;
+    /// drop(tree);
+    /// txn.commit()?; // All changes are now persistent
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn begin_write(
         &self,
@@ -136,15 +172,32 @@ where
     /// # Examples
     ///
     /// ```no_run
-    /// # use netabase_store::databases::redb_zerocopy::RedbStoreZeroCopy;
-    /// # use netabase_store::error::NetabaseError;
-    /// # use netabase_store::traits::definition::NetabaseDefinitionTrait;
-    /// # struct MyDefinition;
-    /// # impl NetabaseDefinitionTrait for MyDefinition { type Discriminant = u8; }
-    /// # let store = RedbStoreZeroCopy::<MyDefinition>::new("./test.db")?;
+    /// use netabase_store::databases::redb_zerocopy::RedbStoreZeroCopy;
+    /// use netabase_store::{netabase_definition_module, NetabaseModel, netabase, error::NetabaseError};
+    ///
+    /// #[netabase_definition_module(MyDefinition, MyKeys)]
+    /// mod my_models {
+    ///     use netabase_store::{NetabaseModel, netabase};
+    ///
+    ///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    ///              bincode::Encode, bincode::Decode,
+    ///              serde::Serialize, serde::Deserialize)]
+    ///     #[netabase(MyDefinition)]
+    ///     pub struct User {
+    ///         #[primary_key]
+    ///         pub id: u64,
+    ///         pub name: String,
+    ///     }
+    /// }
+    /// use my_models::*;
+    ///
+    /// # fn main() -> Result<(), NetabaseError> {
+    /// let store = RedbStoreZeroCopy::<MyDefinition>::new("./test.db")?;
     /// let txn = store.begin_read()?;
-    /// // ... perform read operations ...
-    /// # Ok::<(), NetabaseError>(())
+    /// let tree = txn.open_tree::<User>()?;
+    /// let user = tree.get(&UserPrimaryKey(1))?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn begin_read(
         &self,
@@ -165,20 +218,31 @@ where
     /// # Examples
     ///
     /// ```no_run
-    /// # use netabase_store::databases::redb_zerocopy::RedbStoreZeroCopy;
-    /// # use netabase_store::error::NetabaseError;
-    /// # use netabase_store::traits::{definition::NetabaseDefinitionTrait, model::NetabaseModelTrait};
-    /// # struct MyDefinition;
-    /// # impl NetabaseDefinitionTrait for MyDefinition { type Discriminant = u8; }
-    /// # struct User { id: u64, name: String }
-    /// # impl NetabaseModelTrait<MyDefinition> for User {
-    /// #     type Keys = u64;
-    /// #     fn primary_key(&self) -> Self::Keys { self.id }
-    /// # }
-    /// # let store = RedbStoreZeroCopy::<MyDefinition>::new("./test.db")?;
+    /// use netabase_store::databases::redb_zerocopy::RedbStoreZeroCopy;
+    /// use netabase_store::{netabase_definition_module, NetabaseModel, netabase, error::NetabaseError};
+    ///
+    /// #[netabase_definition_module(MyDefinition, MyKeys)]
+    /// mod my_models {
+    ///     use netabase_store::{NetabaseModel, netabase};
+    ///
+    ///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    ///              bincode::Encode, bincode::Decode,
+    ///              serde::Serialize, serde::Deserialize)]
+    ///     #[netabase(MyDefinition)]
+    ///     pub struct User {
+    ///         #[primary_key]
+    ///         pub id: u64,
+    ///         pub name: String,
+    ///     }
+    /// }
+    /// use my_models::*;
+    ///
+    /// # fn main() -> Result<(), NetabaseError> {
+    /// let store = RedbStoreZeroCopy::<MyDefinition>::new("./test.db")?;
     /// let user = User { id: 1, name: "Alice".to_string() };
     /// store.quick_put(user)?;
-    /// # Ok::<(), NetabaseError>(())
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn quick_put<M>(&self, model: M) -> Result<(), NetabaseError>
     where

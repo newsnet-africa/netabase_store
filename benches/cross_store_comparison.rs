@@ -23,7 +23,7 @@ use netabase_store::databases::redb_zerocopy::{
 };
 use netabase_store::databases::sled_store::SledStore;
 use pprof::criterion::PProfProfiler;
-use redb::{ReadableDatabase, ReadableTable, ReadableTableMetadata};
+use redb::{ReadableDatabase, ReadableTableMetadata};
 
 // Test schema
 #[netabase_definition_module(BenchDefinition, BenchKeys)]

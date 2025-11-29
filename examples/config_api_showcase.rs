@@ -10,11 +10,9 @@
 /// cargo run --example config_api_showcase --features "native,redb-zerocopy"
 /// ```
 use netabase_store::error::NetabaseError;
+use netabase_store::netabase_definition_module;
 use netabase_store::traits::backend_store::BackendStore;
 use netabase_store::traits::model::NetabaseModelTrait;
-use netabase_store::traits::store_ops::OpenTree;
-use netabase_store::traits::tree::NetabaseTreeSync;
-use netabase_store::{NetabaseModel, netabase, netabase_definition_module};
 
 // Define a simple schema for demonstration
 #[netabase_definition_module(AppDefinition, AppKeys)]

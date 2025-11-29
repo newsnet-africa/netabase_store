@@ -3,7 +3,7 @@
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use netabase_macros::netabase_definition_module;
 use netabase_store::databases::redb_store::RedbStore;
-use pprof::criterion::PProfProfiler;
+
 use redb::{Database, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition};
 
 // Test schema
