@@ -28,14 +28,17 @@ Netabase Store is a type-safe, macro-driven database abstraction layer that supp
 4. **Modular Architecture:** Clean separation of concerns for maintainability
 5. **libp2p Compatible:** Direct integration with Kademlia RecordStore trait
 6. **Deterministic Serialization:** Consistent binary format using bincode
+7. **Subscription Streams:** Built-in support for data change tracking via merkle trees
 
 ### Architecture Layers
 
 1. **User Code Layer** - Models defined with derive macros
 2. **Generated Code Layer** - Macro-generated traits and types
-3. **Unified API Layer** - Common traits and abstractions
-4. **Backend Layer** - Modular storage implementations
-5. **Storage Layer** - Underlying database engines
+3. **Configuration API Layer** - Unified backend configuration
+4. **Unified API Layer** - NetabaseStore wrapper and common traits
+5. **Backend Layer** - Modular storage implementations
+6. **Storage Layer** - Underlying database engines
+7. **Subscription Layer** - Data change tracking and synchronization
 
 ## Module Organization
 
@@ -48,6 +51,43 @@ src/
 │   │   ├── mod.rs         # Public API and re-exports
 │   │   ├── store.rs       # Store implementation
 │   │   ├── tree.rs        # Tree operations
+│   │   └── transaction.rs  # Transaction implementation
+│   ├── redb_store/         # Standard Redb backend
+│   │   ├── mod.rs         # Public API and re-exports
+│   │   ├── store.rs       # Store implementation
+│   │   └── tree.rs        # Tree operations
+│   ├── redb_zerocopy/      # Zero-copy Redb backend
+│   │   ├── mod.rs         # Public API and re-exports
+│   │   ├── store.rs       # Store implementation
+│   │   ├── transaction.rs  # Explicit transaction API
+│   │   ├── tree.rs        # Tree operations
+│   │   └── utils.rs        # Helper functions
+│   └── indexeddb/          # Browser IndexedDB backend
+│       ├── mod.rs         # Public API (WASM only)
+│       └── store.rs       # Async IndexedDB implementation
+├── config/                 # Configuration API
+│   ├── mod.rs             # Public API and types
+│   ├── file.rs            # FileConfig for file-based backends
+│   └── indexeddb.rs       # IndexedDBConfig for WASM
+├── subscription/           # Data change tracking
+│   ├── mod.rs             # Public API
+│   └── subscription_tree.rs # Merkle tree implementation
+├── traits/                 # Core trait definitions
+│   ├── mod.rs             # Public API
+│   ├── model.rs           # NetabaseModelTrait
+│   ├── definition.rs      # NetabaseDefinitionTrait
+│   ├── tree.rs            # Tree operation traits
+│   ├── backend_store.rs   # Backend configuration trait
+│   ├── store_ops.rs       # Store operation traits
+│   ├── batch.rs           # Batch operation traits
+│   └── subscription.rs    # Subscription traits
+├── utils/                  # Utility modules
+│   ├── mod.rs             # Public API
+│   └── datetime.rs        # DateTime utilities
+├── guards.rs              # Transaction guards and state
+├── store.rs               # NetabaseStore unified API
+├── transaction.rs         # Transaction API implementation
+└── lib.rs                 # Main library exports
 │   │   ├── batch.rs       # Batch operations
 │   │   └── trait_impls.rs # Trait implementations
 │   ├── redb_store/         # Modular Redb backend
@@ -592,19 +632,6 @@ pub struct FileConfig {
     /// Use fsync for durability (default: true)
     #[builder(default = true)]
     pub use_fsync: bool,
-}
-```
-
-#### MemoryConfig (for In-Memory Backend)
-
-Used by: `MemoryStore`
-
-```rust
-#[derive(TypedBuilder, Clone, Default)]
-pub struct MemoryConfig {
-    /// Optional capacity hint for pre-allocation
-    #[builder(default = None)]
-    pub capacity: Option<usize>,
 }
 ```
 

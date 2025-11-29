@@ -75,29 +75,29 @@
 //! ### Using the Unified NetabaseStore (Recommended)
 //!
 //! ```rust
-//! use netabase_store::{NetabaseStore, netabase_definition_module, NetabaseModel, netabase};
-//! use netabase_store::traits::tree::NetabaseTreeSync;
-//! use netabase_store::traits::model::NetabaseModelTrait;
+//! # use netabase_store::{NetabaseStore, netabase_definition_module, NetabaseModel, netabase};
+//! # use netabase_store::traits::tree::NetabaseTreeSync;
+//! # use netabase_store::traits::model::NetabaseModelTrait;
 //!
-//! // Define your schema
-//! #[netabase_definition_module(BlogDefinition, BlogKeys)]
-//! mod blog {
-//!     use netabase_store::{NetabaseModel, netabase};
+//! # // Define your schema
+//! # #[netabase_definition_module(BlogDefinition, BlogKeys)]
+//! # mod blog {
+//! #     use netabase_store::{NetabaseModel, netabase};
 //!
-//!     #[derive(NetabaseModel, Clone, Debug, PartialEq,
-//!              bincode::Encode, bincode::Decode,
-//!              serde::Serialize, serde::Deserialize)]
-//!     #[netabase(BlogDefinition)]
-//!     pub struct User {
-//!         #[primary_key]
-//!         pub id: u64,
-//!         pub username: String,
-//!         #[secondary_key]
-//!         pub email: String,
-//!         pub age: u32,
-//!     }
-//! }
-//! use blog::*;
+//! #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+//! #              bincode::Encode, bincode::Decode,
+//! #              serde::Serialize, serde::Deserialize)]
+//! #     #[netabase(BlogDefinition)]
+//! #     pub struct User {
+//! #         #[primary_key]
+//! #         pub id: u64,
+//! #         pub username: String,
+//! #         #[secondary_key]
+//! #         pub email: String,
+//! #         pub age: u32,
+//! #     }
+//! # }
+//! # use blog::*;
 //!
 //! # fn main() -> Result<(), netabase_store::error::NetabaseError> {
 //! // Create a store with any backend - Sled example (using temp for doctest)
@@ -130,30 +130,30 @@
 //! ### Using Sled Backend (Direct)
 //!
 //! ```rust
-//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
-//! use netabase_store::databases::sled_store::SledStore;
-//! use netabase_store::traits::tree::NetabaseTreeSync;
-//! use netabase_store::traits::model::NetabaseModelTrait;
-//!
-//! // Define schema for this example
-//! #[netabase_definition_module(BlogDefinition, BlogKeys)]
-//! mod blog {
-//!     use super::*;
-//!     use netabase_store::{NetabaseModel, netabase};
-//!
-//!     #[derive(NetabaseModel, Clone, Debug, PartialEq,
-//!              bincode::Encode, bincode::Decode,
-//!              serde::Serialize, serde::Deserialize)]
-//!     #[netabase(BlogDefinition)]
-//!     pub struct User {
-//!         #[primary_key]
-//!         pub id: u64,
-//!         pub username: String,
-//!         #[secondary_key]
-//!         pub email: String,
-//!         pub age: u32,
-//!     }
-//! }
+//! # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//! # use netabase_store::databases::sled_store::SledStore;
+//! # use netabase_store::traits::tree::NetabaseTreeSync;
+//! # use netabase_store::traits::model::NetabaseModelTrait;
+//! #
+//! # // Define schema for this example
+//! # #[netabase_definition_module(BlogDefinition, BlogKeys)]
+//! # mod blog {
+//! #     use super::*;
+//! #     use netabase_store::{NetabaseModel, netabase};
+//! #
+//! #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+//! #              bincode::Encode, bincode::Decode,
+//! #              serde::Serialize, serde::Deserialize)]
+//! #     #[netabase(BlogDefinition)]
+//! #     pub struct User {
+//! #         #[primary_key]
+//! #         pub id: u64,
+//! #         pub username: String,
+//! #         #[secondary_key]
+//! #         pub email: String,
+//! #         pub age: u32,
+//! #     }
+//! # }
 //! use blog::*;
 //!
 //! // Open a database
@@ -198,59 +198,59 @@
 //! ```rust
 //! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
 //!
-//! // Define your schema with the definition module macro
-//! #[netabase_definition_module(BlogDefinition, BlogKeys)]
-//! mod blog {
-//!     use super::*;
-//!     use netabase_store::{netabase, NetabaseModel};
-//!
-//!     /// User model with primary and secondary keys
-//!     #[derive(
-//!         NetabaseModel,
-//!         Clone,
-//!         Debug,
-//!         PartialEq,
-//!         bincode::Encode,
-//!         bincode::Decode,
-//!         serde::Serialize,
-//!         serde::Deserialize,
-//!     )]
-//!     #[netabase(BlogDefinition)]
-//!     pub struct User {
-//!         #[primary_key]
-//!         pub id: u64,
-//!         pub username: String,
-//!         #[secondary_key]
-//!         pub email: String,
-//!         pub age: u32,
-//!     }
-//!
-//!     /// Post model associated with the same definition
-//!     #[derive(
-//!         NetabaseModel,
-//!         Clone,
-//!         Debug,
-//!         PartialEq,
-//!         bincode::Encode,
-//!         bincode::Decode,
-//!         serde::Serialize,
-//!         serde::Deserialize,
-//!     )]
-//!     #[netabase(BlogDefinition)]
-//!     pub struct Post {
-//!         #[primary_key]
-//!         pub id: String,
-//!         pub title: String,
-//!         pub author_id: u64,
-//!         #[secondary_key]
-//!         pub published: bool,
-//!     }
-//! }  // end mod blog
-//!
-//! use blog::*;
-//! use netabase_store::databases::redb_store::RedbStore;
-//! use netabase_store::traits::tree::NetabaseTreeSync;
-//! use netabase_store::traits::model::NetabaseModelTrait;
+//! # // Define your schema with the definition module macro
+//! # #[netabase_definition_module(BlogDefinition, BlogKeys)]
+//! # mod blog {
+//! #     use super::*;
+//! #     use netabase_store::{netabase, NetabaseModel};
+//! #
+//! #     /// User model with primary and secondary keys
+//! #     #[derive(
+//! #         NetabaseModel,
+//! #         Clone,
+//! #         Debug,
+//! #         PartialEq,
+//! #         bincode::Encode,
+//! #         bincode::Decode,
+//! #         serde::Serialize,
+//! #         serde::Deserialize,
+//! #     )]
+//! #     #[netabase(BlogDefinition)]
+//! #     pub struct User {
+//! #         #[primary_key]
+//! #         pub id: u64,
+//! #         pub username: String,
+//! #         #[secondary_key]
+//! #         pub email: String,
+//! #         pub age: u32,
+//! #     }
+//! #
+//! #     /// Post model associated with the same definition
+//! #     #[derive(
+//! #         NetabaseModel,
+//! #         Clone,
+//! #         Debug,
+//! #         PartialEq,
+//! #         bincode::Encode,
+//! #         bincode::Decode,
+//! #         serde::Serialize,
+//! #         serde::Deserialize,
+//! #     )]
+//! #     #[netabase(BlogDefinition)]
+//! #     pub struct Post {
+//! #         #[primary_key]
+//! #         pub id: String,
+//! #         pub title: String,
+//! #         pub author_id: u64,
+//! #         #[secondary_key]
+//! #         pub published: bool,
+//! #     }
+//! # }  // end mod blog
+//! #
+//! # use blog::*;
+//! # use netabase_store::databases::redb_store::RedbStore;
+//! # use netabase_store::traits::tree::NetabaseTreeSync;
+//! # use netabase_store::traits::model::NetabaseModelTrait;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Open a database with Redb backend (using temp file for doctest)
@@ -278,31 +278,31 @@
 //! This example requires the `wasm` feature and wasm32 target:
 //!
 //! ```
-//! # #[cfg(all(target_arch = "wasm32", feature = "wasm"))]
-//! # {
-//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
-//! use netabase_store::databases::indexeddb_store::IndexedDBStore;
-//! use netabase_store::traits::tree::NetabaseTreeAsync;
-//! use netabase_store::traits::model::NetabaseModelTrait;
-//!
-//! #[netabase_definition_module(AppDefinition, AppKeys)]
-//! mod app {
-//!     use super::*;
-//!     use netabase_store::{NetabaseModel, netabase};
-//!
-//!     #[derive(NetabaseModel, Clone, Debug, PartialEq,
-//!              bincode::Encode, bincode::Decode,
-//!              serde::Serialize, serde::Deserialize)]
-//!     #[netabase(AppDefinition)]
-//!     pub struct User {
-//!         #[primary_key]
-//!         pub id: u64,
-//!         pub username: String,
-//!         #[secondary_key]
-//!         pub email: String,
-//!     }
-//! }
-//! use app::*;
+//! # # #[cfg(all(target_arch = "wasm32", feature = "wasm"))]
+//! # # {
+//! # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//! # use netabase_store::databases::indexeddb_store::IndexedDBStore;
+//! # use netabase_store::traits::tree::NetabaseTreeAsync;
+//! # use netabase_store::traits::model::NetabaseModelTrait;
+//! #
+//! # #[netabase_definition_module(AppDefinition, AppKeys)]
+//! # mod app {
+//! #     use super::*;
+//! #     use netabase_store::{NetabaseModel, netabase};
+//! #
+//! #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+//! #              bincode::Encode, bincode::Decode,
+//! #              serde::Serialize, serde::Deserialize)]
+//! #     #[netabase(AppDefinition)]
+//! #     pub struct User {
+//! #         #[primary_key]
+//! #         pub id: u64,
+//! #         pub username: String,
+//! #         #[secondary_key]
+//! #         pub email: String,
+//! #     }
+//! # }
+//! # use app::*;
 //!
 //! async fn wasm_example() -> Result<(), Box<dyn std::error::Error>> {
 //!     // Open a database in the browser (persists across page reloads)
@@ -330,6 +330,43 @@
 //!
 //!     Ok(())
 //! }
+//! # }
+//! ```
+//!
+//! ## Using the Configuration
+//!
+//! ```no_run
+//! # use netabase_store::traits::backend_store::BackendStore;
+//! # use netabase_store::config::FileConfig;
+//! # use netabase_store::databases::sled_store::SledStore;
+//! # use netabase_store::netabase_definition_module;
+//! # #[netabase_definition_module(MyDef, MyKeys)]
+//! # mod models {
+//! #     use netabase_store::{NetabaseModel, netabase};
+//! #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+//! #              bincode::Encode, bincode::Decode,
+//! #              serde::Serialize, serde::Deserialize)]
+//! #     #[netabase(MyDef)]
+//! #     pub struct User {
+//! #         #[primary_key]
+//! #         pub id: u64,
+//! #         pub name: String,
+//! #     }
+//! # }
+//! # use models::*;
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use netabase_store::traits::backend_store::BackendStore;
+//! // Unified API across all backends via BackendStore trait
+//! let temp_dir = tempfile::tempdir()?;
+//! let config = FileConfig::new(temp_dir.path().join("my_store.db"));
+//! let store = <SledStore<MyDef> as BackendStore<MyDef>>::new(config.clone())?;
+//!
+//! // Or open existing
+//! let store = <SledStore<MyDef> as BackendStore<MyDef>>::open(config)?;
+//!
+//! // Temporary store
+//! let temp_store = <SledStore<MyDef> as BackendStore<MyDef>>::temp()?;
+//! # Ok(())
 //! # }
 //! ```
 //!
