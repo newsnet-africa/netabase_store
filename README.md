@@ -3,75 +3,9 @@
 
 # Netabase Store
 
-A type-safe, multi-backend key-value storage library for Rust with support for native (Sled, Redb) and WASM (IndexedDB) environments.
+A type-safe, multi-backend key-value storage library for Rust with support for native (Sled, Redb) and WASM (IndexedDB) environments, inspired by [`native_db`](https://crates.io/crates/native_db).
 
 > ⚠️ **Early Development**: This crate is still in early development and will change frequently as it stabilizes. It is not advised to use this in a production environment until it stabilizes.
-
-## Features
-
-### ✨ Core Features
-
-- **🗄️ Multi-Backend Support**:
-  - **Sled**: High-performance embedded database for native platforms
-  - **Redb**: Memory-efficient embedded database with ACID guarantees
-  - **RedbZeroCopy**: Zero-copy variant for maximum performance (10-54x faster for bulk ops)
-  - **IndexedDB**: Browser-based storage for WASM applications
-
-- **⚙️ Unified Configuration API**:
-  - `FileConfig`, `IndexedDBConfig` with builder pattern
-  - Consistent initialization across all backends
-  - Switch backends by changing one line of code
-  - Type-safe configuration with sensible defaults
-
-- **🔒 Type-Safe Schema Definition**:
-  - Derive macros for automatic schema generation
-  - Primary and secondary key support
-  - Compile-time type checking for all database operations
-  - Zero-cost abstractions with trait-based design
-
-- **🌍 Cross-Platform**:
-  - Unified API across native and WASM targets
-  - Feature flags for platform-specific backends
-  - Seamless switching between backends with same configuration
-
-- **⚡ High Performance**:
-  - Transaction API with type-state pattern (10-100x faster for bulk ops)
-  - Batch operations for bulk inserts/updates
-  - Efficient secondary key indexing
-  - Minimal overhead (<5-10%) over raw backend operations
-  - Zero-copy deserialization where possible
-
-- **🔍 Secondary Key Indexing**:
-  - Fast lookups using secondary keys
-  - Multiple secondary keys per model
-  - Automatic index management
-
-- **🔄 Iteration Support**:
-  - Efficient iteration over stored data
-  - Type-safe iterators with proper error handling
-
-- **🔗 libp2p Integration** (Optional):
-  - Record store implementation for distributed systems
-  - Compatible with libp2p DHT
-  - Enable via `record-store` feature
-
-- **🧪 Testing Utilities**:
-  - Comprehensive test suite
-  - Benchmarking tools included
-  - WASM test support via wasm-pack
-
-### 🔌 Extensibility
-
-- **Unified Trait-Based API**:
-  - `NetabaseTreeSync` for synchronous operations (native)
-  - `NetabaseTreeAsync` for asynchronous operations (WASM)
-  - Easy to implement custom backends
-  - Full compatibility with existing code
-
-- **Batch Processing**:
-  - `Batchable` trait for atomic bulk operations
-  - Significantly faster than individual operations
-  - Backend-specific optimizations
 
 ## Installation
 
@@ -81,7 +15,7 @@ Add to your `Cargo.toml`:
 [package]
 name = "my_project"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 # Features must be enabled in your crate for macro-generated code
 [features]
@@ -89,7 +23,7 @@ default = ["native"]
 native = ["netabase_store/native"]
 
 [dependencies]
-netabase_store = { version = "0.0.6", features = ["native"] }
+netabase_store = { version = "0.0.7", features = ["native"] }
 
 # Required dependencies
 bincode = { version = "2.0", features = ["serde"] }
@@ -124,16 +58,16 @@ netabase_store = { version = "0.0.6", features = ["native"] }
 
 # For WASM/browser applications:
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-netabase_store = { version = "0.0.6", default-features = false, features = ["wasm"] }
+netabase_store = { version = "0.0.7", default-features = false, features = ["wasm"] }
 
 # For specific backend only:
-netabase_store = { version = "0.0.6", features = ["sled"] }
+netabase_store = { version = "0.0.7", features = ["sled"] }
 
 # For zero-copy redb optimization:
-netabase_store = { version = "0.0.6", features = ["redb-zerocopy"] }
+netabase_store = { version = "0.0.7", features = ["redb-zerocopy"] }
 
 # For libp2p integration:
-netabase_store = { version = "0.0.6", features = ["native", "libp2p"] }
+netabase_store = { version = "0.0.7", features = ["native", "libp2p"] }
 ```
 
 ## Quick Start
@@ -482,14 +416,9 @@ txn.commit()?;
 - `get_many(Vec<M::PrimaryKey>)` - Read multiple models in one transaction
 
 **Backend Support:**
-- **Sled**: ✅ Full support via transactions and batch API
-- **Redb**: ✅ Full support via transactions and batch API  
+- **Sled**: Full support via transactions and batch API
+- **Redb**: Full support via transactions and batch API  
 - Both backends provide identical API and performance benefits
-
-**Performance Benefits:**
-- ⚡ **10-100x faster** than individual operations
-- 🔒 **Atomic**: All succeed or all fail
-- 📦 **Efficient**: Single transaction reduces overhead
 
 For more examples, see `examples/batch_operations_all_backends.rs`
 
@@ -551,10 +480,10 @@ txn.commit()?;
 ```
 
 **Transaction Benefits:**
-- 🚀 **10-100x Faster**: Single transaction for many operations (eliminates per-operation overhead)
-- 🔒 **Type-Safe**: Compile-time enforcement of read-only vs read-write access
-- ⚡ **Zero-Cost**: Phantom types compile away completely
-- 🔄 **ACID**: Full atomicity for write transactions (Redb)
+- **10-100x Faster**: Single transaction for many operations (eliminates per-operation overhead)
+- **Type-Safe**: Compile-time enforcement of read-only vs read-write access
+- **Zero-Cost**: Phantom types compile away completely
+- **ACID**: Full atomicity for write transactions (Redb)
 
 **Compile-Time Safety:**
 ```rust
@@ -631,250 +560,13 @@ let user_tree = store.open_tree::<User>();
 user_tree.put(user)?;
 ```
 
-## Custom Backend Implementation
+## Implementing a backend
 
-Netabase Store's trait-based design makes it easy to implement custom storage backends. Here's what you need to know:
-
-### Required Traits
-
-To create a custom backend, implement one of these traits depending on your backend's characteristics:
-
-#### 1. **`NetabaseTreeSync`** - For Synchronous Backends
-
-Use this for native, blocking I/O backends (like SQLite, file systems, etc.):
-
-```rust
-use netabase_store::traits::tree::NetabaseTreeSync;
-use netabase_store::traits::model::NetabaseModelTrait;
-use netabase_store::traits::definition::NetabaseDefinitionTrait;
-use netabase_store::error::NetabaseError;
-
-pub struct MyCustomBackend<D, M> {
-    // Your backend state (connection, file handles, etc.)
-}
-
-impl<D, M> NetabaseTreeSync<D, M> for MyCustomBackend<D, M>
-where
-    D: NetabaseDefinitionTrait + TryFrom<M> + From<M>,
-    M: NetabaseModelTrait<D> + TryFrom<D> + Clone,
-    M::PrimaryKey: bincode::Encode + bincode::Decode<()> + Clone,
-    M::SecondaryKeys: bincode::Encode + bincode::Decode<()>,
-    // Add discriminant bounds...
-{
-    type PrimaryKey = M::PrimaryKey;
-    type SecondaryKeys = M::SecondaryKeys;
-
-    // Required: Insert or update a model
-    fn put(&self, model: M) -> Result<(), NetabaseError> {
-        // 1. Get primary key: model.primary_key()
-        // 2. Get secondary keys: model.secondary_keys()
-        // 3. Serialize model to bytes (use bincode or ToIVec trait)
-        // 4. Store in your backend
-        // 5. Create secondary key indexes
-        todo!()
-    }
-
-    // Required: Retrieve by primary key
-    fn get(&self, key: Self::PrimaryKey) -> Result<Option<M>, NetabaseError> {
-        // 1. Serialize key to bytes
-        // 2. Look up in your backend
-        // 3. Deserialize bytes to model
-        // 4. Return Some(model) or None
-        todo!()
-    }
-
-    // Required: Delete by primary key
-    fn remove(&self, key: Self::PrimaryKey) -> Result<Option<M>, NetabaseError> {
-        // 1. Get the model (for cleanup)
-        // 2. Delete primary key entry
-        // 3. Delete secondary key indexes
-        // 4. Return the deleted model
-        todo!()
-    }
-
-    // Required: Query by secondary key
-    fn get_by_secondary_key(
-        &self,
-        secondary_key: Self::SecondaryKeys
-    ) -> Result<Vec<M>, NetabaseError> {
-        // 1. Look up secondary key index
-        // 2. Get all matching primary keys
-        // 3. Retrieve all models with those keys
-        // 4. Return vector of models
-        todo!()
-    }
-
-    // Required: Check if empty
-    fn is_empty(&self) -> Result<bool, NetabaseError> {
-        Ok(self.len()? == 0)
-    }
-
-    // Required: Get count
-    fn len(&self) -> Result<usize, NetabaseError> {
-        todo!()
-    }
-
-    // Required: Delete all entries
-    fn clear(&self) -> Result<(), NetabaseError> {
-        todo!()
-    }
-}
-```
-
-#### 2. **`NetabaseTreeAsync`** - For Asynchronous Backends
-
-Use this for async backends (remote databases, web APIs, etc.):
-
-```rust
-use netabase_store::traits::tree::NetabaseTreeAsync;
-use netabase_store::error::NetabaseError;
-use std::future::Future;
-
-pub struct MyAsyncBackend<D, M> {
-    // Your async backend state
-}
-
-impl<D, M> NetabaseTreeAsync<D, M> for MyAsyncBackend<D, M>
-where
-    D: NetabaseDefinitionTrait + TryFrom<M> + From<M>,
-    M: NetabaseModelTrait<D> + TryFrom<D> + Clone,
-    // ... same bounds as sync version
-{
-    type PrimaryKey = M::PrimaryKey;
-    type SecondaryKeys = M::SecondaryKeys;
-
-    fn put(&self, model: M) -> impl Future<Output = Result<(), NetabaseError>> {
-        async move {
-            // Your async implementation
-            todo!()
-        }
-    }
-
-    fn get(
-        &self,
-        key: Self::PrimaryKey
-    ) -> impl Future<Output = Result<Option<M>, NetabaseError>> {
-        async move {
-            todo!()
-        }
-    }
-
-    // ... implement other methods with async
-}
-```
-
-#### 3. **`OpenTree`** - For Store-Level API
-
-Implement this on your store type to allow opening trees:
-
-```rust
-use netabase_store::traits::store_ops::OpenTree;
-
-pub struct MyStore<D> {
-    // Store state
-}
-
-impl<D> OpenTree<D> for MyStore<D>
-where
-    D: NetabaseDefinitionTrait,
-{
-    type Tree<M> = MyCustomBackend<D, M>
-    where
-        M: NetabaseModelTrait<D>;
-
-    fn open_tree<M>(&self) -> Self::Tree<M>
-    where
-        M: NetabaseModelTrait<D> + TryFrom<D> + Into<D>,
-    {
-        // Create and return a tree instance for model M
-        MyCustomBackend {
-            // Initialize with store's connection/state
-        }
-    }
-}
-```
-
-#### 4. **`Batchable`** (Optional) - For Batch Operations
-
-If your backend supports atomic batching:
-
-```rust
-use netabase_store::traits::batch::{Batchable, BatchBuilder};
-
-impl<D, M> Batchable<D, M> for MyCustomBackend<D, M>
-where
-    D: NetabaseDefinitionTrait + TryFrom<M> + From<M>,
-    M: NetabaseModelTrait<D> + TryFrom<D> + Clone,
-{
-    type Batch = MyBatch<D, M>;
-
-    fn batch(&self) -> Self::Batch {
-        MyBatch::new(/* ... */)
-    }
-}
-
-pub struct MyBatch<D, M> {
-    // Accumulate operations
-}
-
-impl<D, M> BatchBuilder<D, M> for MyBatch<D, M> {
-    fn put(&mut self, model: M) -> Result<(), NetabaseError> {
-        // Queue the operation
-        todo!()
-    }
-
-    fn remove(&mut self, key: M::PrimaryKey) -> Result<(), NetabaseError> {
-        // Queue the operation
-        todo!()
-    }
-
-    fn commit(self) -> Result<(), NetabaseError> {
-        // Execute all queued operations atomically
-        todo!()
-    }
-}
-```
-
-### Implementation Tips
-
-1. **Serialization**: Use `bincode` for efficient serialization:
-   ```rust
-   use bincode::{encode_to_vec, decode_from_slice, config::standard};
-
-   let bytes = encode_to_vec(&model, standard())?;
-   let (model, _) = decode_from_slice(&bytes, standard())?;
-   ```
-
-2. **Secondary Key Indexing**: Store composite keys:
-   ```rust
-   // Create composite key: secondary_key_bytes + primary_key_bytes
-   let mut composite = secondary_key_bytes;
-   composite.extend_from_slice(&primary_key_bytes);
-   ```
-
-3. **Error Handling**: Convert your backend errors to `NetabaseError`:
-   ```rust
-   use netabase_store::error::NetabaseError;
-
-   my_backend_op().map_err(|e|
-       NetabaseError::Storage(format!("Backend error: {}", e))
-   )?;
-   ```
-
-4. **Iterator Support**: Implement iterators for efficient traversal:
-   ```rust
-   fn iter(&self) -> impl Iterator<Item = Result<(M::PrimaryKey, M), NetabaseError>> {
-       // Return an iterator over all entries
-   }
-   ```
-
-### Complete Example
-
-See the existing backends for reference:
-- **`sled_store.rs`**: Example of sync backend with batch support
-- **`redb_store.rs`**: Example of transactional backend
-- **`indexeddb_store.rs`**: Example of async WASM backend
-All existing code will work with your custom backend once you implement the traits!
+It is *technically* possible to implement a backend of your own, but much of this implementation needed to be generated with macros, with a few implementation specific quirks.
+This makes it a bit hard for me to track *exactly how* to create reproducable instructions, but you can do one of 2 things:
+1. Read the `netabase_macros` to see what gents generated and how things string up
+2. Expanding the macro implementations to see how the backend implementations are generated.
+But if you are looking to wrap your own backend, or for a simpler model, [`kivis`](https://crates.io/crates/kivis) or [`native_model`](https://crates.io/crates/native_model) are probably better suited.
 
 ## Performance
 
@@ -978,28 +670,6 @@ txn.commit()?;  // Single atomic commit
 | Complex transactions | Explicit transactions | Full control, atomic commits |
 | Read-heavy queries | ZeroCopy API | Up to 54x faster for secondary queries |
 
-### Profiling Support
-
-The benchmarks include full profiling support via pprof and flamegraphs:
-
-```bash
-# Run benchmarks with profiling
-cargo bench --bench cross_store_comparison --features native
-
-# Analyze profiling data
-./scripts/analyze_profiling.sh
-
-# View flamegraphs (SVG files in target/criterion/)
-firefox target/criterion/cross_store_insert/wrapper_redb_bulk/profile/flamegraph.svg
-```
-
-**Flamegraphs show:**
-- Function call stacks and time distribution
-- Serialization overhead (bincode operations)
-- Transaction costs (redb internal operations)
-- Memory allocation patterns
-- Lock contention (if any)
-
 ### Running Benchmarks
 
 ```bash
@@ -1030,15 +700,6 @@ open docs/benchmarks/bulk_api_speedup.png
 - **Use when**: Read performance is critical, workload is read-heavy
 
 ### Technical Notes
-
-#### Why Transaction Overhead Matters
-
-Creating a new transaction has fixed costs:
-- Lock acquisition
-- MVCC snapshot creation
-- Internal state setup
-
-When you call `put()` in a loop, you pay these costs N times. Using `put_many()` or explicit transactions, you pay once.
 
 #### Type Safety vs Performance
 
@@ -1175,33 +836,11 @@ cargo run --example redb_zerocopy --features redb-zerocopy
 
 ## Why Netabase Store?
 
-### Problem
-
-Working with different database backends in Rust typically means:
-- Learning different APIs for each backend
-- No type safety for keys and values
-- Manual serialization/deserialization
-- Difficulty switching backends
-- Complex secondary indexing
-
-### Solution
-
-Netabase Store provides:
-- ✅ Single unified API across all backends
-- ✅ Compile-time type safety for everything
-- ✅ Automatic serialization with bincode
-- ✅ Seamless backend switching
-- ✅ Automatic secondary key management
-- ✅ Cross-platform support (native + WASM)
+I was mostly trying to abstract a persisten backend for [`libp2p::kad::store`](https://docs.rs/libp2p/latest/libp2p/kad/store/trait.RecordStore.html), and got carried away.
 
 ## Contributing
 
-Contributions are welcome! Please:
-
-1. Open an issue to discuss major changes
-2. Follow the existing code style
-3. Add tests for new features
-4. Update documentation
+Contributions are welcome! Feel free to leave a PR.
 
 ## License
 
