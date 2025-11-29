@@ -34,13 +34,13 @@ pub fn generate_helper_functions(
     definition: &Ident,
     definition_key: &Ident,
 ) -> proc_macro2::TokenStream {
-    let helper_mod_name = syn::Ident::new(
+    let _helper_mod_name = syn::Ident::new(
         &format!("__{}_helpers", definition.to_string().to_lowercase()),
         definition.span(),
     );
 
     // Generate match arms for extracting discriminant from NetabaseDefinitionKeys
-    let decode_discriminant_arms: Vec<_> = modules
+    let _decode_discriminant_arms: Vec<_> = modules
         .iter()
         .flat_map(|module| {
             module.models.iter().map(|model| {
@@ -58,7 +58,7 @@ pub fn generate_helper_functions(
     // Only generate if libp2p feature is enabled at macro compile time
     #[cfg(feature = "libp2p")]
     let helper_code = quote! {
-        mod #helper_mod_name {
+        mod #_helper_mod_name {
             use super::*;
 
             /// Declarative macro to decode record key for the concrete definition type
@@ -78,7 +78,7 @@ pub fn generate_helper_functions(
 
                         // Extract discriminant by matching on the variant
                         let disc_str = match &def_keys {
-                            #(#decode_discriminant_arms,)*
+                            #(#_decode_discriminant_arms,)*
                         };
 
                         // Parse discriminant string into the actual discriminant type
@@ -120,16 +120,16 @@ pub fn generate_trait_methods(
     definition: &Ident,
     definition_key: &Ident,
 ) -> proc_macro2::TokenStream {
-    let instance_put_match_arms = generate_instance_put_match_arms(modules);
-    let instance_get_match_arms =
+    let _instance_put_match_arms = generate_instance_put_match_arms(modules);
+    let _instance_get_match_arms =
         generate_instance_get_match_arms(modules, definition, definition_key);
-    let remove_match_arms = generate_remove_match_arms(modules, definition_key);
+    let _remove_match_arms = generate_remove_match_arms(modules, definition_key);
 
     // Generate OpenTree bounds for all model types
-    let open_tree_bounds = generate_open_tree_bounds(modules, definition);
+    let _open_tree_bounds = generate_open_tree_bounds(modules, definition);
 
     // Generate helper module name for decode_record_key
-    let helper_mod_name = syn::Ident::new(
+    let _helper_mod_name = syn::Ident::new(
         &format!("__{}_helpers", definition.to_string().to_lowercase()),
         definition.span(),
     );
@@ -141,50 +141,50 @@ pub fn generate_trait_methods(
     let sled_methods = quote! {
         fn handle_sled_put(&self, store: &::netabase_store::databases::sled_store::SledStore<Self>) -> ::netabase_store::netabase_deps::libp2p::kad::store::Result<()>
         where
-            #open_tree_bounds
+            #_open_tree_bounds
         {
             use ::netabase_store::netabase_deps::libp2p::kad::store::Error;
             use ::netabase_store::traits::store_ops::StoreOps;
 
             // Match on self variant to extract inner model and store it
-            #instance_put_match_arms
+            #_instance_put_match_arms
         }
 
         fn handle_sled_get(store: &::netabase_store::databases::sled_store::SledStore<Self>, key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey) -> Option<(Self, ::netabase_store::netabase_deps::libp2p::kad::Record)>
         where
-            #open_tree_bounds
+            #_open_tree_bounds
         {
             use ::netabase_store::traits::definition::NetabaseDefinitionTrait;
             use ::netabase_store::traits::store_ops::StoreOps;
             use ::netabase_store::strum::IntoDiscriminant;
 
             // Decode key to get discriminant and primary key bytes
-            let (discriminant, key_bytes) = #helper_mod_name::decode_record_key!(key, #definition, #definition_key)?;
+            let (discriminant, key_bytes) = #_helper_mod_name::decode_record_key!(key, #definition, #definition_key)?;
 
             // Match discriminant to route to correct tree and wrap in Definition
-            #instance_get_match_arms
+            #_instance_get_match_arms
 
             None
         }
 
         fn handle_sled_remove(store: &::netabase_store::databases::sled_store::SledStore<Self>, key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey)
         where
-            #open_tree_bounds
+            #_open_tree_bounds
         {
             use ::netabase_store::traits::definition::NetabaseDefinitionTrait;
             use ::netabase_store::traits::store_ops::StoreOps;
             use ::netabase_store::strum::IntoDiscriminant;
 
             // Decode key to get discriminant and primary key bytes
-            if let Some((discriminant, key_bytes)) = #helper_mod_name::decode_record_key!(key, #definition, #definition_key) {
+            if let Some((discriminant, key_bytes)) = #_helper_mod_name::decode_record_key!(key, #definition, #definition_key) {
                 // Match discriminant to route to correct tree
-                #remove_match_arms
+                #_remove_match_arms
             }
         }
 
         fn handle_sled_records<'a>(store: &'a ::netabase_store::databases::sled_store::SledStore<Self>) -> Box<dyn Iterator<Item = std::borrow::Cow<'a, ::netabase_store::netabase_deps::libp2p::kad::Record>> + 'a>
         where
-            #open_tree_bounds
+            #_open_tree_bounds
         {
             Box::new(RecordsIterGenerated::new(store))
         }
@@ -197,50 +197,50 @@ pub fn generate_trait_methods(
     let redb_methods = quote! {
         fn handle_redb_put(&self, store: &::netabase_store::databases::redb_store::RedbStore<Self>) -> ::netabase_store::netabase_deps::libp2p::kad::store::Result<()>
         where
-            #open_tree_bounds
+            #_open_tree_bounds
         {
             use ::netabase_store::netabase_deps::libp2p::kad::store::Error;
             use ::netabase_store::traits::store_ops::StoreOps;
 
             // Match on self variant to extract inner model and store it
-            #instance_put_match_arms
+            #_instance_put_match_arms
         }
 
         fn handle_redb_get(store: &::netabase_store::databases::redb_store::RedbStore<Self>, key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey) -> Option<(Self, ::netabase_store::netabase_deps::libp2p::kad::Record)>
         where
-            #open_tree_bounds
+            #_open_tree_bounds
         {
             use ::netabase_store::traits::definition::NetabaseDefinitionTrait;
             use ::netabase_store::traits::store_ops::StoreOps;
             use ::netabase_store::strum::IntoDiscriminant;
 
             // Decode key to get discriminant and primary key bytes
-            let (discriminant, key_bytes) = #helper_mod_name::decode_record_key!(key, #definition, #definition_key)?;
+            let (discriminant, key_bytes) = #_helper_mod_name::decode_record_key!(key, #definition, #definition_key)?;
 
             // Match discriminant to route to correct tree and wrap in Definition
-            #instance_get_match_arms
+            #_instance_get_match_arms
 
             None
         }
 
         fn handle_redb_remove(store: &::netabase_store::databases::redb_store::RedbStore<Self>, key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey)
         where
-            #open_tree_bounds
+            #_open_tree_bounds
         {
             use ::netabase_store::traits::definition::NetabaseDefinitionTrait;
             use ::netabase_store::traits::store_ops::StoreOps;
             use ::netabase_store::strum::IntoDiscriminant;
 
             // Decode key to get discriminant and primary key bytes
-            if let Some((discriminant, key_bytes)) = #helper_mod_name::decode_record_key!(key, #definition, #definition_key) {
+            if let Some((discriminant, key_bytes)) = #_helper_mod_name::decode_record_key!(key, #definition, #definition_key) {
                 // Match discriminant to route to correct tree
-                #remove_match_arms
+                #_remove_match_arms
             }
         }
 
         fn handle_redb_records<'a>(store: &'a ::netabase_store::databases::redb_store::RedbStore<Self>) -> Box<dyn Iterator<Item = std::borrow::Cow<'a, ::netabase_store::netabase_deps::libp2p::kad::Record>> + 'a>
         where
-            #open_tree_bounds
+            #_open_tree_bounds
         {
             Box::new(RecordsIterRedb::new(store))
         }
@@ -333,25 +333,25 @@ fn generate_open_tree_bounds(
 /// 3. Stores models directly (not wrapped in Definition)
 /// 4. Wraps models in Definition only when returning to Kad network
 pub fn generate_record_store_impl(
-    modules: &[ModuleInfo],
-    definition: &Ident,
-    definition_key: &Ident,
+    _modules: &[ModuleInfo],
+    _definition: &Ident,
+    _definition_key: &Ident,
 ) -> proc_macro2::TokenStream {
     // Conditionally generate sled-specific code
     #[cfg(feature = "sled")]
     let sled_code = {
-        let records_iter_impl = generate_records_iter_impl(modules, definition, definition_key);
+        let records_iter_impl = _generate_records_iter_impl(_modules, _definition, _definition_key);
         quote! {
             /// Generic records iterator for sled stores
             pub fn record_store_records_sled(
-                store: &::netabase_store::databases::sled_store::SledStore<#definition>
+                store: &::netabase_store::databases::sled_store::SledStore<#_definition>
             ) -> RecordsIterGenerated<'_> {
                 RecordsIterGenerated::new(store)
             }
 
             /// Generic add_provider for sled stores
             pub fn record_store_add_provider_sled(
-                store: &mut ::netabase_store::databases::sled_store::SledStore<#definition>,
+                store: &mut ::netabase_store::databases::sled_store::SledStore<#_definition>,
                 record: ::netabase_store::netabase_deps::libp2p::kad::ProviderRecord
             ) -> ::netabase_store::netabase_deps::libp2p::kad::store::Result<()> {
                 store.add_provider_internal(record)
@@ -359,7 +359,7 @@ pub fn generate_record_store_impl(
 
             /// Generic providers for sled stores
             pub fn record_store_providers_sled(
-                store: &::netabase_store::databases::sled_store::SledStore<#definition>,
+                store: &::netabase_store::databases::sled_store::SledStore<#_definition>,
                 key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey
             ) -> Vec<::netabase_store::netabase_deps::libp2p::kad::ProviderRecord> {
                 store.providers_internal(key).unwrap_or_default()
@@ -367,14 +367,14 @@ pub fn generate_record_store_impl(
 
             /// Generic provided for sled stores
             pub fn record_store_provided_sled(
-                store: &::netabase_store::databases::sled_store::SledStore<#definition>
+                store: &::netabase_store::databases::sled_store::SledStore<#_definition>
             ) -> ProvidedIterGenerated<'_> {
                 ProvidedIterGenerated::new(store)
             }
 
             /// Generic remove_provider for sled stores
             pub fn record_store_remove_provider_sled(
-                store: &mut ::netabase_store::databases::sled_store::SledStore<#definition>,
+                store: &mut ::netabase_store::databases::sled_store::SledStore<#_definition>,
                 key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey,
                 provider: &::netabase_store::netabase_deps::libp2p::PeerId
             ) {
@@ -390,7 +390,7 @@ pub fn generate_record_store_impl(
             }
 
             impl<'a> ProvidedIterGenerated<'a> {
-                fn new(store: &'a ::netabase_store::databases::sled_store::SledStore<#definition>) -> Self {
+                fn new(store: &'a ::netabase_store::databases::sled_store::SledStore<#_definition>) -> Self {
                     let tree = store.db().open_tree("__libp2p_provided")
                         .expect("Failed to open provided tree");
                     ProvidedIterGenerated {
@@ -421,11 +421,11 @@ pub fn generate_record_store_impl(
     // Conditionally generate redb-specific code
     #[cfg(feature = "redb")]
     let redb_code = {
-        let redb_impl = generate_redb_record_store_impl(modules, definition, definition_key);
+        let redb_impl = _generate_redb_record_store_impl(_modules, _definition, _definition_key);
         quote! {
             /// Generic add_provider for redb stores
             pub fn record_store_add_provider_redb(
-                store: &mut ::netabase_store::databases::redb_store::RedbStore<#definition>,
+                store: &mut ::netabase_store::databases::redb_store::RedbStore<#_definition>,
                 record: ::netabase_store::netabase_deps::libp2p::kad::ProviderRecord
             ) -> ::netabase_store::netabase_deps::libp2p::kad::store::Result<()> {
                 store.add_provider_internal(record)
@@ -433,7 +433,7 @@ pub fn generate_record_store_impl(
 
             /// Generic providers for redb stores
             pub fn record_store_providers_redb(
-                store: &::netabase_store::databases::redb_store::RedbStore<#definition>,
+                store: &::netabase_store::databases::redb_store::RedbStore<#_definition>,
                 key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey
             ) -> Vec<::netabase_store::netabase_deps::libp2p::kad::ProviderRecord> {
                 store.providers_internal(key).unwrap_or_default()
@@ -441,14 +441,14 @@ pub fn generate_record_store_impl(
 
             /// Generic provided for redb stores
             pub fn record_store_provided_redb(
-                store: &::netabase_store::databases::redb_store::RedbStore<#definition>
+                store: &::netabase_store::databases::redb_store::RedbStore<#_definition>
             ) -> ProvidedIterRedb<'_> {
                 ProvidedIterRedb::new(store)
             }
 
             /// Generic remove_provider for redb stores
             pub fn record_store_remove_provider_redb(
-                store: &mut ::netabase_store::databases::redb_store::RedbStore<#definition>,
+                store: &mut ::netabase_store::databases::redb_store::RedbStore<#_definition>,
                 key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey,
                 provider: &::netabase_store::netabase_deps::libp2p::PeerId
             ) {
@@ -457,7 +457,7 @@ pub fn generate_record_store_impl(
 
             /// Generic records for redb stores
             pub fn record_store_records_redb(
-                store: &::netabase_store::databases::redb_store::RedbStore<#definition>
+                store: &::netabase_store::databases::redb_store::RedbStore<#_definition>
             ) -> RecordsIterRedb<'_> {
                 RecordsIterRedb::new(store)
             }
@@ -658,7 +658,7 @@ fn generate_remove_match_arms(
 /// Generate records iterator implementation
 ///
 /// Iterates over all trees and wraps models in Definition
-fn generate_records_iter_impl(
+fn _generate_records_iter_impl(
     modules: &[ModuleInfo],
     definition: &Ident,
     definition_key: &Ident,
@@ -804,13 +804,13 @@ fn generate_records_iter_impl(
 /// Generate RecordStore implementation for RedbStore
 ///
 /// This generates code specifically for RedbStore's transaction-based API
-fn generate_redb_record_store_impl(
+fn _generate_redb_record_store_impl(
     modules: &[ModuleInfo],
     definition: &Ident,
     definition_key: &Ident,
 ) -> proc_macro2::TokenStream {
     let redb_records_iter_impl =
-        generate_redb_records_iter_impl(modules, definition, definition_key);
+        _generate_redb_records_iter_impl(modules, definition, definition_key);
 
     quote! {
         #redb_records_iter_impl
@@ -820,7 +820,7 @@ fn generate_redb_record_store_impl(
 /// Generate RedbStore-specific records iterator implementation
 ///
 /// RedbStore requires collecting records into a Vec first due to transaction constraints
-fn generate_redb_records_iter_impl(
+fn _generate_redb_records_iter_impl(
     modules: &[ModuleInfo],
     definition: &Ident,
     definition_key: &Ident,

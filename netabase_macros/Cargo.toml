@@ -1,6 +1,6 @@
 [package]
 name = "netabase_macros"
-version = "0.0.6"
+version = "0.0.7"
 edition = "2024"
 description = "Macro crate for use by the netabase_store crate"
 license = "GPL-3.0-only"
@@ -33,5 +33,4 @@ strum = { version = "0.27.2", features = ["derive", "strum_macros"] }
 strum_macros = "0.27.2"
 syn = { version = "2.0.106", features = ["visit", "visit-mut", "full", "parsing"] }
 thiserror = "2.0.17"
-netabase_deps = { version = "0.0.6", path = "../netabase_deps" }
-
+netabase_deps = { version = "0.0.7", path = "../netabase_deps" }
