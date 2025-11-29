@@ -287,11 +287,13 @@ where
 /// # }
 /// ```
 #[cfg(all(feature = "redb", feature = "redb-zerocopy"))]
+/// Iterator wrapper for borrowing operations (redb only)
 pub struct BorrowedIter<'txn, K, V>
 where
     K: redb::Key + 'static,
     V: redb::Value + 'static,
 {
+    #[allow(dead_code)]
     iter: redb::Range<'txn, K, V>,
 }
 
@@ -304,6 +306,7 @@ where
     /// Create a new borrowed iterator from a redb Range.
     ///
     /// This is an internal constructor used by the transaction API.
+    #[allow(dead_code)]
     pub(crate) fn new(iter: redb::Range<'txn, K, V>) -> Self {
         Self { iter }
     }

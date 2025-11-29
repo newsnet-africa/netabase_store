@@ -1,11 +1,9 @@
 use quote::ToTokens;
 use syn::{ItemStruct, parse_quote};
 
-use crate::{
-    util::append_ident,
-    visitors::uniffi_visitor::{self, UniffiVisitor},
-};
+use crate::{util::append_ident, visitors::uniffi_visitor::UniffiVisitor};
 impl<'a> UniffiVisitor<'a> {
+    #[allow(dead_code)]
     pub fn generate_uniffi_type(&self) -> ItemStruct {
         let name = append_ident(
             self.name.expect("Visitor has not found a name"),
@@ -29,6 +27,7 @@ impl<'a> UniffiVisitor<'a> {
     }
 }
 
+#[allow(dead_code)]
 fn strip_field_attrs(fields: &syn::Fields) -> syn::Fields {
     match fields {
         syn::Fields::Named(fields_named) => {

@@ -232,12 +232,11 @@ impl<S: Subscriptions> MerkleSubscriptionTree<S> {
 
         // Find different values
         for (key, our_hash) in &our_map {
-            if let Some(their_hash) = their_map.get(key) {
-                if our_hash != their_hash {
+            if let Some(their_hash) = their_map.get(key)
+                && our_hash != their_hash {
                     diff.different_values
                         .push((key.clone(), their_hash.clone(), our_hash.clone()));
                 }
-            }
         }
 
         Ok(diff)
@@ -421,7 +420,7 @@ impl<S: Subscriptions> SubscriptionManager<S> for DefaultSubscriptionManager<S> 
 
     fn stats(&self) -> SubscriptionStats {
         let mut stats = SubscriptionStats::new();
-        for (_topic, tree) in &self.trees {
+        for tree in self.trees.values() {
             stats.add_topic_count(tree.len());
         }
         stats

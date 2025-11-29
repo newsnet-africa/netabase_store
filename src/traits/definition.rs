@@ -99,7 +99,6 @@ impl<T> NetabaseKeyDiscriminant for T where
 /// ```
 ///
 /// instead of having to repeat all the discriminant bounds.
-
 pub trait NetabaseDefinitionTrait:
     bincode::Encode
     + bincode::Decode<()>

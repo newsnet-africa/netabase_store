@@ -78,7 +78,7 @@ pub fn generate_helper_functions(
 
                         // Extract discriminant by matching on the variant
                         let disc_str = match &def_keys {
-                            #(#decode_discriminant_arms),*
+                            #(#decode_discriminant_arms,)*
                         };
 
                         // Parse discriminant string into the actual discriminant type
@@ -148,8 +148,6 @@ pub fn generate_trait_methods(
 
             // Match on self variant to extract inner model and store it
             #instance_put_match_arms
-
-            Err(Error::MaxRecords)
         }
 
         fn handle_sled_get(store: &::netabase_store::databases::sled_store::SledStore<Self>, key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey) -> Option<(Self, ::netabase_store::netabase_deps::libp2p::kad::Record)>
@@ -206,8 +204,6 @@ pub fn generate_trait_methods(
 
             // Match on self variant to extract inner model and store it
             #instance_put_match_arms
-
-            Err(Error::MaxRecords)
         }
 
         fn handle_redb_get(store: &::netabase_store::databases::redb_store::RedbStore<Self>, key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey) -> Option<(Self, ::netabase_store::netabase_deps::libp2p::kad::Record)>
