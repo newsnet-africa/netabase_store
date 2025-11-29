@@ -16,8 +16,8 @@ sled = "0.34.7"
 strum = { version = "0.27.2", features = ["derive", "strum_macros"] }
 blake3 = "1.5"
 redb = { version = "3.1.0", optional = true }
-uniffi = { version = "*"}
-libp2p = {version = "*", features = ["kad"]}
+uniffi = { version = "0.30.0"}
+libp2p = {version = "0.56.0", features = ["kad"]}
 
 [features]
 redb = ["dep:redb"]
