@@ -17,11 +17,6 @@ name = "my_project"
 version = "0.1.0"
 edition = "2024"
 
-# Features must be enabled in your crate for macro-generated code
-[features]
-default = ["native"]
-native = ["netabase_store/native"]
-
 [dependencies]
 netabase_store = { version = "0.0.7", features = ["native"] }
 
