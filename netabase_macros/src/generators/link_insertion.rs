@@ -10,6 +10,7 @@ use crate::{item_info::netabase_model::ModelLinkInfo, visitors::model_visitor::M
 
 impl<'a> ModelVisitor<'a> {
     /// Generate the InsertWithLinks trait implementation for a model with links
+    #[allow(dead_code)]
     pub fn generate_insert_with_links_impl(&self) -> Option<TokenStream> {
         if self.links.is_empty() {
             return None;
@@ -34,7 +35,7 @@ impl<'a> ModelVisitor<'a> {
                     #link_insertion_methods
 
                     // Then insert this model
-                    let tree = store.open_tree();
+                    let tree: <S as crate::traits::store_ops::OpenTree<#definition, Self>>::Tree<'_> = <S as crate::traits::store_ops::OpenTree<#definition, Self>>::open_tree(store);
                     tree.put_raw(self.clone())
                 }
             }
@@ -46,6 +47,7 @@ impl<'a> ModelVisitor<'a> {
     }
 
     /// Generate code to insert all linked entities
+    #[allow(dead_code)]
     fn generate_link_insertion_statements(&self) -> TokenStream {
         let statements: Vec<TokenStream> = self
             .links
@@ -61,6 +63,7 @@ impl<'a> ModelVisitor<'a> {
     }
 
     /// Generate code to insert only linked entities (without the main model)
+    #[allow(dead_code)]
     fn generate_link_only_insertion_statements(&self) -> TokenStream {
         let statements: Vec<TokenStream> = self
             .links
@@ -76,12 +79,27 @@ impl<'a> ModelVisitor<'a> {
     }
 
     /// Generate insertion code for a single RelationalLink field
+    #[allow(dead_code)]
     fn generate_single_link_insertion(&self, link: &ModelLinkInfo, _index: usize) -> TokenStream {
         let field_name = &link.link_field.ident;
-        let _linked_type = link.linked_type.unwrap_or_else(|| {
-            // Fallback - this shouldn't happen if our type detection works correctly
-            panic!("Could not determine linked type for field {:?}", field_name);
-        });
+        let _linked_type = match link.linked_type {
+            Some(linked_type) => linked_type,
+            None => {
+                // Return an error token instead of panicking
+                let error_msg = format!(
+                    "Could not determine linked type for field `{:?}`. \
+                    Make sure the RelationalLink field has a valid type annotation.",
+                    field_name
+                );
+                let error = syn::Error::new_spanned(
+                    field_name
+                        .as_ref()
+                        .unwrap_or(&syn::Ident::new("unknown", proc_macro2::Span::call_site())),
+                    error_msg,
+                );
+                return error.into_compile_error();
+            }
+        };
 
         quote! {
             match &self.#field_name {
@@ -98,6 +116,7 @@ impl<'a> ModelVisitor<'a> {
     }
 
     /// Generate insertion code for a single RelationalLink field (links only, no main entity)
+    #[allow(dead_code)]
     fn generate_single_link_only_insertion(
         &self,
         link: &ModelLinkInfo,
@@ -120,6 +139,7 @@ impl<'a> ModelVisitor<'a> {
     }
 
     /// Generate individual link insertion methods
+    #[allow(dead_code)]
     fn generate_link_insertion_methods(&self) -> TokenStream {
         let methods: Vec<TokenStream> = self
             .links
@@ -134,6 +154,7 @@ impl<'a> ModelVisitor<'a> {
     }
 
     /// Generate an individual method for inserting a specific link
+    #[allow(dead_code)]
     fn generate_individual_link_method(&self, link: &ModelLinkInfo) -> TokenStream {
         let field_name = &link.link_field.ident;
         let method_name = format!(
@@ -166,6 +187,7 @@ impl<'a> ModelVisitor<'a> {
     }
 
     /// Generate compile-time conditional insertion methods based on field types
+    #[allow(dead_code)]
     pub fn generate_conditional_link_methods(&self) -> TokenStream {
         if self.links.is_empty() {
             return quote! {};
@@ -187,6 +209,7 @@ impl<'a> ModelVisitor<'a> {
     }
 
     /// Generate a compile-time conditional method for a specific field
+    #[allow(dead_code)]
     fn generate_conditional_field_method(&self, link: &ModelLinkInfo) -> TokenStream {
         let field_name = &link.link_field.ident;
         let method_name = match field_name {
@@ -227,6 +250,7 @@ impl<'a> ModelVisitor<'a> {
     }
 
     /// Generate helper methods for link type checking at compile time
+    #[allow(dead_code)]
     pub fn generate_link_type_helpers(&self) -> TokenStream {
         if self.links.is_empty() {
             return quote! {};
@@ -248,6 +272,7 @@ impl<'a> ModelVisitor<'a> {
     }
 
     /// Generate a compile-time type checking method for a specific link field
+    #[allow(dead_code)]
     fn generate_link_type_check_method(&self, link: &ModelLinkInfo) -> TokenStream {
         let field_name = &link.link_field.ident;
         let method_name = match field_name {
@@ -270,6 +295,7 @@ impl<'a> ModelVisitor<'a> {
 /// Generate helper methods for type-safe link insertion
 /// This is now kept private and only used internally for documentation
 /// Macros are not generated to avoid redefinition issues
+#[allow(dead_code)]
 pub fn generate_link_insertion_macros() -> TokenStream {
     quote! {
         // Link insertion macros are defined globally in the crate

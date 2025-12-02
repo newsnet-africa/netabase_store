@@ -1,11 +1,10 @@
-//! Simple example demonstrating automatic insertion of linked entities
+//! Simple example demonstrating relational links in netabase_store
 //!
-//! This example shows how the enhanced NetabaseModel derive macro automatically
-//! generates code to insert linked entities when a model with RelationalLink fields
-//! is inserted into the database.
+//! This example shows how to work with RelationalLink fields in models
+//! and demonstrates basic insertion and retrieval patterns.
 
-use netabase_store::databases::sled_store::SledStore;
-use netabase_store::store_ops::StoreOps;
+use netabase_store::links::RelationalLink;
+use netabase_store::traits::store_ops::StoreOps;
 use netabase_store::*;
 use std::error::Error;
 
@@ -13,6 +12,7 @@ use std::error::Error;
 #[netabase_definition_module(BlogDefinition, BlogDefinitionKey)]
 mod blog_schema {
     use super::*;
+    use netabase_store::netabase;
 
     /// Author model - this will be linked by Post
     #[derive(
@@ -33,8 +33,7 @@ mod blog_schema {
         pub email: String,
     }
 
-    /// Post model with RelationalLink fields
-    /// The derive macro will automatically generate insertion methods that handle linked entities
+    /// Post model with RelationalLink field
     #[derive(
         NetabaseModel,
         Clone,
@@ -52,7 +51,8 @@ mod blog_schema {
         pub title: String,
         pub content: String,
 
-        // RelationalLink field - this will trigger automatic link insertion
+        // RelationalLink field with 2-parameter form
+        #[relation(author)]
         pub author: RelationalLink<BlogDefinition, Author>,
     }
 }
@@ -60,11 +60,13 @@ mod blog_schema {
 use blog_schema::*;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    println!("=== Simple Auto Link Insertion Example ===\n");
+    println!("=== Simple Relational Links Example ===\n");
 
-    // Create a temporary database
-    let temp_dir = tempfile::tempdir()?;
-    let store = SledStore::new(temp_dir.path().join("simple_blog_db"))?;
+    // Create a temporary database with explicit type annotation
+    let store: NetabaseStore<
+        BlogDefinition,
+        netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+    > = NetabaseStore::temp()?;
 
     // Create an author entity
     let author = Author {
@@ -73,136 +75,91 @@ fn main() -> Result<(), Box<dyn Error>> {
         email: "alice@example.com".to_string(),
     };
 
-    // Create a post that references the author as an Entity (not just a key reference)
-    let post = Post {
+    println!("1. Inserting author:");
+    let author_tree = store.open_tree::<Author>();
+    author_tree.put_raw(author.clone())?;
+    println!("   ✓ Inserted author: {}", author.name);
+
+    // Create a post that references the author by key
+    let post_with_key = Post {
         id: 1,
         title: "My First Post".to_string(),
         content: "This is my first blog post!".to_string(),
-
-        // Using Entity variant - this will be automatically inserted
-        author: RelationalLink::Entity(author.clone()),
+        author: RelationalLink::from_key(author.primary_key()),
     };
 
-    println!("1. Traditional approach - manual insertion:");
-    {
-        // Manually insert the author first
-        let author_tree = store.open_tree();
-        author_tree.put_raw(author.clone())?;
-        println!("   ✓ Manually inserted author: {}", author.name);
+    println!("\n2. Inserting post with author key reference:");
+    let post_tree = store.open_tree::<Post>();
+    post_tree.put_raw(post_with_key.clone())?;
+    println!("   ✓ Inserted post: {}", post_with_key.title);
 
-        // Then insert the post
-        let post_tree = store.open_tree();
-        post_tree.put_raw(post.clone())?;
-        println!("   ✓ Manually inserted post: {}", post.title);
-    }
-    println!();
+    // Verify we can retrieve the post and resolve the author link
+    println!("\n3. Retrieving post and resolving author:");
+    if let Some(retrieved_post) = post_tree.get_raw(post_with_key.primary_key())? {
+        println!("   Retrieved post: {}", retrieved_post.title);
 
-    println!("2. Enhanced approach - automatic link insertion:");
-    {
-        use netabase_store::links::InsertWithLinks;
-
-        // The derive macro generated insert_with_links method
-        // It automatically detects RelationalLink::Entity variants and inserts them
-        match post.insert_with_links(&store) {
-            Ok(_) => {
-                println!("   ✓ Successfully used automatic link insertion!");
-                println!("   ✓ Post and linked author were both inserted automatically");
-            }
-            Err(e) => {
-                println!("   ✗ Error with automatic insertion: {}", e);
-                // Fallback to manual insertion
-                println!("   → Falling back to manual insertion approach");
-
-                let author_tree = store.open_tree();
-                author_tree.put_raw(author.clone())?;
-
-                let post_tree = store.open_tree();
-                post_tree.put_raw(post.clone())?;
-
-                println!("   ✓ Manual fallback completed");
-            }
+        let author_key = retrieved_post.author.key();
+        if let Some(linked_author) = author_tree.get_raw(author_key)? {
+            println!("   ✓ Resolved author: {}", linked_author.name);
         }
     }
-    println!();
 
-    println!("3. Using compile-time generated helper methods:");
-    {
-        // The derive macro also generated field-specific methods
+    // Create a post with an embedded author entity
+    let embedded_author = Author {
+        id: 2,
+        name: "Bob Smith".to_string(),
+        email: "bob@example.com".to_string(),
+    };
 
-        // Check if the author field contains an Entity (compile-time + runtime check)
-        if post.is_author_entity() {
-            println!("   ✓ Author field contains Entity variant");
+    let post_with_entity = Post {
+        id: 2,
+        title: "Second Post".to_string(),
+        content: "This post embeds the author entity.".to_string(),
+        author: RelationalLink::Entity(embedded_author.clone()),
+    };
 
-            // Insert only the author if it's an Entity
-            if let Err(e) = post.insert_author_if_entity(&store) {
-                println!("   ✗ Error inserting author: {}", e);
-            } else {
-                println!("   ✓ Author inserted using field-specific method");
+    println!("\n4. Inserting post with embedded author entity:");
+    post_tree.put_raw(post_with_entity.clone())?;
+    println!(
+        "   ✓ Inserted post with embedded author: {}",
+        post_with_entity.title
+    );
+
+    // When we retrieve this post, we can access the embedded author directly
+    if let Some(post_with_embedded_retrieved) = post_tree.get_raw(post_with_entity.primary_key())? {
+        match &post_with_embedded_retrieved.author {
+            RelationalLink::Entity(embedded_author) => {
+                println!("   ✓ Retrieved embedded author: {}", embedded_author.name);
+            }
+            RelationalLink::Reference(_) => {
+                println!("   ✓ Author is stored as key reference");
             }
         }
     }
-    println!();
 
-    println!("4. Reference-only links (no insertion needed):");
-    {
-        let post_with_ref = Post {
-            id: 2,
-            title: "Second Post".to_string(),
-            content: "This post uses a reference...".to_string(),
-
-            // Using Reference variant - this won't trigger insertion
-            author: RelationalLink::from_key(AuthorPrimaryKey(1u64)),
-        };
-
-        use netabase_store::links::InsertWithLinks;
-
-        // Only the post itself will be inserted (author is just a reference)
-        match post_with_ref.insert_with_links(&store) {
-            Ok(_) => println!("   ✓ Post with reference-only link inserted (no author insertion)"),
-            Err(e) => {
-                println!("   ✗ Error: {}", e);
-                // Manual fallback
-                let post_tree = store.open_tree();
-                post_tree.put_raw(post_with_ref)?;
-                println!("   ✓ Manual insertion completed");
-            }
-        }
-    }
-    println!();
-
-    println!("5. Verification:");
-    {
-        // Verify all entities were inserted correctly
-        let author_tree = store.open_tree();
-        if let Some(stored_author) = author_tree.get_raw(AuthorPrimaryKey(1u64))? {
-            println!("   ✓ Author found in database: {}", stored_author.name);
-        } else {
-            println!("   ✗ Author not found in database");
-        }
-
-        let post_tree = store.open_tree();
-        if let Some(stored_post) = post_tree.get_raw(PostPrimaryKey(1u64))? {
-            println!("   ✓ First post found in database: {}", stored_post.title);
-        } else {
-            println!("   ✗ First post not found in database");
-        }
-
-        if let Some(stored_post2) = post_tree.get_raw(PostPrimaryKey(2u64))? {
-            println!("   ✓ Second post found in database: {}", stored_post2.title);
-        } else {
-            println!("   ✗ Second post not found in database");
-        }
+    println!("\n5. Verification - listing all posts:");
+    for post_result in post_tree.iter() {
+        let (_key, post) = post_result?;
+        println!(
+            "   Post: {} (author key: {:?})",
+            post.title,
+            post.author.key()
+        );
     }
 
-    println!("\n=== Summary ===");
-    println!("The enhanced NetabaseModel derive macro provides:");
-    println!("• Automatic detection of RelationalLink<D, M> fields");
-    println!("• InsertWithLinks trait implementation");
-    println!("• Conditional insertion based on Entity vs Reference variants");
-    println!("• Individual field insertion methods (insert_*_if_entity)");
-    println!("• Field type checking methods (is_*_entity)");
-    println!("• Compile-time code generation based on actual field types");
-    println!("• Graceful fallback when automatic insertion fails");
+    println!("\n6. Verification - listing all authors:");
+    for author_result in author_tree.iter() {
+        let (_key, author) = author_result?;
+        println!("   Author: {} ({})", author.name, author.email);
+    }
+
+    println!("\n✅ Simple relational links example completed successfully!");
+    println!("\nKey concepts demonstrated:");
+    println!("• RelationalLink<D, M> with 3-parameter form");
+    println!("• Key-based references using RelationalLink::from_key()");
+    println!("• Entity embedding using RelationalLink::Entity()");
+    println!("• Link resolution using the .key() method");
+    println!("• Pattern matching on RelationalLink variants");
 
     Ok(())
 }
@@ -226,16 +183,14 @@ mod tests {
         // Test Reference variant
         let ref_link = RelationalLink::from_key(1u64);
         assert!(matches!(ref_link, RelationalLink::Reference(_)));
-
-        // Test conversion
-        let entity_from_author: RelationalLink<BlogDefinition, Author> = author.into();
-        assert!(matches!(entity_from_author, RelationalLink::Entity(_)));
     }
 
     #[test]
-    fn test_basic_insertion() -> Result<(), Box<dyn Error>> {
-        let temp_dir = tempfile::tempdir()?;
-        let store = SledBackend::open(temp_dir.path(), "test_db")?;
+    fn test_basic_insertion() -> Result<(), Box<dyn std::error::Error>> {
+        let store: NetabaseStore<
+            BlogDefinition,
+            netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+        > = NetabaseStore::temp()?;
 
         let author = Author {
             id: 1,
@@ -250,42 +205,66 @@ mod tests {
             author: RelationalLink::Entity(author.clone()),
         };
 
-        // Test manual insertion as baseline
-        let author_tree = store.open_tree();
+        // Test basic insertion
+        let author_tree = store.open_tree::<Author>();
         author_tree.put_raw(author.clone())?;
 
-        let post_tree = store.open_tree();
+        let post_tree = store.open_tree::<Post>();
         post_tree.put_raw(post.clone())?;
 
         // Verify insertion worked
-        let stored_author = author_tree.get_raw(1u64)?.expect("Author should exist");
+        let stored_author = author_tree
+            .get_raw(author.primary_key())?
+            .expect("Author should exist");
         assert_eq!(stored_author.name, "Test Author");
 
-        let stored_post = post_tree.get_raw(1u64)?.expect("Post should exist");
+        let stored_post = post_tree
+            .get_raw(post.primary_key())?
+            .expect("Post should exist");
         assert_eq!(stored_post.title, "Test Post");
 
         Ok(())
     }
 
     #[test]
-    fn test_generated_methods_exist() {
+    fn test_link_resolution() -> Result<(), Box<dyn std::error::Error>> {
+        let store: NetabaseStore<
+            BlogDefinition,
+            netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+        > = NetabaseStore::temp()?;
+
         let author = Author {
             id: 1,
             name: "Test Author".to_string(),
             email: "test@example.com".to_string(),
         };
 
+        // Insert author first
+        let author_tree = store.open_tree::<Author>();
+        author_tree.put_raw(author.clone())?;
+
+        // Create post with key reference
         let post = Post {
             id: 1,
             title: "Test Post".to_string(),
             content: "Test content".to_string(),
-            author: RelationalLink::Entity(author),
+            author: RelationalLink::from_key(author.primary_key()),
         };
 
-        // These methods should be generated by the derive macro
-        assert!(post.is_author_entity());
+        let post_tree = store.open_tree::<Post>();
+        post_tree.put_raw(post.clone())?;
 
-        // The insert_author_if_entity method should exist (we can't easily test it without a store)
-        // but we can at least verify it compiles
+        // Retrieve and resolve link
+        let retrieved_post = post_tree
+            .get_raw(post.primary_key())?
+            .expect("Post should exist");
+        let author_key = retrieved_post.author.key();
+        let linked_author = author_tree
+            .get_raw(author_key)?
+            .expect("Linked author should exist");
+
+        assert_eq!(linked_author.name, "Test Author");
+
+        Ok(())
     }
 }

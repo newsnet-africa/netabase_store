@@ -15,7 +15,16 @@ use tempfile::TempDir;
 mod benchmark_schema {
     use super::*;
 
-    #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, PartialEq)]
+    #[derive(
+        NetabaseModel,
+        Clone,
+        Debug,
+        bincode::Encode,
+        bincode::Decode,
+        PartialEq,
+        serde::Serialize,
+        serde::Deserialize,
+    )]
     #[netabase(BenchmarkDefinition)]
     pub struct SmallEntity {
         #[primary_key]
@@ -23,7 +32,16 @@ mod benchmark_schema {
         pub value: u32,
     }
 
-    #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, PartialEq)]
+    #[derive(
+        NetabaseModel,
+        Clone,
+        Debug,
+        bincode::Encode,
+        bincode::Decode,
+        PartialEq,
+        serde::Serialize,
+        serde::Deserialize,
+    )]
     #[netabase(BenchmarkDefinition)]
     pub struct MediumEntity {
         #[primary_key]
@@ -34,7 +52,16 @@ mod benchmark_schema {
         pub metadata: std::collections::HashMap<String, String>,
     }
 
-    #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, PartialEq)]
+    #[derive(
+        NetabaseModel,
+        Clone,
+        Debug,
+        bincode::Encode,
+        bincode::Decode,
+        PartialEq,
+        serde::Serialize,
+        serde::Deserialize,
+    )]
     #[netabase(BenchmarkDefinition)]
     pub struct LargeEntity {
         #[primary_key]
@@ -42,7 +69,7 @@ mod benchmark_schema {
         pub title: String,
         pub content: String,
         pub attachments: Vec<String>,
-        pub properties: std::collections::HashMap<String, serde_json::Value>,
+        pub properties: std::collections::HashMap<String, String>,
         pub created_at: u64,
         pub updated_at: u64,
         pub version: u32,
@@ -114,11 +141,10 @@ fn create_large_entity(id: u64) -> LargeEntity {
             for i in 0..20 {
                 map.insert(
                     format!("property-{}", i),
-                    serde_json::json!({
-                        "id": id,
-                        "index": i,
-                        "description": format!("Property {} for entity {}", i, id)
-                    }),
+                    format!(
+                        r#"{{"id": {}, "index": {}, "description": "Property {} for entity {}"}}"#,
+                        id, i, i, id
+                    ),
                 );
             }
             map
@@ -140,15 +166,19 @@ fn bench_relational_link_creation(c: &mut Criterion) {
     // Small Entity benchmarks
     group.bench_function("small_entity_link", |b| {
         b.iter(|| {
-            let entity_link = black_box(RelationalLink::Entity(small_entity.clone()));
+            let entity_link: RelationalLink<BenchmarkDefinition, SmallEntity> =
+                black_box(RelationalLink::Entity(small_entity.clone()));
             std_black_box(entity_link)
         })
     });
 
     group.bench_function("small_reference_link", |b| {
         b.iter(|| {
-            let ref_link =
-                black_box(RelationalLink::<BenchmarkDefinition, SmallEntity>::from_key(1));
+            let ref_link = black_box(
+                RelationalLink::<BenchmarkDefinition, SmallEntity>::from_key(
+                    SmallEntityPrimaryKey(1),
+                ),
+            );
             std_black_box(ref_link)
         })
     });
@@ -156,15 +186,19 @@ fn bench_relational_link_creation(c: &mut Criterion) {
     // Medium Entity benchmarks
     group.bench_function("medium_entity_link", |b| {
         b.iter(|| {
-            let entity_link = black_box(RelationalLink::Entity(medium_entity.clone()));
+            let entity_link: RelationalLink<BenchmarkDefinition, MediumEntity> =
+                black_box(RelationalLink::Entity(medium_entity.clone()));
             std_black_box(entity_link)
         })
     });
 
     group.bench_function("medium_reference_link", |b| {
         b.iter(|| {
-            let ref_link =
-                black_box(RelationalLink::<BenchmarkDefinition, MediumEntity>::from_key(1));
+            let ref_link = black_box(
+                RelationalLink::<BenchmarkDefinition, MediumEntity>::from_key(
+                    MediumEntityPrimaryKey(1),
+                ),
+            );
             std_black_box(ref_link)
         })
     });
@@ -172,15 +206,19 @@ fn bench_relational_link_creation(c: &mut Criterion) {
     // Large Entity benchmarks
     group.bench_function("large_entity_link", |b| {
         b.iter(|| {
-            let entity_link = black_box(RelationalLink::Entity(large_entity.clone()));
+            let entity_link: RelationalLink<BenchmarkDefinition, LargeEntity> =
+                black_box(RelationalLink::Entity(large_entity.clone()));
             std_black_box(entity_link)
         })
     });
 
     group.bench_function("large_reference_link", |b| {
         b.iter(|| {
-            let ref_link =
-                black_box(RelationalLink::<BenchmarkDefinition, LargeEntity>::from_key(1));
+            let ref_link = black_box(
+                RelationalLink::<BenchmarkDefinition, LargeEntity>::from_key(
+                    LargeEntityPrimaryKey(1),
+                ),
+            );
             std_black_box(ref_link)
         })
     });
@@ -196,12 +234,18 @@ fn bench_relational_link_serialization(c: &mut Criterion) {
     let medium_entity = create_medium_entity(1);
     let large_entity = create_large_entity(1);
 
-    let small_entity_link = RelationalLink::Entity(small_entity.clone());
-    let small_ref_link = RelationalLink::<BenchmarkDefinition, SmallEntity>::from_key(1);
-    let medium_entity_link = RelationalLink::Entity(medium_entity.clone());
-    let medium_ref_link = RelationalLink::<BenchmarkDefinition, MediumEntity>::from_key(1);
-    let large_entity_link = RelationalLink::Entity(large_entity.clone());
-    let large_ref_link = RelationalLink::<BenchmarkDefinition, LargeEntity>::from_key(1);
+    let small_entity_link: RelationalLink<BenchmarkDefinition, SmallEntity> =
+        RelationalLink::Entity(small_entity.clone());
+    let small_ref_link =
+        RelationalLink::<BenchmarkDefinition, SmallEntity>::from_key(SmallEntityPrimaryKey(1));
+    let medium_entity_link: RelationalLink<BenchmarkDefinition, MediumEntity> =
+        RelationalLink::Entity(medium_entity.clone());
+    let medium_ref_link =
+        RelationalLink::<BenchmarkDefinition, MediumEntity>::from_key(MediumEntityPrimaryKey(1));
+    let large_entity_link: RelationalLink<BenchmarkDefinition, LargeEntity> =
+        RelationalLink::Entity(large_entity.clone());
+    let large_ref_link =
+        RelationalLink::<BenchmarkDefinition, LargeEntity>::from_key(LargeEntityPrimaryKey(1));
 
     // Small entity serialization
     group.bench_function("small_entity_serialize", |b| {
@@ -271,12 +315,18 @@ fn bench_relational_link_deserialization(c: &mut Criterion) {
     let medium_entity = create_medium_entity(1);
     let large_entity = create_large_entity(1);
 
-    let small_entity_link = RelationalLink::Entity(small_entity);
-    let small_ref_link = RelationalLink::<BenchmarkDefinition, SmallEntity>::from_key(1);
-    let medium_entity_link = RelationalLink::Entity(medium_entity);
-    let medium_ref_link = RelationalLink::<BenchmarkDefinition, MediumEntity>::from_key(1);
-    let large_entity_link = RelationalLink::Entity(large_entity);
-    let large_ref_link = RelationalLink::<BenchmarkDefinition, LargeEntity>::from_key(1);
+    let small_entity_link: RelationalLink<BenchmarkDefinition, SmallEntity> =
+        RelationalLink::Entity(small_entity);
+    let small_ref_link =
+        RelationalLink::<BenchmarkDefinition, SmallEntity>::from_key(SmallEntityPrimaryKey(1));
+    let medium_entity_link: RelationalLink<BenchmarkDefinition, MediumEntity> =
+        RelationalLink::Entity(medium_entity);
+    let medium_ref_link =
+        RelationalLink::<BenchmarkDefinition, MediumEntity>::from_key(MediumEntityPrimaryKey(1));
+    let large_entity_link: RelationalLink<BenchmarkDefinition, LargeEntity> =
+        RelationalLink::Entity(large_entity);
+    let large_ref_link =
+        RelationalLink::<BenchmarkDefinition, LargeEntity>::from_key(LargeEntityPrimaryKey(1));
 
     // Pre-serialize for deserialization benchmarks
     let small_entity_encoded =
@@ -380,49 +430,61 @@ fn bench_relational_link_hydration(c: &mut Criterion) {
 
     let small_tree = store.open_tree();
     for entity in &small_entities {
-        small_tree.put_raw(entity.clone()).unwrap();
+        small_tree.put(entity.clone()).unwrap();
     }
 
     let medium_tree = store.open_tree();
     for entity in &medium_entities {
-        medium_tree.put_raw(entity.clone()).unwrap();
+        medium_tree.put(entity.clone()).unwrap();
     }
 
     let large_tree = store.open_tree();
     for entity in &large_entities {
-        large_tree.put_raw(entity.clone()).unwrap();
+        large_tree.put(entity.clone()).unwrap();
     }
 
     // Create test links
     let small_entity_links: Vec<_> = small_entities
         .iter()
         .take(100)
-        .map(|e| RelationalLink::Entity(e.clone()))
+        .map(|e| RelationalLink::<BenchmarkDefinition, SmallEntity>::Entity(e.clone()))
         .collect();
     let small_ref_links: Vec<_> = small_entities
         .iter()
         .take(100)
-        .map(|e| RelationalLink::from_key(e.id))
+        .map(|e| {
+            RelationalLink::<BenchmarkDefinition, SmallEntity>::from_key(SmallEntityPrimaryKey(
+                e.id,
+            ))
+        })
         .collect();
 
     let medium_entity_links: Vec<_> = medium_entities
         .iter()
         .take(50)
-        .map(|e| RelationalLink::Entity(e.clone()))
+        .map(|e| RelationalLink::<BenchmarkDefinition, MediumEntity>::Entity(e.clone()))
         .collect();
     let medium_ref_links: Vec<_> = medium_entities
         .iter()
         .take(50)
-        .map(|e| RelationalLink::from_key(e.id))
+        .map(|e| {
+            RelationalLink::<BenchmarkDefinition, MediumEntity>::from_key(MediumEntityPrimaryKey(
+                e.id,
+            ))
+        })
         .collect();
 
     let large_entity_links: Vec<_> = large_entities
         .iter()
-        .map(|e| RelationalLink::Entity(e.clone()))
+        .map(|e| RelationalLink::<BenchmarkDefinition, LargeEntity>::Entity(e.clone()))
         .collect();
     let large_ref_links: Vec<_> = large_entities
         .iter()
-        .map(|e| RelationalLink::from_key(e.id))
+        .map(|e| {
+            RelationalLink::<BenchmarkDefinition, LargeEntity>::from_key(LargeEntityPrimaryKey(
+                e.id,
+            ))
+        })
         .collect();
 
     // Small entity hydration benchmarks
@@ -430,7 +492,7 @@ fn bench_relational_link_hydration(c: &mut Criterion) {
     group.bench_function("small_entity_hydration", |b| {
         b.iter(|| {
             for link in &small_entity_links {
-                let result = black_box(link.clone().hydrate(small_tree.clone()).unwrap());
+                let result = black_box(link.clone().hydrate(&small_tree).unwrap());
                 std_black_box(result);
             }
         })
@@ -439,7 +501,7 @@ fn bench_relational_link_hydration(c: &mut Criterion) {
     group.bench_function("small_reference_hydration", |b| {
         b.iter(|| {
             for link in &small_ref_links {
-                let result = black_box(link.clone().hydrate(small_tree.clone()).unwrap());
+                let result = black_box(link.clone().hydrate(&small_tree).unwrap());
                 std_black_box(result);
             }
         })
@@ -450,7 +512,7 @@ fn bench_relational_link_hydration(c: &mut Criterion) {
     group.bench_function("medium_entity_hydration", |b| {
         b.iter(|| {
             for link in &medium_entity_links {
-                let result = black_box(link.clone().hydrate(medium_tree.clone()).unwrap());
+                let result = black_box(link.clone().hydrate(&medium_tree).unwrap());
                 std_black_box(result);
             }
         })
@@ -459,7 +521,7 @@ fn bench_relational_link_hydration(c: &mut Criterion) {
     group.bench_function("medium_reference_hydration", |b| {
         b.iter(|| {
             for link in &medium_ref_links {
-                let result = black_box(link.clone().hydrate(medium_tree.clone()).unwrap());
+                let result = black_box(link.clone().hydrate(&medium_tree).unwrap());
                 std_black_box(result);
             }
         })
@@ -470,7 +532,7 @@ fn bench_relational_link_hydration(c: &mut Criterion) {
     group.bench_function("large_entity_hydration", |b| {
         b.iter(|| {
             for link in &large_entity_links {
-                let result = black_box(link.clone().hydrate(large_tree.clone()).unwrap());
+                let result = black_box(link.clone().hydrate(&large_tree).unwrap());
                 std_black_box(result);
             }
         })
@@ -479,7 +541,7 @@ fn bench_relational_link_hydration(c: &mut Criterion) {
     group.bench_function("large_reference_hydration", |b| {
         b.iter(|| {
             for link in &large_ref_links {
-                let result = black_box(link.clone().hydrate(large_tree.clone()).unwrap());
+                let result = black_box(link.clone().hydrate(&large_tree).unwrap());
                 std_black_box(result);
             }
         })
@@ -509,12 +571,12 @@ fn bench_relational_link_collections(c: &mut Criterion) {
             |b, &size| {
                 let entities = &small_entities[..size];
                 b.iter(|| {
-                    let links: Vec<RelationalLink<BenchmarkDefinition, SmallEntity>> = black_box(
-                        entities
-                            .iter()
-                            .map(|e| RelationalLink::Entity(e.clone()))
-                            .collect(),
-                    );
+                    let links: Vec<RelationalLink<BenchmarkDefinition, SmallEntity>> = entities
+                        .iter()
+                        .map(|e| {
+                            RelationalLink::<BenchmarkDefinition, SmallEntity>::Entity(e.clone())
+                        })
+                        .collect();
                     std_black_box(links)
                 })
             },
@@ -527,12 +589,14 @@ fn bench_relational_link_collections(c: &mut Criterion) {
             |b, &size| {
                 let entities = &small_entities[..size];
                 b.iter(|| {
-                    let links: Vec<RelationalLink<BenchmarkDefinition, SmallEntity>> = black_box(
-                        entities
-                            .iter()
-                            .map(|e| RelationalLink::from_key(e.id))
-                            .collect(),
-                    );
+                    let links: Vec<RelationalLink<BenchmarkDefinition, SmallEntity>> = entities
+                        .iter()
+                        .map(|e| {
+                            RelationalLink::<BenchmarkDefinition, SmallEntity>::from_key(
+                                SmallEntityPrimaryKey(e.id),
+                            )
+                        })
+                        .collect();
                     std_black_box(links)
                 })
             },
@@ -542,12 +606,16 @@ fn bench_relational_link_collections(c: &mut Criterion) {
         let entity_links: Vec<RelationalLink<BenchmarkDefinition, SmallEntity>> = small_entities
             [..size]
             .iter()
-            .map(|e| RelationalLink::Entity(e.clone()))
+            .map(|e| RelationalLink::<BenchmarkDefinition, SmallEntity>::Entity(e.clone()))
             .collect();
         let ref_links: Vec<RelationalLink<BenchmarkDefinition, SmallEntity>> = small_entities
             [..size]
             .iter()
-            .map(|e| RelationalLink::from_key(e.id))
+            .map(|e| {
+                RelationalLink::<BenchmarkDefinition, SmallEntity>::from_key(SmallEntityPrimaryKey(
+                    e.id,
+                ))
+            })
             .collect();
 
         group.bench_with_input(
@@ -610,18 +678,26 @@ fn bench_complex_entity_operations(c: &mut Criterion) {
     let complex_entity_with_refs = ComplexEntity {
         id: 2,
         name: "Complex Entity with References".to_string(),
-        small_ref: RelationalLink::from_key(small_entities[0].id),
-        medium_ref: RelationalLink::from_key(medium_entities[0].id),
-        large_ref: RelationalLink::from_key(large_entities[0].id),
+        small_ref: RelationalLink::from_key(SmallEntityPrimaryKey(small_entities[0].id)),
+        medium_ref: RelationalLink::from_key(MediumEntityPrimaryKey(medium_entities[0].id)),
+        large_ref: RelationalLink::from_key(LargeEntityPrimaryKey(large_entities[0].id)),
         small_collection: small_entities
             .iter()
             .take(10)
-            .map(|e| RelationalLink::from_key(e.id))
+            .map(|e| {
+                RelationalLink::<BenchmarkDefinition, SmallEntity>::from_key(SmallEntityPrimaryKey(
+                    e.id,
+                ))
+            })
             .collect(),
         medium_collection: medium_entities
             .iter()
             .take(5)
-            .map(|e| RelationalLink::from_key(e.id))
+            .map(|e| {
+                RelationalLink::<BenchmarkDefinition, MediumEntity>::from_key(
+                    MediumEntityPrimaryKey(e.id),
+                )
+            })
             .collect(),
     };
 
@@ -654,18 +730,26 @@ fn bench_complex_entity_operations(c: &mut Criterion) {
             let entity = black_box(ComplexEntity {
                 id: 2,
                 name: "Benchmark Entity".to_string(),
-                small_ref: RelationalLink::from_key(small_entities[0].id),
-                medium_ref: RelationalLink::from_key(medium_entities[0].id),
-                large_ref: RelationalLink::from_key(large_entities[0].id),
+                small_ref: RelationalLink::from_key(SmallEntityPrimaryKey(small_entities[0].id)),
+                medium_ref: RelationalLink::from_key(MediumEntityPrimaryKey(medium_entities[0].id)),
+                large_ref: RelationalLink::from_key(LargeEntityPrimaryKey(large_entities[0].id)),
                 small_collection: small_entities
                     .iter()
                     .take(10)
-                    .map(|e| RelationalLink::from_key(e.id))
+                    .map(|e| {
+                        RelationalLink::<BenchmarkDefinition, SmallEntity>::from_key(
+                            SmallEntityPrimaryKey(e.id),
+                        )
+                    })
                     .collect(),
                 medium_collection: medium_entities
                     .iter()
                     .take(5)
-                    .map(|e| RelationalLink::from_key(e.id))
+                    .map(|e| {
+                        RelationalLink::<BenchmarkDefinition, MediumEntity>::from_key(
+                            MediumEntityPrimaryKey(e.id),
+                        )
+                    })
                     .collect(),
             });
             std_black_box(entity)
@@ -723,7 +807,11 @@ fn bench_memory_usage_patterns(c: &mut Criterion) {
             // Simulates the memory allocation pattern of Entity links
             let entity_links: Vec<RelationalLink<BenchmarkDefinition, LargeEntity>> = black_box(
                 (0..100)
-                    .map(|_| RelationalLink::Entity(large_entity.clone()))
+                    .map(|_| {
+                        RelationalLink::<BenchmarkDefinition, LargeEntity>::Entity(
+                            large_entity.clone(),
+                        )
+                    })
                     .collect(),
             );
             std_black_box(entity_links)
@@ -733,12 +821,14 @@ fn bench_memory_usage_patterns(c: &mut Criterion) {
     group.bench_function("large_reference_link_allocation", |b| {
         b.iter(|| {
             // Simulates the memory allocation pattern of Reference links
-            let ref_links: Vec<RelationalLink<BenchmarkDefinition, LargeEntity>> = black_box(
-                (0..100)
-                    .map(|i| RelationalLink::from_key(i as u64))
-                    .collect(),
-            );
-            std_black_box(ref_links)
+            let large_links: Vec<RelationalLink<BenchmarkDefinition, LargeEntity>> = (0..100)
+                .map(|i| {
+                    RelationalLink::<BenchmarkDefinition, LargeEntity>::from_key(
+                        LargeEntityPrimaryKey(i as u64),
+                    )
+                })
+                .collect();
+            std_black_box(large_links)
         })
     });
 

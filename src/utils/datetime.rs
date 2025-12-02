@@ -11,7 +11,10 @@ use chrono::{DateTime, Utc};
 /// bincode::Encode and bincode::Decode, you should also derive serde traits
 /// for maximum compatibility:
 ///
-/// ```rust,ignore
+/// ```rust
+/// use netabase_store::NetabaseDateTime;
+/// use chrono::Utc;
+///
 /// #[derive(
 ///     bincode::Encode,
 ///     bincode::Decode,
@@ -19,8 +22,17 @@ use chrono::{DateTime, Utc};
 ///     serde::Deserialize
 /// )]
 /// struct MyModel {
+///     id: u64,
+///     // Use bincode(with_serde) for DateTime types
+///     #[bincode(with_serde)]
 ///     created_at: NetabaseDateTime,
 /// }
+///
+/// // Create a model with current time
+/// let model = MyModel {
+///     id: 1,
+///     created_at: Utc::now(),
+/// };
 /// ```
 pub type NetabaseDateTime = DateTime<Utc>;
 

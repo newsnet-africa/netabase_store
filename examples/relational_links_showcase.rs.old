@@ -9,8 +9,8 @@
 
 use netabase_store::links::RelationalLink;
 use netabase_store::traits::links::link_utils;
-use netabase_store::*;
-use std::collections::HashMap;
+use netabase_store::traits::store_ops::{GenericStoreOps, StoreOps};
+use netabase_store::{NetabaseStore, *};
 use std::error::Error;
 use std::time::Instant;
 
@@ -124,8 +124,19 @@ mod blog_schema {
     }
 
     // Models using RelationalLink for better relationship management
-    #[derive(Clone, Debug, bincode::Encode, bincode::Decode, PartialEq)]
+    #[derive(
+        NetabaseModel,
+        Clone,
+        Debug,
+        bincode::Encode,
+        bincode::Decode,
+        PartialEq,
+        serde::Serialize,
+        serde::Deserialize,
+    )]
+    #[netabase(BlogDefinition)]
     pub struct PostWithLinks {
+        #[primary_key]
         pub id: u64,
         pub title: String,
         pub content: String,
@@ -139,8 +150,19 @@ mod blog_schema {
         pub view_count: u64,
     }
 
-    #[derive(Clone, Debug, bincode::Encode, bincode::Decode, PartialEq)]
+    #[derive(
+        NetabaseModel,
+        Clone,
+        Debug,
+        bincode::Encode,
+        bincode::Decode,
+        PartialEq,
+        serde::Serialize,
+        serde::Deserialize,
+    )]
+    #[netabase(BlogDefinition)]
     pub struct CommentWithLinks {
+        #[primary_key]
         pub id: u64,
         pub content: String,
         pub author: RelationalLink<BlogDefinition, User>,
@@ -151,8 +173,19 @@ mod blog_schema {
     }
 
     // Complex aggregation using RelationalLinks
-    #[derive(Clone, Debug, bincode::Encode, bincode::Decode, PartialEq)]
+    #[derive(
+        NetabaseModel,
+        Clone,
+        Debug,
+        bincode::Encode,
+        bincode::Decode,
+        PartialEq,
+        serde::Serialize,
+        serde::Deserialize,
+    )]
+    #[netabase(BlogDefinition)]
     pub struct BlogSummary {
+        #[primary_key]
         pub id: u64,
         pub title: String,
         pub description: String,
@@ -164,7 +197,15 @@ mod blog_schema {
         pub stats: BlogStats,
     }
 
-    #[derive(Clone, Debug, bincode::Encode, bincode::Decode, PartialEq)]
+    #[derive(
+        Clone,
+        Debug,
+        bincode::Encode,
+        bincode::Decode,
+        PartialEq,
+        serde::Serialize,
+        serde::Deserialize,
+    )]
     pub struct BlogStats {
         pub total_posts: u64,
         pub total_comments: u64,
@@ -179,10 +220,14 @@ use blog_schema::*;
 fn main() -> Result<(), Box<dyn Error>> {
     println!("=== RelationalLink Showcase ===\n");
 
-    // Setup storage
+    // Setup storage with explicit typing
     let temp_dir = tempfile::tempdir()?;
-    let store =
-        netabase_store::databases::sled_store::SledStore::<BlogDefinition>::new(temp_dir.path())?;
+    let store: NetabaseStore<
+        BlogDefinition,
+        netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+    > = NetabaseStore::new(netabase_store::databases::sled_store::SledStore::<
+        BlogDefinition,
+    >::new(temp_dir.path())?)?;
 
     // Run all examples
     basic_relational_link_usage(&store)?;
@@ -206,7 +251,10 @@ fn main() {
 
 #[cfg(feature = "native")]
 fn basic_relational_link_usage(
-    store: &netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+    store: &NetabaseStore<
+        BlogDefinition,
+        netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+    >,
 ) -> Result<(), Box<dyn Error>> {
     println!("🔗 Basic RelationalLink Usage");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -227,12 +275,12 @@ fn basic_relational_link_usage(
         color: "#3498db".to_string(),
     };
 
-    // Store the entities
-    let user_tree = store.open_tree();
-    let category_tree = store.open_tree();
+    // Store the entities using typed trees
+    let user_tree = store.open_typed_tree::<User>();
+    let category_tree = store.open_typed_tree::<Category>();
 
-    user_tree.put_raw(author.clone())?;
-    category_tree.put_raw(category.clone())?;
+    user_tree.put_with_tree(author.clone())?;
+    category_tree.put_with_tree(category.clone())?;
 
     // Demonstrate different ways to create RelationalLinks
     println!("1. Creating RelationalLink variants:");
@@ -242,7 +290,8 @@ fn basic_relational_link_usage(
     println!("   Entity link: Contains full user data");
 
     // Reference variant - contains only the key
-    let author_ref_link = RelationalLink::from_key(author.id);
+    let author_ref_link: RelationalLink<BlogDefinition, User> =
+        RelationalLink::from_key(author.primary_key());
     println!("   Reference link: Contains only user ID ({})", author.id);
 
     // Using From trait
@@ -265,9 +314,9 @@ fn basic_relational_link_usage(
         title: "Understanding RelationalLinks".to_string(),
         content: "This post explains how RelationalLinks work...".to_string(),
         summary: "A guide to RelationalLinks".to_string(),
-        author: author_entity_link,                      // Full entity
-        category: RelationalLink::from_key(category.id), // Just reference
-        tags: vec![],                                    // Empty for this example
+        author: author_entity_link, // Full entity
+        category: RelationalLink::from_key(category.primary_key()), // Just reference
+        tags: vec![],               // Empty for this example
         created_at: 1640995200,
         updated_at: 1640995200,
         published: true,
@@ -289,48 +338,54 @@ fn basic_relational_link_usage(
 
 #[cfg(feature = "native")]
 fn hydration_patterns(
-    store: &netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+    store: &NetabaseStore<
+        BlogDefinition,
+        netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+    >,
 ) -> Result<(), Box<dyn Error>> {
     println!("💧 Hydration Patterns");
     println!("━━━━━━━━━━━━━━━━━━━━━");
 
-    // Setup test data
+    // Create test entities
     let user = User {
         id: 2,
-        username: "hydration_test".to_string(),
+        username: "hydration_user".to_string(),
         email: "hydration@example.com".to_string(),
         profile_url: None,
         created_at: 1640995200,
     };
 
-    let user_tree = store.open_tree();
-    user_tree.put_raw(user.clone())?;
+    let user_tree = store.open_typed_tree::<User>();
+    user_tree.put_with_tree(user.clone())?;
 
     println!("1. Entity variant hydration (immediate):");
-    let entity_link = RelationalLink::Entity(user.clone());
+    let entity_link: RelationalLink<BlogDefinition, User> = RelationalLink::Entity(user.clone());
     let start = Instant::now();
-    let hydrated_entity = entity_link.hydrate(user_tree.clone())?;
+    let hydrated_entity = entity_link.hydrate(user_tree.inner())?;
     let entity_duration = start.elapsed();
 
     println!("   Result: {:?}", hydrated_entity.is_some());
     println!("   Time: {:?} (immediate, no I/O)", entity_duration);
 
     println!("\n2. Reference variant hydration (database lookup):");
-    let ref_link = RelationalLink::from_key(user.id);
+    let ref_link: RelationalLink<BlogDefinition, User> =
+        RelationalLink::from_key(user.primary_key());
     let start = Instant::now();
-    let hydrated_ref = ref_link.hydrate(user_tree.clone())?;
+    let hydrated_reference = ref_link.hydrate(user_tree.inner())?;
     let ref_duration = start.elapsed();
 
-    println!("   Result: {:?}", hydrated_ref.is_some());
+    println!("   Result: {:?}", hydrated_reference.is_some());
     println!("   Time: {:?} (requires database I/O)", ref_duration);
 
     // Verify both return the same data
-    assert_eq!(hydrated_entity, hydrated_ref);
+    assert_eq!(hydrated_entity, hydrated_reference);
     assert_eq!(hydrated_entity, Some(user));
 
     println!("\n3. Missing entity handling:");
-    let missing_link = RelationalLink::<BlogDefinition, User>::from_key(999);
-    let missing_result = missing_link.hydrate(user_tree)?;
+    let missing_link = RelationalLink::<BlogDefinition, User>::from_key(
+        UserPrimaryKey(999),
+    );
+    let missing_result = missing_link.hydrate(&user_tree)?;
     println!("   Missing entity result: {:?}", missing_result);
     assert_eq!(missing_result, None);
 
@@ -340,7 +395,10 @@ fn hydration_patterns(
 
 #[cfg(feature = "native")]
 fn collection_operations(
-    store: &netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+    store: &NetabaseStore<
+        BlogDefinition,
+        netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+    >,
 ) -> Result<(), Box<dyn Error>> {
     println!("📚 Collection Operations");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -364,18 +422,19 @@ fn collection_operations(
         },
     ];
 
-    let tag_tree = store.open_tree();
+    // Store some tags using typed tree
+    let tag_tree = store.open_typed_tree::<Tag>();
     for tag in &tags {
-        tag_tree.put_raw(tag.clone())?;
+        tag_tree.put_with_tree(tag.clone())?;
     }
 
     println!("1. Creating collections of RelationalLinks:");
 
     // Mixed collection: some entities, some references
     let tag_links = vec![
-        RelationalLink::Entity(tags[0].clone()), // Full entity
-        RelationalLink::from_key(tags[1].id),    // Reference only
-        RelationalLink::Entity(tags[2].clone()), // Full entity
+        RelationalLink::<BlogDefinition, Tag>::Entity(tags[0].clone()), // Full entity
+        RelationalLink::from_key(tags[1].primary_key()),                // Reference only
+        RelationalLink::Entity(tags[2].clone()),                        // Full entity
     ];
 
     println!("   Created {} mixed links", tag_links.len());
@@ -383,7 +442,7 @@ fn collection_operations(
     println!("\n2. Hydrating entire collection:");
     let mut hydrated_tags = Vec::new();
     for (i, link) in tag_links.iter().enumerate() {
-        let hydrated = link.clone().hydrate(tag_tree.clone())?;
+        let hydrated = link.clone().hydrate(&tag_tree)?;
         if let Some(tag) = hydrated {
             println!(
                 "   Tag {}: {} (usage: {})",
@@ -410,7 +469,10 @@ fn collection_operations(
     // Extract all keys regardless of variant
     let all_keys: Vec<u64> = tag_links
         .iter()
-        .map(|link| link_utils::extract_key(link))
+        .map(|link| {
+            let key = link_utils::extract_key(link);
+            key.0 // Extract the u64 from TagPrimaryKey(u64)
+        })
         .collect();
     println!("   All keys: {:?}", all_keys);
 
@@ -420,7 +482,10 @@ fn collection_operations(
 
 #[cfg(feature = "native")]
 fn performance_comparisons(
-    store: &netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+    store: &NetabaseStore<
+        BlogDefinition,
+        netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+    >,
 ) -> Result<(), Box<dyn Error>> {
     println!("⚡ Performance Comparisons");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -438,13 +503,15 @@ fn performance_comparisons(
     };
 
     let user_tree = store.open_tree();
-    user_tree.put_raw(large_user.clone())?;
+    user_tree.put(large_user.clone())?;
 
     println!("1. Memory usage comparison:");
 
     // Measure serialized sizes
-    let entity_link = RelationalLink::Entity(large_user.clone());
-    let ref_link = RelationalLink::from_key(large_user.id);
+    let entity_link: RelationalLink<BlogDefinition, User> =
+        RelationalLink::Entity(large_user.clone());
+    let ref_link: RelationalLink<BlogDefinition, User> =
+        RelationalLink::from_key(large_user.primary_key());
 
     let entity_bytes = bincode::encode_to_vec(&entity_link, bincode::config::standard())?;
     let ref_bytes = bincode::encode_to_vec(&ref_link, bincode::config::standard())?;
@@ -463,14 +530,16 @@ fn performance_comparisons(
     // Entity creation
     let start = Instant::now();
     for _ in 0..iterations {
-        let _ = RelationalLink::Entity(large_user.clone());
+        let _: RelationalLink<BlogDefinition, User> = RelationalLink::Entity(large_user.clone());
     }
     let entity_creation_time = start.elapsed();
 
     // Reference creation
     let start = Instant::now();
     for _ in 0..iterations {
-        let _ = RelationalLink::<BlogDefinition, User>::from_key(large_user.id);
+        let _ = RelationalLink::<BlogDefinition, User>::from_key(
+            large_user.primary_key(),
+        );
     }
     let ref_creation_time = start.elapsed();
 
@@ -486,18 +555,20 @@ fn performance_comparisons(
     let iterations = 100;
 
     // Entity hydration (no I/O)
-    let entity_link = RelationalLink::Entity(large_user.clone());
+    let entity_link: RelationalLink<BlogDefinition, User> =
+        RelationalLink::Entity(large_user.clone());
     let start = Instant::now();
     for _ in 0..iterations {
-        let _ = entity_link.clone().hydrate(user_tree.clone())?;
+        let _ = entity_link.clone().hydrate(&user_tree)?;
     }
     let entity_hydration_time = start.elapsed();
 
     // Reference hydration (requires I/O)
-    let ref_link = RelationalLink::from_key(large_user.id);
+    let ref_link: RelationalLink<BlogDefinition, User> =
+        RelationalLink::from_key(large_user.primary_key());
     let start = Instant::now();
     for _ in 0..iterations {
-        let _ = ref_link.clone().hydrate(user_tree.clone())?;
+        let _ = ref_link.clone().hydrate(&user_tree)?;
     }
     let ref_hydration_time = start.elapsed();
 
@@ -514,7 +585,10 @@ fn performance_comparisons(
 
 #[cfg(feature = "native")]
 fn lazy_loading_patterns(
-    store: &netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+    store: &NetabaseStore<
+        BlogDefinition,
+        netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+    >,
 ) -> Result<(), Box<dyn Error>> {
     println!("🔄 Lazy Loading Patterns");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -545,15 +619,15 @@ fn lazy_loading_patterns(
         })
         .collect();
 
-    // Store entities
-    let user_tree = store.open_tree();
-    let post_tree = store.open_tree();
+    // Store entities using typed trees
+    let user_tree = store.open_typed_tree::<User>();
+    let post_tree = store.open_typed_tree::<PostWithLinks>();
 
     for user in &users {
-        user_tree.put_raw(user.clone())?;
+        user_tree.put_with_tree(user.clone())?;
     }
     for post in &posts {
-        post_tree.put_raw(post.clone())?;
+        post_tree.put_with_tree(post.clone())?;
     }
 
     println!("1. Lazy loading scenario setup:");
@@ -566,17 +640,17 @@ fn lazy_loading_patterns(
         id: 1,
         title: "My Awesome Blog".to_string(),
         description: "A blog about technology and programming".to_string(),
-        owner: RelationalLink::from_key(1), // Reference to owner
+        owner: RelationalLink::from_key(UserPrimaryKey(1)), // Reference to owner
         featured_posts: posts
             .iter()
             .take(5)
-            .map(|p| RelationalLink::from_key(p.id))
+            .map(|p| RelationalLink::from_key(p.primary_key()))
             .collect(),
         popular_categories: vec![], // Skip for this example
         top_contributors: users
             .iter()
             .take(3)
-            .map(|u| RelationalLink::from_key(u.id))
+            .map(|u| RelationalLink::from_key(u.primary_key()))
             .collect(),
         recent_comments: vec![], // Skip for this example
         stats: BlogStats {
@@ -600,14 +674,14 @@ fn lazy_loading_patterns(
     println!("\n3. Selective hydration (loading only what's needed):");
 
     // Load only the owner (immediate need)
-    let owner = blog_summary.owner.clone().hydrate(user_tree.clone())?;
+    let owner = blog_summary.owner.clone().hydrate(&user_tree)?;
     if let Some(owner) = owner {
         println!("   Blog owner: {} ({})", owner.username, owner.email);
     }
 
     // Load only the first featured post (on-demand)
     if let Some(first_featured) = blog_summary.featured_posts.first() {
-        let post = first_featured.clone().hydrate(post_tree.clone())?;
+        let post = first_featured.clone().hydrate(&post_tree)?;
         if let Some(post) = post {
             println!("   First featured post: '{}'", post.title);
         }
@@ -623,7 +697,7 @@ fn lazy_loading_patterns(
     // When we need multiple entities, load them all at once
     let mut loaded_contributors = Vec::new();
     for contributor_link in &blog_summary.top_contributors {
-        if let Some(contributor) = contributor_link.clone().hydrate(user_tree.clone())? {
+        if let Some(contributor) = contributor_link.clone().hydrate(&user_tree)? {
             loaded_contributors.push(contributor);
         }
     }
@@ -639,7 +713,10 @@ fn lazy_loading_patterns(
 
 #[cfg(feature = "native")]
 fn complex_relationship_modeling(
-    store: &netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+    store: &NetabaseStore<
+        BlogDefinition,
+        netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+    >,
 ) -> Result<(), Box<dyn Error>> {
     println!("🕸️  Complex Relationship Modeling");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -651,6 +728,13 @@ fn complex_relationship_modeling(
         email: "author@example.com".to_string(),
         profile_url: Some("https://example.com/author".to_string()),
         created_at: 1640995200,
+    };
+
+    let category = Category {
+        id: 1,
+        name: "Complex Systems".to_string(),
+        description: "Advanced database topics".to_string(),
+        color: "#9b59b6".to_string(),
     };
 
     let post = Post {
@@ -686,15 +770,18 @@ fn complex_relationship_modeling(
         approved: true,
     };
 
-    // Store all entities
-    let user_tree = store.open_tree();
-    let post_tree = store.open_tree();
-    let comment_tree = store.open_tree();
+    // Store entities using typed trees
+    let user_tree = store.open_typed_tree::<User>();
+    let category_tree = store.open_typed_tree::<Category>();
+    let post_tree = store.open_typed_tree::<PostWithLinks>();
 
-    user_tree.put_raw(author.clone())?;
-    post_tree.put_raw(post.clone())?;
-    comment_tree.put_raw(comment1.clone())?;
-    comment_tree.put_raw(comment2.clone())?;
+    user_tree.put_with_tree(author.clone())?;
+    category_tree.put_with_tree(category.clone())?;
+    post_tree.put_with_tree(post.clone())?;
+
+    let comment_tree = store.open_typed_tree::<CommentWithLinks>();
+    comment_tree.put_with_tree(comment1.clone())?;
+    comment_tree.put_with_tree(comment2.clone())?;
 
     println!("1. Creating nested comment structure:");
 
@@ -703,8 +790,8 @@ fn complex_relationship_modeling(
         id: comment2.id,
         content: comment2.content.clone(),
         author: RelationalLink::Entity(author.clone()), // Immediate access
-        post: RelationalLink::from_key(post.id),        // Lazy load
-        parent_comment: Some(RelationalLink::from_key(comment1.id)), // Nested reference
+        post: RelationalLink::from_key(post.primary_key()), // Lazy load
+        parent_comment: Some(RelationalLink::from_key(comment1.primary_key())), // Nested reference
         created_at: comment2.created_at,
         approved: comment2.approved,
     };
@@ -722,14 +809,14 @@ fn complex_relationship_modeling(
     }
 
     // Load the post
-    let linked_post = comment_with_links.post.clone().hydrate(post_tree)?;
+    let linked_post = comment_with_links.post.clone().hydrate(&post_tree)?;
     if let Some(linked_post) = linked_post {
         println!("   Commented on post: '{}'", linked_post.title);
     }
 
     // Load parent comment if it exists
     if let Some(parent_link) = &comment_with_links.parent_comment {
-        let parent_comment = parent_link.clone().hydrate(comment_tree)?;
+        let parent_comment = parent_link.clone().hydrate(&comment_tree)?;
         if let Some(parent_comment) = parent_comment {
             println!("   Reply to comment: '{}'", parent_comment.content);
         }
@@ -741,9 +828,12 @@ fn complex_relationship_modeling(
     println!("   Following relationship chain:");
     println!("   Comment → Post → Author");
 
-    if let Some(post) = comment_with_links.post.clone().hydrate(post_tree)? {
-        let post_author = RelationalLink::<BlogDefinition, User>::from_key(post.author_id);
-        if let Some(author) = post_author.hydrate(user_tree)? {
+    if let Some(post) = comment_with_links.post.clone().hydrate(&post_tree)? {
+        let post_author =
+            RelationalLink::<BlogDefinition, User>::from_key(
+                UserPrimaryKey(post.author_id),
+            );
+        if let Some(author) = post_author.hydrate(&user_tree)? {
             println!("   Post '{}' by {}", post.title, author.username);
         }
     }
@@ -754,8 +844,8 @@ fn complex_relationship_modeling(
 
     // In a real application, you might maintain reverse indexes or collections
     let related_comments = vec![
-        RelationalLink::from_key(comment1.id),
-        RelationalLink::from_key(comment2.id),
+        RelationalLink::<BlogDefinition, CommentWithLinks>::from_key(comment1.primary_key()),
+        RelationalLink::<BlogDefinition, CommentWithLinks>::from_key(comment2.primary_key()),
     ];
 
     println!(
@@ -782,12 +872,14 @@ fn serialization_examples() -> Result<(), Box<dyn Error>> {
     println!("1. Basic serialization:");
 
     // Entity variant serialization
-    let entity_link = RelationalLink::Entity(user.clone());
+    let entity_link: RelationalLink<BlogDefinition, User> = RelationalLink::Entity(user.clone());
     let entity_bytes = bincode::encode_to_vec(&entity_link, bincode::config::standard())?;
     println!("   Entity variant: {} bytes", entity_bytes.len());
 
     // Reference variant serialization
-    let ref_link = RelationalLink::<BlogDefinition, User>::from_key(user.id);
+    let ref_link = RelationalLink::<BlogDefinition, User>::from_key(
+        user.primary_key(),
+    );
     let ref_bytes = bincode::encode_to_vec(&ref_link, bincode::config::standard())?;
     println!("   Reference variant: {} bytes", ref_bytes.len());
 
@@ -814,8 +906,8 @@ fn serialization_examples() -> Result<(), Box<dyn Error>> {
 
     let mixed_links = vec![
         RelationalLink::Entity(user.clone()),
-        RelationalLink::from_key(user.id),
-        RelationalLink::from_key(99), // Non-existent entity
+        RelationalLink::from_key(user.primary_key()),
+        RelationalLink::from_key(UserPrimaryKey(99)), // Non-existent entity
     ];
 
     let collection_bytes = bincode::encode_to_vec(&mixed_links, bincode::config::standard())?;
@@ -835,7 +927,10 @@ fn serialization_examples() -> Result<(), Box<dyn Error>> {
 
 #[cfg(feature = "native")]
 fn best_practices_showcase(
-    store: &netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+    store: &NetabaseStore<
+        BlogDefinition,
+        netabase_store::databases::sled_store::SledStore<BlogDefinition>,
+    >,
 ) -> Result<(), Box<dyn Error>> {
     println!("💡 Best Practices Showcase");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -865,15 +960,17 @@ fn best_practices_showcase(
     };
 
     let user_tree = store.open_tree();
-    user_tree.put_raw(author.clone())?;
+    user_tree.put(author.clone())?;
 
     // Pattern: Start with references, upgrade to entities when needed
-    let mut user_link = RelationalLink::<BlogDefinition, User>::from_key(author.id);
+    let mut user_link = RelationalLink::<BlogDefinition, User>::from_key(
+        author.primary_key(),
+    );
     println!("   Pattern: Reference → Entity upgrade");
     println!("   Initial: Reference variant (low memory)");
 
     // When we need the entity, hydrate and cache it
-    if let Some(hydrated_user) = user_link.clone().hydrate(user_tree)? {
+    if let Some(hydrated_user) = user_link.clone().hydrate(&user_tree)? {
         user_link = RelationalLink::Entity(hydrated_user);
         println!("   Upgraded: Entity variant (immediate access)");
     }
@@ -881,8 +978,10 @@ fn best_practices_showcase(
     println!("\n3. Error handling patterns:");
 
     // Handle missing entities gracefully
-    let missing_link = RelationalLink::<BlogDefinition, User>::from_key(999);
-    match missing_link.hydrate(user_tree)? {
+    let missing_link = RelationalLink::<BlogDefinition, User>::from_key(
+        UserPrimaryKey(999),
+    );
+    match missing_link.hydrate(&user_tree)? {
         Some(user) => println!("   Found user: {}", user.username),
         None => println!("   ✓ Gracefully handled missing entity"),
     }

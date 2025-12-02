@@ -9,6 +9,9 @@
 //! - **Multi-Backend Support**: Choose between Sled (embedded DB), Redb (ACID compliant), or IndexedDB (browser)
 //! - **Type-Safe Schema**: Derive macros generate compile-time checked schemas
 //! - **Primary & Secondary Keys**: Efficient indexing with automatic secondary key management
+//! - **Relational Links**: Type-safe relationships between models with automatic insertion and hydration
+//! - **Subscription System**: Merkle tree-based change tracking for efficient synchronization
+//! - **Database Introspection**: Query all internal trees, indexes, and database statistics
 //! - **Cross-Platform**: Supports both native and WASM targets
 //! - **Zero-Copy Operations**: Efficient serialization with bincode
 //! - **libp2p Integration**: Optional integration for distributed systems
@@ -127,211 +130,22 @@
 //! # }
 //! ```
 //!
-//! ### Using Sled Backend (Direct)
+//! ### Backend-Specific Usage
 //!
-//! ```rust
-//! # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
-//! # use netabase_store::databases::sled_store::SledStore;
-//! # use netabase_store::traits::tree::NetabaseTreeSync;
-//! # use netabase_store::traits::model::NetabaseModelTrait;
-//! #
-//! # // Define schema for this example
-//! # #[netabase_definition_module(BlogDefinition, BlogKeys)]
-//! # mod blog {
-//! #     use super::*;
-//! #     use netabase_store::{NetabaseModel, netabase};
-//! #
-//! #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
-//! #              bincode::Encode, bincode::Decode,
-//! #              serde::Serialize, serde::Deserialize)]
-//! #     #[netabase(BlogDefinition)]
-//! #     pub struct User {
-//! #         #[primary_key]
-//! #         pub id: u64,
-//! #         pub username: String,
-//! #         #[secondary_key]
-//! #         pub email: String,
-//! #         pub age: u32,
-//! #     }
-//! # }
-//! use blog::*;
+//! All backends share the same API through the `NetabaseStore` wrapper (recommended) or can be used directly.
+//! Each backend has different performance characteristics:
 //!
-//! // Open a database
-//! let store = SledStore::<BlogDefinition>::temp().unwrap();
+//! - **[Sled](databases::sled_store)**: Excellent for read-heavy workloads (~20% overhead)
+//! - **[Redb](databases::redb_store)**: Best for write-heavy workloads with ACID guarantees
+//! - **[Redb ZeroCopy](databases::redb_zerocopy)**: Maximum performance with explicit transaction control (10-54x faster)
+//! - **[IndexedDB](databases::indexeddb_store)**: Browser-native storage for WASM applications
 //!
-//! // Get a type-safe tree for the User model
-//! let user_tree = store.open_tree::<User>();
+//! **For detailed backend documentation, examples, and performance comparisons, see the [`databases`](databases) module.**
 //!
-//! // Create a user
-//! let alice = User {
-//!     id: 1,
-//!     username: "alice".to_string(),
-//!     email: "alice@example.com".to_string(),
-//!     age: 30,
-//! };
+//! ### IndexedDB for Web Applications
 //!
-//! // Insert the user
-//! user_tree.put(alice.clone()).unwrap();
-//!
-//! // Retrieve by primary key
-//! let retrieved = user_tree.get(alice.primary_key()).unwrap().unwrap();
-//! assert_eq!(retrieved, alice);
-//!
-//! // Query by secondary key (email) using convenience function
-//! use blog::AsUserEmail;
-//! let users_by_email = user_tree
-//!     .get_by_secondary_key("alice@example.com".as_user_email_key())
-//!     .unwrap();
-//! assert_eq!(users_by_email.len(), 1);
-//!
-//! // Update the user
-//! let mut alice_updated = alice.clone();
-//! alice_updated.age = 31;
-//! user_tree.put(alice_updated).unwrap();
-//!
-//! // Remove the user
-//! user_tree.remove(alice.primary_key()).unwrap();
-//! ```
-//!
-//! ### Using Redb Backend (Native)
-//!
-//! ```rust
-//! use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
-//!
-//! # // Define your schema with the definition module macro
-//! # #[netabase_definition_module(BlogDefinition, BlogKeys)]
-//! # mod blog {
-//! #     use super::*;
-//! #     use netabase_store::{netabase, NetabaseModel};
-//! #
-//! #     /// User model with primary and secondary keys
-//! #     #[derive(
-//! #         NetabaseModel,
-//! #         Clone,
-//! #         Debug,
-//! #         PartialEq,
-//! #         bincode::Encode,
-//! #         bincode::Decode,
-//! #         serde::Serialize,
-//! #         serde::Deserialize,
-//! #     )]
-//! #     #[netabase(BlogDefinition)]
-//! #     pub struct User {
-//! #         #[primary_key]
-//! #         pub id: u64,
-//! #         pub username: String,
-//! #         #[secondary_key]
-//! #         pub email: String,
-//! #         pub age: u32,
-//! #     }
-//! #
-//! #     /// Post model associated with the same definition
-//! #     #[derive(
-//! #         NetabaseModel,
-//! #         Clone,
-//! #         Debug,
-//! #         PartialEq,
-//! #         bincode::Encode,
-//! #         bincode::Decode,
-//! #         serde::Serialize,
-//! #         serde::Deserialize,
-//! #     )]
-//! #     #[netabase(BlogDefinition)]
-//! #     pub struct Post {
-//! #         #[primary_key]
-//! #         pub id: String,
-//! #         pub title: String,
-//! #         pub author_id: u64,
-//! #         #[secondary_key]
-//! #         pub published: bool,
-//! #     }
-//! # }  // end mod blog
-//! #
-//! # use blog::*;
-//! # use netabase_store::databases::redb_store::RedbStore;
-//! # use netabase_store::traits::tree::NetabaseTreeSync;
-//! # use netabase_store::traits::model::NetabaseModelTrait;
-//!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! // Open a database with Redb backend (using temp file for doctest)
-//! let temp_dir = tempfile::tempdir()?;
-//! let db_path = temp_dir.path().join("test.redb");
-//! let store = RedbStore::<BlogDefinition>::new(db_path)?;
-//!
-//! // API is identical to SledStore
-//! let user_tree = store.open_tree::<User>();
-//!
-//! let user = User {
-//!     id: 1,
-//!     username: "bob".to_string(),
-//!     email: "bob@example.com".to_string(),
-//!     age: 25,
-//! };
-//! user_tree.put(user)?;
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! ### Using IndexedDB Backend (WASM)
-//!
-//! IndexedDB backend provides persistent storage in web browsers.
-//! This example requires the `wasm` feature and wasm32 target:
-//!
-//! ```
-//! # # #[cfg(all(target_arch = "wasm32", feature = "wasm"))]
-//! # # {
-//! # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
-//! # use netabase_store::databases::indexeddb_store::IndexedDBStore;
-//! # use netabase_store::traits::tree::NetabaseTreeAsync;
-//! # use netabase_store::traits::model::NetabaseModelTrait;
-//! #
-//! # #[netabase_definition_module(AppDefinition, AppKeys)]
-//! # mod app {
-//! #     use super::*;
-//! #     use netabase_store::{NetabaseModel, netabase};
-//! #
-//! #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
-//! #              bincode::Encode, bincode::Decode,
-//! #              serde::Serialize, serde::Deserialize)]
-//! #     #[netabase(AppDefinition)]
-//! #     pub struct User {
-//! #         #[primary_key]
-//! #         pub id: u64,
-//! #         pub username: String,
-//! #         #[secondary_key]
-//! #         pub email: String,
-//! #     }
-//! # }
-//! # use app::*;
-//!
-//! async fn wasm_example() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Open a database in the browser (persists across page reloads)
-//!     let store = IndexedDBStore::<AppDefinition>::new("my_app_db").await?;
-//!
-//!     // Get an async tree - note WASM uses async API
-//!     let user_tree = store.open_tree::<User>();
-//!
-//!     // Create a user
-//!     let alice = User {
-//!         id: 1,
-//!         username: "alice".into(),
-//!         email: "alice@example.com".into()
-//!     };
-//!
-//!     // All operations are async in WASM
-//!     user_tree.put(alice.clone()).await?;
-//!     let retrieved = user_tree.get(alice.primary_key()).await?;
-//!
-//!     // Query by secondary key using convenience function
-//!     use app::AsUserEmail;
-//!     let users_by_email = user_tree
-//!         .get_by_secondary_key("alice@example.com".as_user_email_key())
-//!         .await?;
-//!
-//!     Ok(())
-//! }
-//! # }
-//! ```
+//! IndexedDB backend provides persistent storage in web browsers with an async API.
+//! **For complete WASM documentation and examples, see the [`databases::indexeddb_store`](databases::indexeddb_store) module.**
 //!
 //! ## Using the Configuration
 //!
@@ -386,7 +200,7 @@
 //!     use super::*;
 //!     use netabase_store::{NetabaseModel, netabase};
 //!
-//!     #[derive(NetabaseModel, Clone, Debug,
+//!     #[derive(NetabaseModel, Clone, Debug, PartialEq,
 //!              bincode::Encode, bincode::Decode,
 //!              serde::Serialize, serde::Deserialize)]
 //!     #[netabase(AppDefinition)]
@@ -416,105 +230,114 @@
 //! Batch operations are atomic and significantly faster than individual operations
 //! when working with many records.
 //!
-//! ## Zero-Copy Redb Backend (High Performance)
+//! ## High-Performance Operations
 //!
-//! For maximum performance with the Redb backend, use the zero-copy API that provides
-//! explicit transaction control and zero-copy reads.
+//! For maximum performance, netabase_store provides specialized APIs:
 //!
-//! ### Enabling Zero-Copy
+//! ### Redb Zero-Copy API
 //!
-//! Add both `redb` and `redb-zerocopy` features:
+//! The zero-copy API provides explicit transaction control and can be **10-54x faster** than the regular API:
+//! - **10x faster** bulk inserts (single transaction for 1000 items)
+//! - **54x faster** secondary key queries
+//! - Direct transaction management for fine-grained control
 //!
-//! ```toml
-//! [dependencies]
-//! netabase_store = { version = "*", features = ["redb", "redb-zerocopy"] }
-//! ```
+//! Enable with features: `["redb", "redb-zerocopy"]`
 //!
-//! ### Performance Characteristics
+//! **For complete documentation, examples, and usage patterns, see the [`databases::redb_zerocopy`](databases::redb_zerocopy) module.**
 //!
-//! | Operation | Regular API | Zero-Copy API | Speedup |
-//! |-----------|------------|---------------|---------|
-//! | Bulk insert (1000 items) | ~50ms | ~5ms | **10x faster** |
-//! | Secondary key query | ~5.4ms | ~100μs | **54x faster** |
-//! | Single read | ~100ns | ~100ns | Similar |
+//! ## Advanced Features
 //!
-//! ### Usage Example
+//! ### Relational Links
 //!
-//! ```no_run
-//! // This example requires the `redb-zerocopy` feature
-//! use netabase_store::{netabase_definition_module, NetabaseModel};
-//! use netabase_store::databases::redb_zerocopy::RedbStoreZeroCopy;
-//! use netabase_store::traits::model::NetabaseModelTrait;
+//! Create type-safe relationships between models using `RelationalLink<D, M>` which supports both
+//! eager loading (embedded entities) and lazy loading (references):
 //!
-//! #[netabase_definition_module(AppDef, AppKeys)]
-//! mod app {
-//!     use netabase_store::{NetabaseModel, netabase};
-//!     #[derive(NetabaseModel, Clone, Debug, PartialEq,
-//!              bincode::Encode, bincode::Decode,
-//!              serde::Serialize, serde::Deserialize)]
-//!     #[netabase(AppDef)]
-//!     pub struct User {
-//!         #[primary_key]
-//!         pub id: u64,
-//!         pub name: String,
-//!         #[secondary_key]
-//!         pub email: String,
-//!     }
+//! - Define relations with `#[relation(name)]` attribute
+//! - Automatically generated helper methods for each relation
+//! - Support for Entity and Reference variants
+//! - Automatic cascading insertion with `insert_with_relations()`
+//! - Hydration methods to load referenced entities
+//!
+//! **For complete documentation, examples, and usage patterns, see:**
+//! - The [`links`](links) module for API documentation
+//! - `RELATIONAL_LINKS.md` for comprehensive guide with examples
+//! - `examples/relational_links_showcase.rs` for working code
+//!
+//! ### Subscription System
+//!
+//! Track changes and synchronize data efficiently using Merkle tree-based subscriptions:
+//!
+//! - Define subscription topics with `#[streams(...)]` attribute
+//! - Merkle root computation for efficient change detection
+//! - Topic-based organization for selective synchronization
+//! - Diff computation to find differences between managers
+//!
+//! **Ideal for:** P2P synchronization, change tracking, audit logs, distributed systems
+//!
+//! **For complete documentation and examples, see:**
+//! - The [`subscription`](subscription) module for API documentation
+//! - `examples/subscription_streams.rs` for working examples
+//!
+//! ### Database Introspection
+//!
+//! Inspect all internal database trees, indexes, and statistics:
+//!
+//! ```rust
+//! # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
+//! # use netabase_store::databases::sled_store::SledStore;
+//! # use netabase_store::traits::introspection::DatabaseIntrospection;
+//! # #[netabase_definition_module(TestDef, TestKeys)]
+//! # mod models {
+//! #     use netabase_store::{NetabaseModel, netabase};
+//! #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+//! #              bincode::Encode, bincode::Decode,
+//! #              serde::Serialize, serde::Deserialize)]
+//! #     #[netabase(TestDef)]
+//! #     pub struct User {
+//! #         #[primary_key]
+//! #         pub id: u64,
+//! #         pub name: String,
+//! #         #[secondary_key]
+//! #         pub email: String,
+//! #     }
+//! # }
+//! # use models::*;
+//! # fn main() -> Result<(), netabase_store::error::NetabaseError> {
+//! let store = SledStore::<TestDef>::temp()?;
+//!
+//! // List all trees (models, indexes, system)
+//! for tree in store.list_all_trees()? {
+//!     println!("{}: {} entries ({:?})",
+//!         tree.name,
+//!         tree.entry_count.unwrap_or(0),
+//!         tree.tree_type
+//!     );
 //! }
-//! use app::*;
 //!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # let temp_dir = tempfile::tempdir()?;
-//! // Create a zero-copy store
-//! let store = RedbStoreZeroCopy::<AppDef>::new(temp_dir.path().join("app.redb"))?;
+//! // Get aggregate statistics
+//! let stats = store.database_stats()?;
+//! println!("Total trees: {}", stats.total_trees);
+//! println!("Model trees: {}", stats.model_trees);
+//! println!("Secondary indexes: {}", stats.secondary_trees);
+//! println!("Total entries: {}", stats.total_entries);
 //!
-//! // Write transaction - batch multiple operations
-//! let mut write_txn = store.begin_write()?;
-//! let mut tree = write_txn.open_tree::<User>()?;
-//!
-//! // Batch insert 1000 users in one transaction
-//! for i in 0..1000 {
-//!     tree.put(User {
-//!         id: i,
-//!         name: format!("User {}", i),
-//!         email: format!("user{}@example.com", i),
-//!     })?;
-//! }
-//! drop(tree);
-//! write_txn.commit()?;  // All 1000 inserts committed atomically
-//!
-//! // Read transaction - efficient queries
-//! let read_txn = store.begin_read()?;
-//! let tree = read_txn.open_tree::<User>()?;
-//! let user = tree.get(&UserPrimaryKey(42))?.unwrap();
-//! assert_eq!(user.name, "User 42");
+//! // Check specific tree
+//! let user_count = store.tree_entry_count("User")?;
+//! println!("User tree has {} entries", user_count);
 //! # Ok(())
 //! # }
 //! ```
 //!
-//! ### When to Use Zero-Copy API
+//! **Available methods:**
+//! - `list_all_trees()` - All trees in the database
+//! - `list_model_trees()` - User-defined model trees only
+//! - `list_secondary_trees()` - Secondary index trees only
+//! - `tree_entry_count(name)` - Count entries in a specific tree
+//! - `tree_keys_raw(name)` - Get all keys as raw bytes
+//! - `database_stats()` - Aggregate statistics
 //!
-//! **Use zero-copy when:**
-//! - You need to batch multiple operations (bulk inserts/updates)
-//! - Performance is critical
-//! - You want explicit transaction control
-//! - You're doing many secondary key queries
-//!
-//! **Use regular API when:**
-//! - Simplicity is more important than performance
-//! - Single-operation transactions are fine
-//! - You want the simplest possible code
-//!
-//! ### Available Types
-//!
-//! When `redb-zerocopy` feature is enabled, these types are re-exported at the crate root:
-//! - `RedbStoreZeroCopy` - The zero-copy store
-//! - `RedbWriteTransactionZC` - Write transaction handle
-//! - `RedbReadTransactionZC` - Read transaction handle
-//! - `RedbTreeMut` - Mutable tree for write transactions
-//! - `RedbTree` - Immutable tree for read transactions
-//! - `BorrowedGuard` - Guard for zero-copy borrowed data
-//! - `BorrowedIter` - Iterator for zero-copy iteration
+//! Introspection is supported on all backends (Sled, Redb, RedbZeroCopy).
+//! See `INTROSPECTION_API.md` for complete documentation.
 //!
 //! ## Custom Backend Implementations
 //!

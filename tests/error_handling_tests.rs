@@ -648,11 +648,11 @@ fn test_os_level_errors() {
 
     // Try to open read-only file for writing
     let config = FileConfig::builder()
-        .path(&db_path)
+        .path(db_path.clone())
         .read_only(false) // Request write access
         .build();
 
-    let result = RedbStore::<ErrorTestDefinition>::new(&config.path);
+    let result = RedbStore::<ErrorTestDefinition>::new(config.path.clone());
     // Should either fail or open in read-only mode
     match result {
         Ok(store) => {

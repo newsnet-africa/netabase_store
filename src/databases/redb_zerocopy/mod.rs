@@ -11,7 +11,7 @@
 //! # #[netabase_definition_module(MyDef, MyKeys)]
 //! # mod models {
 //! #     use netabase_store::*;
-//! #     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
+//! #     #[derive(NetabaseModel, Clone, Debug, PartialEq, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
 //! #     #[netabase(MyDef)]
 //! #     pub struct User {
 //! #         #[primary_key]
@@ -156,6 +156,7 @@
 //!   - You want the smallest possible memory footprint
 
 // Module declarations
+mod introspection;
 mod store;
 mod transaction;
 mod tree;

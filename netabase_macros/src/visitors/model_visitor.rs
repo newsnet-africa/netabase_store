@@ -11,6 +11,7 @@ pub struct ModelVisitor<'ast> {
     pub key: Option<ModelKeyInfo<'ast>>,
     pub links: Vec<ModelLinkInfo<'ast>>,
     pub definitions: Vec<Path>,
+    pub errors: Vec<syn::Error>,
     // Generics support removed - not yet implemented
     // pub generics: Option<&'ast Generics>,
 }
@@ -20,41 +21,95 @@ impl<'a> Visit<'a> for ModelVisitor<'a> {
         self.name = Some(&i.ident);
         // Generics support removed - not yet implemented
         // self.generics = Some(&i.generics);
-        self.key = match ModelKeyInfo::find_keys(extract_fields(i)) {
+        // Extract fields with error handling
+        let fields = match extract_fields(i) {
+            Ok(fields) => fields,
+            Err(e) => {
+                let error = syn::Error::new_spanned(
+                    &i.ident,
+                    format!(
+                        "NetabaseModel Derive Error in struct `{}`:\n\n{}",
+                        i.ident, e
+                    ),
+                );
+                self.errors.push(error);
+                return; // Early return on field extraction error
+            }
+        };
+
+        self.key = match ModelKeyInfo::find_keys(fields) {
             Ok(k) => Some(k),
-            Err(e) => panic!(
-                "\n\n\
-                 ════════════════════════════════════════════════════════════════\n\
-                 ❌ NetabaseModel Derive Error in struct `{}`\n\
-                 ════════════════════════════════════════════════════════════════\n\
-                 \n\
-                 {}\n\
-                 \n\
-                 ════════════════════════════════════════════════════════════════\n\
-                 ",
-                i.ident, e
-            ),
+            Err(e) => {
+                let error = syn::Error::new_spanned(
+                    &i.ident,
+                    format!(
+                        "NetabaseModel Derive Error in struct `{}`:\n\n{}",
+                        i.ident, e
+                    ),
+                );
+                self.errors.push(error);
+                None
+            }
         };
         self.definitions = Self::find_definitions(i);
-        self.links = ModelLinkInfo::find_link(extract_fields(i)).collect();
+        self.links = ModelLinkInfo::find_link(fields).collect();
     }
 }
 
 impl<'a> ModelVisitor<'a> {
     pub fn find_definitions(input: &'a syn::DeriveInput) -> Vec<syn::Path> {
-        let attr = input.attrs.iter().find(|a| a.path().is_ident("netabase"));
-        if let Some(att) = attr
-            && let Ok(list) = att.meta.require_list()
-        {
-            match list
-                .parse_args_with(Punctuated::<syn::Path, Token![,]>::parse_terminated)
-                .map_err(|e| e.into_compile_error())
-            {
-                Ok(r) => r.into_iter().collect(),
-                Err(_) => vec![],
+        // Use extremely defensive programming to avoid any potential panics during attribute parsing
+        // Wrap everything in a catch-all to ensure we never panic during attribute processing
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            match input.attrs.iter().find(|a| {
+                // Even the path checking could potentially panic in edge cases
+                match a.path().is_ident("netabase") {
+                    true => true,
+                    false => false,
+                }
+            }) {
+                Some(attr) => {
+                    match attr.meta.require_list() {
+                        Ok(list) => {
+                            match list.parse_args_with(
+                                Punctuated::<syn::Path, Token![,]>::parse_terminated,
+                            ) {
+                                Ok(paths) => paths.into_iter().collect(),
+                                Err(_) => {
+                                    // Parsing failed - return empty vec instead of panicking
+                                    // This could happen if the attribute syntax is invalid or
+                                    // if the referenced types don't exist yet (macro ordering)
+                                    vec![]
+                                }
+                            }
+                        }
+                        Err(_) => {
+                            // Meta is not a list - return empty vec
+                            vec![]
+                        }
+                    }
+                }
+                None => {
+                    // No netabase attribute found
+                    vec![]
+                }
             }
-        } else {
+        }))
+        .unwrap_or_else(|_| {
+            // If any panic occurred during attribute parsing, return empty vec
+            // This ensures the macro doesn't crash but will trigger the missing attribute error later
             vec![]
-        }
+        })
+    }
+
+    pub fn has_errors(&self) -> bool {
+        !self.errors.is_empty()
+    }
+
+    pub fn into_compile_errors(self) -> Vec<proc_macro2::TokenStream> {
+        self.errors
+            .into_iter()
+            .map(|e| e.into_compile_error())
+            .collect()
     }
 }

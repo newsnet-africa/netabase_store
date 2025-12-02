@@ -33,8 +33,11 @@ use crate::{
 ///
 /// # Relation Enum
 ///
-/// The generated `{ModelName}Relations` enum provides:
-/// ```ignore
+/// The generated `{ModelName}Relations` enum provides compile-time type safety.
+/// For example, a Post model with relations generates:
+///
+/// ```rust,no_run
+/// # // This is generated code - shown for illustration
 /// pub enum PostRelations {
 ///     Author,    // For the `author` field
 ///     Category,  // For the `category` field
@@ -48,95 +51,76 @@ use crate::{
 ///
 /// # Key Features
 ///
-/// ## Metadata Access
-/// ```ignore
-/// // Check if a model has any relations
-/// if post.has_relations() {
-///     // Get all relation metadata
-///     let relations = post.relations();
-///     for (discriminant, relation) in relations {
-///         println!("Field: {}", relation.field_name());
-///         println!("Points to: {}", relation.target_model_name());
-///     }
-/// }
-/// ```
+/// See `RELATIONAL_LINKS.md` and the examples directory for complete usage patterns.
 ///
-/// ## Type Safety
-/// ```ignore
-/// // The Relations type is specific to each model
-/// type PostRels = <Post as NetabaseRelationTrait<MyDef>>::Relations;
-/// // PostRels is PostRelations enum
-/// ```
+/// ## Generated Helper Methods
 ///
-/// # Generated Helper Methods
-///
-/// For each `RelationalLink` field, the macro generates:
+/// For each `RelationalLink` field, the macro generates helper methods.
+/// For example, a Post with an `author` field gets:
 ///
 /// ```ignore
+/// # // This is generated code - shown for illustration
+/// # use netabase_store::{NetabaseModel, netabase, netabase_definition_module, links::RelationalLink};
+/// # #[netabase_definition_module(MyDef, MyKeys)]
+/// # mod models {
+/// #     use super::*;
+/// #     use netabase_store::{NetabaseModel, netabase};
+/// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+/// #              bincode::Encode, bincode::Decode,
+/// #              serde::Serialize, serde::Deserialize)]
+/// #     #[netabase(MyDef)]
+/// #     pub struct User {
+/// #         #[primary_key]
+/// #         pub id: u64,
+/// #         pub name: String,
+/// #     }
+/// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+/// #              bincode::Encode, bincode::Decode,
+/// #              serde::Serialize, serde::Deserialize)]
+/// #     #[netabase(MyDef)]
+/// #     pub struct Post {
+/// #         #[primary_key]
+/// #         pub id: u64,
+/// #         pub title: String,
+/// #         #[relation(author)]
+/// #         pub author: RelationalLink<MyDef, User>,
+/// #     }
+/// # }
+/// # use models::*;
 /// impl Post {
 ///     // Get the link (read-only access)
-///     pub fn author(&self) -> &RelationalLink<MyDef, User> { &self.author }
-///
-///     // Hydrate if it's a reference
-///     pub fn author_hydrate<T>(&self, store: T) -> Result<Option<User>, NetabaseError>
-///     where T: StoreOps<MyDef, User>
-///     {
-///         self.author.clone().hydrate(&store)
-///     }
-///
-///     // Insert if it's an entity
-///     pub fn insert_author_if_entity<S>(&self, store: &S) -> Result<(), NetabaseError>
-///     where S: OpenTree<MyDef, User>
-///     {
-///         if let RelationalLink::Entity(entity) = &self.author {
-///             let tree = store.open_tree();
-///             tree.put_raw(entity.clone())
-///         } else {
-///             Ok(())
-///         }
+///     pub fn get_author(&self) -> &RelationalLink<MyDef, User> {
+///         &self.author
 ///     }
 ///
 ///     // Check if contains entity
-///     pub fn author_is_entity(&self) -> bool {
+///     pub fn is_author_entity(&self) -> bool {
 ///         self.author.is_entity()
 ///     }
 ///
-///     // Get the key
-///     pub fn author_key(&self) -> UserPrimaryKey {
-///         self.author.key()
+///     // Check if contains reference
+///     pub fn is_author_reference(&self) -> bool {
+///         self.author.is_reference()
 ///     }
 /// }
 /// ```
 ///
 /// # Examples
 ///
+/// For complete working examples, see:
+/// - `RELATIONAL_LINKS.md` - Comprehensive guide
+/// - `examples/relational_links_showcase.rs` - Working code examples
+///
 /// ## Basic Model Definition
 ///
 /// ```ignore
 /// use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
 /// use netabase_store::links::RelationalLink;
-/// use netabase_store::traits::relation::NetabaseRelationTrait;
 ///
 /// #[netabase_definition_module(MyDefinition, MyKeys)]
 /// mod my_models {
 ///     use super::*;
 ///     use netabase_store::{NetabaseModel, netabase};
-///
-///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
-///              bincode::Encode, bincode::Decode,
-///              serde::Serialize, serde::Deserialize)]
-///     #[netabase(MyDefinition)]
-///     pub struct Post {
-///         #[primary_key]
-///         pub id: u64,
-///         pub title: String,
-///
-///         // Single relation
-///         pub author: RelationalLink<MyDefinition, User>,
-///
-///         // Collection of relations
-///         pub tags: Vec<RelationalLink<MyDefinition, Tag>>,
-///     }
 ///
 ///     #[derive(NetabaseModel, Clone, Debug, PartialEq,
 ///              bincode::Encode, bincode::Decode,
@@ -152,54 +136,80 @@ use crate::{
 ///              bincode::Encode, bincode::Decode,
 ///              serde::Serialize, serde::Deserialize)]
 ///     #[netabase(MyDefinition)]
-///     pub struct Tag {
+///     pub struct Post {
 ///         #[primary_key]
 ///         pub id: u64,
-///         pub name: String,
+///         pub title: String,
+///
+///         // Relation field
+///         #[relation(author)]
+///         pub author: RelationalLink<MyDefinition, User>,
 ///     }
 /// }
 /// use my_models::*;
 ///
 /// // Create instances
-/// let user = User { id: 1, name: "Alice".into() };
-/// let tag1 = Tag { id: 1, name: "Rust".into() };
-/// let tag2 = Tag { id: 2, name: "Tutorial".into() };
+/// let user = User { id: 1, name: "Alice".to_string() };
 ///
 /// let post = Post {
 ///     id: 1,
-///     title: "Getting Started with Rust".into(),
-///     author: RelationalLink::Entity(user),  // Eager load
-///     tags: vec![
-///         RelationalLink::Reference(tag1.primary_key()),  // Lazy load
-///         RelationalLink::Reference(tag2.primary_key()),  // Lazy load
-///     ],
+///     title: "Getting Started with Rust".to_string(),
+///     author: RelationalLink::Entity(user),  // Embed the user
 /// };
 ///
-/// // Check relations
-/// assert!(post.has_relations());
-/// let relations = post.relations();
-/// assert_eq!(relations.len(), 2);  // author + tags
-///
-/// // Use generated helpers
-/// if post.author_is_entity() {
-///     println!("Author already loaded!");
-/// }
+/// // Use generated helper methods
+/// assert!(post.is_author_entity());
+/// assert_eq!(post.get_author().key(), UserPrimaryKey(1));
 /// ```
 ///
-/// ## Introspection and Metadata
+/// ## Usage Pattern
 ///
 /// ```ignore
-/// // Query relation metadata
-/// for (disc, rel) in post.relations() {
-///     match rel {
-///         PostRelations::Author => {
-///             println!("Author field points to: {}", rel.target_model_name());
-///         }
-///         PostRelations::Tags => {
-///             println!("Tags field points to: {}", rel.target_model_name());
-///         }
-///     }
+/// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase, links::RelationalLink};
+/// # use netabase_store::databases::sled_store::SledStore;
+/// # #[netabase_definition_module(MyDefinition, MyKeys)]
+/// # mod models {
+/// #     use super::*;
+/// #     use netabase_store::{NetabaseModel, netabase};
+/// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+/// #              bincode::Encode, bincode::Decode,
+/// #              serde::Serialize, serde::Deserialize)]
+/// #     #[netabase(MyDefinition)]
+/// #     pub struct User {
+/// #         #[primary_key]
+/// #         pub id: u64,
+/// #         pub name: String,
+/// #     }
+/// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+/// #              bincode::Encode, bincode::Decode,
+/// #              serde::Serialize, serde::Deserialize)]
+/// #     #[netabase(MyDefinition)]
+/// #     pub struct Post {
+/// #         #[primary_key]
+/// #         pub id: u64,
+/// #         pub title: String,
+/// #         #[relation(author)]
+/// #         pub author: RelationalLink<MyDefinition, User>,
+/// #     }
+/// # }
+/// # use models::*;
+/// # fn example() -> Result<(), netabase_store::error::NetabaseError> {
+/// # let store = SledStore::<MyDefinition>::temp()?;
+/// # let user = User { id: 1, name: "Alice".to_string() };
+/// # let post = Post {
+/// #     id: 1,
+/// #     title: "Test".to_string(),
+/// #     author: RelationalLink::Entity(user),
+/// # };
+/// // Insert with relations
+/// post.insert_with_relations(&store)?;
+///
+/// // Use generated helpers
+/// if post.is_author_entity() {
+///     println!("Author already loaded!");
 /// }
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # See Also
@@ -255,6 +265,44 @@ where
     /// # Examples
     ///
     /// ```ignore
+    /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase, links::RelationalLink};
+    /// # use netabase_store::links::RecursionLevel;
+    /// # use netabase_store::traits::relation::NetabaseRelationTrait;
+    /// # use netabase_store::databases::sled_store::SledStore;
+    /// # #[netabase_definition_module(TestDef, TestKeys)]
+    /// # mod models {
+    /// #     use super::*;
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(TestDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(TestDef)]
+    /// #     pub struct Post {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub title: String,
+    /// #         #[relation(author)]
+    /// #         pub author: RelationalLink<TestDef, User>,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn example() -> Result<(), netabase_store::error::NetabaseError> {
+    /// # let store = SledStore::<TestDef>::temp()?;
+    /// # let user = User { id: 1, name: "Alice".to_string() };
+    /// # let model = Post {
+    /// #     id: 1,
+    /// #     title: "Test".to_string(),
+    /// #     author: RelationalLink::Entity(user),
+    /// # };
     /// // Insert with full recursion
     /// model.insert_relations_recursive(&store, RecursionLevel::Full)?;
     ///
@@ -263,6 +311,8 @@ where
     ///
     /// // Don't recurse (equivalent to insert_relations_only)
     /// model.insert_relations_recursive(&store, RecursionLevel::None)?;
+    /// # Ok(())
+    /// # }
     /// ```
     fn insert_relations_recursive<S>(
         &self,
@@ -287,8 +337,48 @@ where
     /// # Examples
     ///
     /// ```ignore
+    /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase, links::RelationalLink};
+    /// # use netabase_store::links::RecursionLevel;
+    /// # use netabase_store::traits::relation::NetabaseRelationTrait;
+    /// # use netabase_store::databases::sled_store::SledStore;
+    /// # #[netabase_definition_module(TestDef, TestKeys)]
+    /// # mod models {
+    /// #     use super::*;
+    /// #     use netabase_store::{NetabaseModel, netabase};
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(TestDef)]
+    /// #     pub struct User {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub name: String,
+    /// #     }
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq,
+    /// #              bincode::Encode, bincode::Decode,
+    /// #              serde::Serialize, serde::Deserialize)]
+    /// #     #[netabase(TestDef)]
+    /// #     pub struct Post {
+    /// #         #[primary_key]
+    /// #         pub id: u64,
+    /// #         pub title: String,
+    /// #         #[relation(author)]
+    /// #         pub author: RelationalLink<TestDef, User>,
+    /// #     }
+    /// # }
+    /// # use models::*;
+    /// # fn example() -> Result<(), netabase_store::error::NetabaseError> {
+    /// # let store = SledStore::<TestDef>::temp()?;
+    /// # let user = User { id: 1, name: "Alice".to_string() };
+    /// # let model = Post {
+    /// #     id: 1,
+    /// #     title: "Test".to_string(),
+    /// #     author: RelationalLink::Entity(user),
+    /// # };
     /// // Insert starting at depth 0
     /// model.insert_relations_recursive_with_depth(&store, RecursionLevel::Value(3), 0)?;
+    /// # Ok(())
+    /// # }
     /// ```
     fn insert_relations_recursive_with_depth<S>(
         &self,
@@ -512,6 +602,3 @@ pub mod relation_utils {
         links.into_iter().map(|link| link.key()).collect()
     }
 }
-
-/// Re-export for backward compatibility during migration
-pub use crate::links::RelationalLink as LegacyRelationalLink;

@@ -5,6 +5,7 @@
 
 #![cfg(not(target_arch = "wasm32"))] // Performance tests are native-only
 
+use netabase_store::error::NetabaseError;
 use netabase_store::netabase_definition_module;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -141,13 +142,15 @@ fn test_query_performance_large_dataset() {
         let batch: Vec<SmallRecord> = (batch_start
             ..std::cmp::min(batch_start + batch_size, num_records))
             .map(|i| SmallRecord {
-                id: i,
+                id: i as u64,
                 name: format!("Record {}", i),
                 category: format!("Category {}", i % 1000),
             })
             .collect();
 
-        tree.put_many(batch).unwrap();
+        for record in batch {
+            tree.put(record).unwrap();
+        }
     }
 
     // Test primary key queries
@@ -155,7 +158,7 @@ fn test_query_performance_large_dataset() {
     let mut found_count = 0;
 
     for i in (0..num_records).step_by(100) {
-        if tree.get(SmallRecordPrimaryKey(i)).unwrap().is_some() {
+        if tree.get(SmallRecordPrimaryKey(i as u64)).unwrap().is_some() {
             found_count += 1;
         }
     }
@@ -209,7 +212,7 @@ fn test_secondary_key_query_performance() {
             .unwrap();
 
         total_results += results.len();
-        assert_eq!(results.len(), num_records / num_categories); // Should find expected count
+        assert_eq!(results.len(), (num_records / num_categories) as usize); // Should find expected count
     }
 
     let query_duration = start_time.elapsed();
@@ -220,7 +223,7 @@ fn test_secondary_key_query_performance() {
         num_categories, query_duration, queries_per_second, total_results
     );
 
-    assert_eq!(total_results, num_records);
+    assert_eq!(total_results, num_records as usize);
     assert!(queries_per_second > 50.0); // Should handle at least 50 secondary key queries/sec
 }
 
@@ -586,7 +589,10 @@ fn test_batch_operation_performance() {
                 })
                 .collect();
 
-            match tree.put_many(batch.clone()) {
+            for record in &batch {
+                tree.put(record.clone()).unwrap();
+            }
+            match Result::<(), NetabaseError>::Ok(()) {
                 Ok(_) => records_inserted += batch.len(),
                 Err(_) => break,
             }
@@ -634,12 +640,14 @@ fn test_iteration_performance() {
             })
             .collect();
 
-        tree.put_many(batch).unwrap();
+        for record in batch {
+            tree.put(record).unwrap();
+        }
     }
 
     // Test full iteration
     let start_time = Instant::now();
-    let all_records = tree.iter().unwrap();
+    let all_records: Vec<_> = tree.iter().collect();
     let iteration_duration = start_time.elapsed();
 
     let records_per_second = (all_records.len() as f64) / iteration_duration.as_secs_f64();
@@ -670,7 +678,7 @@ fn test_performance_with_database_growth() {
 
     for &stage_size in &growth_stages {
         // Grow database to target size
-        let current_size = tree.iter().unwrap_or_default().len();
+        let current_size = tree.iter().count();
         if current_size < stage_size {
             let records_to_add = stage_size - current_size;
             let batch_size = 1000;
@@ -685,7 +693,9 @@ fn test_performance_with_database_growth() {
                     })
                     .collect();
 
-                tree.put_many(batch).unwrap();
+                for record in batch {
+                    tree.put(record).unwrap();
+                }
             }
         }
 

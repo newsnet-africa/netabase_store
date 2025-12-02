@@ -399,7 +399,7 @@ where
     /// # mod app {
     /// #     use super::*;
     /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
-    /// #     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode,
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq, bincode::Encode, bincode::Decode,
     /// #              serde::Serialize, serde::Deserialize)]
     /// #     #[netabase(AppDef)]
     /// #     pub struct Counter { #[primary_key] pub id: u64 }
@@ -427,7 +427,7 @@ where
     /// # mod app {
     /// #     use super::*;
     /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
-    /// #     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode,
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq, bincode::Encode, bincode::Decode,
     /// #              serde::Serialize, serde::Deserialize)]
     /// #     #[netabase(AppDef)]
     /// #     pub struct Record { #[primary_key] pub id: u64 }
@@ -458,7 +458,7 @@ where
     /// # mod app {
     /// #     use super::*;
     /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
-    /// #     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode,
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq, bincode::Encode, bincode::Decode,
     /// #              serde::Serialize, serde::Deserialize)]
     /// #     #[netabase(AppDef)]
     /// #     pub struct Temp { #[primary_key] pub id: u64 }
@@ -585,7 +585,7 @@ where
     /// # mod app {
     /// #     use super::*;
     /// # use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
-    /// #     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode,
+    /// #     #[derive(NetabaseModel, Clone, Debug, PartialEq, bincode::Encode, bincode::Decode,
     /// #              serde::Serialize, serde::Deserialize)]
     /// #     #[netabase(AppDef)]
     /// #     pub struct Item { #[primary_key] pub id: u64, pub value: String }

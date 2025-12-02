@@ -13,6 +13,7 @@ use redb::{Database, ReadableDatabase};
 use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
+use strum::IntoEnumIterator;
 
 /// Main store handle for zero-copy redb backend
 ///
@@ -71,6 +72,21 @@ impl<D> RedbStoreZeroCopy<D>
 where
     D: NetabaseDefinitionTrait,
 {
+    /// Get direct access to the underlying redb database
+    ///
+    /// This allows access to raw redb functionality if needed.
+    pub fn db(&self) -> &Arc<Database> {
+        &self.db
+    }
+
+    /// Get all tree names (discriminants) in the database
+    pub fn tree_names(&self) -> Vec<D::Discriminant>
+    where
+        D::Discriminant: strum::IntoEnumIterator,
+    {
+        D::Discriminant::iter().collect()
+    }
+
     /// Create a new database, removing any existing database at the path
     ///
     /// This will delete any existing database file and create a fresh one.

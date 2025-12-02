@@ -65,6 +65,7 @@
 //! ```
 
 pub mod batch;
+pub mod introspection;
 pub mod iterator;
 pub mod store;
 pub mod trait_impls;

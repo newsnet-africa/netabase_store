@@ -26,7 +26,7 @@
 //! #[netabase_definition_module(MyDef, MyKeys)]
 //! mod models {
 //!     use netabase_store::{NetabaseModel, netabase};
-//!     #[derive(NetabaseModel, Clone, Debug,
+//!     #[derive(NetabaseModel, Clone, Debug, PartialEq,
 //!              bincode::Encode, bincode::Decode,
 //!              serde::Serialize, serde::Deserialize)]
 //!     #[netabase(MyDef)]
@@ -60,7 +60,7 @@
 //! #[netabase_definition_module(MyDef, MyKeys)]
 //! mod models {
 //!     use netabase_store::{NetabaseModel, netabase};
-//!     #[derive(NetabaseModel, Clone, Debug,
+//!     #[derive(NetabaseModel, Clone, Debug, PartialEq,
 //!              bincode::Encode, bincode::Decode,
 //!              serde::Serialize, serde::Deserialize)]
 //!     #[netabase(MyDef)]
@@ -94,7 +94,7 @@
 //! #[netabase_definition_module(MyDef, MyKeys)]
 //! mod models {
 //!     use netabase_store::{NetabaseModel, netabase};
-//!     #[derive(NetabaseModel, Clone, Debug,
+//!     #[derive(NetabaseModel, Clone, Debug, PartialEq,
 //!              bincode::Encode, bincode::Decode,
 //!              serde::Serialize, serde::Deserialize)]
 //!     #[netabase(MyDef)]

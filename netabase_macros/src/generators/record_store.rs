@@ -134,6 +134,16 @@ pub fn generate_trait_methods(
         definition.span(),
     );
 
+    // Generate iterator type names (these are defined in generate_generic_functions)
+    let _records_iter_sled_type = syn::Ident::new(
+        &format!("RecordsIterGenerated{}", definition),
+        definition.span(),
+    );
+    let _records_iter_redb_type = syn::Ident::new(
+        &format!("RecordsIterRedb{}", definition),
+        definition.span(),
+    );
+
     // Conditionally generate methods based on macro's compile-time features
     // NO cfg attributes in the generated code!
 
@@ -186,7 +196,7 @@ pub fn generate_trait_methods(
         where
             #_open_tree_bounds
         {
-            Box::new(RecordsIterGenerated::new(store))
+            Box::new(#_records_iter_sled_type::new(store))
         }
     };
 
@@ -242,7 +252,7 @@ pub fn generate_trait_methods(
         where
             #_open_tree_bounds
         {
-            Box::new(RecordsIterRedb::new(store))
+            Box::new(#_records_iter_redb_type::new(store))
         }
     };
 
@@ -341,16 +351,47 @@ pub fn generate_record_store_impl(
     #[cfg(feature = "sled")]
     let sled_code = {
         let records_iter_impl = _generate_records_iter_impl(_modules, _definition, _definition_key);
+        // Generate unique function and type names based on the definition
+        let def_lower = _definition.to_string().to_lowercase();
+        let records_fn_name = syn::Ident::new(
+            &format!("record_store_records_sled_{}", def_lower),
+            _definition.span(),
+        );
+        let add_provider_fn_name = syn::Ident::new(
+            &format!("record_store_add_provider_sled_{}", def_lower),
+            _definition.span(),
+        );
+        let providers_fn_name = syn::Ident::new(
+            &format!("record_store_providers_sled_{}", def_lower),
+            _definition.span(),
+        );
+        let provided_fn_name = syn::Ident::new(
+            &format!("record_store_provided_sled_{}", def_lower),
+            _definition.span(),
+        );
+        let remove_provider_fn_name = syn::Ident::new(
+            &format!("record_store_remove_provider_sled_{}", def_lower),
+            _definition.span(),
+        );
+        let records_iter_type = syn::Ident::new(
+            &format!("RecordsIterGenerated{}", _definition),
+            _definition.span(),
+        );
+        let provided_iter_type = syn::Ident::new(
+            &format!("ProvidedIterGenerated{}", _definition),
+            _definition.span(),
+        );
+
         quote! {
             /// Generic records iterator for sled stores
-            pub fn record_store_records_sled(
+            pub fn #records_fn_name(
                 store: &::netabase_store::databases::sled_store::SledStore<#_definition>
-            ) -> RecordsIterGenerated<'_> {
-                RecordsIterGenerated::new(store)
+            ) -> #records_iter_type<'_> {
+                #records_iter_type::new(store)
             }
 
             /// Generic add_provider for sled stores
-            pub fn record_store_add_provider_sled(
+            pub fn #add_provider_fn_name(
                 store: &mut ::netabase_store::databases::sled_store::SledStore<#_definition>,
                 record: ::netabase_store::netabase_deps::libp2p::kad::ProviderRecord
             ) -> ::netabase_store::netabase_deps::libp2p::kad::store::Result<()> {
@@ -358,7 +399,7 @@ pub fn generate_record_store_impl(
             }
 
             /// Generic providers for sled stores
-            pub fn record_store_providers_sled(
+            pub fn #providers_fn_name(
                 store: &::netabase_store::databases::sled_store::SledStore<#_definition>,
                 key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey
             ) -> Vec<::netabase_store::netabase_deps::libp2p::kad::ProviderRecord> {
@@ -366,14 +407,14 @@ pub fn generate_record_store_impl(
             }
 
             /// Generic provided for sled stores
-            pub fn record_store_provided_sled(
+            pub fn #provided_fn_name(
                 store: &::netabase_store::databases::sled_store::SledStore<#_definition>
-            ) -> ProvidedIterGenerated<'_> {
-                ProvidedIterGenerated::new(store)
+            ) -> #provided_iter_type<'_> {
+                #provided_iter_type::new(store)
             }
 
             /// Generic remove_provider for sled stores
-            pub fn record_store_remove_provider_sled(
+            pub fn #remove_provider_fn_name(
                 store: &mut ::netabase_store::databases::sled_store::SledStore<#_definition>,
                 key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey,
                 provider: &::netabase_store::netabase_deps::libp2p::PeerId
@@ -384,23 +425,23 @@ pub fn generate_record_store_impl(
             #records_iter_impl
 
             // Provider records iterator
-            pub struct ProvidedIterGenerated<'a> {
+            pub struct #provided_iter_type<'a> {
                 inner: ::sled::Iter,
                 _phantom: std::marker::PhantomData<&'a ()>,
             }
 
-            impl<'a> ProvidedIterGenerated<'a> {
+            impl<'a> #provided_iter_type<'a> {
                 fn new(store: &'a ::netabase_store::databases::sled_store::SledStore<#_definition>) -> Self {
                     let tree = store.db().open_tree("__libp2p_provided")
                         .expect("Failed to open provided tree");
-                    ProvidedIterGenerated {
+                    #provided_iter_type {
                         inner: tree.iter(),
                         _phantom: std::marker::PhantomData,
                     }
                 }
             }
 
-            impl<'a> Iterator for ProvidedIterGenerated<'a> {
+            impl<'a> Iterator for #provided_iter_type<'a> {
                 type Item = std::borrow::Cow<'a, ::netabase_store::netabase_deps::libp2p::kad::ProviderRecord>;
 
                 fn next(&mut self) -> Option<Self::Item> {
@@ -421,10 +462,47 @@ pub fn generate_record_store_impl(
     // Conditionally generate redb-specific code
     #[cfg(feature = "redb")]
     let redb_code = {
-        let redb_impl = _generate_redb_record_store_impl(_modules, _definition, _definition_key);
+        let def_lower = _definition.to_string().to_lowercase();
+        let add_provider_redb_fn = syn::Ident::new(
+            &format!("record_store_add_provider_redb_{}", def_lower),
+            _definition.span(),
+        );
+        let providers_redb_fn = syn::Ident::new(
+            &format!("record_store_providers_redb_{}", def_lower),
+            _definition.span(),
+        );
+        let provided_redb_fn = syn::Ident::new(
+            &format!("record_store_provided_redb_{}", def_lower),
+            _definition.span(),
+        );
+        let remove_provider_redb_fn = syn::Ident::new(
+            &format!("record_store_remove_provider_redb_{}", def_lower),
+            _definition.span(),
+        );
+        let records_redb_fn = syn::Ident::new(
+            &format!("record_store_records_redb_{}", def_lower),
+            _definition.span(),
+        );
+        let provided_iter_redb_type = syn::Ident::new(
+            &format!("ProvidedIterRedb{}", _definition),
+            _definition.span(),
+        );
+        let records_iter_redb_type = syn::Ident::new(
+            &format!("RecordsIterRedb{}", _definition),
+            _definition.span(),
+        );
+        let redb_impl = _generate_redb_record_store_impl(
+            _modules,
+            _definition,
+            _definition_key,
+            &records_iter_redb_type,
+            &provided_iter_redb_type,
+        );
+
         quote! {
+
             /// Generic add_provider for redb stores
-            pub fn record_store_add_provider_redb(
+            pub fn #add_provider_redb_fn(
                 store: &mut ::netabase_store::databases::redb_store::RedbStore<#_definition>,
                 record: ::netabase_store::netabase_deps::libp2p::kad::ProviderRecord
             ) -> ::netabase_store::netabase_deps::libp2p::kad::store::Result<()> {
@@ -432,7 +510,7 @@ pub fn generate_record_store_impl(
             }
 
             /// Generic providers for redb stores
-            pub fn record_store_providers_redb(
+            pub fn #providers_redb_fn(
                 store: &::netabase_store::databases::redb_store::RedbStore<#_definition>,
                 key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey
             ) -> Vec<::netabase_store::netabase_deps::libp2p::kad::ProviderRecord> {
@@ -440,14 +518,14 @@ pub fn generate_record_store_impl(
             }
 
             /// Generic provided for redb stores
-            pub fn record_store_provided_redb(
+            pub fn #provided_redb_fn(
                 store: &::netabase_store::databases::redb_store::RedbStore<#_definition>
-            ) -> ProvidedIterRedb<'_> {
-                ProvidedIterRedb::new(store)
+            ) -> #provided_iter_redb_type<'_> {
+                #provided_iter_redb_type::new(store)
             }
 
             /// Generic remove_provider for redb stores
-            pub fn record_store_remove_provider_redb(
+            pub fn #remove_provider_redb_fn(
                 store: &mut ::netabase_store::databases::redb_store::RedbStore<#_definition>,
                 key: &::netabase_store::netabase_deps::libp2p::kad::RecordKey,
                 provider: &::netabase_store::netabase_deps::libp2p::PeerId
@@ -455,11 +533,11 @@ pub fn generate_record_store_impl(
                 store.remove_provider_internal(key, provider)
             }
 
-            /// Generic records for redb stores
-            pub fn record_store_records_redb(
+            /// Generic records iterator for redb stores
+            pub fn #records_redb_fn(
                 store: &::netabase_store::databases::redb_store::RedbStore<#_definition>
-            ) -> RecordsIterRedb<'_> {
-                RecordsIterRedb::new(store)
+            ) -> #records_iter_redb_type<'_> {
+                #records_iter_redb_type::new(store)
             }
 
             #redb_impl
@@ -663,6 +741,15 @@ fn _generate_records_iter_impl(
     definition: &Ident,
     definition_key: &Ident,
 ) -> proc_macro2::TokenStream {
+    // Generate unique type names based on the definition
+    let records_iter_type = syn::Ident::new(
+        &format!("RecordsIterGenerated{}", definition),
+        definition.span(),
+    );
+    let _provided_iter_type = syn::Ident::new(
+        &format!("ProvidedIterGenerated{}", definition),
+        definition.span(),
+    );
     // Generate match arms for decoding based on discriminant
     let decode_arms: Vec<_> = modules
         .iter()
@@ -728,21 +815,21 @@ fn _generate_records_iter_impl(
 
     quote! {
         // Iterator over all records, wrapping models in Definition
-        pub struct RecordsIterGenerated<'a> {
+        pub struct #records_iter_type<'a> {
             discriminants: Vec<<#definition as ::netabase_store::strum::IntoDiscriminant>::Discriminant>,
             current_discriminant_index: usize,
             current_tree_iter: Option<::sled::Iter>,
             store: &'a ::netabase_store::databases::sled_store::SledStore<#definition>,
         }
 
-        impl<'a> RecordsIterGenerated<'a> {
+        impl<'a> #records_iter_type<'a> {
             fn new(store: &'a ::netabase_store::databases::sled_store::SledStore<#definition>) -> Self {
                 use ::netabase_store::strum::IntoEnumIterator;
 
                 let discriminants: Vec<_> = <<#definition as ::netabase_store::strum::IntoDiscriminant>::Discriminant as IntoEnumIterator>::iter()
                     .collect();
 
-                RecordsIterGenerated {
+                #records_iter_type {
                     discriminants,
                     current_discriminant_index: 0,
                     current_tree_iter: None,
@@ -751,7 +838,7 @@ fn _generate_records_iter_impl(
             }
         }
 
-        impl<'a> Iterator for RecordsIterGenerated<'a> {
+        impl<'a> Iterator for #records_iter_type<'a> {
             type Item = std::borrow::Cow<'a, ::netabase_store::netabase_deps::libp2p::kad::Record>;
 
             fn next(&mut self) -> Option<Self::Item> {
@@ -808,9 +895,16 @@ fn _generate_redb_record_store_impl(
     modules: &[ModuleInfo],
     definition: &Ident,
     definition_key: &Ident,
+    records_iter_redb_type: &Ident,
+    provided_iter_redb_type: &Ident,
 ) -> proc_macro2::TokenStream {
-    let redb_records_iter_impl =
-        _generate_redb_records_iter_impl(modules, definition, definition_key);
+    let redb_records_iter_impl = _generate_redb_records_iter_impl(
+        modules,
+        definition,
+        definition_key,
+        records_iter_redb_type,
+        provided_iter_redb_type,
+    );
 
     quote! {
         #redb_records_iter_impl
@@ -824,6 +918,8 @@ fn _generate_redb_records_iter_impl(
     modules: &[ModuleInfo],
     definition: &Ident,
     definition_key: &Ident,
+    records_iter_redb_type: &Ident,
+    provided_iter_redb_type: &Ident,
 ) -> proc_macro2::TokenStream {
     // Generate match arms for decoding based on discriminant
     let decode_arms: Vec<_> = modules
@@ -890,12 +986,12 @@ fn _generate_redb_records_iter_impl(
 
     quote! {
         // RedbStore iterator over all records
-        pub struct RecordsIterRedb<'a> {
+        pub struct #records_iter_redb_type<'a> {
             records: std::vec::IntoIter<::netabase_store::netabase_deps::libp2p::kad::Record>,
             _phantom: std::marker::PhantomData<&'a ()>,
         }
 
-        impl<'a> RecordsIterRedb<'a> {
+        impl<'a> #records_iter_redb_type<'a> {
             fn new(store: &'a ::netabase_store::databases::redb_store::RedbStore<#definition>) -> Self {
                 use ::netabase_store::strum::IntoEnumIterator;
                 use ::netabase_store::strum::IntoDiscriminant;
@@ -936,14 +1032,14 @@ fn _generate_redb_records_iter_impl(
                     }
                 }
 
-                RecordsIterRedb {
+                #records_iter_redb_type {
                     records: records.into_iter(),
                     _phantom: std::marker::PhantomData,
                 }
             }
         }
 
-        impl<'a> Iterator for RecordsIterRedb<'a> {
+        impl<'a> Iterator for #records_iter_redb_type<'a> {
             type Item = std::borrow::Cow<'a, ::netabase_store::netabase_deps::libp2p::kad::Record>;
 
             fn next(&mut self) -> Option<Self::Item> {
@@ -952,12 +1048,12 @@ fn _generate_redb_records_iter_impl(
         }
 
         // RedbStore provider records iterator
-        pub struct ProvidedIterRedb<'a> {
+        pub struct #provided_iter_redb_type<'a> {
             records: std::vec::IntoIter<::netabase_store::netabase_deps::libp2p::kad::ProviderRecord>,
             _phantom: std::marker::PhantomData<&'a ()>,
         }
 
-        impl<'a> ProvidedIterRedb<'a> {
+        impl<'a> #provided_iter_redb_type<'a> {
             fn new(store: &'a ::netabase_store::databases::redb_store::RedbStore<#definition>) -> Self {
                 use ::netabase_store::redb::{ReadableDatabase, ReadableTable};
 
@@ -982,14 +1078,14 @@ fn _generate_redb_records_iter_impl(
                     }
                 }
 
-                ProvidedIterRedb {
+                #provided_iter_redb_type {
                     records: records.into_iter(),
                     _phantom: std::marker::PhantomData,
                 }
             }
         }
 
-        impl<'a> Iterator for ProvidedIterRedb<'a> {
+        impl<'a> Iterator for #provided_iter_redb_type<'a> {
             type Item = std::borrow::Cow<'a, ::netabase_store::netabase_deps::libp2p::kad::ProviderRecord>;
 
             fn next(&mut self) -> Option<Self::Item> {

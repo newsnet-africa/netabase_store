@@ -72,8 +72,9 @@ pub enum NetabaseModelDeriveError {
 }
 
 #[derive(Error, Debug)]
+#[allow(dead_code)] // Reserved for future validation
 pub enum LinkPathError {
-    #[error("There was an eror parsing the link attribute")]
+    #[error("There was an error parsing the link attribute")]
     Parse(proc_macro2::TokenStream),
     #[error("The link attribute was not a metalist")]
     IncorrectAttribute,

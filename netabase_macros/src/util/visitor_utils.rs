@@ -30,25 +30,26 @@ impl<'a> ModelKeyInfo<'a> {
 impl<'a> ModelLinkInfo<'a> {
     pub fn find_link(fields: &'a Fields) -> impl std::iter::Iterator<Item = ModelLinkInfo<'a>> {
         fields.iter().filter_map(|f| {
-            // Check for explicit #[link] attribute
-            if let Some(attribute) = field_is_attribute(f, "link") {
-                let link_path = match Self::extract_path_from_metalist(attribute) {
-                    Ok(r) => r,
-                    Err(_) => return None,
-                };
+            // Check for explicit #[relation] attribute
+            if let Some(attribute) = field_is_attribute(f, "relation") {
+                // For relation attributes, we don't need to extract a path
+                // We only need the relation name
+                let relation_name = ModelLinkInfo::extract_relation_name(attribute);
                 Some(ModelLinkInfo {
-                    link_path,
+                    link_path: syn::punctuated::Punctuated::new(),
                     link_field: f,
                     is_relational_link: ModelLinkInfo::is_relational_link_type(&f.ty),
                     linked_type: ModelLinkInfo::extract_linked_type(&f.ty),
+                    relation_name,
                 })
             } else if ModelLinkInfo::is_relational_link_type(&f.ty) {
-                // Auto-detect RelationalLink<D, M> types even without explicit #[link] attribute
+                // Auto-detect RelationalLink<D, M> types even without explicit #[relation] attribute
                 Some(ModelLinkInfo {
                     link_path: syn::punctuated::Punctuated::new(),
                     link_field: f,
                     is_relational_link: true,
                     linked_type: ModelLinkInfo::extract_linked_type(&f.ty),
+                    relation_name: None,
                 })
             } else {
                 None
@@ -56,6 +57,7 @@ impl<'a> ModelLinkInfo<'a> {
         })
     }
 
+    #[allow(dead_code)] // Reserved for future link validation
     pub fn extract_path_from_metalist(
         attribute: &Attribute,
     ) -> Result<Punctuated<PathSegment, Token![::]>, NetabaseModelDeriveError> {

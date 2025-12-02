@@ -10,11 +10,15 @@ use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_m
 use netabase_store::netabase_definition_module;
 use std::time::Duration;
 
-// Benchmark schema
+/// Benchmark schema module containing model definitions for performance testing
+///
+/// This module defines various record types with different complexity levels
+/// to test performance characteristics across different scenarios.
 #[netabase_definition_module(BenchmarkDefinition, BenchmarkKeys)]
 mod benchmark_schema {
     use netabase_store::{NetabaseModel, netabase};
 
+    /// Small record structure for lightweight benchmark operations
     #[derive(
         NetabaseModel,
         Clone,
@@ -35,6 +39,7 @@ mod benchmark_schema {
         pub category: String,
     }
 
+    /// Medium-complexity record with multiple fields and secondary keys
     #[derive(
         NetabaseModel,
         Clone,
@@ -59,6 +64,7 @@ mod benchmark_schema {
         pub tags: Vec<String>,
     }
 
+    /// Large record structure for testing with significant data payload
     #[derive(
         NetabaseModel,
         Clone,
@@ -78,6 +84,7 @@ mod benchmark_schema {
         pub metadata: String,
     }
 
+    /// Wide record structure with many secondary keys for complex query testing
     #[derive(
         NetabaseModel,
         Clone,
@@ -177,13 +184,13 @@ mod sled_benchmarks {
             group.bench_with_input(BenchmarkId::new("insert", size), size, |b, &size| {
                 b.iter_batched(
                     || {
-                        let store = SledStore::<BenchmarkDefinition>::temp().unwrap();
-                        let tree = store.open_tree::<SmallRecord>();
                         let records: Vec<SmallRecord> =
                             (0..size).map(|i| generate_small_record(i as u64)).collect();
-                        (tree, records)
+                        records
                     },
-                    |(tree, records)| {
+                    |records| {
+                        let store = SledStore::<BenchmarkDefinition>::temp().unwrap();
+                        let tree = store.open_tree::<SmallRecord>();
                         for record in records {
                             tree.put(record).unwrap();
                         }
@@ -211,14 +218,16 @@ mod sled_benchmarks {
             group.bench_with_input(BenchmarkId::new("batch_insert", size), size, |b, &size| {
                 b.iter_batched(
                     || {
-                        let store = SledStore::<BenchmarkDefinition>::temp().unwrap();
-                        let tree = store.open_tree::<SmallRecord>();
                         let records: Vec<SmallRecord> =
                             (0..size).map(|i| generate_small_record(i as u64)).collect();
-                        (tree, records)
+                        records
                     },
-                    |(tree, records)| {
-                        tree.put_many(records).unwrap();
+                    |records| {
+                        let store = SledStore::<BenchmarkDefinition>::temp().unwrap();
+                        let tree = store.open_tree::<SmallRecord>();
+                        for record in records {
+                            tree.put(record).unwrap();
+                        }
                     },
                     criterion::BatchSize::SmallInput,
                 );
@@ -265,12 +274,10 @@ mod sled_benchmarks {
 
             group.bench_with_input(BenchmarkId::new("insert", size), size, |b, &size| {
                 b.iter_batched(
-                    || {
+                    || generate_large_record(1, size),
+                    |record| {
                         let store = SledStore::<BenchmarkDefinition>::temp().unwrap();
                         let tree = store.open_tree::<LargeRecord>();
-                        (tree, generate_large_record(1, size))
-                    },
-                    |(tree, record)| {
                         tree.put(record).unwrap();
                     },
                     criterion::BatchSize::SmallInput,
@@ -302,13 +309,13 @@ mod sled_benchmarks {
         group.bench_function("insert_wide_records", |b| {
             b.iter_batched(
                 || {
-                    let store = SledStore::<BenchmarkDefinition>::temp().unwrap();
-                    let tree = store.open_tree::<WideRecord>();
                     let records: Vec<WideRecord> =
                         (0..num_records).map(|i| generate_wide_record(i)).collect();
-                    (tree, records)
+                    records
                 },
-                |(tree, records)| {
+                |records| {
+                    let store = SledStore::<BenchmarkDefinition>::temp().unwrap();
+                    let tree = store.open_tree::<WideRecord>();
                     for record in records {
                         tree.put(record).unwrap();
                     }
@@ -343,9 +350,7 @@ mod sled_benchmarks {
 #[cfg(feature = "redb")]
 mod redb_benchmarks {
     use super::*;
-    use netabase_store::config::FileConfig;
     use netabase_store::databases::redb_store::RedbStore;
-    use netabase_store::traits::backend_store::BackendStore;
 
     pub fn bench_redb_small_record_operations(c: &mut Criterion) {
         let mut group = c.benchmark_group("redb_small_records");
@@ -357,15 +362,15 @@ mod redb_benchmarks {
             group.bench_with_input(BenchmarkId::new("insert", size), size, |b, &size| {
                 b.iter_batched(
                     || {
-                        let temp_dir = tempfile::tempdir().unwrap();
-                        let config = FileConfig::new(temp_dir.path().join("bench.redb"));
-                        let store = RedbStore::<BenchmarkDefinition>::new(config).unwrap();
-                        let tree = store.open_tree::<SmallRecord>();
                         let records: Vec<SmallRecord> =
                             (0..size).map(|i| generate_small_record(i as u64)).collect();
-                        (tree, records)
+                        records
                     },
-                    |(tree, records)| {
+                    |records| {
+                        let temp_dir = tempfile::tempdir().unwrap();
+                        let path = temp_dir.path().join("bench.redb");
+                        let store = RedbStore::<BenchmarkDefinition>::new(path).unwrap();
+                        let tree = store.open_tree::<SmallRecord>();
                         for record in records {
                             tree.put(record).unwrap();
                         }
@@ -376,8 +381,8 @@ mod redb_benchmarks {
 
             group.bench_with_input(BenchmarkId::new("read", size), size, |b, &size| {
                 let temp_dir = tempfile::tempdir().unwrap();
-                let config = FileConfig::new(temp_dir.path().join("bench.redb"));
-                let store = RedbStore::<BenchmarkDefinition>::new(config).unwrap();
+                let path = temp_dir.path().join("bench.redb");
+                let store = RedbStore::<BenchmarkDefinition>::new(path).unwrap();
                 let tree = store.open_tree::<SmallRecord>();
                 for i in 0..size {
                     tree.put(generate_small_record(i as u64)).unwrap();
@@ -401,8 +406,8 @@ mod redb_benchmarks {
 
         let dataset_size = 10000;
         let temp_dir = tempfile::tempdir().unwrap();
-        let config = FileConfig::new(temp_dir.path().join("bench.redb"));
-        let store = RedbStore::<BenchmarkDefinition>::new(config).unwrap();
+        let path = temp_dir.path().join("bench.redb");
+        let store = RedbStore::<BenchmarkDefinition>::new(path).unwrap();
         let tree = store.open_tree::<SmallRecord>();
 
         // Setup data
@@ -413,10 +418,11 @@ mod redb_benchmarks {
         group.bench_function("query_by_category", |b| {
             b.iter(|| {
                 let category = format!("Category_{}", criterion::black_box(42));
-                let key = SmallRecordKey::Secondary(SmallRecordSecondaryKeys::Category(
-                    SmallRecordCategorySecondaryKey(category),
-                ));
-                let results = tree.get_by_secondary_key_redb(key).unwrap();
+                let results = tree
+                    .get_by_secondary_key(SmallRecordSecondaryKeys::Category(
+                        SmallRecordCategorySecondaryKey(category),
+                    ))
+                    .unwrap();
                 criterion::black_box(results);
             });
         });
@@ -546,108 +552,108 @@ fn bench_cross_backend_comparison(c: &mut Criterion) {
     let dataset_size = 1000;
 
     #[cfg(feature = "sled")]
-    group.bench_function("sled_mixed_workload", |b| {
+    group.bench_function("sled_mixed_workload_original", |b| {
         use netabase_store::databases::sled_store::SledStore;
 
-        b.iter_batched(
-            || {
-                let store = SledStore::<BenchmarkDefinition>::temp().unwrap();
-                let tree = store.open_tree::<MediumRecord>();
-                // Pre-populate with some data
-                for i in 0..dataset_size / 2 {
-                    tree.put(generate_medium_record(i)).unwrap();
-                }
-                tree
-            },
-            |tree| {
-                // Mixed workload: inserts, reads, updates, queries
-                for i in 0..100 {
-                    match i % 4 {
-                        0 => {
-                            // Insert
-                            tree.put(generate_medium_record(dataset_size / 2 + i))
-                                .unwrap();
-                        }
-                        1 => {
-                            // Read
-                            let key = MediumRecordPrimaryKey(i % (dataset_size / 2));
-                            criterion::black_box(tree.get(key).unwrap());
-                        }
-                        2 => {
-                            // Update
-                            let mut record = generate_medium_record(i % (dataset_size / 2));
-                            record.content = format!("Updated content for {}", i);
+        b.iter(|| {
+            let store = SledStore::<BenchmarkDefinition>::temp().unwrap();
+            let tree = store.open_tree::<MediumRecord>();
+            // Pre-populate with some data
+            for i in 0..dataset_size / 2 {
+                tree.put(generate_medium_record(i)).unwrap();
+            }
+
+            // Mixed workload: inserts, reads, updates, queries
+            for i in 0..100 {
+                match i % 4 {
+                    0 => {
+                        // Insert
+                        tree.put(generate_medium_record(dataset_size / 2 + i))
+                            .unwrap();
+                    }
+                    1 => {
+                        // Read
+                        let result = tree
+                            .get(MediumRecordPrimaryKey(i % (dataset_size / 2)))
+                            .unwrap();
+                        criterion::black_box(result);
+                    }
+                    2 => {
+                        // Update (read then write)
+                        if let Some(mut record) = tree
+                            .get(MediumRecordPrimaryKey(i % (dataset_size / 2)))
+                            .unwrap()
+                        {
+                            record.title = format!("Updated Title {}", i);
                             tree.put(record).unwrap();
                         }
-                        3 => {
-                            // Secondary key query
-                            let key = MediumRecordSecondaryKeys::AuthorId(
-                                MediumRecordAuthorIdSecondaryKey(i % 100),
-                            );
-                            criterion::black_box(tree.get_by_secondary_key(key).unwrap());
-                        }
-                        _ => unreachable!(),
                     }
+                    3 => {
+                        // Secondary key query
+                        let results = tree
+                            .get_by_secondary_key(MediumRecordSecondaryKeys::AuthorId(
+                                MediumRecordAuthorIdSecondaryKey(i % 100),
+                            ))
+                            .unwrap();
+                        criterion::black_box(results);
+                    }
+                    _ => unreachable!(),
                 }
-            },
-            criterion::BatchSize::SmallInput,
-        );
+            }
+        });
     });
 
-    #[cfg(feature = "redb")]
-    group.bench_function("redb_mixed_workload", |b| {
-        use netabase_store::config::FileConfig;
-        use netabase_store::databases::redb_store::RedbStore;
-        use netabase_store::traits::backend_store::BackendStore;
+    #[cfg(feature = "sled")]
+    group.bench_function("sled_mixed_workload", |b| {
+        use netabase_store::databases::sled_store::SledStore;
+        let dataset_size = 1000;
 
-        b.iter_batched(
-            || {
-                let temp_dir = tempfile::tempdir().unwrap();
-                let config = FileConfig::new(temp_dir.path().join("bench.redb"));
-                let store = RedbStore::<BenchmarkDefinition>::new(config).unwrap();
-                let tree = store.open_tree::<MediumRecord>();
-                // Pre-populate with some data
-                for i in 0..dataset_size / 2 {
-                    tree.put(generate_medium_record(i)).unwrap();
-                }
-                tree
-            },
-            |tree| {
-                // Mixed workload: inserts, reads, updates, queries
-                for i in 0..100 {
-                    match i % 4 {
-                        0 => {
-                            // Insert
-                            tree.put(generate_medium_record(dataset_size / 2 + i))
-                                .unwrap();
-                        }
-                        1 => {
-                            // Read
-                            let key = MediumRecordKey::Primary(MediumRecordPrimaryKey(
-                                i % (dataset_size / 2),
-                            ));
-                            criterion::black_box(tree.get(key).unwrap());
-                        }
-                        2 => {
-                            // Update
-                            let mut record = generate_medium_record(i % (dataset_size / 2));
-                            record.content = format!("Updated content for {}", i);
+        b.iter(|| {
+            let store = SledStore::<BenchmarkDefinition>::temp().unwrap();
+            let tree = store.open_tree::<MediumRecord>();
+            // Pre-populate with some data
+            for i in 0..dataset_size / 2 {
+                tree.put(generate_medium_record(i)).unwrap();
+            }
+
+            // Mixed workload: inserts, reads, updates, queries
+            for i in 0..100 {
+                match i % 4 {
+                    0 => {
+                        // Insert
+                        tree.put(generate_medium_record(dataset_size / 2 + i))
+                            .unwrap();
+                    }
+                    1 => {
+                        // Read
+                        let result = tree
+                            .get(MediumRecordPrimaryKey(i % (dataset_size / 2)))
+                            .unwrap();
+                        criterion::black_box(result);
+                    }
+                    2 => {
+                        // Update (read then write)
+                        if let Some(mut record) = tree
+                            .get(MediumRecordPrimaryKey(i % (dataset_size / 2)))
+                            .unwrap()
+                        {
+                            record.title = format!("Updated Title {}", i);
                             tree.put(record).unwrap();
                         }
-                        3 => {
-                            // Secondary key query
-                            let key =
-                                MediumRecordKey::Secondary(MediumRecordSecondaryKeys::AuthorId(
-                                    MediumRecordAuthorIdSecondaryKey(i % 100),
-                                ));
-                            criterion::black_box(tree.get_by_secondary_key_redb(key).unwrap());
-                        }
-                        _ => unreachable!(),
                     }
+                    3 => {
+                        // Secondary key query
+                        let results = tree
+                            .get_by_secondary_key(MediumRecordSecondaryKeys::AuthorId(
+                                MediumRecordAuthorIdSecondaryKey(i % 100),
+                            ))
+                            .unwrap();
+                        criterion::black_box(results);
+                    }
+                    _ => unreachable!(),
                 }
-            },
-            criterion::BatchSize::SmallInput,
-        );
+            }
+        });
     });
 
     group.finish();
@@ -669,13 +675,13 @@ fn bench_memory_usage_patterns(c: &mut Criterion) {
             // Insert progressively larger records
             for i in 0..10 {
                 let size = 1024 * (i + 1); // 1KB to 10KB
-                let record = generate_large_record(i, size);
+                let record = generate_large_record(i as u64, size);
                 tree.put(record).unwrap();
             }
 
             // Read all records back
             for i in 0..10 {
-                let result = tree.get(LargeRecordPrimaryKey(i)).unwrap();
+                let result = tree.get(LargeRecordPrimaryKey(i as u64)).unwrap();
                 criterion::black_box(result);
             }
         });
@@ -726,7 +732,6 @@ fn bench_configuration_impact(c: &mut Criterion) {
     {
         use netabase_store::config::FileConfig;
         use netabase_store::databases::sled_store::SledStore;
-        use netabase_store::traits::backend_store::BackendStore;
 
         let cache_sizes = vec![64, 256, 1024]; // MB
 
@@ -735,29 +740,24 @@ fn bench_configuration_impact(c: &mut Criterion) {
                 BenchmarkId::new("sled_cache_size", cache_size),
                 &cache_size,
                 |b, &cache_size| {
-                    b.iter_batched(
-                        || {
-                            let temp_dir = tempfile::tempdir().unwrap();
-                            let config = FileConfig::builder()
-                                .path(temp_dir.path().join("bench.db"))
-                                .cache_size_mb(cache_size)
-                                .build();
-                            let store = SledStore::<BenchmarkDefinition>::new(config.path).unwrap();
-                            let tree = store.open_tree::<MediumRecord>();
-                            tree
-                        },
-                        |tree| {
-                            // Perform operations that benefit from caching
-                            for i in 0..500 {
-                                tree.put(generate_medium_record(i)).unwrap();
-                            }
-                            for i in 0..500 {
-                                let result = tree.get(MediumRecordPrimaryKey(i)).unwrap();
-                                criterion::black_box(result);
-                            }
-                        },
-                        criterion::BatchSize::SmallInput,
-                    );
+                    b.iter(|| {
+                        let temp_dir = tempfile::tempdir().unwrap();
+                        let config = FileConfig::builder()
+                            .path(temp_dir.path().join("bench.db"))
+                            .cache_size_mb(cache_size)
+                            .build();
+                        let store = SledStore::<BenchmarkDefinition>::new(config.path).unwrap();
+                        let tree = store.open_tree::<MediumRecord>();
+
+                        // Perform operations that benefit from caching
+                        for i in 0..500 {
+                            tree.put(generate_medium_record(i)).unwrap();
+                        }
+                        for i in 0..500 {
+                            let result = tree.get(MediumRecordPrimaryKey(i)).unwrap();
+                            criterion::black_box(result);
+                        }
+                    });
                 },
             );
         }

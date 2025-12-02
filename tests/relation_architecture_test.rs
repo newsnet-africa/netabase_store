@@ -7,7 +7,7 @@ use netabase_store::{
     netabase_definition_module,
     traits::{
         model::NetabaseModelTrait,
-        relation::{NetabaseRelationDiscriminant, NetabaseRelationTrait},
+        relation::{NetabaseRelationTrait, NetabaseRelationDiscriminant},
     },
 };
 
@@ -48,13 +48,12 @@ mod test_models {
         #[primary_key]
         pub id: u64,
         pub title: String,
-        pub author: RelationalLink<TestDefinition, User, PostRelations>,
+        pub author: RelationalLink<TestDefinition, User>,
     }
 }
 
 use test_models::*;
 
-/*
 #[test]
 fn test_relational_link_creation() {
     let user = User {
@@ -63,11 +62,11 @@ fn test_relational_link_creation() {
     };
 
     // Test creating links with entities
-    let author_link: RelationalLink<TestDefinition, User, PostRelations> =
+    let author_link: RelationalLink<TestDefinition, User> =
         RelationalLink::from_entity(user.clone());
 
     // Test creating links with references
-    let author_ref: RelationalLink<TestDefinition, User, PostRelations> =
+    let author_ref: RelationalLink<TestDefinition, User> =
         RelationalLink::from_key(UserPrimaryKey(1u64));
 
     // Verify the links work as expected
@@ -88,7 +87,7 @@ fn test_relational_link_basic_methods() {
     };
 
     // Test From trait
-    let link: RelationalLink<TestDefinition, User, PostRelations> = user.clone().into();
+    let link: RelationalLink<TestDefinition, User> = user.clone().into();
     assert!(link.is_entity());
     assert_eq!(link.key(), UserPrimaryKey(42u64));
 
@@ -112,6 +111,8 @@ fn test_relation_discriminant_basic() {
     assert_eq!(author_variant.target_model_name(), "User");
 }
 
+// TODO: Re-enable once NetabaseRelationTrait is properly implemented
+/*
 #[test]
 fn test_post_has_relations() {
     let user = User {
@@ -134,6 +135,7 @@ fn test_post_has_relations() {
     // Verify the relations map contains the expected discriminants
     assert!(relations.contains_key(&PostRelations::Author.into()));
 }
+*/
 
 #[test]
 fn test_simple_serialization() {
@@ -143,10 +145,10 @@ fn test_simple_serialization() {
     };
 
     // Test serializing entity link
-    let entity_link: RelationalLink<TestDefinition, User, PostRelations> =
+    let entity_link: RelationalLink<TestDefinition, User> =
         RelationalLink::from_entity(user.clone());
     let encoded = bincode::encode_to_vec(&entity_link, bincode::config::standard()).unwrap();
-    let decoded: RelationalLink<TestDefinition, User, PostRelations> =
+    let decoded: RelationalLink<TestDefinition, User> =
         bincode::decode_from_slice(&encoded, bincode::config::standard())
             .unwrap()
             .0;
@@ -155,10 +157,10 @@ fn test_simple_serialization() {
     assert_eq!(decoded.key(), UserPrimaryKey(1u64));
 
     // Test serializing reference link
-    let ref_link: RelationalLink<TestDefinition, User, PostRelations> =
+    let ref_link: RelationalLink<TestDefinition, User> =
         RelationalLink::from_key(UserPrimaryKey(42u64));
     let encoded = bincode::encode_to_vec(&ref_link, bincode::config::standard()).unwrap();
-    let decoded: RelationalLink<TestDefinition, User, PostRelations> =
+    let decoded: RelationalLink<TestDefinition, User> =
         bincode::decode_from_slice(&encoded, bincode::config::standard())
             .unwrap()
             .0;
@@ -166,7 +168,6 @@ fn test_simple_serialization() {
     assert!(decoded.is_reference());
     assert_eq!(decoded.key(), UserPrimaryKey(42u64));
 }
-*/
 
 #[test]
 fn test_model_without_relations() {

@@ -10,7 +10,6 @@ use crate::{
     traits::{
         definition::NetabaseDefinitionTrait,
         model::NetabaseModelTrait,
-        relation::NetabaseRelationDiscriminant,
         store_ops::{OpenTree, StoreOps},
     },
 };

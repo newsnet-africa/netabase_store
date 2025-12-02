@@ -88,7 +88,7 @@ use super::types::SecondaryKeyOp;
 /// # mod my_models {
 /// #     use super::*;
 /// #     use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
-/// #     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode,
+/// #     #[derive(NetabaseModel, Clone, Debug, PartialEq, bincode::Encode, bincode::Decode,
 /// #              serde::Serialize, serde::Deserialize)]
 /// #     #[netabase(MyDefinition)]
 /// #     pub struct MyModel { #[primary_key] pub id: u64 }
@@ -140,7 +140,7 @@ where
     /// # #[netabase_definition_module(MyDef, MyKeys)]
     /// # mod my { use super::*;
     /// #   use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
-    /// #   #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
+    /// #   #[derive(NetabaseModel, Clone, Debug, PartialEq, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
     /// #   #[netabase(MyDef)]
     /// #   pub struct MyModel { #[primary_key] pub id: u64 }
     /// # }
@@ -186,7 +186,7 @@ where
     /// # #[netabase_definition_module(AppDef, AppKeys)]
     /// # mod app { use super::*;
     /// #   use netabase_store::{NetabaseModel, netabase};
-    /// #   #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
+    /// #   #[derive(NetabaseModel, Clone, Debug, PartialEq, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
     /// #   #[netabase(AppDef)]
     /// #   pub struct User { #[primary_key] pub id: u64, pub name: String }
     /// # }
@@ -204,7 +204,7 @@ where
     /// # #[netabase_definition_module(TestDef, TestKeys)]
     /// # mod test { use super::*;
     /// #   use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
-    /// #   #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
+    /// #   #[derive(NetabaseModel, Clone, Debug, PartialEq, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize)]
     /// #   #[netabase(TestDef)]
     /// #   pub struct Item { #[primary_key] pub id: u64 }
     /// # }
@@ -392,12 +392,12 @@ where
     /// mod models {
     ///     use super::*;
     /// use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
-    ///     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode,
+    ///     #[derive(NetabaseModel, Clone, Debug, PartialEq, bincode::Encode, bincode::Decode,
     ///              serde::Serialize, serde::Deserialize)]
     ///     #[netabase(MultiModelDef)]
     ///     pub struct User { #[primary_key] pub id: u64 }
     ///
-    ///     #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode,
+    ///     #[derive(NetabaseModel, Clone, Debug, PartialEq, bincode::Encode, bincode::Decode,
     ///              serde::Serialize, serde::Deserialize)]
     ///     #[netabase(MultiModelDef)]
     ///     pub struct Post { #[primary_key] pub id: u64 }
@@ -438,7 +438,7 @@ where
     /// # #[netabase_definition_module(AppDef, AppKeys)]
     /// # mod app { use super::*;
     /// #   use netabase_store::{netabase_definition_module, NetabaseModel, netabase};
-    /// #   #[derive(NetabaseModel, Clone, Debug, bincode::Encode, bincode::Decode,
+    /// #   #[derive(NetabaseModel, Clone, Debug, PartialEq, bincode::Encode, bincode::Decode,
     /// #            serde::Serialize, serde::Deserialize)]
     /// #   #[netabase(AppDef)]
     /// #   pub struct Config { #[primary_key] pub key: String, pub value: String }

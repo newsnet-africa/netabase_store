@@ -17,6 +17,7 @@ use std::collections::HashMap;
 #[netabase_definition_module(TestDefinition, TestDefinitionKey)]
 mod test_schema {
     use super::*;
+    use netabase_store::netabase;
 
     #[derive(
         NetabaseModel,
@@ -91,7 +92,8 @@ mod test_schema {
         pub id: u64,
         pub title: String,
         pub content: String,
-        pub author: RelationalLink<TestDefinition, User, PostWithLinksRelations>,
+        #[relation(author)]
+        pub author: RelationalLink<TestDefinition, User>,
     }
 
     #[derive(
@@ -109,8 +111,10 @@ mod test_schema {
         #[primary_key]
         pub id: u64,
         pub content: String,
-        pub post: RelationalLink<TestDefinition, Post, CommentWithLinksRelations>,
-        pub author: RelationalLink<TestDefinition, User, CommentWithLinksRelations>,
+        #[relation(post)]
+        pub post: RelationalLink<TestDefinition, Post>,
+        #[relation(author)]
+        pub author: RelationalLink<TestDefinition, User>,
     }
 
     // Complex model with multiple link types
@@ -130,9 +134,12 @@ mod test_schema {
         pub id: u64,
         pub title: String,
         pub content: String,
-        pub author: RelationalLink<TestDefinition, User, BlogArticleRelations>,
-        pub related_posts: Vec<RelationalLink<TestDefinition, Post, BlogArticleRelations>>,
-        pub comments: Vec<RelationalLink<TestDefinition, Comment, BlogArticleRelations>>,
+        #[relation(author)]
+        pub author: RelationalLink<TestDefinition, User>,
+        #[relation(related_posts)]
+        pub related_posts: Vec<RelationalLink<TestDefinition, Post>>,
+        #[relation(comments)]
+        pub comments: Vec<RelationalLink<TestDefinition, Comment>>,
     }
 }
 
@@ -141,7 +148,6 @@ use test_schema::*;
 #[cfg(feature = "native")]
 mod native_tests {
     use super::*;
-    use netabase_store::databases::sled_store::SledStore;
 
     #[test]
     fn test_relational_link_creation_and_variants() {
@@ -152,10 +158,9 @@ mod native_tests {
         };
 
         // Test Entity variant creation
-        let entity_link: RelationalLink<TestDefinition, User, PostWithLinksRelations> =
+        let entity_link: RelationalLink<TestDefinition, User> =
             RelationalLink::Entity(user.clone());
-        let entity_link_from: RelationalLink<TestDefinition, User, PostWithLinksRelations> =
-            user.clone().into();
+        let entity_link_from: RelationalLink<TestDefinition, User> = user.clone().into();
         assert_eq!(entity_link, entity_link_from);
 
         // Test Reference variant creation
@@ -169,8 +174,10 @@ mod native_tests {
 
     #[test]
     fn test_relational_link_hydration() -> Result<(), Box<dyn std::error::Error>> {
-        let temp_dir = tempfile::tempdir()?;
-        let store = SledStore::<TestDefinition>::new(temp_dir.path())?;
+        let store: NetabaseStore<
+            TestDefinition,
+            netabase_store::databases::sled_store::SledStore<TestDefinition>,
+        > = NetabaseStore::temp()?;
 
         // Setup test data
         let user = User {
@@ -180,17 +187,17 @@ mod native_tests {
         };
 
         // Insert user into store
-        let user_tree = store.open_tree();
+        let user_tree = store.open_tree::<User>();
         user_tree.put_raw(user.clone())?;
 
         // Test hydration of Entity variant (should return the entity directly)
-        let entity_link: RelationalLink<TestDefinition, User, PostWithLinksRelations> =
+        let entity_link: RelationalLink<TestDefinition, User> =
             RelationalLink::Entity(user.clone());
         let hydrated = entity_link.hydrate(&user_tree)?;
         assert_eq!(hydrated, Some(user.clone()));
 
         // Test hydration of Reference variant (should fetch from store)
-        let ref_link: RelationalLink<TestDefinition, User, PostWithLinksRelations> =
+        let ref_link: RelationalLink<TestDefinition, User> =
             RelationalLink::from_key(user.primary_key());
         let hydrated = ref_link.hydrate(&user_tree)?;
         assert_eq!(hydrated, Some(user));
@@ -200,14 +207,19 @@ mod native_tests {
 
     #[test]
     fn test_relational_link_hydration_missing_entity() -> Result<(), Box<dyn std::error::Error>> {
-        let temp_dir = tempfile::tempdir()?;
-        let store = SledStore::<TestDefinition>::new(temp_dir.path())?;
+        let store: NetabaseStore<
+            TestDefinition,
+            netabase_store::databases::sled_store::SledStore<TestDefinition>,
+        > = NetabaseStore::temp()?;
 
         // Test hydration of reference to non-existent entity
-        let ref_link = RelationalLink::<TestDefinition, User, PostWithLinksRelations>::from_key(
-            UserPrimaryKey(999),
-        );
-        let user_tree = store.open_tree();
+        let dummy_user = User {
+            id: 999,
+            name: "dummy".to_string(),
+            email: "dummy@test.com".to_string(),
+        };
+        let ref_link = RelationalLink::<TestDefinition, User>::from_key(dummy_user.primary_key());
+        let user_tree = store.open_tree::<User>();
         let hydrated = ref_link.hydrate(&user_tree)?;
         assert_eq!(hydrated, None);
 
@@ -216,8 +228,10 @@ mod native_tests {
 
     #[test]
     fn test_complex_relational_structures() -> Result<(), Box<dyn std::error::Error>> {
-        let temp_dir = tempfile::tempdir()?;
-        let store = SledStore::<TestDefinition>::new(temp_dir.path())?;
+        let store: NetabaseStore<
+            TestDefinition,
+            netabase_store::databases::sled_store::SledStore<TestDefinition>,
+        > = NetabaseStore::temp()?;
 
         // Setup test data
         let author = User {
@@ -225,12 +239,14 @@ mod native_tests {
             name: "Author".to_string(),
             email: "author@example.com".to_string(),
         };
+
         let post = Post {
             id: 2,
             title: "Test Post".to_string(),
             content: "Content".to_string(),
             author_id: author.id,
         };
+
         let comment = Comment {
             id: 3,
             content: "Great post!".to_string(),
@@ -239,9 +255,9 @@ mod native_tests {
         };
 
         // Insert entities
-        let user_tree = store.open_tree();
-        let post_tree = store.open_tree();
-        let comment_tree = store.open_tree();
+        let user_tree = store.open_tree::<User>();
+        let post_tree = store.open_tree::<Post>();
+        let comment_tree = store.open_tree::<Comment>();
 
         user_tree.put_raw(author.clone())?;
         post_tree.put_raw(post.clone())?;
@@ -261,14 +277,14 @@ mod native_tests {
         };
 
         // Verify the structure
-        assert!(matches!(article.author, RelationalLink::Entity(_)));
+        assert!(matches!(&article.author, RelationalLink::Entity(_)));
         assert_eq!(article.related_posts.len(), 2);
         assert!(matches!(
-            article.related_posts[0],
+            &article.related_posts[0],
             RelationalLink::Entity(_)
         ));
         assert!(matches!(
-            article.related_posts[1],
+            &article.related_posts[1],
             RelationalLink::Reference(_)
         ));
 
@@ -284,9 +300,8 @@ mod native_tests {
         };
 
         // These should compile fine
-        let _user_link: RelationalLink<TestDefinition, User, PostWithLinksRelations> =
-            RelationalLink::Entity(user.clone());
-        let _user_ref: RelationalLink<TestDefinition, User, PostWithLinksRelations> =
+        let _user_link: RelationalLink<TestDefinition, User> = RelationalLink::Entity(user.clone());
+        let _user_ref: RelationalLink<TestDefinition, User> =
             RelationalLink::from_key(UserPrimaryKey(1u64));
 
         // This should not compile (different model type)
@@ -304,16 +319,14 @@ mod native_tests {
         // Test Entity variant serialization
         let entity_link = RelationalLink::Entity(user.clone());
         let encoded = bincode::encode_to_vec(&entity_link, bincode::config::standard())?;
-        let decoded: RelationalLink<TestDefinition, User, PostWithLinksRelations> =
+        let decoded: RelationalLink<TestDefinition, User> =
             bincode::decode_from_slice(&encoded, bincode::config::standard())?.0;
         assert_eq!(entity_link, decoded);
 
         // Test Reference variant serialization
-        let ref_link = RelationalLink::<TestDefinition, User, PostWithLinksRelations>::from_key(
-            UserPrimaryKey(42),
-        );
+        let ref_link = RelationalLink::<TestDefinition, User>::from_key(UserPrimaryKey(42));
         let encoded = bincode::encode_to_vec(&ref_link, bincode::config::standard())?;
-        let decoded: RelationalLink<TestDefinition, User, PostWithLinksRelations> =
+        let decoded: RelationalLink<TestDefinition, User> =
             bincode::decode_from_slice(&encoded, bincode::config::standard())?.0;
         assert_eq!(ref_link, decoded);
 
@@ -322,8 +335,10 @@ mod native_tests {
 
     #[test]
     fn test_relational_link_collections() -> Result<(), Box<dyn std::error::Error>> {
-        let temp_dir = tempfile::tempdir()?;
-        let store = SledStore::<TestDefinition>::new(temp_dir.path())?;
+        let store: NetabaseStore<
+            TestDefinition,
+            netabase_store::databases::sled_store::SledStore<TestDefinition>,
+        > = NetabaseStore::temp()?;
 
         // Create multiple users
         let users: Vec<User> = (1..=5)
@@ -335,13 +350,13 @@ mod native_tests {
             .collect();
 
         // Insert users
-        let user_tree = store.open_tree();
+        let user_tree = store.open_tree::<User>();
         for user in &users {
             user_tree.put_raw(user.clone())?;
         }
 
         // Create collection with mixed Entity/Reference links
-        let user_links: Vec<RelationalLink<TestDefinition, User, PostWithLinksRelations>> = vec![
+        let user_links: Vec<RelationalLink<TestDefinition, User>> = vec![
             RelationalLink::Entity(users[0].clone()),
             RelationalLink::from_key(users[1].primary_key()),
             RelationalLink::Entity(users[2].clone()),
@@ -374,11 +389,9 @@ mod native_tests {
             email: "very.long.email.address@example-domain.com".to_string(),
         };
 
-        let entity_link: RelationalLink<TestDefinition, User, PostWithLinksRelations> =
+        let entity_link: RelationalLink<TestDefinition, User> =
             RelationalLink::Entity(user.clone());
-        let ref_link = RelationalLink::<TestDefinition, User, PostWithLinksRelations>::from_key(
-            UserPrimaryKey(1),
-        );
+        let ref_link = RelationalLink::<TestDefinition, User>::from_key(UserPrimaryKey(1));
 
         // Serialize to compare sizes
         let entity_size = bincode::encode_to_vec(&entity_link, bincode::config::standard())
@@ -403,14 +416,11 @@ mod native_tests {
         };
 
         // Test conversion from entity to reference
-        let entity_link: RelationalLink<TestDefinition, User, PostWithLinksRelations> =
+        let entity_link: RelationalLink<TestDefinition, User> =
             RelationalLink::Entity(user.clone());
         let extracted_key = match &entity_link {
             RelationalLink::Entity(u) => u.primary_key(),
             RelationalLink::Reference(key) => key.clone(),
-            RelationalLink::_RelationMarker(_) => {
-                unreachable!("RelationMarker should never be used")
-            }
         };
         assert_eq!(extracted_key, user.primary_key());
 
@@ -421,9 +431,7 @@ mod native_tests {
         assert_eq!(link_utils::extract_entity(&entity_link), Some(&user));
         assert_eq!(link_utils::extract_key(&entity_link), user.primary_key());
 
-        let ref_link = RelationalLink::<TestDefinition, User, PostWithLinksRelations>::from_key(
-            user.primary_key(),
-        );
+        let ref_link = RelationalLink::<TestDefinition, User>::from_key(user.primary_key());
         assert!(!link_utils::is_entity(&ref_link));
         assert_eq!(link_utils::extract_entity(&ref_link), None);
         assert_eq!(link_utils::extract_key(&ref_link), user.primary_key());
@@ -431,15 +439,21 @@ mod native_tests {
 
     #[test]
     fn test_relational_link_error_handling() -> Result<(), Box<dyn std::error::Error>> {
-        let temp_dir = tempfile::tempdir()?;
-        let store = SledStore::<TestDefinition>::new(temp_dir.path())?;
+        let store: NetabaseStore<
+            TestDefinition,
+            netabase_store::databases::sled_store::SledStore<TestDefinition>,
+        > = NetabaseStore::temp()?;
 
         // Test hydration with corrupted store (we can't easily simulate this)
         // But we can test with empty store
-        let post_tree = store.open_tree();
-        let ref_link = RelationalLink::<TestDefinition, Post, BlogArticleRelations>::from_key(
-            PostPrimaryKey(42),
-        );
+        let post_tree = store.open_tree::<Post>();
+        let dummy_post = Post {
+            id: 42,
+            title: "dummy".to_string(),
+            content: "dummy".to_string(),
+            author_id: 1,
+        };
+        let ref_link = RelationalLink::<TestDefinition, Post>::from_key(dummy_post.primary_key());
 
         // Should return None for missing entity, not error
         let result = ref_link.hydrate(&post_tree)?;
@@ -452,8 +466,10 @@ mod native_tests {
     fn test_relational_link_with_different_backends() -> Result<(), Box<dyn std::error::Error>> {
         // Test with Sled
         {
-            let temp_dir = tempfile::tempdir()?;
-            let store = SledStore::<TestDefinition>::new(temp_dir.path())?;
+            let store: NetabaseStore<
+                TestDefinition,
+                netabase_store::databases::sled_store::SledStore<TestDefinition>,
+            > = NetabaseStore::temp()?;
             test_backend_compatibility(store)?;
         }
 
@@ -484,9 +500,9 @@ mod native_tests {
         user_tree.put_raw(user.clone())?;
 
         // Test both variants work with this backend
-        let entity_link: RelationalLink<TestDefinition, User, PostWithLinksRelations> =
+        let entity_link: RelationalLink<TestDefinition, User> =
             RelationalLink::Entity(user.clone());
-        let ref_link: RelationalLink<TestDefinition, User, PostWithLinksRelations> =
+        let ref_link: RelationalLink<TestDefinition, User> =
             RelationalLink::from_key(user.primary_key());
 
         let user_tree1 = store.open_tree();
@@ -514,9 +530,7 @@ mod native_tests {
         let entity_link_clone = entity_link.clone();
         assert_eq!(entity_link, entity_link_clone);
 
-        let ref_link = RelationalLink::<TestDefinition, User, PostWithLinksRelations>::from_key(
-            user.primary_key(),
-        );
+        let ref_link = RelationalLink::<TestDefinition, User>::from_key(user.primary_key());
         let ref_link_clone = ref_link.clone();
         assert_eq!(ref_link, ref_link_clone);
 
@@ -574,17 +588,14 @@ mod performance_tests {
         // Benchmark Entity variant creation
         let start = Instant::now();
         for _ in 0..iterations {
-            let _link: RelationalLink<TestDefinition, User, PostWithLinksRelations> =
-                RelationalLink::Entity(user.clone());
+            let _link: RelationalLink<TestDefinition, User> = RelationalLink::Entity(user.clone());
         }
         let entity_duration = start.elapsed();
 
         // Benchmark Reference variant creation
         let start = Instant::now();
         for _ in 0..iterations {
-            let _link = RelationalLink::<TestDefinition, User, PostWithLinksRelations>::from_key(
-                user.primary_key(),
-            );
+            let _link = RelationalLink::<TestDefinition, User>::from_key(user.primary_key());
         }
         let ref_duration = start.elapsed();
 
@@ -609,11 +620,9 @@ mod performance_tests {
             email: "serialize@example.com".to_string(),
         };
 
-        let entity_link: RelationalLink<TestDefinition, User, PostWithLinksRelations> =
+        let entity_link: RelationalLink<TestDefinition, User> =
             RelationalLink::Entity(user.clone());
-        let ref_link = RelationalLink::<TestDefinition, User, PostWithLinksRelations>::from_key(
-            user.primary_key(),
-        );
+        let ref_link = RelationalLink::<TestDefinition, User>::from_key(user.primary_key());
 
         let iterations = 10_000;
 
@@ -663,19 +672,19 @@ mod performance_tests {
             })
             .collect();
 
-        let user_tree = store.open_tree();
+        let user_tree = store.open_tree::<User>();
         for user in &users {
             user_tree.put_raw(user.clone())?;
         }
 
         // Create test links
-        let entity_links: Vec<RelationalLink<TestDefinition, User, PostWithLinksRelations>> = users
+        let entity_links: Vec<RelationalLink<TestDefinition, User>> = users
             .iter()
             .take(100)
             .map(|u| RelationalLink::Entity(u.clone()))
             .collect();
 
-        let ref_links: Vec<RelationalLink<TestDefinition, User, PostWithLinksRelations>> = users
+        let ref_links: Vec<RelationalLink<TestDefinition, User>> = users
             .iter()
             .take(100)
             .map(|u| RelationalLink::from_key(u.primary_key()))
@@ -684,7 +693,7 @@ mod performance_tests {
         // Benchmark Entity hydration (should be instant)
         let start = Instant::now();
         for link in entity_links {
-            let user_tree_instance = store.open_tree();
+            let user_tree_instance = store.open_tree::<User>();
             let _hydrated = link.hydrate(&user_tree_instance)?;
         }
         let entity_hydration_duration = start.elapsed();
@@ -692,7 +701,7 @@ mod performance_tests {
         // Benchmark Reference hydration (requires store lookup)
         let start = Instant::now();
         for link in ref_links {
-            let user_tree_instance = store.open_tree();
+            let user_tree_instance = store.open_tree::<User>();
             let _result = link.hydrate(&user_tree_instance)?;
         }
         let ref_hydration_duration = start.elapsed();
@@ -717,12 +726,13 @@ mod performance_tests {
 #[cfg(feature = "native")]
 mod integration_tests {
     use super::*;
-    use netabase_store::databases::sled_store::SledStore;
 
     #[test]
     fn test_relational_links_end_to_end_workflow() -> Result<(), Box<dyn std::error::Error>> {
-        let temp_dir = tempfile::tempdir()?;
-        let store = SledStore::<TestDefinition>::new(temp_dir.path())?;
+        let store: NetabaseStore<
+            TestDefinition,
+            netabase_store::databases::sled_store::SledStore<TestDefinition>,
+        > = NetabaseStore::temp()?;
 
         // Step 1: Create and store base entities
         let author = User {
@@ -752,8 +762,8 @@ mod integration_tests {
         };
 
         // Store entities
-        let user_tree = store.open_tree();
-        let post_tree = store.open_tree();
+        let user_tree = store.open_tree::<User>();
+        let post_tree = store.open_tree::<Post>();
 
         user_tree.put_raw(author.clone())?;
         user_tree.put_raw(reviewer.clone())?;
@@ -783,7 +793,7 @@ mod integration_tests {
         // Hydrate related posts
         let mut hydrated_posts = Vec::new();
         for post_link in article.related_posts.clone() {
-            let post_tree_instance = store.open_tree();
+            let post_tree_instance = store.open_tree::<Post>();
             if let Some(post) = post_link.hydrate(&post_tree_instance)? {
                 hydrated_posts.push(post);
             }
@@ -804,25 +814,19 @@ mod integration_tests {
                 let key = match link {
                     RelationalLink::Entity(post) => post.primary_key(),
                     RelationalLink::Reference(key) => key.clone(),
-                    RelationalLink::_RelationMarker(_) => {
-                        unreachable!("RelationMarker should never be used")
-                    }
                 };
                 RelationalLink::from_key(key)
             })
             .collect();
 
         // Verify the transformed structure
-        assert!(matches!(
-            article_with_refs.author,
-            RelationalLink::Reference(_)
-        ));
+
         for post_link in &article_with_refs.related_posts {
             assert!(matches!(post_link, RelationalLink::Reference(_)));
         }
 
         // Step 5: Hydrate everything back to entities
-        let user_tree_instance = store.open_tree();
+        let user_tree_instance = store.open_tree::<User>();
         let hydrated_author = article_with_refs
             .author
             .clone()
@@ -834,8 +838,10 @@ mod integration_tests {
 
     #[test]
     fn test_relational_links_lazy_loading_pattern() -> Result<(), Box<dyn std::error::Error>> {
-        let temp_dir = tempfile::tempdir()?;
-        let store = SledStore::<TestDefinition>::new(temp_dir.path())?;
+        let store: NetabaseStore<
+            TestDefinition,
+            netabase_store::databases::sled_store::SledStore<TestDefinition>,
+        > = NetabaseStore::temp()?;
 
         // Create a large dataset
         let users: Vec<User> = (1..=100)
@@ -846,13 +852,13 @@ mod integration_tests {
             })
             .collect();
 
-        let user_tree = store.open_tree();
+        let user_tree = store.open_tree::<User>();
         for user in &users {
             user_tree.put_raw(user.clone())?;
         }
 
         // Simulate lazy loading: start with references, load entities on demand
-        let user_refs: Vec<RelationalLink<TestDefinition, User, PostWithLinksRelations>> = users
+        let user_refs: Vec<RelationalLink<TestDefinition, User>> = users
             .iter()
             .map(|u| RelationalLink::from_key(u.primary_key()))
             .collect();
@@ -862,7 +868,7 @@ mod integration_tests {
         let mut loaded_users = HashMap::new();
 
         for &index in &indices_to_load {
-            let user_tree_instance = store.open_tree();
+            let user_tree_instance = store.open_tree::<User>();
             if let Some(user) = user_refs[index].clone().hydrate(&user_tree_instance)? {
                 loaded_users.insert(user.id, user);
             }

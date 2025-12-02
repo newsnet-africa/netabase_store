@@ -97,6 +97,11 @@ name = "cross_store_comparison"
 harness = false
 required-features = ["native", "libp2p"]
 
+[[bench]]
+name = "relational_links_overhead"
+harness = false
+required-features = ["native"]
+
 [[example]]
 name = "basic_store"
 required-features = ["native"]

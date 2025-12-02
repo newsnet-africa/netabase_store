@@ -7,6 +7,30 @@ A type-safe, multi-backend key-value storage library for Rust with support for n
 
 > ⚠️ **Early Development**: This crate is still in early development and will change frequently as it stabilizes. It is not advised to use this in a production environment until it stabilizes.
 
+## ✨ Key Features
+
+### 🎯 Core Capabilities
+- **🔄 Multi-Backend Support** - Switch between Sled, Redb, or IndexedDB without changing your code
+- **🔒 Type-Safe Schema** - Compile-time validation with derive macros
+- **⚡ High Performance** - Zero-copy operations, batch processing, and optimized transactions
+- **🌐 Cross-Platform** - Works on desktop, server, and WASM/browser environments
+
+### 🗄️ Data Management
+- **📇 Primary & Secondary Keys** - Efficient indexing with automatic secondary key management
+- **🔗 Relational Links** - Type-safe relationships between models with automatic cascading
+- **📊 Subscription System** - Merkle tree-based change tracking for P2P synchronization
+- **🔍 Database Introspection** - Query all internal trees, indexes, and statistics
+
+### 🚀 Performance Features
+- **⚡ Zero-Copy Reads** - Direct memory access with RedbStoreZeroCopy (10-50x faster)
+- **📦 Batch Operations** - Atomic bulk inserts/updates (10-100x faster than individual operations)
+- **🔐 ACID Transactions** - Full transactional support across all operations
+- **🎨 Flexible Serialization** - Efficient bincode with serde compatibility
+
+### 🔌 Integrations
+- **🌍 libp2p Support** - Built-in RecordStore implementation for distributed systems
+- **🔄 Async & Sync APIs** - Native sync for Sled/Redb, async for IndexedDB/WASM
+
 ## Installation
 
 Add to your `Cargo.toml`:
@@ -531,6 +555,384 @@ let keys = vec![
 let results: Vec<Vec<Article>> = article_tree.get_many_by_secondary_keys(keys)?;
 // results[0] = tech articles, results[1] = science articles
 ```
+
+### 🔗 Relational Links - Type-Safe Relationships
+
+**Problem**: Traditional key-value stores make you manually manage relationships, leading to inconsistent data and boilerplate code.
+
+**Solution**: Netabase Store provides `RelationalLink<D, M>` - a type-safe way to define relationships that automatically handles:
+- ✅ **Cascading Inserts** - Insert a Post with an embedded User, both are saved atomically
+- ✅ **Lazy Loading** - Store just a reference, load the full entity only when needed
+- ✅ **Type Safety** - Compiler ensures relationship targets exist in your schema
+- ✅ **Generated Helpers** - Automatic methods for hydration, type checking, and insertion
+
+#### 📝 Defining Relationships
+
+Use the `#[relation(name)]` attribute on fields with `RelationalLink<D, M>` type:
+
+```rust
+use netabase_store::{
+    NetabaseModel, netabase, netabase_definition_module,
+    links::RelationalLink,
+};
+
+#[netabase_definition_module(BlogDef, BlogKeys)]
+mod models {
+    use super::*;
+
+    #[derive(NetabaseModel, Clone, Debug, PartialEq,
+             bincode::Encode, bincode::Decode,
+             serde::Serialize, serde::Deserialize)]
+    #[netabase(BlogDef)]
+    pub struct User {
+        #[primary_key]
+        pub id: u64,
+        pub name: String,
+        pub email: String,
+    }
+
+    #[derive(NetabaseModel, Clone, Debug, PartialEq,
+             bincode::Encode, bincode::Decode,
+             serde::Serialize, serde::Deserialize)]
+    #[netabase(BlogDef)]
+    pub struct Post {
+        #[primary_key]
+        pub id: u64,
+        pub title: String,
+        pub content: String,
+
+        // Define a relation with a custom name
+        #[relation(author)]
+        pub author: RelationalLink<BlogDef, User>,
+    }
+}
+```
+
+#### 💡 Two Storage Strategies
+
+Think of `RelationalLink` like a smart pointer - it can hold either the full data (Entity) or just a key (Reference):
+
+**🎯 Entity (Eager Loading)** - Embed the full related model:
+- **Use When**: You always need the related data together
+- **Benefit**: No extra database lookup needed
+- **Trade-off**: Slightly larger storage, data duplication
+
+**🔑 Reference (Lazy Loading)** - Store only the primary key:
+- **Use When**: Related data is rarely needed or already cached
+- **Benefit**: Normalized storage, no duplication
+- **Trade-off**: Requires hydration (lookup) to access data
+
+#### 🔨 Using Entity (Eager Loading):
+```rust
+let post = Post {
+    id: 1,
+    title: "Hello World".to_string(),
+    content: "My first post".to_string(),
+    // Embed the full user entity
+    author: RelationalLink::Entity(User {
+        id: 1,
+        name: "Alice".to_string(),
+        email: "alice@example.com".to_string(),
+    }),
+};
+
+// Inserts both the post AND the user atomically
+post.insert_with_relations(&store)?;
+
+// ✅ Result: Both Post and User are in the database
+```
+
+#### 🔑 Using Reference (Lazy Loading):
+```rust
+// Insert user first
+let user = User { id: 1, /* ... */ };
+user_tree.put(user)?;
+
+let post = Post {
+    id: 1,
+    title: "Hello World".to_string(),
+    content: "My first post".to_string(),
+    // Store only a reference to the user
+    author: RelationalLink::Reference(UserPrimaryKey(1)),
+};
+
+// Only inserts the post (user already exists)
+post.insert_with_relations(&store)?;
+
+// ✅ Result: Only Post is inserted, references existing User
+```
+
+#### 🎨 Generated Helper Methods
+
+The `#[relation(name)]` attribute automatically generates helper methods for every relation:
+
+| Method | Purpose |
+|--------|---------|
+| `is_{field}_entity()` | Check if it contains embedded data |
+| `is_{field}_reference()` | Check if it's just a reference |
+| `get_{field}()` | Get the `RelationalLink` itself |
+| `hydrate_{field}()` | Load the full entity from a reference |
+| `insert_{field}_if_entity()` | Insert only if it's an Entity |
+
+**Example Usage:**
+
+```rust
+// Check the variant type
+if post.is_author_entity() {
+    println!("Author is embedded");
+}
+
+if post.is_author_reference() {
+    println!("Author is a reference");
+}
+
+// Get the relational link
+let author_link = post.get_author();
+
+// Hydrate a reference to load the full entity
+if let Some(author) = post.hydrate_author(&user_tree)? {
+    println!("Author: {}", author.name);
+}
+
+// Insert only if it's an entity
+post.insert_author_if_entity(&store)?;
+```
+
+#### Multiple Relations
+
+Models can have multiple relational links:
+
+```rust
+#[derive(NetabaseModel, Clone, Debug, PartialEq,
+         bincode::Encode, bincode::Decode,
+         serde::Serialize, serde::Deserialize)]
+#[netabase(BlogDef)]
+pub struct Post {
+    #[primary_key]
+    pub id: u64,
+    pub title: String,
+
+    #[relation(post_author)]
+    pub author: RelationalLink<BlogDef, User>,
+
+    #[relation(post_category)]
+    pub category: RelationalLink<BlogDef, Category>,
+}
+
+// Mix entity and reference storage
+let post = Post {
+    id: 1,
+    title: "Rust Tips".to_string(),
+    author: RelationalLink::Entity(user),  // Embedded
+    category: RelationalLink::Reference(CategoryPrimaryKey(1)),  // Reference
+};
+
+// Handles both types correctly
+post.insert_with_relations(&store)?;
+```
+
+#### Performance Considerations
+
+- **Entities**: ~10% slower inserts due to serialization overhead, but no hydration needed
+- **References**: ~5% slower inserts, minimal overhead, requires hydration for access
+- **Hydration**: ~15% of insert time for bulk operations
+
+Use entities for small, frequently-accessed models; use references for large models or normalized patterns.
+
+For more details, see `RELATIONAL_LINKS.md` or `examples/relational_links_showcase.rs`.
+
+### 📊 Subscription System - Change Tracking & Sync
+
+**Problem**: In distributed systems, you need to know what data changed and sync efficiently between nodes.
+
+**Solution**: Netabase Store's subscription system uses Merkle trees to:
+- ✅ **Track Changes** - Automatically monitor data modifications by topic
+- ✅ **Detect Differences** - Compare Merkle roots to find what's different in O(1)
+- ✅ **Sync Efficiently** - Transfer only the changed data between nodes
+- ✅ **Topic-Based Organization** - Group related data for selective synchronization
+
+#### 🎯 Key Concepts
+
+1. **Topics** - Logical groups of data (e.g., "Users", "Posts", "Comments")
+2. **Merkle Trees** - Each topic has a tree where data hashes form leaves
+3. **Merkle Root** - A single hash representing the entire topic's state
+4. **Comparison** - Two nodes compare roots; if different, data differs
+
+#### 📝 Defining Topics
+
+Use `#[streams(...)]` to define subscription topics for your schema:
+
+```rust
+use netabase_store::{
+    NetabaseModel, netabase, netabase_definition_module, streams,
+};
+
+#[netabase_definition_module(BlogDef, BlogKeys)]
+#[streams(UserTopic, PostTopic, CommentTopic)]  // Define topics
+mod models {
+    use super::*;
+
+    #[derive(NetabaseModel, Clone, Debug, PartialEq,
+             bincode::Encode, bincode::Decode,
+             serde::Serialize, serde::Deserialize)]
+    #[netabase(BlogDef)]
+    pub struct User {
+        #[primary_key]
+        pub id: u64,
+        pub name: String,
+    }
+
+    #[derive(NetabaseModel, Clone, Debug, PartialEq,
+             bincode::Encode, bincode::Decode,
+             serde::Serialize, serde::Deserialize)]
+    #[netabase(BlogDef)]
+    pub struct Post {
+        #[primary_key]
+        pub id: String,
+        pub title: String,
+        #[secondary_key]
+        pub author_id: u64,
+    }
+}
+```
+
+#### 🔧 Using the Subscription Manager
+
+The `#[streams(...)]` attribute automatically generates:
+- **`{Definition}Subscriptions` enum** - Type-safe topic identifiers
+- **`{Definition}SubscriptionManager` struct** - Manages all topic trees
+- Helper methods for subscribing, unsubscribing, and comparing
+
+**Basic Operations:**
+
+```rust
+use netabase_store::traits::subscription::{Subscriptions, SubscriptionManager};
+
+// Create a subscription manager
+let mut manager = BlogDefSubscriptionManager::new();
+
+// List available topics
+for topic in BlogDef::subscriptions() {
+    println!("Topic: {:?}", topic);
+}
+
+// Add items to subscription trees
+let user = User { id: 1, name: "Alice".to_string() };
+let user_key = bincode::encode_to_vec(&user.id, bincode::config::standard())?;
+let user_data = bincode::encode_to_vec(&user, bincode::config::standard())?;
+
+manager.subscribe_item(
+    BlogDefSubscriptions::UserTopic,
+    user_key,
+    &user_data,
+)?;
+
+// Remove items
+manager.unsubscribe_item(
+    BlogDefSubscriptions::UserTopic,
+    &user_key,
+)?;
+```
+
+#### 🌲 Merkle Tree Synchronization
+
+**How It Works:**
+1. Each topic maintains a Merkle tree of all its data
+2. Any change (add/remove/update) updates the Merkle root
+3. Nodes compare roots - if equal, data is identical
+4. If different, compare detailed hashes to find specific differences
+
+**Example - P2P Sync:**
+
+```rust
+// Create two managers (e.g., local and remote nodes)
+let mut local_manager = BlogDefSubscriptionManager::new();
+let mut remote_manager = BlogDefSubscriptionManager::new();
+
+// Add different data to each
+local_manager.subscribe_item(
+    BlogDefSubscriptions::UserTopic,
+    user1_key,
+    &user1_data,
+)?;
+
+remote_manager.subscribe_item(
+    BlogDefSubscriptions::UserTopic,
+    user2_key,
+    &user2_data,
+)?;
+
+// Compare Merkle roots to detect differences
+let local_root = local_manager.topic_merkle_root(
+    BlogDefSubscriptions::UserTopic
+)?;
+let remote_root = remote_manager.topic_merkle_root(
+    BlogDefSubscriptions::UserTopic
+)?;
+
+if local_root != remote_root {
+    println!("Trees differ - sync needed");
+}
+
+// Get detailed differences
+let diffs = local_manager.compare_with(&mut remote_manager)?;
+for (topic, diff) in diffs {
+    println!("Topic {:?}:", topic);
+    println!("  Missing in local: {}", diff.missing_in_self.len());
+    println!("  Missing in remote: {}", diff.missing_in_other.len());
+    println!("  Different values: {}", diff.different_values.len());
+}
+```
+
+#### Subscription Statistics
+
+```rust
+use netabase_store::traits::subscription::SubscriptionManager;
+
+// Get statistics
+let stats = manager.stats();
+println!("Total items: {}", stats.total_items);
+println!("Active topics: {}", stats.active_topics);
+```
+
+#### Generated Types
+
+The `#[streams(...)]` attribute generates:
+
+- **`{Definition}Subscriptions` enum**: All subscription topics
+- **`{Definition}SubscriptionManager` struct**: Manager for all topics
+- **`Subscriptions` trait impl**: For iterating topics and getting names
+
+Example generated code:
+
+```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BlogDefSubscriptions {
+    UserTopic,
+    PostTopic,
+    CommentTopic,
+}
+
+pub struct BlogDefSubscriptionManager {
+    // Internal subscription trees for each topic
+}
+```
+
+#### 💼 Common Use Cases
+
+| Use Case | Description | Benefit |
+|----------|-------------|---------|
+| **🔄 P2P Sync** | Distributed database nodes sync changes | Only transfer different data, not everything |
+| **📱 Offline-First Apps** | Mobile app syncs with server when online | Merkle roots identify what changed while offline |
+| **🔍 Change Detection** | Monitor specific data categories for updates | Fast O(1) check if any changes occurred |
+| **📊 Selective Replication** | Replicate only specific topics to nodes | Users subscribe only to data they need |
+| **📝 Audit Trail** | Track modifications by topic over time | Know what changed and when |
+| **⚡ Real-Time Updates** | Notify subscribers when data changes | Efficient change notifications |
+
+**📚 Learn More:**
+- `examples/subscription_streams.rs` - Complete working examples
+- `examples/subscription_demo.rs` - Basic usage patterns
+- `tests/subscription_system_tests.rs` - Test patterns and edge cases
 
 ### Multiple Models in One Store
 

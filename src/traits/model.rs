@@ -3,10 +3,7 @@ use bincode::Decode;
 use redb::{Key, Value};
 use strum::IntoDiscriminant;
 
-use crate::convert::ToIVec;
-use crate::databases::sled_store::SledStoreTree;
 use crate::definition::NetabaseDefinitionTrait;
-use crate::store_ops::OpenTree;
 use crate::{MaybeSend, MaybeSync};
 
 /// Trait for user-defined models that can be stored in the netabase database.

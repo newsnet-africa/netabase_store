@@ -10,14 +10,11 @@ pub fn append_ident(ident: &Ident, string: &str) -> Ident {
     parse_quote!(#ident)
 }
 
-pub fn extract_fields(input: &DeriveInput) -> &Fields {
+pub fn extract_fields(input: &DeriveInput) -> Result<&Fields, NetabaseModelDeriveError> {
     if let syn::Data::Struct(data_struct) = &input.data {
-        &data_struct.fields
+        Ok(&data_struct.fields)
     } else {
-        panic!(
-            "Parse Error: {}",
-            NetabaseModelDeriveError::IncorrectModelType
-        );
+        Err(NetabaseModelDeriveError::IncorrectModelType)
     }
 }
 

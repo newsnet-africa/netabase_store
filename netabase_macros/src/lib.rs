@@ -1,8 +1,8 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    DeriveInput, Ident, ItemMod, Token, parse::Parser, parse_macro_input, parse_quote,
-    punctuated::Punctuated, visit::Visit,
+    DeriveInput, Ident, ItemMod, Token, parse::Parser, parse_macro_input, punctuated::Punctuated,
+    visit::Visit,
 };
 
 use crate::visitors::{
@@ -476,11 +476,21 @@ mod visitors;
 /// # See Also
 ///
 /// - [`netabase_definition_module`] - Groups multiple models into a schema
-#[proc_macro_derive(NetabaseModel, attributes(primary_key, secondary_key, link))]
+#[proc_macro_derive(NetabaseModel, attributes(primary_key, secondary_key, relation))]
 pub fn netabase_model_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let mut visitor = ModelVisitor::default();
     visitor.visit_derive_input(&input);
+
+    // Check for errors first and return them as compile errors
+    if visitor.has_errors() {
+        let error_tokens = visitor.into_compile_errors();
+        return quote! {
+            #(#error_tokens)*
+        }
+        .into();
+    }
+
     let mut _uniffi_visitor = UniffiVisitor::default();
     #[cfg(feature = "uniffi")]
     let uniffi_struct = {
@@ -491,7 +501,17 @@ pub fn netabase_model_derive(input: TokenStream) -> TokenStream {
     #[cfg(not(feature = "uniffi"))]
     let uniffi_struct = quote::quote! {};
 
-    let (p, sl, s, k) = visitor.generate_keys();
+    let (p, sl, s, k) = match visitor.generate_keys() {
+        Some(keys) => keys,
+        None => {
+            // Keys generation failed, errors should already be collected
+            let error_tokens = visitor.into_compile_errors();
+            return quote! {
+                #(#error_tokens)*
+            }
+            .into();
+        }
+    };
     let trait_impl = visitor.generate_model_trait_impl();
     let borrow_impls = visitor.generate_borrow_impls();
     let extension_traits = visitor.generate_key_extension_traits();
@@ -506,11 +526,23 @@ pub fn netabase_model_derive(input: TokenStream) -> TokenStream {
         .generate_relation_discriminant_impl()
         .unwrap_or_else(|| quote::quote! {});
 
-    // Temporarily disable relation trait implementation to fix trait bound errors
-    let relation_trait_impl = quote::quote! {};
-    let relation_helpers = quote::quote! {};
-    let relation_markers = quote::quote! {};
-    // Disable type alias generation to avoid conflicts
+    // Re-enable relation helpers with safer implementation
+    let relation_helpers = visitor
+        .generate_relation_helpers()
+        .map(|h| quote! { #h })
+        .unwrap_or_else(|| quote::quote! {});
+
+    let relation_markers = visitor
+        .generate_relation_markers()
+        .map(|m| quote! { #m })
+        .unwrap_or_else(|| quote::quote! {});
+
+    // Enable simple relation insertion implementation
+    let relation_trait_impl = visitor
+        .generate_relation_insertion_impl()
+        .map(|t| quote! { #t })
+        .unwrap_or_else(|| quote::quote! {});
+    // Keep type alias disabled to avoid conflicts
     let relation_type_alias = quote::quote! {};
 
     quote! {
@@ -1022,47 +1054,38 @@ pub fn netabase_definition_module(name: TokenStream, input: TokenStream) -> Toke
 
     let list = match Punctuated::<Ident, Token![,]>::parse_terminated.parse(name) {
         Ok(l) => l,
-        Err(e) => panic!(
-            "\n\n\
-             ════════════════════════════════════════════════════════════════\n\
-             ❌ netabase_definition_module Error\n\
-             ════════════════════════════════════════════════════════════════\n\
-             \n\
-             Failed to parse the definition module parameters.\n\
-             \n\
-             Expected format:\n\
-               #[netabase_definition_module(DefinitionName, KeysName)]\n\
-               mod your_module {{ ... }}\n\
-             \n\
-             Example:\n\
-               #[netabase_definition_module(BlogSchema, BlogKeys)]\n\
-               mod blog {{\n\
-                   use netabase_store::{{NetabaseModel, netabase}};\n\
-                   \n\
-                   #[derive(NetabaseModel, Clone, bincode::Encode, bincode::Decode)]\n\
-                   #[netabase(BlogSchema)]\n\
-                   pub struct User {{\n\
-                       #[primary_key]\n\
-                       pub id: u64,\n\
+        Err(e) => {
+            let error_msg = format!(
+                "Failed to parse the definition module parameters.\n\
+                 \n\
+                 Expected format:\n\
+                   #[netabase_definition_module(DefinitionName, KeysName)]\n\
+                   mod your_module {{ ... }}\n\
+                 \n\
+                 Example:\n\
+                   #[netabase_definition_module(BlogSchema, BlogKeys)]\n\
+                   mod blog {{\n\
+                       use netabase_store::{{NetabaseModel, netabase}};\n\
+                       \n\
+                       #[derive(NetabaseModel, Clone, bincode::Encode, bincode::Decode)]\n\
+                       #[netabase(BlogSchema)]\n\
+                       pub struct User {{\n\
+                           #[primary_key]\n\
+                           pub id: u64,\n\
+                       }}\n\
                    }}\n\
-               }}\n\
-             \n\
-             Parsing error: {}\n\
-             \n\
-             ════════════════════════════════════════════════════════════════\n\
-             ",
-            e
-        ),
+                 \n\
+                 Parsing error: {}",
+                e
+            );
+            let error = syn::Error::new(proc_macro2::Span::call_site(), error_msg);
+            return error.into_compile_error().into();
+        }
     };
     // Validate that exactly 2 parameters were provided
     if list.len() != 2 {
-        panic!(
-            "\n\n\
-             ════════════════════════════════════════════════════════════════\n\
-             ❌ netabase_definition_module Error\n\
-             ════════════════════════════════════════════════════════════════\n\
-             \n\
-             Expected exactly 2 parameters, but got {}.\n\
+        let error_msg = format!(
+            "Expected exactly 2 parameters, but got {}.\n\
              \n\
              Required format:\n\
                #[netabase_definition_module(DefinitionName, KeysName)]\n\
@@ -1074,16 +1097,15 @@ pub fn netabase_definition_module(name: TokenStream, input: TokenStream) -> Toke
                mod blog {{ ... }}\n\
              \n\
              Note: The first parameter is the definition name, and the second\n\
-             is the keys enum name. Both are required.\n\
-             \n\
-             ════════════════════════════════════════════════════════════════\n\
-             ",
+             is the keys enum name. Both are required.",
             list.len()
         );
+        let error = syn::Error::new(proc_macro2::Span::call_site(), error_msg);
+        return error.into_compile_error().into();
     }
 
-    let definition = list.first().unwrap();
-    let definition_key = list.last().unwrap();
+    let definition = list.first().expect("List should have exactly 2 elements");
+    let definition_key = list.last().expect("List should have exactly 2 elements");
     let (defin, def_key) = visitor.generate_definitions(definition, definition_key);
 
     // Generate redb table definitions struct
