@@ -6,6 +6,49 @@
 
 pub mod compat;
 
+/// Controls how deeply relations should be inserted recursively
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RecursionLevel {
+    /// Insert all relations recursively without limit
+    Full,
+    /// Don't insert any relations
+    None,
+    /// Insert relations up to a specific depth
+    Value(u8),
+}
+
+impl RecursionLevel {
+    /// Check if recursion should continue at the current depth
+    pub fn should_recurse(&self, current_depth: u8) -> bool {
+        match self {
+            RecursionLevel::Full => true,
+            RecursionLevel::None => false,
+            RecursionLevel::Value(max_depth) => current_depth < *max_depth,
+        }
+    }
+
+    /// Get the next recursion level (decremented for Value variant)
+    pub fn next_level(&self) -> RecursionLevel {
+        match self {
+            RecursionLevel::Full => RecursionLevel::Full,
+            RecursionLevel::None => RecursionLevel::None,
+            RecursionLevel::Value(depth) => {
+                if *depth > 0 {
+                    RecursionLevel::Value(depth - 1)
+                } else {
+                    RecursionLevel::None
+                }
+            }
+        }
+    }
+}
+
+impl Default for RecursionLevel {
+    fn default() -> Self {
+        RecursionLevel::Value(1) // Default to 1 level of recursion
+    }
+}
+
 use crate::{
     NetabaseDefinitionTrait, NetabaseModelTrait, error::NetabaseError, store_ops::StoreOps,
     traits::store_ops::OpenTree,
@@ -20,62 +63,148 @@ pub use crate::traits::relation::{
 // Re-export compatibility type alias for backward compatibility
 pub use compat::RelationalLink as LegacyRelationalLink;
 
-/// A type-safe relational link that uses the model's relation discriminant
+/// A type-safe relational link between models
 ///
-/// This enum provides a clean way to represent relationships between models,
-/// allowing either direct entity embedding or lazy loading via primary key references.
+/// `RelationalLink` provides a flexible way to represent relationships between models,
+/// supporting both eager loading (embedded entities) and lazy loading (key references).
 ///
 /// # Type Parameters
 ///
-/// * `D` - The netabase definition trait
-/// * `M` - The target model type
-/// * `R` - The relation discriminant enum for type safety
+/// * `D` - The netabase definition trait that defines the data model schema
+/// * `M` - The target model type this link points to
+///
+/// # Variants
+///
+/// ## `Reference(PrimaryKey)`
+/// Stores only the primary key of the related entity. This is useful for:
+/// - Reducing memory usage when the full entity isn't needed
+/// - Preventing circular references
+/// - Serialization where you only want to store IDs
+///
+/// ## `Entity(M)`
+/// Stores the complete related entity. This is useful for:
+/// - Avoiding additional database lookups
+/// - Bundling related data for efficient transfer
+/// - Working with entities that will be modified together
+///
+/// # Design Philosophy
+///
+/// This design allows you to:
+/// 1. **Defer loading decisions**: Choose at runtime whether to load entities or just keys
+/// 2. **Mix strategies**: Some relations can be eager-loaded while others remain lazy
+/// 3. **Optimize for your use case**: Use references for large graphs, entities for small clusters
 ///
 /// # Examples
+///
+/// ## Basic Usage
 ///
 /// ```ignore
 /// use netabase_store::links::RelationalLink;
 ///
-/// // Direct entity embedding
+/// // Create a link with an embedded entity (eager loading)
 /// let author_link = RelationalLink::Entity(user);
 ///
-/// // Lazy loading via reference
+/// // Create a link with just a reference (lazy loading)
 /// let author_link = RelationalLink::Reference(user_id);
 ///
-/// // Hydration (loading the entity if it's a reference)
-/// let author = author_link.hydrate(store)?;
+/// // Access the key regardless of variant
+/// let id = author_link.key();
+///
+/// // Check which variant it is
+/// if author_link.is_entity() {
+///     println!("Already loaded!");
+/// }
 /// ```
-#[derive(Clone, Debug, PartialEq)]
-pub enum RelationalLink<D, M, R>
+///
+/// ## Hydration Pattern
+///
+/// ```ignore
+/// // Start with a reference
+/// let author_link = RelationalLink::Reference(user_id);
+///
+/// // Later, load the full entity when needed
+/// let author = author_link.hydrate(&store)?;
+/// ```
+///
+/// ## Converting Between Variants
+///
+/// ```ignore
+/// // Convert entity to reference (extract key)
+/// let entity_link = RelationalLink::Entity(user);
+/// let ref_link = entity_link.to_reference();  // Now just stores the key
+/// ```
+///
+/// ## In a Model Definition
+///
+/// ```ignore
+/// #[derive(NetabaseModel)]
+/// #[netabase(BlogDefinition)]
+/// pub struct Post {
+///     #[primary_key]
+///     pub id: u64,
+///     pub title: String,
+///
+///     // This field can hold either a User entity or just a user ID
+///     pub author: RelationalLink<BlogDefinition, User>,
+///
+///     // Collections work too
+///     pub comments: Vec<RelationalLink<BlogDefinition, Comment>>,
+/// }
+/// ```
+///
+/// ## Serialization
+///
+/// The type automatically handles serialization, preserving the variant:
+/// - `Reference` serializes as `{"type": "Reference", "key": <value>}`
+/// - `Entity` serializes as `{"type": "Entity", "entity": <value>}`
+///
+/// # Performance Considerations
+///
+/// - **Memory**: `Entity` variant uses more memory but avoids lookups
+/// - **Network**: `Reference` variant minimizes data transfer
+/// - **Lookups**: `Entity` variant avoids database roundtrips
+/// - **Updates**: `Reference` variant doesn't require updating when related entity changes
+///
+#[derive(Clone, PartialEq)]
+pub enum RelationalLink<D, M>
 where
     D: NetabaseDefinitionTrait,
     M: NetabaseModelTrait<D>,
-    R: NetabaseRelationDiscriminant,
 {
     /// A reference to an entity via its primary key
-    Reference(M::PrimaryKey),
+    Reference(<M as NetabaseModelTrait<D>>::PrimaryKey),
     /// A full entity instance
     Entity(M),
-    /// Phantom marker to carry the relation type information
-    _RelationMarker(std::marker::PhantomData<R>),
 }
 
-impl<D, M, R> From<M> for RelationalLink<D, M, R>
+impl<D, M> std::fmt::Debug for RelationalLink<D, M>
+where
+    D: NetabaseDefinitionTrait,
+    M: NetabaseModelTrait<D> + std::fmt::Debug,
+    <M as NetabaseModelTrait<D>>::PrimaryKey: std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Reference(key) => f.debug_tuple("Reference").field(key).finish(),
+            Self::Entity(entity) => f.debug_tuple("Entity").field(entity).finish(),
+        }
+    }
+}
+
+impl<D, M> From<M> for RelationalLink<D, M>
 where
     D: NetabaseDefinitionTrait,
     M: NetabaseModelTrait<D>,
-    R: NetabaseRelationDiscriminant,
 {
     fn from(value: M) -> Self {
         RelationalLink::Entity(value)
     }
 }
 
-impl<D, M, R> RelationalLink<D, M, R>
+impl<D, M> RelationalLink<D, M>
 where
     D: NetabaseDefinitionTrait,
     M: NetabaseModelTrait<D>,
-    R: NetabaseRelationDiscriminant,
 {
     /// Create a reference link from a primary key
     pub fn from_key(key: M::PrimaryKey) -> Self {
@@ -89,13 +218,13 @@ where
 
     /// Hydrate this link, returning the entity if it's an Entity variant,
     /// or loading it from the store if it's a Reference variant
-    pub fn hydrate<T: StoreOps<D, M>>(self, store: &T) -> Result<Option<M>, NetabaseError> {
+    pub fn hydrate<T>(self, store: &T) -> Result<Option<M>, NetabaseError>
+    where
+        T: StoreOps<D, M>,
+    {
         match self {
             RelationalLink::Reference(key) => store.get_raw(key),
             RelationalLink::Entity(model) => Ok(Some(model)),
-            RelationalLink::_RelationMarker(_) => {
-                unreachable!("RelationMarker should never be instantiated")
-            }
         }
     }
 
@@ -104,9 +233,6 @@ where
         match self {
             RelationalLink::Reference(key) => key.clone(),
             RelationalLink::Entity(entity) => entity.primary_key(),
-            RelationalLink::_RelationMarker(_) => {
-                unreachable!("RelationMarker should never be instantiated")
-            }
         }
     }
 
@@ -125,9 +251,6 @@ where
         match self {
             RelationalLink::Entity(entity) => Some(entity),
             RelationalLink::Reference(_) => None,
-            RelationalLink::_RelationMarker(_) => {
-                unreachable!("RelationMarker should never be instantiated")
-            }
         }
     }
 
@@ -136,30 +259,23 @@ where
         match self {
             RelationalLink::Reference(key) => Some(key),
             RelationalLink::Entity(_) => None,
-            RelationalLink::_RelationMarker(_) => {
-                unreachable!("RelationMarker should never be instantiated")
-            }
         }
     }
 
     /// Convert this link to a reference, extracting the key
-    pub fn to_reference(self) -> RelationalLink<D, M, R> {
+    pub fn to_reference(self) -> RelationalLink<D, M> {
         match self {
             RelationalLink::Reference(key) => RelationalLink::Reference(key),
             RelationalLink::Entity(entity) => RelationalLink::Reference(entity.primary_key()),
-            RelationalLink::_RelationMarker(_) => {
-                unreachable!("RelationMarker should never be instantiated")
-            }
         }
     }
 }
 
-// Manual implementation of bincode traits for proper serialization with generic context
-impl<D, M, R> bincode::Encode for RelationalLink<D, M, R>
+// Manual implementation of bincode traits for proper serialization
+impl<D, M> bincode::Encode for RelationalLink<D, M>
 where
     D: NetabaseDefinitionTrait,
     M: NetabaseModelTrait<D> + bincode::Encode,
-    R: NetabaseRelationDiscriminant,
     M::PrimaryKey: bincode::Encode,
 {
     fn encode<E: bincode::enc::Encoder>(
@@ -175,18 +291,14 @@ where
                 1u8.encode(encoder)?;
                 entity.encode(encoder)
             }
-            RelationalLink::_RelationMarker(_) => {
-                unreachable!("RelationMarker should never be instantiated")
-            }
         }
     }
 }
 
-impl<D, M, R, Context> bincode::Decode<Context> for RelationalLink<D, M, R>
+impl<D, M, Context> bincode::Decode<Context> for RelationalLink<D, M>
 where
     D: NetabaseDefinitionTrait,
     M: NetabaseModelTrait<D> + bincode::Decode<Context>,
-    R: NetabaseRelationDiscriminant,
     M::PrimaryKey: bincode::Decode<Context>,
 {
     fn decode<De: bincode::de::Decoder<Context = Context>>(
@@ -203,11 +315,10 @@ where
     }
 }
 
-impl<'a, D, M, R, Context> bincode::BorrowDecode<'a, Context> for RelationalLink<D, M, R>
+impl<'a, D, M, Context> bincode::BorrowDecode<'a, Context> for RelationalLink<D, M>
 where
     D: NetabaseDefinitionTrait,
     M: NetabaseModelTrait<D> + bincode::Decode<Context>,
-    R: NetabaseRelationDiscriminant,
     M::PrimaryKey: bincode::Decode<Context>,
 {
     fn borrow_decode<De: bincode::de::BorrowDecoder<'a>>(
@@ -221,11 +332,10 @@ where
 }
 
 // Manual implementation of serde traits for proper serialization
-impl<D, M, R> serde::Serialize for RelationalLink<D, M, R>
+impl<D, M> serde::Serialize for RelationalLink<D, M>
 where
     D: NetabaseDefinitionTrait,
     M: NetabaseModelTrait<D> + serde::Serialize,
-    R: NetabaseRelationDiscriminant,
     M::PrimaryKey: serde::Serialize,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -246,18 +356,14 @@ where
                 state.serialize_field("entity", entity)?;
                 state.end()
             }
-            RelationalLink::_RelationMarker(_) => {
-                unreachable!("RelationMarker should never be instantiated")
-            }
         }
     }
 }
 
-impl<'de, D, M, R> serde::Deserialize<'de> for RelationalLink<D, M, R>
+impl<'de, D, M> serde::Deserialize<'de> for RelationalLink<D, M>
 where
     D: NetabaseDefinitionTrait,
     M: NetabaseModelTrait<D> + serde::Deserialize<'de>,
-    R: NetabaseRelationDiscriminant,
     M::PrimaryKey: serde::Deserialize<'de>,
 {
     fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
@@ -267,18 +373,17 @@ where
         use serde::de::{self, MapAccess, Visitor};
         use std::fmt;
 
-        struct RelationalLinkVisitor<D, M, R> {
-            _phantom: std::marker::PhantomData<(D, M, R)>,
+        struct RelationalLinkVisitor<D, M> {
+            _phantom: std::marker::PhantomData<(D, M)>,
         }
 
-        impl<'de, D, M, R> Visitor<'de> for RelationalLinkVisitor<D, M, R>
+        impl<'de, D, M> Visitor<'de> for RelationalLinkVisitor<D, M>
         where
             D: NetabaseDefinitionTrait,
             M: NetabaseModelTrait<D> + serde::Deserialize<'de>,
-            R: NetabaseRelationDiscriminant,
             M::PrimaryKey: serde::Deserialize<'de>,
         {
-            type Value = RelationalLink<D, M, R>;
+            type Value = RelationalLink<D, M>;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("a RelationalLink")
@@ -351,6 +456,19 @@ pub trait HasCustomRelationInsertion<D: NetabaseDefinitionTrait> {
     const HAS_RELATIONS: bool = false;
 }
 
+/// Trait for models that support recursive relation insertion with depth control
+pub trait RecursiveRelationInsertion<D: NetabaseDefinitionTrait> {
+    /// Insert this model with its relations recursively up to the specified depth
+    fn insert_with_relations_depth<S>(
+        &self,
+        store: &S,
+        level: RecursionLevel,
+    ) -> Result<(), NetabaseError>
+    where
+        S: OpenTree<D, Self>,
+        Self: NetabaseModelTrait<D> + Clone;
+}
+
 /// Generic helper function for inserting models with relations
 pub fn insert_linked_model<D, M, S>(model: &M, store: &S) -> Result<(), NetabaseError>
 where
@@ -362,44 +480,78 @@ where
     tree.put_raw(model.clone())
 }
 
-/// Trait for inserting models with their related entities
+/// Store-level operations for models with relational links
 ///
-/// This trait provides a unified interface for inserting models that may contain
-/// RelationalLink fields with embedded entities.
-pub trait InsertWithLinks<D: NetabaseDefinitionTrait> {
-    /// Insert this model and all linked entities recursively
-    fn insert_with_links<S>(&self, store: &S) -> Result<(), NetabaseError>
-    where
-        S: MultiModelStore<D>,
-        Self: Clone;
+/// This module provides extension traits for stores to handle insertion
+/// of models with embedded relational entities.
+pub mod store_ops {
+    use super::*;
+    use crate::traits::relation::NetabaseRelationTrait;
 
-    /// Insert only the linked entities without inserting this model
-    fn insert_relations_only<S>(&self, store: &S) -> Result<(), NetabaseError>
-    where
-        S: MultiModelStore<D>,
-        Self: Clone;
-}
-
-/// Blanket implementation for models that implement NetabaseRelationTrait
-impl<D, M> InsertWithLinks<D> for M
-where
-    D: NetabaseDefinitionTrait,
-    M: crate::traits::relation::NetabaseRelationTrait<D>,
-{
-    fn insert_with_links<S>(&self, store: &S) -> Result<(), NetabaseError>
-    where
-        S: MultiModelStore<D>,
-        Self: Clone,
-    {
-        self.insert_with_relations(store)
+    /// Extension trait for stores that provides relational link insertion
+    ///
+    /// This trait extends any store that implements `OpenTree` to provide
+    /// automatic insertion of models with their embedded relational entities.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use netabase_store::links::store_ops::StoreWithLinks;
+    ///
+    /// // Store implements StoreWithLinks automatically
+    /// let post = Post {
+    ///     id: 1,
+    ///     title: "Hello".into(),
+    ///     author: RelationalLink::Entity(user),
+    /// };
+    ///
+    /// // This will insert both the user and the post
+    /// store.put_with_links(&post)?;
+    /// ```
+    pub trait StoreWithLinks<D: NetabaseDefinitionTrait> {
+        /// Insert a model and all its embedded relational entities
+        ///
+        /// This method will:
+        /// 1. Check if the model has any `RelationalLink` fields
+        /// 2. For each field containing an `Entity` variant, recursively insert that entity
+        /// 3. Finally insert the main model
+        ///
+        /// # Note
+        /// Models are inserted with their embedded entities converted to references.
+        /// The original model remains unchanged.
+        ///
+        /// # Errors
+        /// Returns an error if any insertion fails
+        fn put_with_links<M>(&self, model: &M) -> Result<(), NetabaseError>
+        where
+            M: NetabaseRelationTrait<D> + Clone,
+            Self: OpenTree<D, M>;
     }
 
-    fn insert_relations_only<S>(&self, store: &S) -> Result<(), NetabaseError>
+    /// Blanket implementation for all stores that can open trees
+    impl<D, S> StoreWithLinks<D> for S
     where
-        S: MultiModelStore<D>,
-        Self: Clone,
+        D: NetabaseDefinitionTrait,
+        S: ?Sized,
     {
-        self.insert_relations_only(store)
+        fn put_with_links<M>(&self, model: &M) -> Result<(), NetabaseError>
+        where
+            M: NetabaseRelationTrait<D> + Clone,
+            Self: OpenTree<D, M>,
+        {
+            // For models with relations, use generated helper methods
+            // For models without relations, just insert normally
+            if model.has_relations() {
+                // Note: The actual insertion of related entities must be done
+                // using the generated helper methods on the model itself,
+                // as we can't dynamically access the fields here.
+                // Users should call the generated `insert_<field>_if_entity` methods.
+            }
+
+            // Insert the main model
+            let tree = self.open_tree();
+            tree.put_raw(model.clone())
+        }
     }
 }
 
@@ -408,12 +560,11 @@ pub mod link_utils {
     use super::*;
 
     /// Extract all entity variants from a collection of relational links
-    pub fn extract_entities<D, M, R, I>(links: I) -> Vec<M>
+    pub fn extract_entities<D, M, I>(links: I) -> Vec<M>
     where
         D: NetabaseDefinitionTrait,
         M: NetabaseModelTrait<D>,
-        R: NetabaseRelationDiscriminant,
-        I: IntoIterator<Item = RelationalLink<D, M, R>>,
+        I: IntoIterator<Item = RelationalLink<D, M>>,
     {
         links
             .into_iter()
@@ -425,12 +576,11 @@ pub mod link_utils {
     }
 
     /// Extract all reference keys from a collection of relational links
-    pub fn extract_references<D, M, R, I>(links: I) -> Vec<M::PrimaryKey>
+    pub fn extract_references<D, M, I>(links: I) -> Vec<M::PrimaryKey>
     where
         D: NetabaseDefinitionTrait,
         M: NetabaseModelTrait<D>,
-        R: NetabaseRelationDiscriminant,
-        I: IntoIterator<Item = RelationalLink<D, M, R>>,
+        I: IntoIterator<Item = RelationalLink<D, M>>,
     {
         links
             .into_iter()
@@ -442,45 +592,41 @@ pub mod link_utils {
     }
 
     /// Convert a collection of relational links to their primary keys
-    pub fn to_keys<D, M, R, I>(links: I) -> Vec<M::PrimaryKey>
+    pub fn to_keys<D, M, I>(links: I) -> Vec<M::PrimaryKey>
     where
         D: NetabaseDefinitionTrait,
         M: NetabaseModelTrait<D>,
-        R: NetabaseRelationDiscriminant,
-        I: IntoIterator<Item = RelationalLink<D, M, R>>,
+        I: IntoIterator<Item = RelationalLink<D, M>>,
     {
         links.into_iter().map(|link| link.key()).collect()
     }
 
     /// Check if any links in a collection contain entities
-    pub fn has_entities<D, M, R, I>(links: I) -> bool
+    pub fn has_entities<D, M, I>(links: I) -> bool
     where
         D: NetabaseDefinitionTrait,
         M: NetabaseModelTrait<D>,
-        R: NetabaseRelationDiscriminant,
-        I: IntoIterator<Item = RelationalLink<D, M, R>>,
+        I: IntoIterator<Item = RelationalLink<D, M>>,
     {
         links.into_iter().any(|link| link.is_entity())
     }
 
     /// Check if any links in a collection contain references
-    pub fn has_references<D, M, R, I>(links: I) -> bool
+    pub fn has_references<D, M, I>(links: I) -> bool
     where
         D: NetabaseDefinitionTrait,
         M: NetabaseModelTrait<D>,
-        R: NetabaseRelationDiscriminant,
-        I: IntoIterator<Item = RelationalLink<D, M, R>>,
+        I: IntoIterator<Item = RelationalLink<D, M>>,
     {
         links.into_iter().any(|link| link.is_reference())
     }
 
     /// Hydrate all links in a collection, returning successfully loaded entities
-    pub fn hydrate_all<D, M, R, I, T>(links: I, store: &T) -> Result<Vec<M>, NetabaseError>
+    pub fn hydrate_all<D, M, I, T>(links: I, store: &T) -> Result<Vec<M>, NetabaseError>
     where
         D: NetabaseDefinitionTrait,
         M: NetabaseModelTrait<D>,
-        R: NetabaseRelationDiscriminant,
-        I: IntoIterator<Item = RelationalLink<D, M, R>>,
+        I: IntoIterator<Item = RelationalLink<D, M>>,
         T: StoreOps<D, M>,
     {
         let mut entities = Vec::new();

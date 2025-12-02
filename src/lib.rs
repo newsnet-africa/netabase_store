@@ -742,7 +742,7 @@ pub use netabase_deps::*;
 
 // Re-export macros for convenience
 pub use netabase_macros::*;
-pub use store::NetabaseStore;
+pub use store::{NetabaseStore, TypedTree};
 pub use subscription::subscription_tree::DefaultSubscriptionManager;
 pub use traits::subscription::subscription_tree::ModelHash;
 pub use traits::*;

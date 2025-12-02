@@ -40,7 +40,6 @@ pub trait StoreOps<D, M>
 where
     D: NetabaseDefinitionTrait,
     M: NetabaseModelTrait<D>,
-    <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
 {
     /// Insert or update a raw model in the tree
     ///
@@ -123,7 +122,6 @@ pub trait StoreOpsSecondary<D, M>: StoreOps<D, M>
 where
     D: NetabaseDefinitionTrait,
     M: NetabaseModelTrait<D>,
-    <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
 {
     /// Find models by secondary key
     ///
@@ -149,7 +147,6 @@ pub trait StoreOpsIter<D, M>: StoreOps<D, M>
 where
     D: NetabaseDefinitionTrait,
     M: NetabaseModelTrait<D>,
-    <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
 {
     /// Iterate over all models in the tree
     ///
@@ -211,7 +208,6 @@ pub trait OpenTree<D, M>
 where
     D: NetabaseDefinitionTrait,
     M: NetabaseModelTrait<D>,
-    <D as strum::IntoDiscriminant>::Discriminant: crate::traits::definition::NetabaseDiscriminant,
 {
     /// The tree/table type returned by `open_tree`
     ///
@@ -257,4 +253,44 @@ where
     /// # }
     /// ```
     fn open_tree(&self) -> Self::Tree<'_>;
+}
+
+/// A generic trait that accepts a Tree type parameter and provides StoreOps functionality
+/// This helps with type inference by making the backend choice explicit through the generic parameter
+pub trait GenericStoreOps<D, M, T>
+where
+    D: NetabaseDefinitionTrait,
+    M: NetabaseModelTrait<D>,
+    T: StoreOps<D, M>,
+{
+    /// Get the underlying tree implementation
+    fn tree(&self) -> &T;
+
+    /// Put a model using the generic tree
+    fn put_with_tree(&self, model: M) -> Result<(), NetabaseError> {
+        self.tree().put_raw(model)
+    }
+
+    /// Get a model by primary key using the generic tree
+    fn get_with_tree(&self, key: M::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+        self.tree().get_raw(key)
+    }
+
+    /// Remove a model by primary key using the generic tree
+    fn remove_with_tree(&self, key: M::PrimaryKey) -> Result<Option<M>, NetabaseError> {
+        self.tree().remove_raw(key)
+    }
+}
+
+/// Implementation of GenericStoreOps for any type that can provide a tree
+impl<D, M, T, S> GenericStoreOps<D, M, T> for S
+where
+    D: NetabaseDefinitionTrait,
+    M: NetabaseModelTrait<D>,
+    T: StoreOps<D, M>,
+    S: AsRef<T>,
+{
+    fn tree(&self) -> &T {
+        self.as_ref()
+    }
 }

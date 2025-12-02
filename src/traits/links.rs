@@ -82,44 +82,35 @@ pub mod link_utils {
     use super::*;
 
     /// Check if a RelationalLink contains an Entity variant
-    pub fn is_entity<D, M, R>(link: &RelationalLink<D, M, R>) -> bool
+    pub fn is_entity<D, M>(link: &RelationalLink<D, M>) -> bool
     where
         D: NetabaseDefinitionTrait,
         M: NetabaseModelTrait<D>,
-        R: NetabaseRelationDiscriminant,
     {
         matches!(link, RelationalLink::Entity(_))
     }
 
     /// Extract the entity from a RelationalLink if it's an Entity variant
-    pub fn extract_entity<D, M, R>(link: &RelationalLink<D, M, R>) -> Option<&M>
+    pub fn extract_entity<D, M>(link: &RelationalLink<D, M>) -> Option<&M>
     where
         D: NetabaseDefinitionTrait,
         M: NetabaseModelTrait<D>,
-        R: NetabaseRelationDiscriminant,
     {
         match link {
             RelationalLink::Entity(entity) => Some(entity),
             RelationalLink::Reference(_) => None,
-            RelationalLink::_RelationMarker(_) => {
-                unreachable!("RelationMarker should never be instantiated")
-            }
         }
     }
 
     /// Extract the key from a RelationalLink regardless of variant
-    pub fn extract_key<D, M, R>(link: &RelationalLink<D, M, R>) -> M::PrimaryKey
+    pub fn extract_key<D, M>(link: &RelationalLink<D, M>) -> M::PrimaryKey
     where
         D: NetabaseDefinitionTrait,
         M: NetabaseModelTrait<D>,
-        R: NetabaseRelationDiscriminant,
     {
         match link {
             RelationalLink::Entity(entity) => entity.primary_key(),
             RelationalLink::Reference(key) => key.clone(),
-            RelationalLink::_RelationMarker(_) => {
-                unreachable!("RelationMarker should never be instantiated")
-            }
         }
     }
 }
