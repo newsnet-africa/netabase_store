@@ -1,10 +1,12 @@
-use syn::{PathSegment, Token, punctuated::Punctuated, visit::Visit};
+use syn::{Ident, PathSegment, Token, Variant, punctuated::Punctuated, visit::Visit};
 
-use crate::{item_info::netabase_definitions::ModuleInfo, util::append_ident};
+use crate::{SUBSCRIPTIONS, item_info::netabase_definitions::ModuleInfo, util::append_ident};
 
 #[derive(Default)]
 pub struct DefinitionsVisitor<'ast> {
+    pub name: Option<&'ast syn::Ident>,
     pub modules: Vec<ModuleInfo<'ast>>,
+    pub subscriptions: Punctuated<Variant, Token![,]>,
     pub current_path: Punctuated<PathSegment, Token![::]>,
     inner: bool,
 }
@@ -15,6 +17,12 @@ impl<'a> Visit<'a> for DefinitionsVisitor<'a> {
         if self.inner {
             self.current_path.push(i.ident.clone().into());
         }
+        if let Some(att) = i.attrs.iter().find(|a| a.path().is_ident(SUBSCRIPTIONS)) {
+            self.subscriptions = att
+                .parse_args_with(Punctuated::<Variant, Token![,]>::parse_terminated)
+                .expect("Failed to parse Subscriptions");
+        }
+        self.name = Some(&i.ident);
         module_info.path = self.current_path.clone();
         if let Some((_, v_content)) = &i.content {
             v_content.iter().for_each(|ci| {
@@ -24,6 +32,7 @@ impl<'a> Visit<'a> for DefinitionsVisitor<'a> {
                     let key_name = append_ident(&item_struct.ident, "Key");
                     module_info.models.push(item_struct);
                     module_info.keys.push(key_name);
+                    self.visit_item_struct(item_struct);
                 } else if let syn::Item::Mod(item_mod) = ci {
                     self.inner = true;
                     self.visit_item_mod(item_mod);

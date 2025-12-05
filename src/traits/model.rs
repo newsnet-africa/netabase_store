@@ -1,9 +1,11 @@
 use bincode::Decode;
+use netabase_deps::blake3;
 #[cfg(feature = "redb")]
 use redb::{Key, Value};
 use strum::IntoDiscriminant;
 
-use crate::definition::NetabaseDefinitionTrait;
+use crate::definition::{NetabaseDefinitionTrait, NetabaseDefinitionWithSubscription};
+use crate::error::NetabaseError;
 use crate::{MaybeSend, MaybeSync};
 
 /// Trait for user-defined models that can be stored in the netabase database.
@@ -213,5 +215,20 @@ where
 }
 
 #[cfg(not(feature = "redb"))]
-pub trait InnerKey: bincode::Encode + Decode<()> + Clone + Ord {
+pub trait InnerKey: bincode::Encode + Decode<()> + Clone + Ord {}
+
+pub trait SubscribedModel<D: NetabaseDefinitionWithSubscription>: NetabaseModelTrait<D>
+where
+    std::vec::Vec<u8>: std::convert::TryFrom<Self, Error = NetabaseError>,
+    D: TryInto<Self>,
+    Self: From<D>,
+    <Self as NetabaseModelTrait<D>>::Keys: From<D::Keys>,
+    D::Keys: TryInto<<Self as NetabaseModelTrait<D>>::Keys>,
+{
+    fn hashed(self) -> Result<blake3::Hash, NetabaseError> {
+        let v: Vec<u8> = self.try_into()?;
+        Ok(blake3::hash(&v))
+    }
+
+    fn subscriptions(&self) -> Vec<D::Subscriptions>;
 }

@@ -1,4 +1,4 @@
-use syn::{Ident, ItemEnum, ItemStruct, parse_quote};
+use syn::{Ident, ImplItem, ItemEnum, ItemStruct, parse_quote};
 
 use crate::{
     generators::type_utils::get_type_width, util::append_ident,
@@ -6,6 +6,16 @@ use crate::{
 };
 
 impl<'a> ModelVisitor<'a> {
+    pub fn generate_subscribed_model(&self, ) -> ImplItem {
+        let name = self.name.expect("Handle this later");
+        parse_quote! {
+            impl<D: NetabaseDefinitionWithSubscription> ::netabase_store::traits::model::SubscribedModel<D> for #name {
+                fn subscriptions(&self) -> Vec<D::Subscription> {
+                    
+                }
+            }
+        }
+    }
     pub fn generate_keys(&self) -> (ItemStruct, Vec<ItemStruct>, ItemEnum, ItemEnum) {
         let p_keys = match Self::generate_primary_key(self) {
             Ok(k) => k,
@@ -283,6 +293,36 @@ impl<'a> ModelVisitor<'a> {
             None => vec![],
         };
 
+        // Get secondary key newtypes for conversion implementations
+        let secondary_newtypes = self.generate_secondary_keys_newtypes();
+        let secondary_newtype_conversions: Vec<_> = secondary_newtypes
+            .iter()
+            .map(|(newtype_struct, _)| {
+                let newtype_ty = &newtype_struct.ident;
+                quote::quote! {
+                    impl TryFrom<Vec<u8>> for #newtype_ty {
+                        type Error = ::netabase_store::error::NetabaseError;
+
+                        fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+                            match ::netabase_store::bincode::decode_from_slice(&value, ::netabase_store::bincode::config::standard()) {
+                                Ok((key, _)) => Ok(key),
+                                Err(decode_error) => Err(::netabase_store::error::NetabaseError::Conversion(
+                                    ::netabase_store::error::EncodingDecodingError::Decoding(decode_error)
+                                )),
+                            }
+                        }
+                    }
+
+                    impl From<#newtype_ty> for Vec<u8> {
+                        fn from(value: #newtype_ty) -> Self {
+                            ::netabase_store::bincode::encode_to_vec(&value, ::netabase_store::bincode::config::standard())
+                                .expect("Failed to encode secondary key newtype to Vec<u8>")
+                        }
+                    }
+                }
+            })
+            .collect();
+
         // Use discriminant name for both trait implementation and redb TypeName
         // This ensures consistency when models are used across different definition enums
         let discriminant_name = model_name.to_string();
@@ -319,6 +359,91 @@ impl<'a> ModelVisitor<'a> {
 
         self.definitions.iter().map(|def_path| {
             quote::quote! {
+                impl TryFrom<Vec<u8>> for #model_name {
+                    type Error = ::netabase_store::error::NetabaseError;
+
+                    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+                        match ::netabase_store::bincode::decode_from_slice(&value, ::netabase_store::bincode::config::standard()) {
+                            Ok((model, _)) => Ok(model),
+                            Err(decode_error) => Err(::netabase_store::error::NetabaseError::Conversion(
+                                ::netabase_store::error::EncodingDecodingError::Decoding(decode_error)
+                            )),
+                        }
+                    }
+                }
+
+                impl From<#model_name> for Vec<u8> {
+                    fn from(value: #model_name) -> Self {
+                        ::netabase_store::bincode::encode_to_vec(&value, ::netabase_store::bincode::config::standard())
+                            .expect("Failed to encode model to Vec<u8>")
+                    }
+                }
+
+                // Key type conversions
+                impl TryFrom<Vec<u8>> for #primary_key_ty {
+                    type Error = ::netabase_store::error::NetabaseError;
+
+                    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+                        match ::netabase_store::bincode::decode_from_slice(&value, ::netabase_store::bincode::config::standard()) {
+                            Ok((key, _)) => Ok(key),
+                            Err(decode_error) => Err(::netabase_store::error::NetabaseError::Conversion(
+                                ::netabase_store::error::EncodingDecodingError::Decoding(decode_error)
+                            )),
+                        }
+                    }
+                }
+
+                impl From<#primary_key_ty> for Vec<u8> {
+                    fn from(value: #primary_key_ty) -> Self {
+                        ::netabase_store::bincode::encode_to_vec(&value, ::netabase_store::bincode::config::standard())
+                            .expect("Failed to encode primary key to Vec<u8>")
+                    }
+                }
+
+                impl TryFrom<Vec<u8>> for #secondary_keys_ty {
+                    type Error = ::netabase_store::error::NetabaseError;
+
+                    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+                        match ::netabase_store::bincode::decode_from_slice(&value, ::netabase_store::bincode::config::standard()) {
+                            Ok((keys, _)) => Ok(keys),
+                            Err(decode_error) => Err(::netabase_store::error::NetabaseError::Conversion(
+                                ::netabase_store::error::EncodingDecodingError::Decoding(decode_error)
+                            )),
+                        }
+                    }
+                }
+
+                impl From<#secondary_keys_ty> for Vec<u8> {
+                    fn from(value: #secondary_keys_ty) -> Self {
+                        ::netabase_store::bincode::encode_to_vec(&value, ::netabase_store::bincode::config::standard())
+                            .expect("Failed to encode secondary keys to Vec<u8>")
+                    }
+                }
+
+                impl TryFrom<Vec<u8>> for #keys_ty {
+                    type Error = ::netabase_store::error::NetabaseError;
+
+                    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+                        match ::netabase_store::bincode::decode_from_slice(&value, ::netabase_store::bincode::config::standard()) {
+                            Ok((keys, _)) => Ok(keys),
+                            Err(decode_error) => Err(::netabase_store::error::NetabaseError::Conversion(
+                                ::netabase_store::error::EncodingDecodingError::Decoding(decode_error)
+                            )),
+                        }
+                    }
+                }
+
+                impl From<#keys_ty> for Vec<u8> {
+                    fn from(value: #keys_ty) -> Self {
+                        ::netabase_store::bincode::encode_to_vec(&value, ::netabase_store::bincode::config::standard())
+                            .expect("Failed to encode keys to Vec<u8>")
+                    }
+                }
+
+                // Secondary key newtype conversions
+                #(#secondary_newtype_conversions)*
+
+                
                 impl ::netabase_store::traits::model::NetabaseModelTrait<#def_path> for #model_name {
                     type PrimaryKey = #primary_key_ty;
                     type SecondaryKeys = #secondary_keys_ty;

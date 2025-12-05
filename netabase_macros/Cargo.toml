@@ -19,7 +19,7 @@ sled = []
 redb-zerocopy = ["redb"]
 
 [dependencies]
-uniffi = { version = "0.28", optional = true }
+uniffi = { version = "0.30.0", optional = true }
 anyhow = "1.0.100"
 bincode = { version = "2.0", features = ["derive", "serde"] }
 derive_more = { version = "2.0.1", features = ["from", "try_into", "into"] }
@@ -33,4 +33,5 @@ syn = { version = "2.0.106", features = ["visit", "visit-mut", "full", "parsing"
 thiserror = "2.0.17"
 netabase_deps = { version = "0.0.6", path = "../netabase_deps" }
 paxakos = "0.13.0"
+ident_case = "1.0.1"
 

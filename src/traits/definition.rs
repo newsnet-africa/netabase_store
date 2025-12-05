@@ -358,3 +358,35 @@ pub trait NetabaseDefinitionTraitKey:
         Ok(libp2p::kad::RecordKey::new(&key_bytes))
     }
 }
+
+pub trait NetabaseDefinitionWithSubscription: NetabaseDefinitionTrait {
+    type Subscriptions: bincode::Encode
+        + bincode::Decode<()>
+        + Clone
+        + std::fmt::Debug
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + MaybeSend
+        + MaybeSync
+        + 'static
+        + strum::IntoEnumIterator
+        + strum::IntoDiscriminant<
+            Discriminant: AsRef<str>
+                              + Clone
+                              + Copy
+                              + std::fmt::Debug
+                              + std::fmt::Display
+                              + PartialEq
+                              + Eq
+                              + std::hash::Hash
+                              + MaybeSend
+                              + MaybeSync
+                              + 'static,
+        >;
+
+    fn all_subscriptions() -> Vec<Self::Subscriptions> {
+        use strum::IntoEnumIterator;
+        Self::Subscriptions::iter().collect()
+    }
+}

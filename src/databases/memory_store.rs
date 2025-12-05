@@ -1,6 +1,6 @@
 use crate::error::NetabaseError;
 use crate::traits::convert::ToIVec;
-use crate::traits::definition::NetabaseDefinitionTrait;
+use crate::traits::definition::{NetabaseDefinitionTrait, NetabaseDefinitionWithSubscription};
 use crate::traits::model::NetabaseModelTrait;
 use crate::traits::tree::NetabaseTreeSync;
 use crate::{MaybeSend, MaybeSync};
@@ -197,6 +197,22 @@ where
             .map_err(|_| NetabaseError::Storage("Failed to acquire write lock".to_string()))?;
         data.clear();
         Ok(())
+    }
+
+    /// Open a subscription tree for a specific subscription type
+    ///
+    /// Returns a `MemorySubscriptionTree` that provides subscription operations.
+    /// Each subscription type gets its own table within the database.
+    pub fn open_subscription_tree<S>(
+        &self,
+        subscription: S,
+    ) -> MemorySubscriptionTree<'_, D, S>
+    where
+        D: NetabaseDefinitionWithSubscription<Subscriptions = S>,
+        S: strum::IntoDiscriminant,
+        <S as strum::IntoDiscriminant>::Discriminant: AsRef<str>,
+    {
+        MemorySubscriptionTree::new(Arc::clone(&self.data), subscription)
     }
 }
 
@@ -925,5 +941,148 @@ where
 
     fn open_tree(&self) -> Self::Tree<'_> {
         MemoryStoreTree::new(Arc::clone(&self.data), M::DISCRIMINANT)
+    }
+}
+
+/// In-memory subscription tree for managing subscription data
+///
+/// This provides methods to manage subscriptions within the memory store.
+/// Each subscription variant has its own table, similar to regular model tables.
+pub struct MemorySubscriptionTree<'db, D, S>
+where
+    D: NetabaseDefinitionTrait + NetabaseDefinitionWithSubscription<Subscriptions = S>,
+    S: strum::IntoDiscriminant,
+{
+    data: Arc<RwLock<HashMap<String, HashMap<Vec<u8>, Vec<u8>>>>>,
+    table_name: String,
+    _phantom_d: PhantomData<D>,
+    _phantom_s: PhantomData<S>,
+    _phantom_db: PhantomData<&'db ()>,
+}
+
+impl<'db, D, S> MemorySubscriptionTree<'db, D, S>
+where
+    D: NetabaseDefinitionTrait + NetabaseDefinitionWithSubscription<Subscriptions = S>,
+    S: strum::IntoDiscriminant,
+    <S as strum::IntoDiscriminant>::Discriminant: AsRef<str>,
+{
+    /// Create a new MemorySubscriptionTree
+    fn new(
+        data: Arc<RwLock<HashMap<String, HashMap<Vec<u8>, Vec<u8>>>>>,
+        subscription: S,
+    ) -> Self {
+        let discriminant = subscription.discriminant();
+        let table_name = format!("subscription_{}", discriminant.as_ref());
+
+        Self {
+            data,
+            table_name,
+            _phantom_d: PhantomData,
+            _phantom_s: PhantomData,
+            _phantom_db: PhantomData,
+        }
+    }
+
+    /// Subscribe to a specific subscription key with model hash
+    pub fn subscribe(
+        &mut self,
+        subscription_key: D::Keys,
+        model_hash: [u8; 32],
+    ) -> Result<(), NetabaseError>
+    {
+        let key_bytes = bincode::encode_to_vec(&subscription_key, bincode::config::standard())
+            .map_err(crate::error::EncodingDecodingError::from)?;
+        let hash_bytes = bincode::encode_to_vec(&model_hash, bincode::config::standard())
+            .map_err(crate::error::EncodingDecodingError::from)?;
+
+        let mut data = self
+            .data
+            .write()
+            .map_err(|_| NetabaseError::Storage("Failed to acquire write lock".to_string()))?;
+
+        let table = data
+            .entry(self.table_name.clone())
+            .or_insert_with(HashMap::new);
+        table.insert(key_bytes, hash_bytes);
+
+        Ok(())
+    }
+
+    /// Unsubscribe from a specific subscription key
+    pub fn unsubscribe(
+        &mut self,
+        subscription_key: &D::Keys,
+    ) -> Result<Option<[u8; 32]>, NetabaseError> {
+        let key_bytes = bincode::encode_to_vec(subscription_key, bincode::config::standard())
+            .map_err(crate::error::EncodingDecodingError::from)?;
+
+        let mut data = self
+            .data
+            .write()
+            .map_err(|_| NetabaseError::Storage("Failed to acquire write lock".to_string()))?;
+
+        if let Some(table) = data.get_mut(&self.table_name) {
+            if let Some(hash_bytes) = table.remove(&key_bytes) {
+                let (model_hash, _) = bincode::decode_from_slice::<[u8; 32], _>(
+                    &hash_bytes, bincode::config::standard()
+                ).map_err(crate::error::EncodingDecodingError::from)?;
+                return Ok(Some(model_hash));
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Get subscription data for a specific key
+    pub fn get_subscription(
+        &self,
+        subscription_key: &D::Keys,
+    ) -> Result<Option<[u8; 32]>, NetabaseError> {
+        let key_bytes = bincode::encode_to_vec(subscription_key, bincode::config::standard())
+            .map_err(crate::error::EncodingDecodingError::from)?;
+
+        let data = self
+            .data
+            .read()
+            .map_err(|_| NetabaseError::Storage("Failed to acquire read lock".to_string()))?;
+
+        if let Some(table) = data.get(&self.table_name) {
+            if let Some(hash_bytes) = table.get(&key_bytes) {
+                let (model_hash, _) = bincode::decode_from_slice::<[u8; 32], _>(
+                    hash_bytes, bincode::config::standard()
+                ).map_err(crate::error::EncodingDecodingError::from)?;
+                return Ok(Some(model_hash));
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Clear all subscriptions for this subscription type
+    pub fn clear_subscriptions(&mut self) -> Result<(), NetabaseError> {
+        let mut data = self
+            .data
+            .write()
+            .map_err(|_| NetabaseError::Storage("Failed to acquire write lock".to_string()))?;
+
+        if let Some(table) = data.get_mut(&self.table_name) {
+            table.clear();
+        }
+
+        Ok(())
+    }
+
+    /// Get the number of active subscriptions for this subscription type
+    pub fn subscription_count(&self) -> Result<usize, NetabaseError> {
+        let data = self
+            .data
+            .read()
+            .map_err(|_| NetabaseError::Storage("Failed to acquire read lock".to_string()))?;
+
+        if let Some(table) = data.get(&self.table_name) {
+            Ok(table.len())
+        } else {
+            Ok(0)
+        }
     }
 }

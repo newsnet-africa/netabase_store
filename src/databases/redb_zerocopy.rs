@@ -147,7 +147,9 @@
 //! - You want the simplest possible API
 
 use crate::config::FileConfig;
+use crate::definition::NetabaseDefinitionWithSubscription;
 use crate::error::NetabaseError;
+use crate::model::SubscribedModel;
 use crate::traits::backend_store::{BackendStore, PathBasedBackend};
 use crate::traits::definition::NetabaseDefinitionTrait;
 use crate::traits::model::{NetabaseModelTrait, NetabaseModelTraitKey};
@@ -231,9 +233,10 @@ where
         M::Keys: NetabaseModelTraitKey<D>,
     {
         let mut txn = self.begin_write()?;
-        let mut tree = txn.open_tree::<M>()?;
-        tree.put(model)?;
-        drop(tree);
+        {
+            let mut tree = txn.open_tree::<M>()?;
+            tree.put(model)?;
+        }
         txn.commit()
     }
 
@@ -354,6 +357,29 @@ where
         })
     }
 
+    /// Open a subscription tree for managing subscription data
+    ///
+    /// The subscription tree allows you to manage subscription data within the write transaction.
+    /// Each subscription type has its own table.
+    pub fn open_subscription_tree<S>(
+        &mut self,
+        subscription: S,
+    ) -> Result<RedbSubscriptionTreeMut<'_, 'db, D, S>, NetabaseError>
+    where
+        D: NetabaseDefinitionWithSubscription<Subscriptions = S>,
+        S: strum::IntoDiscriminant,
+        <S as strum::IntoDiscriminant>::Discriminant: AsRef<str>,
+    {
+        let table_name = get_subscription_table_name_for_subscription::<D, S>(&subscription);
+
+        Ok(RedbSubscriptionTreeMut {
+            txn: &mut self.inner,
+            subscription,
+            table_name,
+            _phantom: PhantomData,
+        })
+    }
+
     /// Commit the transaction, making all changes permanent
     pub fn commit(self) -> Result<(), NetabaseError> {
         self.inner.commit()?;
@@ -402,6 +428,29 @@ where
             discriminant,
             table_name,
             secondary_table_name,
+            _phantom: PhantomData,
+        })
+    }
+
+    /// Open a read-only subscription tree for querying subscription data
+    ///
+    /// The subscription tree allows you to query subscription data within the read transaction.
+    /// Each subscription type has its own table.
+    pub fn open_subscription_tree<S>(
+        &self,
+        subscription: S,
+    ) -> Result<RedbSubscriptionTree<'_, 'db, D, S>, NetabaseError>
+    where
+        D: NetabaseDefinitionWithSubscription<Subscriptions = S>,
+        S: strum::IntoDiscriminant,
+        <S as strum::IntoDiscriminant>::Discriminant: AsRef<str>,
+    {
+        let table_name = get_subscription_table_name_for_subscription::<D, S>(&subscription);
+
+        Ok(RedbSubscriptionTree {
+            txn: &self.inner,
+            subscription,
+            table_name,
             _phantom: PhantomData,
         })
     }
@@ -821,4 +870,368 @@ where
     Box::leak(name.into_boxed_str())
 }
 
-// Tests are in tests/redb_zerocopy_tests.rs
+/// Get subscription table name for a specific subscription (leaks string to get 'static lifetime)
+fn get_subscription_table_name_for_subscription<D, S>(subscription: &S) -> &'static str
+where
+    D: NetabaseDefinitionTrait,
+    S: strum::IntoDiscriminant,
+    <S as strum::IntoDiscriminant>::Discriminant: AsRef<str>,
+{
+    let discriminant = subscription.discriminant();
+    let name = format!("subscription_{}", discriminant.as_ref());
+    Box::leak(name.into_boxed_str())
+}
+
+/// Subscription tree for managing subscription data
+///
+/// This provides methods to manage subscriptions within a write transaction.
+/// Each subscription variant has its own table, similar to regular model tables.
+/// Use the subscription discriminant to open the appropriate table.
+///
+/// # Example
+///
+/// ```
+/// # use netabase_store::databases::redb_zerocopy::*;
+/// # use netabase_store::traits::definition::{NetabaseDefinitionTrait, NetabaseDefinitionWithSubscription};
+/// # use strum::{IntoEnumIterator, IntoDiscriminant};
+/// #
+/// # // Mock subscription enum
+/// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::EnumIter, bincode::Encode, bincode::Decode)]
+/// # #[derive(strum::Display, strum::AsRefStr)]
+/// # #[derive(strum::EnumString)]
+/// # enum MySubscriptions {
+/// #     UserNotifications,
+/// #     PostUpdates,
+/// # }
+/// #
+/// # impl strum::IntoDiscriminant for MySubscriptions {
+/// #     type Discriminant = MySubscriptions;
+/// #     fn discriminant(&self) -> Self::Discriminant {
+/// #         *self
+/// #     }
+/// # }
+/// #
+/// # // Mock definition discriminant enum
+/// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::EnumIter, bincode::Encode, bincode::Decode)]
+/// # #[derive(strum::Display, strum::AsRefStr)]
+/// # #[derive(strum::EnumString)]
+/// # enum MyDefDiscriminant {
+/// #     MockVariant,
+/// # }
+/// #
+/// # // Mock definition enum
+/// # #[derive(Debug, Clone, bincode::Encode, bincode::Decode)]
+/// # enum MyDef {
+/// #     MockVariant(u64),
+/// # }
+/// #
+/// # impl strum::IntoDiscriminant for MyDef {
+/// #     type Discriminant = MyDefDiscriminant;
+/// #     fn discriminant(&self) -> Self::Discriminant {
+/// #         match self {
+/// #             Self::MockVariant(_) => MyDefDiscriminant::MockVariant,
+/// #         }
+/// #     }
+/// # }
+/// #
+/// # // Mock keys enum
+/// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash, strum::EnumIter, bincode::Encode, bincode::Decode)]
+/// # #[derive(strum::Display, strum::AsRefStr)]
+/// # #[derive(strum::EnumString)]
+/// # enum MyKeys {
+/// #     PrimaryKey(u64),
+/// # }
+/// #
+/// # impl strum::IntoDiscriminant for MyKeys {
+/// #     type Discriminant = MyKeys;
+/// #     fn discriminant(&self) -> Self::Discriminant {
+/// #         *self
+/// #     }
+/// # }
+/// #
+/// # impl netabase_store::traits::definition::NetabaseDefinitionTraitKey for MyKeys {}
+/// #
+/// # impl NetabaseDefinitionTrait for MyDef {
+/// #     type Keys = MyKeys;
+/// #     #[cfg(feature = "redb")] type Tables = ();
+/// #     #[cfg(feature = "redb")] fn tables() -> Self::Tables { () }
+/// # }
+/// # impl NetabaseDefinitionWithSubscription for MyDef {
+/// #     type Subscriptions = MySubscriptions;
+/// # }
+/// # fn example() -> Result<(), netabase_store::error::NetabaseError> {
+/// # let temp = tempfile::tempdir().unwrap();
+/// # let path = temp.path().join("subscriptions.redb");
+/// # let store = RedbStoreZeroCopy::<MyDef>::new(&path)?;
+/// let mut txn = store.begin_write()?;
+/// let mut sub_tree = txn.open_subscription_tree(MySubscriptions::UserNotifications)?;
+///
+/// // Subscribe to a key with model hash
+/// let key = 42u64;
+/// let model_hash = [1u8; 32]; // Hash of the model
+/// sub_tree.subscribe(MyKeys::PrimaryKey(key), model_hash)?;
+///
+/// // Check subscription
+/// let result = sub_tree.get_subscription(&MyKeys::PrimaryKey(key))?;
+/// assert_eq!(result, Some(model_hash));
+///
+/// drop(sub_tree);
+/// txn.commit()?;
+/// # Ok(())
+/// # }
+/// # example().unwrap();
+/// ```
+pub struct RedbSubscriptionTreeMut<'txn, 'db, D, S>
+where
+    D: NetabaseDefinitionTrait + NetabaseDefinitionWithSubscription<Subscriptions = S>,
+    S: strum::IntoDiscriminant,
+{
+    txn: &'txn mut WriteTransaction,
+    subscription: S,
+    table_name: &'static str,
+    _phantom: PhantomData<&'db D>,
+}
+
+impl<'txn, 'db, D, S> RedbSubscriptionTreeMut<'txn, 'db, D, S>
+where
+    D: NetabaseDefinitionTrait + NetabaseDefinitionWithSubscription<Subscriptions = S>,
+    S: strum::IntoDiscriminant,
+    <S as strum::IntoDiscriminant>::Discriminant: AsRef<str>,
+{
+    /// Get the subscription table definition
+    fn subscription_table_def(
+        &self,
+    ) -> TableDefinition<
+        'static,
+        super::redb_store::BincodeWrapper<D::Keys>,
+        super::redb_store::BincodeWrapper<[u8; 32]>,
+    > {
+        TableDefinition::new(self.table_name)
+    }
+
+    /// Subscribe to a specific subscription key with model hash
+    pub fn subscribe(
+        &mut self,
+        subscription_key: D::Keys,
+        model_hash: [u8; 32],
+    ) -> Result<(), NetabaseError>
+    {
+        let table_def = self.subscription_table_def();
+        let mut table = self.txn.open_table(table_def)?;
+
+        table.insert(
+            super::redb_store::BincodeWrapper(subscription_key),
+            super::redb_store::BincodeWrapper(model_hash),
+        )?;
+        Ok(())
+    }
+
+    /// Unsubscribe from a specific subscription key
+    pub fn unsubscribe(
+        &mut self,
+        subscription_key: &D::Keys,
+    ) -> Result<Option<[u8; 32]>, NetabaseError> {
+        let table_def = self.subscription_table_def();
+        let mut table = self.txn.open_table(table_def)?;
+
+        match table.remove(super::redb_store::BincodeWrapper(subscription_key.clone()))? {
+            Some(data) => Ok(Some(data.value())),
+            None => Ok(None),
+        }
+    }
+
+    /// Get subscription data for a specific key
+    pub fn get_subscription(
+        &self,
+        subscription_key: &D::Keys,
+    ) -> Result<Option<[u8; 32]>, NetabaseError> {
+        let table_def = self.subscription_table_def();
+        let table = self.txn.open_table(table_def)?;
+
+        match table.get(super::redb_store::BincodeWrapper(subscription_key.clone()))? {
+            Some(data) => Ok(Some(data.value())),
+            None => Ok(None),
+        }
+    }
+
+    /// Clear all subscriptions for this subscription type
+    pub fn clear_subscriptions(&mut self) -> Result<(), NetabaseError> {
+        let table_def = self.subscription_table_def();
+        let mut table = self.txn.open_table(table_def)?;
+
+        while let Some((key, _)) = table.pop_first()? {
+            drop(key);
+        }
+
+        Ok(())
+    }
+
+    /// Get the number of active subscriptions for this subscription type
+    pub fn subscription_count(&self) -> Result<usize, NetabaseError> {
+        let table_def = self.subscription_table_def();
+        match self.txn.open_table(table_def) {
+            Ok(table) => Ok(table.len()? as usize),
+            Err(redb::TableError::TableDoesNotExist(_)) => Ok(0),
+            Err(e) => Err(NetabaseError::RedbTableError(e)),
+        }
+    }
+}
+
+/// Read-only subscription tree for querying subscription data
+///
+/// This provides methods to query subscription data within a read transaction.
+/// Each subscription variant has its own table, similar to regular model tables.
+///
+/// # Example
+///
+/// ```
+/// # use netabase_store::databases::redb_zerocopy::*;
+/// # use netabase_store::traits::definition::{NetabaseDefinitionTrait, NetabaseDefinitionWithSubscription};
+/// # use strum::{IntoEnumIterator, IntoDiscriminant};
+/// #
+/// # // Mock subscription enum
+/// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::EnumIter, bincode::Encode, bincode::Decode)]
+/// # #[derive(strum::Display, strum::AsRefStr)]
+/// # #[derive(strum::EnumString)]
+/// # enum MySubscriptions {
+/// #     UserNotifications,
+/// #     PostUpdates,
+/// # }
+/// #
+/// # impl strum::IntoDiscriminant for MySubscriptions {
+/// #     type Discriminant = MySubscriptions;
+/// #     fn discriminant(&self) -> Self::Discriminant {
+/// #         *self
+/// #     }
+/// # }
+/// #
+/// # // Mock definition discriminant enum
+/// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::EnumIter, bincode::Encode, bincode::Decode)]
+/// # #[derive(strum::Display, strum::AsRefStr)]
+/// # #[derive(strum::EnumString)]
+/// # enum MyDefDiscriminant {
+/// #     MockVariant,
+/// # }
+/// #
+/// # // Mock definition enum
+/// # #[derive(Debug, Clone, bincode::Encode, bincode::Decode)]
+/// # enum MyDef {
+/// #     MockVariant(u64),
+/// # }
+/// #
+/// # impl strum::IntoDiscriminant for MyDef {
+/// #     type Discriminant = MyDefDiscriminant;
+/// #     fn discriminant(&self) -> Self::Discriminant {
+/// #         match self {
+/// #             Self::MockVariant(_) => MyDefDiscriminant::MockVariant,
+/// #         }
+/// #     }
+/// # }
+/// #
+/// # // Mock keys enum
+/// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Hash, strum::EnumIter, bincode::Encode, bincode::Decode)]
+/// # #[derive(strum::Display, strum::AsRefStr)]
+/// # #[derive(strum::EnumString)]
+/// # enum MyKeys {
+/// #     PrimaryKey(u64),
+/// # }
+/// #
+/// # impl strum::IntoDiscriminant for MyKeys {
+/// #     type Discriminant = MyKeys;
+/// #     fn discriminant(&self) -> Self::Discriminant {
+/// #         *self
+/// #     }
+/// # }
+/// #
+/// # impl netabase_store::traits::definition::NetabaseDefinitionTraitKey for MyKeys {}
+/// #
+/// # impl NetabaseDefinitionTrait for MyDef {
+/// #     type Keys = MyKeys;
+/// #     #[cfg(feature = "redb")] type Tables = ();
+/// #     #[cfg(feature = "redb")] fn tables() -> Self::Tables { () }
+/// # }
+/// # impl NetabaseDefinitionWithSubscription for MyDef {
+/// #     type Subscriptions = MySubscriptions;
+/// # }
+/// # fn example() -> Result<(), netabase_store::error::NetabaseError> {
+/// # let temp = tempfile::tempdir().unwrap();
+/// # let path = temp.path().join("subscriptions.redb");
+/// # let store = RedbStoreZeroCopy::<MyDef>::new(&path)?;
+/// // First, add a subscription
+/// # let mut txn = store.begin_write()?;
+/// # let mut sub_tree = txn.open_subscription_tree(MySubscriptions::UserNotifications)?;
+/// # sub_tree.subscribe(MyKeys::PrimaryKey(42u64), [1u8; 32])?;
+/// # drop(sub_tree);
+/// # txn.commit()?;
+///
+/// // Then read it
+/// let txn = store.begin_read()?;
+/// let sub_tree = txn.open_subscription_tree(MySubscriptions::UserNotifications)?;
+///
+/// let count = sub_tree.subscription_count()?;
+/// let result = sub_tree.get_subscription(&MyKeys::PrimaryKey(42u64))?;
+/// assert_eq!(result, Some([1u8; 32]));
+/// # Ok(())
+/// # }
+/// # example().unwrap();
+/// ```
+pub struct RedbSubscriptionTree<'txn, 'db, D, S>
+where
+    D: NetabaseDefinitionTrait + NetabaseDefinitionWithSubscription<Subscriptions = S>,
+    S: strum::IntoDiscriminant,
+{
+    txn: &'txn ReadTransaction,
+    subscription: S,
+    table_name: &'static str,
+    _phantom: PhantomData<&'db D>,
+}
+
+impl<'txn, 'db, D, S> RedbSubscriptionTree<'txn, 'db, D, S>
+where
+    D: NetabaseDefinitionTrait + NetabaseDefinitionWithSubscription<Subscriptions = S>,
+    S: strum::IntoDiscriminant,
+    <S as strum::IntoDiscriminant>::Discriminant: AsRef<str>,
+{
+    /// Get the subscription table definition
+    fn subscription_table_def(
+        &self,
+    ) -> TableDefinition<
+        'static,
+        super::redb_store::BincodeWrapper<D::Keys>,
+        super::redb_store::BincodeWrapper<[u8; 32]>,
+    > {
+        TableDefinition::new(self.table_name)
+    }
+
+    /// Get subscription data for a specific key
+    pub fn get_subscription(
+        &self,
+        subscription_key: &D::Keys,
+    ) -> Result<Option<[u8; 32]>, NetabaseError> {
+        let table_def = self.subscription_table_def();
+        let table = self.txn.open_table(table_def)?;
+
+        match table.get(super::redb_store::BincodeWrapper(subscription_key.clone()))? {
+            Some(data) => Ok(Some(data.value())),
+            None => Ok(None),
+        }
+    }
+
+    /// Get the number of active subscriptions for this subscription type
+    pub fn subscription_count(&self) -> Result<usize, NetabaseError> {
+        let table_def = self.subscription_table_def();
+        match self.txn.open_table(table_def) {
+            Ok(table) => Ok(table.len()? as usize),
+            Err(redb::TableError::TableDoesNotExist(_)) => Ok(0),
+            Err(e) => Err(NetabaseError::RedbTableError(e)),
+        }
+    }
+}
+
+/// Helper function to get all subscription types for iteration
+pub fn get_all_subscription_types<D>() -> Vec<D::Subscriptions>
+where
+    D: NetabaseDefinitionWithSubscription,
+{
+    D::all_subscriptions()
+}

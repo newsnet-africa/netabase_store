@@ -67,6 +67,7 @@
 pub mod batch;
 pub mod iterator;
 pub mod store;
+pub mod subscription;
 pub mod trait_impls;
 pub mod transaction;
 pub mod tree;
@@ -76,6 +77,7 @@ pub mod types;
 pub use batch::SledBatchBuilder;
 pub use iterator::SledIter;
 pub use store::SledStore;
+pub use subscription::SledSubscriptionTree;
 pub use transaction::SledTransactionalTree;
 pub use tree::SledStoreTree;
 pub use types::SecondaryKeyOp;

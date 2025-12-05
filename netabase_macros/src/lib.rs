@@ -975,6 +975,8 @@ pub fn netabase_definition_module(name: TokenStream, input: TokenStream) -> Toke
     let definition_key = list.last().unwrap();
     let (defin, def_key) = visitor.generate_definitions(definition, definition_key);
 
+    let subscription_enum = visitor.generate_subscriptions();
+
     // Generate redb table definitions struct
     let tables_struct =
         generators::table_definitions::generate_tables_struct(&visitor.modules, definition);
@@ -1016,6 +1018,18 @@ pub fn netabase_definition_module(name: TokenStream, input: TokenStream) -> Toke
         #def_module
         #trait_impls
         #tables_impl
+        #subscription_enum
     }
     .into()
+}
+
+const SUBSCRIPTIONS: &str = "subscriptions";
+#[proc_macro_attribute]
+pub fn subscriptions(names: TokenStream, input: TokenStream) -> TokenStream {
+    input
+}
+
+#[proc_macro_attribute]
+pub fn subscribe(names: TokenStream, input: TokenStream) -> TokenStream {
+    input
 }

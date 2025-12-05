@@ -1,4 +1,5 @@
-use syn::{Ident, ItemEnum};
+use proc_macro2::Span;
+use syn::{Ident, ItemEnum, Variant, parse_quote};
 
 use crate::{
     generators::module_definition::def_gen::{generate_enums, generate_into_inner},
@@ -6,6 +7,39 @@ use crate::{
 };
 
 impl<'a> DefinitionsVisitor<'a> {
+    pub fn generate_subscriptions(&self) -> ItemEnum {
+        let name = {
+            let name = self
+                .name
+                .expect("Failed to get ident: Fix error handle later")
+                .to_string();
+            Ident::new(
+                &format!("{}Subscriptions", heck::AsPascalCase(name)),
+                Span::call_site(),
+            )
+        };
+        let variants = self.subscriptions.iter().cloned().collect::<Vec<Variant>>();
+        parse_quote! {
+            #[derive(
+                Debug,
+                Clone,
+                Copy,
+                PartialEq,
+                Eq,
+                Hash,
+                strum::EnumIter,
+                strum::EnumDiscriminants,
+                bincode::Encode,
+                bincode::Decode,
+                serde::Serialize,
+                serde::Deserialize,
+            )]
+            #[strum_discriminants(derive(strum::AsRefStr, strum::Display, Hash))]
+            pub enum #name {
+                #(#variants),*
+            }
+        }
+    }
     pub fn generate_definitions(
         &self,
         definition: &Ident,
@@ -99,6 +133,7 @@ impl<'a> DefinitionsVisitor<'a> {
 }
 
 pub mod def_gen {
+    use proc_macro::TokenStream;
     use syn::{
         Arm, Ident, ItemEnum, ItemStruct, PathSegment, Token, Variant, parse_quote,
         punctuated::Punctuated,

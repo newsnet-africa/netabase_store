@@ -2,13 +2,14 @@ use crate::config::FileConfig;
 use crate::error::NetabaseError;
 use crate::traits::backend_store::{BackendStore, PathBasedBackend};
 use crate::traits::convert::ToIVec;
-use crate::traits::definition::NetabaseDefinitionTrait;
+use crate::traits::definition::{NetabaseDefinitionTrait, NetabaseDefinitionWithSubscription};
 use crate::traits::model::NetabaseModelTrait;
 use std::marker::PhantomData;
 use std::path::Path;
 use std::str::FromStr;
 use strum::{IntoDiscriminant, IntoEnumIterator};
 
+use super::subscription::SledSubscriptionTree;
 use super::transaction::SledTransactionalTree;
 use super::tree::SledStoreTree;
 use super::types::SecondaryKeyOp;
@@ -581,6 +582,22 @@ where
         }
 
         Ok(result)
+    }
+
+    /// Open a subscription tree for a specific subscription type
+    ///
+    /// Returns a `SledSubscriptionTree` that provides subscription operations.
+    /// Each subscription type gets its own tree within the database.
+    pub fn open_subscription_tree<S>(
+        &self,
+        subscription: S,
+    ) -> SledSubscriptionTree<'_, D, S>
+    where
+        D: NetabaseDefinitionWithSubscription<Subscriptions = S>,
+        S: strum::IntoDiscriminant,
+        <S as strum::IntoDiscriminant>::Discriminant: AsRef<str>,
+    {
+        SledSubscriptionTree::new(&self.db, subscription)
     }
 }
 

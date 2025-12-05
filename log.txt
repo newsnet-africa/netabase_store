@@ -1,0 +1,747 @@
+=== Relational Links Example ===
+
+1. Inserting linked entities:
+   ✓ Inserted author: Alice Johnson
+   ✓ Inserted category: Technology
+   ✓ Inserted tags: Rust and Database
+
+2. Inserting post with relational links:
+   ✓ Inserted post: Building Databases with Rust
+
+3. Retrieving post and resolving links:
+   Retrieved post: Building Databases with Rust
+   ✓ Linked author: Alice Johnson
+   ✓ Linked category: Technology
+   ✓ Linked tags:
+     - Rust: #CE422B
+     - Database: #4A90E2
+
+4. Inserting comment with links:
+   ✓ Inserted comment: Great post! Very informative about Rust databases.
+   Retrieved comment: Great post! Very informative about Rust databases.
+   ✓ Comment is on post: Building Databases with Rust
+   ✓ Comment author: Alice Johnson
+
+5. Demonstrating different RelationalLink variants:
+   ✓ Inserted post with embedded author entity
+   ✓ Retrieved embedded author: Bob Smith
+
+✅ Relational links example completed successfully!
+🔌 Backend Subscription Integration Example
+============================================
+
+📦 Creating temporary sled store...
+  ✅ Store created
+
+🔧 Creating subscription manager...
+  ✅ Manager created
+  Topics available: [Users, Posts]
+
+📝 Sample data created:
+  User: Alice (alice@example.com)
+  Post: Getting Started with Netabase
+
+💾 Storing data and updating subscriptions...
+  ✅ User stored in database
+  ✅ User subscription updated
+  ✅ Post stored in database
+  ✅ Post subscription updated
+
+📊 Subscription Statistics:
+  Total items tracked: 2
+  Active topics: 2
+
+🌲 Merkle Tree Roots (for sync):
+  Users: [ba, bb, 45, cc, cb, 38, 23, ac]
+  Posts: [f0, 1e, 5a, ac, c9, c8, 5c, fb]
+
+🔄 Demonstrating Synchronization:
+  Creating a second manager (simulating remote node)...
+  ✅ Remote manager populated
+
+🔍 Comparing local and remote subscriptions:
+  🔄 Found 1 topic(s) with differences:
+
+  Topic: Users
+    Missing in local: 1 items
+    Missing in remote: 1 items
+    Different values: 0 items
+
+🗑️  Demonstrating removal with subscription update:
+  ✅ Post unsubscribed, hash: ModelHash("ee1ea2b2914a6d9e97d204e5ecde3e10dc2d0a6734d96d08fb4290631142a6ff")
+  Updated stats - Total items: 1
+
+✨ Example completed successfully!
+
+💡 Key Takeaways:
+   • Subscription managers track data changes using merkle trees
+   • Store operations can be integrated with subscription updates
+   • Merkle roots enable efficient synchronization checks
+   • Differences can be identified and resolved between nodes
+   • Manual integration gives full control over when subscriptions update
+Get Result: Ok(Some(User { name: "It's You!", age: 24, email: "some@email.com" }))
+Get Secondary Result: Ok([User { name: "It's You!", age: 24, email: "some@email.com" }])
+Get Result: Ok(Some(User { name: "It's Me!", age: 20, email: "some@email.com" }))
+Get Secondary Result: Ok([User { name: "It's Me!", age: 20, email: "some@email.com" }, User { name: "It's You!", age: 24, email: "some@email.com" }])
+
+✓ Basic store operations completed successfully!
+
+💡 Backend Compatibility:
+   • This example uses Sled, but works identically with:
+     - Redb: Change NetabaseStore::sled() to ::redb()
+     - Temporary: Use ::temp() for auto-cleanup testing
+   • All operations (put, get, query, iterate) are identical!
+   • See examples/batch_operations.rs and examples/transactions.rs
+=== Batch Atomicity Example ===
+
+Example 1: Successful Atomic Transfer
+--------------------------------------
+✓ Created 3 accounts
+Transferring $100.00 from account 1 to account 2
+  Before: Alice has $1000.00, Bob has $500.00
+  After:  Alice has $900.00, Bob has $600.00
+✓ Transfer completed atomically
+
+Example 2: Multiple Account Updates
+------------------------------------
+Applying interest to all savings accounts...
+Found 1 savings accounts
+  Charlie +$100.00 interest
+✓ Applied interest to all savings accounts atomically
+  Charlie now has $2100.00
+
+Example 3: Conditional Batch Processing
+----------------------------------------
+Processing fee deductions (only if all accounts have sufficient balance)...
+  Deducting $50.00 from Alice
+  Deducting $50.00 from Bob
+✓ Deducted fees from all checking accounts atomically
+
+✅ All atomicity examples completed successfully!
+=== Batch Import Example ===
+
+Importing book catalog...
+Generated 2000 sample books
+  Imported 500 books...
+  Imported 1000 books...
+  Imported 1500 books...
+  Imported 2000 books...
+✓ Import completed in 63.473842ms
+✓ Total books in database: 2000
+
+--- Catalog Statistics ---
+  Fiction: 400 books
+  Science: 400 books
+  History: 400 books
+  Biography: 400 books
+  Fantasy: 400 books
+
+Updating availability status...
+Updating 400 Fiction books...
+✓ Updated all Fiction books atomically
+✓ Verification: 400/400 Fiction books are now unavailable
+
+✅ Batch import example completed successfully!
+=== Netabase Store: Batch Operations Example ===
+
+Example 1: Basic Batch Insert
+-------------------------------
+✓ Successfully inserted 3 products using batch operation
+✓ Found 2 electronics products
+
+Example 2: Performance Comparison
+----------------------------------
+Individual puts: 1000 items in 69.410295ms
+Batch operation: 1000 items in 28.762719ms
+✓ Batch operations were 2.41x faster!
+
+Example 3: Mixed Batch Operations
+----------------------------------
+✓ Added 10 temporary products
+✓ Updated 5 products and removed 5 products in one atomic operation
+✓ Found 5 updated products
+
+Example 4: Cross-Model Operations
+----------------------------------
+✓ Inserted 3 products
+✓ Inserted 5 orders referencing those products
+✓ All operations completed atomically within their model type
+✅ All batch operation examples completed successfully!
+
+💡 Backend Compatibility:
+   This example uses Sled, but BOTH sync backends support batch operations:
+   • Sled: Native, persistent (shown here)
+   • Redb: Native, persistent (same API)
+
+   For testing: Use temp() methods for fast, isolated tests
+🚀 Netabase Store Comprehensive Feature Showcase
+================================================
+
+📦 Testing Backend Availability
+==============================
+✓ Sled backend available
+  • Sled backend test passed
+✓ Redb backend available
+  • Redb backend test passed
+✓ LibP2P integration available
+
+🔄 Unified API Demonstration
+============================
+• Demonstrating unified API across backends...
+  • Testing Sled backend...
+    ✓ Basic operations work on Sled
+  • Testing ReDB backend...
+    ✓ Basic operations work on ReDB
+
+📝 CRUD Operations Demonstration
+================================
+• Creating sample data...
+  ✓ Created user and blog post
+• Reading data...
+  ✓ Successfully read data
+• Updating data...
+  ✓ Successfully updated data
+• Deleting data...
+  ✓ Successfully deleted data
+
+🔑 Secondary Key Demonstration
+==============================
+• Setting up test data...
+• Querying users by role...
+  ✓ Found 2 authors
+  ✓ Found 1 admins
+• Querying posts by publication status...
+  ✓ Found 2 published posts
+  ✓ Found 1 draft posts
+• Querying posts by author...
+  ✓ Found 2 posts by Bob
+
+📦 Batch Operations Demonstration
+=================================
+• Generating batch data...
+• Performing batch insert of 1000 users...
+  ✓ Batch insert completed in 89.036971ms
+• Performing batch read...
+  ✓ Batch read of 1000 users completed in 4.156535ms
+• Performing batch delete of first 100 users...
+  ✓ Batch delete of 100 users completed in 7.047276ms
+  ✓ 900 users remaining after batch delete
+
+💳 Transaction Demonstration
+============================
+• RedbZeroCopy backend not available, skipping transaction demo
+  Note: Other backends have implicit transaction support
+
+⚙️  Configuration Options Demonstration
+=======================================
+• Demonstrating FileConfig builder pattern...
+  ✓ Created config with 512MB cache, fsync enabled
+  ✓ Sled store works with custom configuration
+• Demonstrating temporary stores for testing...
+  ✓ Temporary store created and used (5 users)
+
+📊 Data Types Demonstration
+===========================
+• Testing various data types...
+  ✓ User model with various data types
+  ✓ BlogPost model with Option and Vec types
+  ✓ Comment model with None optional value
+  ✓ Comment model with Some optional value
+
+🚀 Performance Features Demonstration
+=====================================
+• Demonstrating bulk operation performance...
+  • Individual inserts (1000): 93.402368ms
+  • Bulk insert (10000): 1.109196825s
+  ✓ Bulk operations are significantly faster
+• Demonstrating query performance...
+  • Primary key queries (100 queries): 555.081µs
+  • Secondary key query (found 100 admins): 847.499µs
+  ✓ Query performance is excellent even with large datasets
+• Demonstrating iteration performance...
+  • Full iteration (10000 records): 30.505486ms
+  ✓ Iteration performance scales well
+
+🌐 LibP2P Integration Demonstration
+===================================
+• Demonstrating DHT Record storage...
+Failed to put DHT record: ValueTooLarge
+
+✅ Comprehensive showcase completed successfully!
+   All demonstrated features are working correctly.
+=== Configuration API Showcase ===
+
+1. Builder Pattern Configuration
+   Most ergonomic with IDE autocomplete
+   Config: path="/tmp/config_demo_builder.db", cache=512MB
+   ✓ Stored and retrieved: Some(User { id: 1, username: "alice", email: "alice@example.com" })
+
+2. Simple Constructor
+   Quick setup with defaults
+   Config: path="/tmp/config_demo_simple.redb", using defaults (cache=256MB)
+   ✓ Stored and retrieved: Some(Post { id: 1, title: "Configuration API Guide", author_id: 1 })
+
+3. Temporary Database (Testing)
+   Perfect for unit tests
+   Creating temporary database (no path needed)
+   ✓ Temporary store works: Some(User { id: 100, username: "temp_user", email: "temp@example.com" })
+   (Database will be deleted on program exit)
+
+4. Backend Portability
+   Switch backends with same config
+   Using single config across all backends
+   ✓ Sled backend works
+=== Recursive Relations Example ===
+
+1. Testing relation insertion with embedded entities...
+   ✓ Post and all related entities inserted
+🚀 Redb Backend Example
+
+📁 Creating database at: /tmp/redb_example.db
+🚀 Redb Zero-Copy Backend Example
+
+📁 Creating database at: /tmp/redb_zerocopy_example.db
+=== RelationalLink Showcase (Vec/Option/Box Support) ===
+
+1. Testing post with wrapped RelationalLinks...
+   ✓ Post with wrapped relations created successfully
+   - Author: RelationalLink (direct)
+   - Category: Option<RelationalLink>
+   - Tags: Vec<RelationalLink> (2 tags)
+   - Editor: Box<RelationalLink>
+
+2. Basic insertion works
+   ✓ Post retrieved: Introduction to Rust
+   ✓ Category (Option, Entity): Technology
+   ✓ Tags (Vec): 2 tags
+     - Tag 1: rust
+     - Tag 2: programming
+   ✓ Editor (Box, Entity): bob
+
+=== Summary ===
+✓ Type detection works for Vec/Option/Box<RelationalLink>
+✓ Models compile with wrapped relations
+✓ Serialization/deserialization works
+✓ Basic storage operations work
+
+Note: Automatic relation insertion for Vec/Option/Box is a future enhancement.
+Currently, you need to insert related entities manually.
+=== Simple Relational Links Example ===
+
+1. Inserting author:
+   ✓ Inserted author: Alice Johnson
+
+2. Inserting post with author key reference:
+   ✓ Inserted post: My First Post
+
+3. Retrieving post and resolving author:
+   Retrieved post: My First Post
+   ✓ Resolved author: Alice Johnson
+
+4. Inserting post with embedded author entity:
+   ✓ Inserted post with embedded author: Second Post
+   ✓ Retrieved embedded author: Bob Smith
+
+5. Verification - listing all posts:
+=== Simple Relation Test ===
+✓ User stored successfully
+✓ Post stored successfully
+✓ Post retrieved: Hello World
+✓ Author is embedded: John Doe
+
+=== Relation Metadata ===
+Post has relations with custom names:
+- post_author -> User
+
+=== Test Complete ===
+=== Simple Relations Test ===
+
+1. Testing basic model insertion...
+   ✓ User inserted successfully
+   ✓ Post inserted successfully
+
+2. Testing relation detection...
+   User has relations: false
+   Post has relations: true
+
+3. Testing generated relation enum...
+   Post relation enum has been generated (compile-time verification)
+
+4. Testing relation helper methods...
+   Author relation type: Entity
+   Author name: Alice Johnson
+
+5. Testing relation insertion method...
+   ✓ Post with relations inserted successfully
+
+6. Verifying data integrity...
+🚀 Simple Netabase Streams Test
+================================
+
+📋 Testing basic subscription functionality...
+  - UserTopic: UserTopic
+  - PostTopic: PostTopic
+
+🔧 Testing subscription manager...
+  ✅ Manager created successfully
+
+🌲 Testing subscription tree access:
+  ✅ UserTopic tree accessible
+  ✅ PostTopic tree accessible
+
+✨ Simple streams test completed successfully!
+
+💡 This demonstrates:
+   - Streams macro integration with netabase_definition_module
+   - Generated subscription topics enum
+   - Subscription manager creation
+   - Topic-based tree access
+🚀 Netabase Subscription System Demo
+=====================================
+
+📊 Available subscription topics:
+   - Users (for user-related data)
+   - Posts (for post-related data)
+   - Comments (for comment-related data)
+
+📝 Sample Data Created:
+   Users: Alice (1), Bob (2)
+   Posts: Introduction to Rust (by user 1)
+   Comments: Great post! Very informative. (on post post-101)
+
+🔍 Subscription System Concepts:
+   1. Each topic (Users, Posts, Comments) would have its own merkle tree
+   2. When data is added/modified, it gets hashed and added to relevant topic trees
+   3. Merkle roots can be compared between nodes to detect differences
+   4. Exact differing keys can be identified for efficient synchronization
+
+🌳 Simulated Merkle Tree Operations:
+   User hashes:
+     Alice: 5618bdd9c600893d
+     Bob:   9bc565b8300f16dc
+   Post hashes:
+     Post 101: e7566548917e9e68
+   Comment hashes:
+     Comment 201: c58ab76aa4e81797
+
+🔄 Simulated Node Synchronization:
+   Node A has: Alice, Bob, Post 101, Comment 201
+   Node B has: Alice, Post 101 (missing Bob and Comment 201)
+
+   Merkle root comparison would show:
+   - Users topic: DIFFERENT (Node B missing Bob)
+   - Posts topic: SAME (both have Post 101)
+   - Comments topic: DIFFERENT (Node B missing Comment 201)
+
+   Sync plan would identify:
+   - Node B needs: User 2 (Bob), Comment 201 (Comment 201)
+
+✅ Subscription System Features Demonstrated:
+   ✓ Topic-based data organization
+   ✓ Efficient hash-based change detection
+   ✓ Merkle tree comparison for synchronization
+   ✓ Precise identification of missing data
+   ✓ Automated subscription management
+
+🎯 Next Steps for Full Implementation:
+   • Complete macro generation of subscription infrastructure
+   • Integrate with database backends (memory, sled, redb)
+   • Add network synchronization protocols
+   • Implement conflict resolution strategies
+   • Add subscription filtering and custom topic assignment
+🚀 Netabase Subscription Streams Example
+=========================================
+
+📋 Available subscription topics:
+  - UserTopic
+  - PostTopic
+  - CommentTopic
+
+📝 Sample data created:
+  User: alice (alice@example.com)
+  Post: Hello, World!
+  Comment: Great post!
+
+✅ Subscription manager created
+
+📊 Adding items to subscription trees...
+  ✅ User added to UserTopic subscription
+  ✅ Post added to PostTopic subscription
+  ✅ Comment added to CommentTopic subscription
+
+🔍 Subscription tree information:
+  UserTopic tree: 1 items
+  PostTopic tree: 1 items
+  CommentTopic tree: 1 items
+
+🌲 Demonstrating merkle tree comparison...
+  🔄 Found 2 topic(s) with differences:
+    UserTopic: 2 total differences
+      - Missing in first: 1
+      - Missing in second: 1
+      - Different values: 0
+    CommentTopic: 1 total differences
+      - Missing in first: 0
+      - Missing in second: 1
+      - Different values: 0
+
+✨ Example completed successfully!
+
+💡 This demonstrates how subscription streams enable:
+   - Efficient tracking of data changes by topic
+   - Merkle tree-based comparison for synchronization
+   - Type-safe subscription management
+   - Scalable data organization by topic
+🔥 Transaction API Example
+
+✅ Created temporary Sled store
+
+💡 Note: Transaction API is identical on Sled and Redb backends
+
+📖 Example 1: Read-Only Transaction
+   Multiple concurrent reads without blocking
+
+   Users: 0, Posts: 0
+   Transaction auto-closes on drop
+
+✍️  Example 2: Read-Write Transaction (Single Insert)
+   Inserted: alice
+   ✅ Transaction committed
+
+⚡ Example 3: Bulk Inserts with Transaction
+   Single transaction for 1000 inserts (10-100x faster!)
+
+   Inserted 1000 users in 29.491846ms
+   Average: 29.491µs per insert
+   ✅ All changes committed atomically
+
+📦 Example 4: Bulk Operation Helpers
+   Using put_many() for even more convenience
+
+   Inserted 100 users with put_many() in 3.17273ms
+   ✅ Bulk operation committed
+
+🌳 Example 5: Multi-Tree Operations
+   Working with multiple models in one transaction
+
+   Inserted user: blogger
+   Inserted post: Post #1
+   Inserted post: Post #2
+   Inserted post: Post #3
+   Inserted post: Post #4
+   Inserted post: Post #5
+   ✅ User and 5 posts committed atomically
+
+🔍 Example 6: Query by Secondary Key
+   Found 5 posts for user 2000
+     - Post #1
+     - Post #2
+     - Post #3
+     - Post #4
+     - Post #5
+
+📚 Example 7: Bulk Read Operations
+   Fetched 10 users: 10 found
+
+↩️  Example 8: Transaction Rollback
+   Changes not committed = automatic rollback
+
+   Inserted user 9999 (but not committing...)
+   Count before: 1102, after: 1103
+   ✅ Changes rolled back automatically
+
+🔒 Example 9: Compile-Time Safety
+   Read-only transactions cannot modify data
+
+   ✅ Compile-time enforcement: put() not available on ReadOnly
+
+📊 Final Statistics
+
+   Total users: 1103
+   Total posts: 5
+
+✨ Example complete!
+
+💡 Key Takeaways:
+   • Transactions eliminate per-operation overhead (10-100x faster)
+   • Type-state pattern provides compile-time safety
+   • Zero-cost abstractions (phantom types compile away)
+   • Automatic rollback on drop if not committed
+   • Works with both read-only and read-write operations
+
+🔄 Backend Compatibility:
+   • This example uses Sled, but the API is IDENTICAL on:
+     - Redb: Same transaction API, zero-copy reads
+   • For testing: Use temp() methods for fast, isolated tests
+╔════════════════════════════════════════════════════════════════╗
+║         Unified NetabaseStore API Example                     ║
+╚════════════════════════════════════════════════════════════════╝
+
+This example demonstrates that the SAME CODE works across all backends!
+
+Backend 1: SLED
+───────────────
+Type: Native, persistent, crash-safe
+Best for: General purpose, high write throughput
+
+  ✓ Inserted user
+  ✓ Retrieved user by primary key
+  ✓ Found user by secondary key (email)
+  ✓ Count: 1 users
+  💡 Sled-specific feature: Flushed 55 bytes
+
+Backend 2: REDB
+───────────────
+Type: Native, persistent, zero-copy reads
+Best for: Read-heavy workloads, memory efficiency
+
+  ✓ Inserted user
+  ✓ Retrieved user by primary key
+  ✓ Found user by secondary key (email)
+  ✓ Count: 1 users
+  💡 Redb-specific feature: Tree names: [User]
+
+╔════════════════════════════════════════════════════════════════╗
+║                        SUMMARY                                 ║
+╚════════════════════════════════════════════════════════════════╝
+
+✅ The SAME API worked on BOTH backends:
+   • put() - Insert/update records
+   • get() - Retrieve by primary key
+   • get_by_secondary_key() - Query by secondary key
+   • len() - Count records
+   • All operations have identical signatures
+
+💡 Key Insights:
+   1. Write code once, run on any backend
+   2. Switch backends by changing ONE line (initialization)
+   3. Backend-specific features still accessible when needed
+   4. All backends support same data models and secondary keys
+
+🎯 When to Use Each Backend:
+   • Sled:   General purpose, production apps
+   • Redb:   Read-heavy workloads, embedded systems
+   • For testing: Use temp() methods for fast, isolated tests
+
+📚 For More Examples:
+   • examples/batch_operations.rs - Batch operations
+   • examples/transactions.rs - Transaction API
+   • tests/backend_crud_tests.rs - Comprehensive tests
+
+✅ All tests passed!
+
+running 15 tests
+test config::tests::test_file_config_builder ... ok
+test config::tests::test_file_config_defaults ... ok
+test databases::redb_store::introspection::tests::test_classify_tree_type ... ok
+test config::tests::test_memory_config_default ... ok
+test databases::sled_store::introspection::tests::test_classify_tree_type ... ok
+test subscription::subscription_tree::tests::test_model_hash_creation ... ok
+test subscription::subscription_tree::tests::test_manager_comparison ... ok
+test subscription::subscription_tree::tests::test_subscription_manager ... ok
+test subscription::subscription_tree::tests::test_subscription_diff ... ok
+test subscription::subscription_tree::tests::test_subscription_diff_conflicting_values ... ok
+test subscription::subscription_tree::tests::test_subscription_tree_basic_operations ... ok
+test utils::datetime::tests::test_netabase_datetime_creation ... ok
+test utils::datetime::tests::test_netabase_datetime_methods ... ok
+test utils::datetime::tests::test_netabase_datetime_trait ... ok
+test utils::datetime::tests::test_netabase_datetime_type_alias ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 18 tests
+test redb_tests::test_redb_create_store ... ok
+test redb_tests::test_redb_clear_and_len ... ok
+test redb_tests::test_redb_secondary_key_single_result ... ok
+test redb_tests::test_redb_multiple_models ... ok
+test redb_tests::test_redb_iteration ... ok
+test redb_tests::test_redb_string_primary_key ... ok
+test redb_tests::test_redb_secondary_key_with_bool ... ok
+test redb_tests::test_redb_secondary_key_multiple_results ... ok
+test redb_tests::test_redb_crud_operations ... ok
+test sled_tests::test_sled_create_store ... ok
+test sled_tests::test_sled_string_primary_key ... ok
+test sled_tests::test_sled_multiple_models ... ok
+test sled_tests::test_sled_secondary_key_with_bool ... ok
+test sled_tests::test_sled_secondary_key_single_result ... ok
+test sled_tests::test_sled_crud_operations ... ok
+test sled_tests::test_sled_secondary_key_multiple_results ... ok
+test sled_tests::test_sled_iteration ... ok
+test sled_tests::test_sled_clear_and_len ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+
+running 17 tests
+
+🧪 Running comprehensive workflow test...
+
+✅ Created user: alice
+✅ Created post 1
+test test_secondary_key_query_no_results ... ok
+✅ Created post 2
+test test_empty_database ... ok
+✅ Created post 3
+test test_create_and_read_user ... ok
+test test_delete_user ... ok
+test test_duplicate_primary_key_overwrites ... ok
+✅ Created comment on post 1
+test test_large_string_fields ... ok
+✅ Created comment on post 1
+✅ Created comment on post 2
+✅ Created comment on post 2
+test test_zero_values ... ok
+test test_secondary_key_query_single_result ... ok
+test test_multiple_models ... ok
+✅ Created comment on post 3
+test test_unicode_strings ... ok
+✅ Created comment on post 3
+test test_update_user ... ok
+test test_multiple_secondary_keys ... ok
+✅ Queried 3 posts by author
+test test_secondary_key_query_multiple_results ... ok
+✅ Queried 2 comments for post 1
+✅ Updated user email
+✅ Deleted post 2
+✅ Verified post deletion
+
+🎉 Comprehensive workflow test PASSED!
+
+test test_sequential_reads_and_writes ... ok
+test test_comprehensive_workflow ... ok
+test test_batch_delete ... ok
+test test_batch_insert ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+
+running 9 tests
+test test_deadlock_prevention ... FAILED
+Completed iteration 1
+test test_concurrent_store_lifecycle ... ok
+Expected: 1000, Actual: 192
+test test_concurrent_secondary_key_queries ... ok
+test test_concurrent_increment_sled ... ok
+test test_concurrent_reads_sled ... ok
+Completed iteration 2
+Completed iteration 3
+test test_concurrent_batch_operations ... ok
+Completed iteration 4
+Completed iteration 5
+Completed iteration 6
+test test_concurrent_writes_sled ... ok
+Completed iteration 7
+Completed iteration 8
+Completed iteration 9
+Completed iteration 10
+test test_concurrent_resource_cleanup ... ok
+test test_memory_pressure_concurrent ... ok
+
+failures:
+
+failures:
+    test_deadlock_prevention
+
+test result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.97s
+
