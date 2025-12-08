@@ -4,7 +4,7 @@ use crate::traits::{
 };
 use std::collections::HashMap;
 use std::fmt::Debug;
-use strum::{AsRefStr, IntoDiscriminant, IntoEnumIterator};
+use strum::{IntoDiscriminant, IntoEnumIterator};
 
 pub type TreeName = String;
 
@@ -12,17 +12,17 @@ pub type TreeName = String;
 #[derive(Debug)]
 pub struct SecondaryKeyTrees<SecEnum>
 where
-    SecEnum: IntoDiscriminant + Clone + Debug + AsRef<str> + DiscriminantName,
-    SecEnum::Discriminant: IntoEnumIterator + std::hash::Hash + Eq + Debug + Send + Sync + Clone,
+    SecEnum: IntoDiscriminant + Clone + Debug,
+    SecEnum::Discriminant: IntoEnumIterator + std::hash::Hash + Eq + Debug + Send + Sync + Clone + DiscriminantName,
 {
     pub trees: HashMap<SecEnum::Discriminant, TreeName>,
 }
 
-/// Contains discriminants for relational keys of a specific model  
+/// Contains discriminants for relational keys of a specific model
 pub struct RelationalKeyTrees<RelEnum>
 where
-    RelEnum: IntoDiscriminant + Clone + Debug + AsRef<str> + DiscriminantName,
-    RelEnum::Discriminant: IntoEnumIterator + std::hash::Hash + Eq + Debug + Send + Sync + Clone,
+    RelEnum: IntoDiscriminant + Clone + Debug,
+    RelEnum::Discriminant: IntoEnumIterator + std::hash::Hash + Eq + Debug + Send + Sync + Clone + DiscriminantName,
 {
     pub trees: HashMap<RelEnum::Discriminant, TreeName>,
 }
@@ -37,7 +37,7 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
     <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
-    <D as strum::IntoDiscriminant>::Discriminant: DiscriminantName,
+    <D as strum::IntoDiscriminant>::Discriminant: DiscriminantName + Clone,
 {
     pub blake3_hash: blake3::Hash,
     pub tree_name: TreeName,
@@ -52,7 +52,7 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
     <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
-    <D as strum::IntoDiscriminant>::Discriminant: DiscriminantName,
+    <D as strum::IntoDiscriminant>::Discriminant: DiscriminantName + Clone,
 {
     pub fn new(hash: blake3::Hash, tree_name: TreeName) -> Self {
         Self {
@@ -72,24 +72,33 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
     <D as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
-    <D as strum::IntoDiscriminant>::Discriminant: DiscriminantName, <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::SecondaryEnum as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
+    <D as strum::IntoDiscriminant>::Discriminant: DiscriminantName + Clone,
+    // Add the required TryFrom bounds for SecondaryEnum
+    Vec<u8>: TryFrom<<M::Keys as NetabaseModelKeyTrait<D, M>>::SecondaryEnum>,
+    <M::Keys as NetabaseModelKeyTrait<D, M>>::SecondaryEnum: TryFrom<Vec<u8>>,
+    // Add the required TryFrom bounds for RelationalEnum  
+    Vec<u8>: TryFrom<<M::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum>,
+    <M::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum: TryFrom<Vec<u8>>,
+    <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::SecondaryEnum as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
     <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::SecondaryEnum as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
     <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::SecondaryEnum as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
     <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::SecondaryEnum as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
     <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::SecondaryEnum as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
     <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::SecondaryEnum as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
     <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::SecondaryEnum as strum::IntoDiscriminant>::Discriminant: std::clone::Clone,
+    <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::SecondaryEnum as strum::IntoDiscriminant>::Discriminant: DiscriminantName,
     <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator,
     <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum as strum::IntoDiscriminant>::Discriminant: std::hash::Hash,
     <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq,
     <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum as strum::IntoDiscriminant>::Discriminant: std::clone::Clone,
     <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
     <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
-    <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug
+    <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum as strum::IntoDiscriminant>::Discriminant: DiscriminantName
 {
     pub main_tree: TreeName,
     pub secondary_keys: SecondaryKeyTrees<
-        <M::Keys as crate::traits::model::key::NetabaseModelKeyTrait<D, M>>::SecondaryEnum,
+        <M::Keys as NetabaseModelKeyTrait<D, M>>::SecondaryEnum,
     >,
     pub relational_keys: RelationalKeyTrees<
         <M::Keys as crate::traits::model::key::NetabaseModelKeyTrait<D, M>>::RelationalEnum,
@@ -104,7 +113,7 @@ pub struct AllTrees<D>
 where
     D: IntoDiscriminant,
     <D as IntoDiscriminant>::Discriminant:
-        IntoEnumIterator + std::hash::Hash + Eq + Debug + DiscriminantName,
+        IntoEnumIterator + std::hash::Hash + Eq + Debug + DiscriminantName + Clone,
 {
     pub registered_models: Vec<D::Discriminant>,
 }
@@ -113,7 +122,7 @@ impl<D> AllTrees<D>
 where
     D: IntoDiscriminant,
     <D as IntoDiscriminant>::Discriminant:
-        IntoEnumIterator + std::hash::Hash + Eq + Debug + DiscriminantName,
+        IntoEnumIterator + std::hash::Hash + Eq + Debug + DiscriminantName + Clone,
 {
     pub fn new() -> Self {
         Self {
@@ -138,7 +147,7 @@ pub trait TreeManager<D>
 where
     D: IntoDiscriminant,
     <D as IntoDiscriminant>::Discriminant:
-        IntoEnumIterator + std::hash::Hash + Eq + Debug + DiscriminantName,
+        IntoEnumIterator + std::hash::Hash + Eq + Debug + DiscriminantName + Clone,
 {
     /// Returns the complete tree structure for this definition
     fn all_trees() -> AllTrees<D>;

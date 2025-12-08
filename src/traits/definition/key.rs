@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 pub trait NetabaseDefinitionKeyTrait<D: NetabaseDefinitionTrait>
 where
-    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator + std::hash::Hash + Eq + Debug + DiscriminantName,
+    <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator + std::hash::Hash + Eq + Debug + DiscriminantName + Clone,
 {
     fn inner<M: NetabaseModelTrait<D>>(&self) -> M::Keys
     where
