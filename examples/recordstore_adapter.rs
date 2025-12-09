@@ -2,10 +2,10 @@
 // for any Netabase store by using the Definition enum as the serialization layer
 
 use netabase_store::{
-    databases::redb_store::RedbStore,
+    databases::redb_store::{RedbStore, RedbNetabaseModelTrait},
     traits::{
         definition::{NetabaseDefinition, DiscriminantName},
-        model::{NetabaseModelTrait, RedbNetabaseModelTrait},
+        model::NetabaseModelTrait,
         store::store::StoreTrait,
     },
 };
@@ -939,3 +939,7 @@ adapter.put(record)?;
 let retrieved = adapter.get(&kad::Key::new(b"my-key".to_vec()));
 
 */
+
+fn main() {
+    println!("RecordStore adapter example - see source code for implementation details");
+}

@@ -1,5 +1,4 @@
 use crate::traits::store::tree_manager::TreeManager;
-use crate::error::NetabaseResult;
 use std::fmt::Debug;
 use strum::{IntoDiscriminant, IntoEnumIterator};
 
@@ -21,7 +20,7 @@ where
     type Keys: IntoDiscriminant;
     /// Unified enum that wraps all model-associated types under one generic type
     /// This eliminates the need for opaque Vec<u8> and String types
-    type ModelAssociatedTypes: Clone + Debug + Send + ModelAssociatedTypesExt<Self>;
+    type ModelAssociatedTypes: Clone + Debug + Send + ModelAssociatedTypesExt<Self> + crate::databases::redb_store::RedbModelAssociatedTypesExt<Self>;
 }
 
 /// Extension trait for ModelAssociatedTypes to provide type conversion methods
@@ -57,57 +56,10 @@ where
         key: <M::Keys as crate::traits::model::key::NetabaseModelKeyTrait<D, M>>::RelationalEnum
     ) -> Self;
 
-    // ============================================================================================
-    // Redb Execution Methods
-    // ============================================================================================
-
-    /// Insert a model into the main tree
-    /// self: The wrapped model data
-    /// key: The wrapped primary key
-    fn insert_model_into_redb(
-        &self,
-        txn: &redb::WriteTransaction,
-        table_name: &str,
-        key: &Self,
-    ) -> NetabaseResult<()>;
-
-    /// Insert a secondary key mapping
-    /// self: The wrapped secondary key data
-    /// key: The wrapped primary key reference
-    fn insert_secondary_key_into_redb(
-        &self,
-        txn: &redb::WriteTransaction,
-        table_name: &str,
-        primary_key_ref: &Self,
-    ) -> NetabaseResult<()>;
-
-    /// Insert a relational key mapping
-    /// self: The wrapped relational key data
-    /// key: The wrapped primary key reference
-    fn insert_relational_key_into_redb(
-        &self,
-        txn: &redb::WriteTransaction,
-        table_name: &str,
-        primary_key_ref: &Self,
-    ) -> NetabaseResult<()>;
-
-    /// Insert a hash tree mapping
-    /// hash: The hash bytes
-    /// key: The wrapped primary key reference
-    fn insert_hash_into_redb(
-        hash: &[u8; 32],
-        txn: &redb::WriteTransaction,
-        table_name: &str,
-        primary_key_ref: &Self,
-    ) -> NetabaseResult<()>;
-
-    /// Delete a model from the main tree
-    /// self: The wrapped primary key
-    fn delete_model_from_redb(
-        &self,
-        txn: &redb::WriteTransaction,
-        table_name: &str,
-    ) -> NetabaseResult<()>;
+    /// Wrap a subscription key discriminant into the unified type
+    fn from_subscription_key_discriminant<M: crate::traits::model::NetabaseModelTrait<D>>(
+        key: <<M as crate::traits::model::NetabaseModelTrait<D>>::SubscriptionEnum as IntoDiscriminant>::Discriminant
+    ) -> Self;
 }
 
 pub trait NetabaseDefinition: NetabaseDefinitionTrait + TreeManager<Self> + Sized

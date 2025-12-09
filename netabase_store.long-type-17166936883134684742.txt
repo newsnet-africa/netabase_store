@@ -1,0 +1,6 @@
+<<M as traits::model::NetabaseModelTrait<D>>::SubscriptionEnum as strum::IntoDiscriminant>::Discriminant
+<<M as traits::model::NetabaseModelTrait<D>>::SubscriptionEnum as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator
+<<M as traits::model::NetabaseModelTrait<D>>::SubscriptionEnum as strum::IntoDiscriminant>::Discriminant: std::hash::Hash
+<<M as traits::model::NetabaseModelTrait<D>>::SubscriptionEnum as strum::IntoDiscriminant>::Discriminant: std::cmp::Eq
+<<M as traits::model::NetabaseModelTrait<D>>::SubscriptionEnum as strum::IntoDiscriminant>::Discriminant: std::clone::Clone
+<<M as traits::model::NetabaseModelTrait<D>>::SubscriptionEnum as strum::IntoDiscriminant>::Discriminant: traits::definition::DiscriminantName

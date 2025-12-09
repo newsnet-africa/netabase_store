@@ -1,11 +1,11 @@
 use derive_more::TryInto;
 use bincode::{Decode, Encode};
 use netabase_store::{
-    databases::redb_store::RedbStore,
+    databases::redb_store::{RedbStore, RedbModelAssociatedTypesExt, RedbNetabaseModelTrait},
     error::{NetabaseResult, NetabaseError},
     traits::{
         definition::{NetabaseDefinitionTrait, DiscriminantName, key::NetabaseDefinitionKeyTrait, ModelAssociatedTypesExt},
-        model::{NetabaseModelTrait, RedbNetabaseModelTrait, key::NetabaseModelKeyTrait, RelationalLink},
+        model::{NetabaseModelTrait, key::NetabaseModelKeyTrait},
         store::{
             tree_manager::{TreeManager, AllTrees},
             store::StoreTrait,
@@ -253,6 +253,72 @@ pub enum UserRelationalTreeNames {
 
 impl DiscriminantName for UserRelationalTreeNames {}
 
+#[derive(Debug, Clone, EnumDiscriminants, Encode, Decode)]
+#[strum_discriminants(name(UserSubscriptionsDiscriminants))]
+#[strum_discriminants(derive(Hash, AsRefStr, Encode, Decode, EnumIter))]
+pub enum UserSubscriptions {
+    // Dummy subscription
+    Updates,
+}
+
+impl DiscriminantName for UserSubscriptionsDiscriminants {}
+
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, EnumIter, AsRefStr)]
+pub enum UserSubscriptionTreeNames {
+    Updates,
+}
+
+impl DiscriminantName for UserSubscriptionTreeNames {}
+
+impl Value for UserSubscriptions {
+    type SelfType<'a> = UserSubscriptions;
+    type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
+
+    fn fixed_width() -> Option<usize> {
+        None
+    }
+
+    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+    where
+        Self: 'a,
+    {
+        Self::try_from(data.to_vec()).expect("Failed to deserialize UserSubscriptions")
+    }
+
+    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
+        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize UserSubscriptions");
+        std::borrow::Cow::Owned(bytes)
+    }
+
+    fn type_name() -> redb::TypeName {
+        redb::TypeName::new("UserSubscriptions")
+    }
+}
+
+impl Key for UserSubscriptions {
+    fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+        data1.cmp(data2)
+    }
+}
+
+// Bincode conversions for UserSubscriptions
+impl TryFrom<Vec<u8>> for UserSubscriptions {
+    type Error = bincode::error::DecodeError;
+    
+    fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
+        let (value, _): (UserSubscriptions, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        Ok(value)
+    }
+}
+
+impl TryFrom<UserSubscriptions> for Vec<u8> {
+    type Error = bincode::error::EncodeError;
+    
+    fn try_from(value: UserSubscriptions) -> Result<Self, Self::Error> {
+        bincode::encode_to_vec(value, bincode::config::standard())
+    }
+}
+
 impl Value for UserRelationalKeys {
     type SelfType<'a> = UserRelationalKeys;
     type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
@@ -322,7 +388,7 @@ impl NetabaseModelKeyTrait<Definitions, User> for UserKeys {
         ]
     }
 
-    fn relational_keys(model: &User) -> Vec<Self::RelationalEnum> {
+    fn relational_keys(_model: &User) -> Vec<Self::RelationalEnum> {
         // Note: In a real implementation, you'd need to query the database
         // to find all products created by this user. For demonstration purposes,
         // we're returning an empty vec. The transaction layer should handle
@@ -337,6 +403,7 @@ impl NetabaseModelTrait<Definitions> for User {
 
     type SecondaryKeys = UserSecondaryKeysIter;
     type RelationalKeys = UserRelationalKeysIter;
+    type SubscriptionEnum = UserSubscriptions;
     type Hash = [u8; 32]; // Blake3 hash
 
     fn primary_key(&self) -> Self::PrimaryKey {
@@ -359,6 +426,10 @@ impl NetabaseModelTrait<Definitions> for User {
         UserRelationalKeysIter {
             iter: vec![].into_iter()
         }
+    }
+
+    fn get_subscriptions(&self) -> Vec<Self::SubscriptionEnum> {
+        vec![UserSubscriptions::Updates]
     }
 
     fn compute_hash(&self) -> Self::Hash {
@@ -387,12 +458,20 @@ impl NetabaseModelTrait<Definitions> for User {
         DefinitionModelAssociatedTypes::UserRelationalKey(key)
     }
 
+    fn wrap_subscription_key(key: UserSubscriptions) -> DefinitionModelAssociatedTypes {
+        DefinitionModelAssociatedTypes::UserSubscriptionKey(key)
+    }
+
     fn wrap_secondary_key_discriminant(key: UserSecondaryKeysDiscriminants) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::UserSecondaryKeyDiscriminant(key)
     }
 
     fn wrap_relational_key_discriminant(key: UserRelationalKeysDiscriminants) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::UserRelationalKeyDiscriminant(key)
+    }
+
+    fn wrap_subscription_key_discriminant(key: UserSubscriptionsDiscriminants) -> DefinitionModelAssociatedTypes {
+        DefinitionModelAssociatedTypes::UserSubscriptionKeyDiscriminant(key)
     }
 }
 
@@ -412,6 +491,12 @@ impl RedbNetabaseModelTrait<Definitions> for User {
         key_discriminant: UserRelationalKeysDiscriminants,
     ) -> String {
         format!("User_rel_{}", key_discriminant.as_ref())
+    }
+
+    fn subscription_key_table_name(
+        key_discriminant: UserSubscriptionsDiscriminants,
+    ) -> String {
+        format!("User_sub_{}", key_discriminant.as_ref())
     }
     
     fn hash_tree_table_name() -> String {
@@ -607,6 +692,70 @@ pub enum ProductRelationalTreeNames {
 
 impl DiscriminantName for ProductRelationalTreeNames {}
 
+#[derive(Debug, Clone, EnumDiscriminants, Encode, Decode)]
+#[strum_discriminants(name(ProductSubscriptionsDiscriminants))]
+#[strum_discriminants(derive(Hash, AsRefStr, Encode, Decode, EnumIter))]
+pub enum ProductSubscriptions {
+    Updates,
+}
+
+impl DiscriminantName for ProductSubscriptionsDiscriminants {}
+
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, EnumIter, AsRefStr)]
+pub enum ProductSubscriptionTreeNames {
+    Updates,
+}
+
+impl DiscriminantName for ProductSubscriptionTreeNames {}
+
+impl Value for ProductSubscriptions {
+    type SelfType<'a> = ProductSubscriptions;
+    type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
+
+    fn fixed_width() -> Option<usize> {
+        None
+    }
+
+    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+    where
+        Self: 'a,
+    {
+        Self::try_from(data.to_vec()).expect("Failed to deserialize ProductSubscriptions")
+    }
+
+    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
+        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize ProductSubscriptions");
+        std::borrow::Cow::Owned(bytes)
+    }
+
+    fn type_name() -> redb::TypeName {
+        redb::TypeName::new("ProductSubscriptions")
+    }
+}
+
+impl Key for ProductSubscriptions {
+    fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+        data1.cmp(data2)
+    }
+}
+
+impl TryFrom<Vec<u8>> for ProductSubscriptions {
+    type Error = bincode::error::DecodeError;
+    
+    fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
+        let (value, _): (ProductSubscriptions, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        Ok(value)
+    }
+}
+
+impl TryFrom<ProductSubscriptions> for Vec<u8> {
+    type Error = bincode::error::EncodeError;
+    
+    fn try_from(value: ProductSubscriptions) -> Result<Self, Self::Error> {
+        bincode::encode_to_vec(value, bincode::config::standard())
+    }
+}
+
 impl Value for ProductRelationalKeys {
     type SelfType<'a> = ProductRelationalKeys;
     type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
@@ -690,6 +839,7 @@ impl NetabaseModelTrait<Definitions> for Product {
 
     type SecondaryKeys = ProductSecondaryKeysIter;
     type RelationalKeys = ProductRelationalKeysIter;
+    type SubscriptionEnum = ProductSubscriptions;
     type Hash = [u8; 32]; // Blake3 hash
 
     fn primary_key(&self) -> Self::PrimaryKey {
@@ -711,6 +861,10 @@ impl NetabaseModelTrait<Definitions> for Product {
                 ProductRelationalKeys::CreatedBy(UserId(self.created_by)),
             ].into_iter()
         }
+    }
+
+    fn get_subscriptions(&self) -> Vec<Self::SubscriptionEnum> {
+        vec![]
     }
 
     fn compute_hash(&self) -> Self::Hash {
@@ -739,12 +893,20 @@ impl NetabaseModelTrait<Definitions> for Product {
         DefinitionModelAssociatedTypes::ProductRelationalKey(key)
     }
 
+    fn wrap_subscription_key(key: ProductSubscriptions) -> DefinitionModelAssociatedTypes {
+        DefinitionModelAssociatedTypes::ProductSubscriptionKey(key)
+    }
+
     fn wrap_secondary_key_discriminant(key: ProductSecondaryKeysDiscriminants) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::ProductSecondaryKeyDiscriminant(key)
     }
 
     fn wrap_relational_key_discriminant(key: ProductRelationalKeysDiscriminants) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::ProductRelationalKeyDiscriminant(key)
+    }
+
+    fn wrap_subscription_key_discriminant(key: ProductSubscriptionsDiscriminants) -> DefinitionModelAssociatedTypes {
+        DefinitionModelAssociatedTypes::ProductSubscriptionKeyDiscriminant(key)
     }
 }
 
@@ -764,6 +926,12 @@ impl RedbNetabaseModelTrait<Definitions> for Product {
         key_discriminant: ProductRelationalKeysDiscriminants,
     ) -> String {
         format!("Product_rel_{}", key_discriminant.as_ref())
+    }
+
+    fn subscription_key_table_name(
+        key_discriminant: ProductSubscriptionsDiscriminants,
+    ) -> String {
+        format!("Product_sub_{}", key_discriminant.as_ref())
     }
     
     fn hash_tree_table_name() -> String {
@@ -952,6 +1120,70 @@ pub enum CategoryRelationalTreeNames {
 
 impl DiscriminantName for CategoryRelationalTreeNames {}
 
+#[derive(Debug, Clone, EnumDiscriminants, Encode, Decode)]
+#[strum_discriminants(name(CategorySubscriptionsDiscriminants))]
+#[strum_discriminants(derive(Hash, AsRefStr, Encode, Decode, EnumIter))]
+pub enum CategorySubscriptions {
+    Updates,
+}
+
+impl DiscriminantName for CategorySubscriptionsDiscriminants {}
+
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, EnumIter, AsRefStr)]
+pub enum CategorySubscriptionTreeNames {
+    Updates,
+}
+
+impl DiscriminantName for CategorySubscriptionTreeNames {}
+
+impl Value for CategorySubscriptions {
+    type SelfType<'a> = CategorySubscriptions;
+    type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
+
+    fn fixed_width() -> Option<usize> {
+        None
+    }
+
+    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+    where
+        Self: 'a,
+    {
+        Self::try_from(data.to_vec()).expect("Failed to deserialize CategorySubscriptions")
+    }
+
+    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
+        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize CategorySubscriptions");
+        std::borrow::Cow::Owned(bytes)
+    }
+
+    fn type_name() -> redb::TypeName {
+        redb::TypeName::new("CategorySubscriptions")
+    }
+}
+
+impl Key for CategorySubscriptions {
+    fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+        data1.cmp(data2)
+    }
+}
+
+impl TryFrom<Vec<u8>> for CategorySubscriptions {
+    type Error = bincode::error::DecodeError;
+    
+    fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
+        let (value, _): (CategorySubscriptions, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        Ok(value)
+    }
+}
+
+impl TryFrom<CategorySubscriptions> for Vec<u8> {
+    type Error = bincode::error::EncodeError;
+    
+    fn try_from(value: CategorySubscriptions) -> Result<Self, Self::Error> {
+        bincode::encode_to_vec(value, bincode::config::standard())
+    }
+}
+
 impl Value for CategoryRelationalKeys {
     type SelfType<'a> = CategoryRelationalKeys;
     type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
@@ -1031,6 +1263,7 @@ impl NetabaseModelTrait<Definitions> for Category {
 
     type SecondaryKeys = CategorySecondaryKeysIter;
     type RelationalKeys = CategoryRelationalKeysIter;
+    type SubscriptionEnum = CategorySubscriptions;
     type Hash = [u8; 32];
 
     fn primary_key(&self) -> Self::PrimaryKey {
@@ -1049,6 +1282,10 @@ impl NetabaseModelTrait<Definitions> for Category {
         CategoryRelationalKeysIter {
             iter: vec![].into_iter()
         }
+    }
+
+    fn get_subscriptions(&self) -> Vec<Self::SubscriptionEnum> {
+        vec![]
     }
 
     fn compute_hash(&self) -> Self::Hash {
@@ -1076,12 +1313,20 @@ impl NetabaseModelTrait<Definitions> for Category {
         DefinitionModelAssociatedTypes::CategoryRelationalKey(key)
     }
 
+    fn wrap_subscription_key(key: CategorySubscriptions) -> DefinitionModelAssociatedTypes {
+        DefinitionModelAssociatedTypes::CategorySubscriptionKey(key)
+    }
+
     fn wrap_secondary_key_discriminant(key: CategorySecondaryKeysDiscriminants) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::CategorySecondaryKeyDiscriminant(key)
     }
 
     fn wrap_relational_key_discriminant(key: CategoryRelationalKeysDiscriminants) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::CategoryRelationalKeyDiscriminant(key)
+    }
+
+    fn wrap_subscription_key_discriminant(key: CategorySubscriptionsDiscriminants) -> DefinitionModelAssociatedTypes {
+        DefinitionModelAssociatedTypes::CategorySubscriptionKeyDiscriminant(key)
     }
 }
 
@@ -1101,6 +1346,12 @@ impl RedbNetabaseModelTrait<Definitions> for Category {
         key_discriminant: CategoryRelationalKeysDiscriminants,
     ) -> String {
         format!("Category_rel_{}", key_discriminant.as_ref())
+    }
+
+    fn subscription_key_table_name(
+        key_discriminant: CategorySubscriptionsDiscriminants,
+    ) -> String {
+        format!("Category_sub_{}", key_discriminant.as_ref())
     }
 
     fn hash_tree_table_name() -> String {
@@ -1223,6 +1474,70 @@ pub enum ReviewRelationalTreeNames {
 }
 
 impl DiscriminantName for ReviewRelationalTreeNames {}
+
+#[derive(Debug, Clone, EnumDiscriminants, Encode, Decode)]
+#[strum_discriminants(name(ReviewSubscriptionsDiscriminants))]
+#[strum_discriminants(derive(Hash, AsRefStr, Encode, Decode, EnumIter))]
+pub enum ReviewSubscriptions {
+    Updates,
+}
+
+impl DiscriminantName for ReviewSubscriptionsDiscriminants {}
+
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, EnumIter, AsRefStr)]
+pub enum ReviewSubscriptionTreeNames {
+    Updates,
+}
+
+impl DiscriminantName for ReviewSubscriptionTreeNames {}
+
+impl Value for ReviewSubscriptions {
+    type SelfType<'a> = ReviewSubscriptions;
+    type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
+
+    fn fixed_width() -> Option<usize> {
+        None
+    }
+
+    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+    where
+        Self: 'a,
+    {
+        Self::try_from(data.to_vec()).expect("Failed to deserialize ReviewSubscriptions")
+    }
+
+    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
+        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize ReviewSubscriptions");
+        std::borrow::Cow::Owned(bytes)
+    }
+
+    fn type_name() -> redb::TypeName {
+        redb::TypeName::new("ReviewSubscriptions")
+    }
+}
+
+impl Key for ReviewSubscriptions {
+    fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+        data1.cmp(data2)
+    }
+}
+
+impl TryFrom<Vec<u8>> for ReviewSubscriptions {
+    type Error = bincode::error::DecodeError;
+    
+    fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
+        let (value, _): (ReviewSubscriptions, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        Ok(value)
+    }
+}
+
+impl TryFrom<ReviewSubscriptions> for Vec<u8> {
+    type Error = bincode::error::EncodeError;
+    
+    fn try_from(value: ReviewSubscriptions) -> Result<Self, Self::Error> {
+        bincode::encode_to_vec(value, bincode::config::standard())
+    }
+}
 
 // Value implementations for Review enums
 impl Value for ReviewSecondaryKeys {
@@ -1357,6 +1672,7 @@ impl NetabaseModelTrait<Definitions> for Review {
 
     type SecondaryKeys = ReviewSecondaryKeysIter;
     type RelationalKeys = ReviewRelationalKeysIter;
+    type SubscriptionEnum = ReviewSubscriptions;
     type Hash = [u8; 32];
 
     fn primary_key(&self) -> ReviewId {
@@ -1373,6 +1689,10 @@ impl NetabaseModelTrait<Definitions> for Review {
         ReviewRelationalKeysIter {
             iter: ReviewKeys::relational_keys(self).into_iter()
         }
+    }
+
+    fn get_subscriptions(&self) -> Vec<Self::SubscriptionEnum> {
+        vec![]
     }
 
     fn compute_hash(&self) -> Self::Hash {
@@ -1403,12 +1723,20 @@ impl NetabaseModelTrait<Definitions> for Review {
         DefinitionModelAssociatedTypes::ReviewRelationalKey(key)
     }
 
+    fn wrap_subscription_key(key: ReviewSubscriptions) -> DefinitionModelAssociatedTypes {
+        DefinitionModelAssociatedTypes::ReviewSubscriptionKey(key)
+    }
+
     fn wrap_secondary_key_discriminant(key: ReviewSecondaryKeysDiscriminants) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::ReviewSecondaryKeyDiscriminant(key)
     }
 
     fn wrap_relational_key_discriminant(key: ReviewRelationalKeysDiscriminants) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::ReviewRelationalKeyDiscriminant(key)
+    }
+
+    fn wrap_subscription_key_discriminant(key: ReviewSubscriptionsDiscriminants) -> DefinitionModelAssociatedTypes {
+        DefinitionModelAssociatedTypes::ReviewSubscriptionKeyDiscriminant(key)
     }
 }
 
@@ -1453,6 +1781,12 @@ impl RedbNetabaseModelTrait<Definitions> for Review {
         key_discriminant: ReviewRelationalKeysDiscriminants,
     ) -> String {
         format!("Review_rel_{}", key_discriminant.as_ref())
+    }
+
+    fn subscription_key_table_name(
+        key_discriminant: ReviewSubscriptionsDiscriminants,
+    ) -> String {
+        format!("Review_sub_{}", key_discriminant.as_ref())
     }
 
     fn hash_tree_table_name() -> String {
@@ -1564,6 +1898,70 @@ pub enum TagRelationalTreeNames {
 }
 
 impl DiscriminantName for TagRelationalTreeNames {}
+
+#[derive(Debug, Clone, EnumDiscriminants, Encode, Decode)]
+#[strum_discriminants(name(TagSubscriptionsDiscriminants))]
+#[strum_discriminants(derive(Hash, AsRefStr, Encode, Decode, EnumIter))]
+pub enum TagSubscriptions {
+    Updates,
+}
+
+impl DiscriminantName for TagSubscriptionsDiscriminants {}
+
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, EnumIter, AsRefStr)]
+pub enum TagSubscriptionTreeNames {
+    Updates,
+}
+
+impl DiscriminantName for TagSubscriptionTreeNames {}
+
+impl Value for TagSubscriptions {
+    type SelfType<'a> = TagSubscriptions;
+    type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
+
+    fn fixed_width() -> Option<usize> {
+        None
+    }
+
+    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+    where
+        Self: 'a,
+    {
+        Self::try_from(data.to_vec()).expect("Failed to deserialize TagSubscriptions")
+    }
+
+    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
+        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize TagSubscriptions");
+        std::borrow::Cow::Owned(bytes)
+    }
+
+    fn type_name() -> redb::TypeName {
+        redb::TypeName::new("TagSubscriptions")
+    }
+}
+
+impl Key for TagSubscriptions {
+    fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+        data1.cmp(data2)
+    }
+}
+
+impl TryFrom<Vec<u8>> for TagSubscriptions {
+    type Error = bincode::error::DecodeError;
+    
+    fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
+        let (value, _): (TagSubscriptions, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        Ok(value)
+    }
+}
+
+impl TryFrom<TagSubscriptions> for Vec<u8> {
+    type Error = bincode::error::EncodeError;
+    
+    fn try_from(value: TagSubscriptions) -> Result<Self, Self::Error> {
+        bincode::encode_to_vec(value, bincode::config::standard())
+    }
+}
 
 // Value implementations for Tag enums
 impl Value for TagSecondaryKeys {
@@ -1693,6 +2091,7 @@ impl NetabaseModelTrait<Definitions> for Tag {
 
     type SecondaryKeys = TagSecondaryKeysIter;
     type RelationalKeys = TagRelationalKeysIter;
+    type SubscriptionEnum = TagSubscriptions;
     type Hash = [u8; 32];
 
     fn primary_key(&self) -> TagId {
@@ -1709,6 +2108,10 @@ impl NetabaseModelTrait<Definitions> for Tag {
         TagRelationalKeysIter {
             iter: TagKeys::relational_keys(self).into_iter()
         }
+    }
+
+    fn get_subscriptions(&self) -> Vec<Self::SubscriptionEnum> {
+        vec![]
     }
 
     fn compute_hash(&self) -> Self::Hash {
@@ -1735,12 +2138,20 @@ impl NetabaseModelTrait<Definitions> for Tag {
         DefinitionModelAssociatedTypes::TagRelationalKey(key)
     }
 
+    fn wrap_subscription_key(key: TagSubscriptions) -> DefinitionModelAssociatedTypes {
+        DefinitionModelAssociatedTypes::TagSubscriptionKey(key)
+    }
+
     fn wrap_secondary_key_discriminant(key: TagSecondaryKeysDiscriminants) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::TagSecondaryKeyDiscriminant(key)
     }
 
     fn wrap_relational_key_discriminant(key: TagRelationalKeysDiscriminants) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::TagRelationalKeyDiscriminant(key)
+    }
+
+    fn wrap_subscription_key_discriminant(key: TagSubscriptionsDiscriminants) -> DefinitionModelAssociatedTypes {
+        DefinitionModelAssociatedTypes::TagSubscriptionKeyDiscriminant(key)
     }
 }
 
@@ -1785,6 +2196,12 @@ impl RedbNetabaseModelTrait<Definitions> for Tag {
         key_discriminant: TagRelationalKeysDiscriminants,
     ) -> String {
         format!("Tag_rel_{}", key_discriminant.as_ref())
+    }
+
+    fn subscription_key_table_name(
+        key_discriminant: TagSubscriptionsDiscriminants,
+    ) -> String {
+        format!("Tag_sub_{}", key_discriminant.as_ref())
     }
 
     fn hash_tree_table_name() -> String {
@@ -1952,6 +2369,70 @@ pub enum ProductTagRelationalTreeNames {
 
 impl DiscriminantName for ProductTagRelationalTreeNames {}
 
+#[derive(Debug, Clone, EnumDiscriminants, Encode, Decode)]
+#[strum_discriminants(name(ProductTagSubscriptionsDiscriminants))]
+#[strum_discriminants(derive(Hash, AsRefStr, Encode, Decode, EnumIter))]
+pub enum ProductTagSubscriptions {
+    Updates,
+}
+
+impl DiscriminantName for ProductTagSubscriptionsDiscriminants {}
+
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, EnumIter, AsRefStr)]
+pub enum ProductTagSubscriptionTreeNames {
+    Updates,
+}
+
+impl DiscriminantName for ProductTagSubscriptionTreeNames {}
+
+impl Value for ProductTagSubscriptions {
+    type SelfType<'a> = ProductTagSubscriptions;
+    type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
+
+    fn fixed_width() -> Option<usize> {
+        None
+    }
+
+    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+    where
+        Self: 'a,
+    {
+        Self::try_from(data.to_vec()).expect("Failed to deserialize ProductTagSubscriptions")
+    }
+
+    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
+        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize ProductTagSubscriptions");
+        std::borrow::Cow::Owned(bytes)
+    }
+
+    fn type_name() -> redb::TypeName {
+        redb::TypeName::new("ProductTagSubscriptions")
+    }
+}
+
+impl Key for ProductTagSubscriptions {
+    fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+        data1.cmp(data2)
+    }
+}
+
+impl TryFrom<Vec<u8>> for ProductTagSubscriptions {
+    type Error = bincode::error::DecodeError;
+    
+    fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
+        let (value, _): (ProductTagSubscriptions, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        Ok(value)
+    }
+}
+
+impl TryFrom<ProductTagSubscriptions> for Vec<u8> {
+    type Error = bincode::error::EncodeError;
+    
+    fn try_from(value: ProductTagSubscriptions) -> Result<Self, Self::Error> {
+        bincode::encode_to_vec(value, bincode::config::standard())
+    }
+}
+
 // Key implementations for ProductTag enums
 impl Key for ProductTagSecondaryKeys {
     fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
@@ -2099,6 +2580,7 @@ impl NetabaseModelTrait<Definitions> for ProductTag {
 
     type SecondaryKeys = ProductTagSecondaryKeysIter;
     type RelationalKeys = ProductTagRelationalKeysIter;
+    type SubscriptionEnum = ProductTagSubscriptions;
     type Hash = [u8; 32];
 
     fn primary_key(&self) -> ProductTagId {
@@ -2118,6 +2600,10 @@ impl NetabaseModelTrait<Definitions> for ProductTag {
         ProductTagRelationalKeysIter {
             iter: ProductTagKeys::relational_keys(self).into_iter()
         }
+    }
+
+    fn get_subscriptions(&self) -> Vec<Self::SubscriptionEnum> {
+        vec![]
     }
 
     fn compute_hash(&self) -> Self::Hash {
@@ -2144,12 +2630,20 @@ impl NetabaseModelTrait<Definitions> for ProductTag {
         DefinitionModelAssociatedTypes::ProductTagRelationalKey(key)
     }
 
+    fn wrap_subscription_key(key: ProductTagSubscriptions) -> DefinitionModelAssociatedTypes {
+        DefinitionModelAssociatedTypes::ProductTagSubscriptionKey(key)
+    }
+
     fn wrap_secondary_key_discriminant(key: ProductTagSecondaryKeysDiscriminants) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::ProductTagSecondaryKeyDiscriminant(key)
     }
 
     fn wrap_relational_key_discriminant(key: ProductTagRelationalKeysDiscriminants) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::ProductTagRelationalKeyDiscriminant(key)
+    }
+
+    fn wrap_subscription_key_discriminant(key: ProductTagSubscriptionsDiscriminants) -> DefinitionModelAssociatedTypes {
+        DefinitionModelAssociatedTypes::ProductTagSubscriptionKeyDiscriminant(key)
     }
 }
 
@@ -2196,6 +2690,12 @@ impl RedbNetabaseModelTrait<Definitions> for ProductTag {
         format!("ProductTag_rel_{}", key_discriminant.as_ref())
     }
 
+    fn subscription_key_table_name(
+        key_discriminant: ProductTagSubscriptionsDiscriminants,
+    ) -> String {
+        format!("ProductTag_sub_{}", key_discriminant.as_ref())
+    }
+
     fn hash_tree_table_name() -> String {
         "ProductTag_hash".to_string()
     }
@@ -2214,48 +2714,60 @@ pub enum DefinitionModelAssociatedTypes {
     UserModel(User),
     UserSecondaryKey(UserSecondaryKeys),
     UserRelationalKey(UserRelationalKeys),
+    UserSubscriptionKey(UserSubscriptions),
     UserSecondaryKeyDiscriminant(UserSecondaryKeysDiscriminants),
     UserRelationalKeyDiscriminant(UserRelationalKeysDiscriminants),
+    UserSubscriptionKeyDiscriminant(UserSubscriptionsDiscriminants),
 
     // Product-related types
     ProductPrimaryKey(ProductId),
     ProductModel(Product),
     ProductSecondaryKey(ProductSecondaryKeys),
     ProductRelationalKey(ProductRelationalKeys),
+    ProductSubscriptionKey(ProductSubscriptions),
     ProductSecondaryKeyDiscriminant(ProductSecondaryKeysDiscriminants),
     ProductRelationalKeyDiscriminant(ProductRelationalKeysDiscriminants),
+    ProductSubscriptionKeyDiscriminant(ProductSubscriptionsDiscriminants),
 
     // Category-related types
     CategoryPrimaryKey(CategoryId),
     CategoryModel(Category),
     CategorySecondaryKey(CategorySecondaryKeys),
     CategoryRelationalKey(CategoryRelationalKeys),
+    CategorySubscriptionKey(CategorySubscriptions),
     CategorySecondaryKeyDiscriminant(CategorySecondaryKeysDiscriminants),
     CategoryRelationalKeyDiscriminant(CategoryRelationalKeysDiscriminants),
+    CategorySubscriptionKeyDiscriminant(CategorySubscriptionsDiscriminants),
 
     // Review-related types
     ReviewPrimaryKey(ReviewId),
     ReviewModel(Review),
     ReviewSecondaryKey(ReviewSecondaryKeys),
     ReviewRelationalKey(ReviewRelationalKeys),
+    ReviewSubscriptionKey(ReviewSubscriptions),
     ReviewSecondaryKeyDiscriminant(ReviewSecondaryKeysDiscriminants),
     ReviewRelationalKeyDiscriminant(ReviewRelationalKeysDiscriminants),
+    ReviewSubscriptionKeyDiscriminant(ReviewSubscriptionsDiscriminants),
 
     // Tag-related types
     TagPrimaryKey(TagId),
     TagModel(Tag),
     TagSecondaryKey(TagSecondaryKeys),
     TagRelationalKey(TagRelationalKeys),
+    TagSubscriptionKey(TagSubscriptions),
     TagSecondaryKeyDiscriminant(TagSecondaryKeysDiscriminants),
     TagRelationalKeyDiscriminant(TagRelationalKeysDiscriminants),
+    TagSubscriptionKeyDiscriminant(TagSubscriptionsDiscriminants),
 
     // ProductTag-related types
     ProductTagPrimaryKey(ProductTagId),
     ProductTagModel(ProductTag),
     ProductTagSecondaryKey(ProductTagSecondaryKeys),
     ProductTagRelationalKey(ProductTagRelationalKeys),
+    ProductTagSubscriptionKey(ProductTagSubscriptions),
     ProductTagSecondaryKeyDiscriminant(ProductTagSecondaryKeysDiscriminants),
     ProductTagRelationalKeyDiscriminant(ProductTagRelationalKeysDiscriminants),
+    ProductTagSubscriptionKeyDiscriminant(ProductTagSubscriptionsDiscriminants),
 
     // Generic key wrapper
     DefinitionKey(DefinitionKeys),
@@ -2294,6 +2806,15 @@ impl ModelAssociatedTypesExt<Definitions> for DefinitionModelAssociatedTypes {
         M::wrap_relational_key(key)
     }
 
+    fn from_subscription_key_discriminant<M: NetabaseModelTrait<Definitions>>(
+        key: <<M as NetabaseModelTrait<Definitions>>::SubscriptionEnum as IntoDiscriminant>::Discriminant
+    ) -> Self {
+        M::wrap_subscription_key_discriminant(key)
+    }
+}
+
+// Implement RedbModelAssociatedTypesExt with direct implementations
+impl RedbModelAssociatedTypesExt<Definitions> for DefinitionModelAssociatedTypes {
     fn insert_model_into_redb(
         &self,
         txn: &WriteTransaction,
@@ -2489,6 +3010,56 @@ impl ModelAssociatedTypesExt<Definitions> for DefinitionModelAssociatedTypes {
         }
     }
 
+    fn insert_subscription_into_redb(
+        hash: &[u8; 32],
+        txn: &WriteTransaction,
+        table_name: &str,
+        primary_key_ref: &Self,
+    ) -> NetabaseResult<()> {
+        // Subscription tree stores: PrimaryKey (wrapped) -> Hash
+        // This allows us to track which models are in this subscription
+        // and compute order-independent state via hash accumulation
+        match primary_key_ref {
+            DefinitionModelAssociatedTypes::UserPrimaryKey(pk) => {
+                let table_def: TableDefinition<UserId, [u8; 32]> = TableDefinition::new(table_name);
+                let mut table = txn.open_table(table_def)?;
+                table.insert(pk, hash)?;
+                Ok(())
+            },
+            DefinitionModelAssociatedTypes::ProductPrimaryKey(pk) => {
+                let table_def: TableDefinition<ProductId, [u8; 32]> = TableDefinition::new(table_name);
+                let mut table = txn.open_table(table_def)?;
+                table.insert(pk, hash)?;
+                Ok(())
+            },
+            DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk) => {
+                let table_def: TableDefinition<CategoryId, [u8; 32]> = TableDefinition::new(table_name);
+                let mut table = txn.open_table(table_def)?;
+                table.insert(pk, hash)?;
+                Ok(())
+            },
+            DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk) => {
+                let table_def: TableDefinition<ReviewId, [u8; 32]> = TableDefinition::new(table_name);
+                let mut table = txn.open_table(table_def)?;
+                table.insert(pk, hash)?;
+                Ok(())
+            },
+            DefinitionModelAssociatedTypes::TagPrimaryKey(pk) => {
+                let table_def: TableDefinition<TagId, [u8; 32]> = TableDefinition::new(table_name);
+                let mut table = txn.open_table(table_def)?;
+                table.insert(pk, hash)?;
+                Ok(())
+            },
+            DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk) => {
+                let table_def: TableDefinition<ProductTagId, [u8; 32]> = TableDefinition::new(table_name);
+                let mut table = txn.open_table(table_def)?;
+                table.insert(pk, hash)?;
+                Ok(())
+            },
+            _ => Err(NetabaseError::Other("Type mismatch in insert_subscription_into_redb".into())),
+        }
+    }
+
     fn delete_model_from_redb(
         &self,
         txn: &WriteTransaction,
@@ -2532,6 +3103,54 @@ impl ModelAssociatedTypesExt<Definitions> for DefinitionModelAssociatedTypes {
                 Ok(())
             },
             _ => Err(NetabaseError::Other("Type mismatch in delete_model_from_redb".into())),
+        }
+    }
+
+    fn delete_subscription_from_redb(
+        &self,
+        txn: &WriteTransaction,
+        table_name: &str,
+    ) -> NetabaseResult<()> {
+        // Subscription trees store: PrimaryKey -> Hash
+        // Delete based on the primary key (self is the wrapped primary key)
+        match self {
+            DefinitionModelAssociatedTypes::UserPrimaryKey(pk) => {
+                let table_def: TableDefinition<UserId, [u8; 32]> = TableDefinition::new(table_name);
+                let mut table = txn.open_table(table_def)?;
+                table.remove(pk)?;
+                Ok(())
+            },
+            DefinitionModelAssociatedTypes::ProductPrimaryKey(pk) => {
+                let table_def: TableDefinition<ProductId, [u8; 32]> = TableDefinition::new(table_name);
+                let mut table = txn.open_table(table_def)?;
+                table.remove(pk)?;
+                Ok(())
+            },
+            DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk) => {
+                let table_def: TableDefinition<CategoryId, [u8; 32]> = TableDefinition::new(table_name);
+                let mut table = txn.open_table(table_def)?;
+                table.remove(pk)?;
+                Ok(())
+            },
+            DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk) => {
+                let table_def: TableDefinition<ReviewId, [u8; 32]> = TableDefinition::new(table_name);
+                let mut table = txn.open_table(table_def)?;
+                table.remove(pk)?;
+                Ok(())
+            },
+            DefinitionModelAssociatedTypes::TagPrimaryKey(pk) => {
+                let table_def: TableDefinition<TagId, [u8; 32]> = TableDefinition::new(table_name);
+                let mut table = txn.open_table(table_def)?;
+                table.remove(pk)?;
+                Ok(())
+            },
+            DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk) => {
+                let table_def: TableDefinition<ProductTagId, [u8; 32]> = TableDefinition::new(table_name);
+                let mut table = txn.open_table(table_def)?;
+                table.remove(pk)?;
+                Ok(())
+            },
+            _ => Err(NetabaseError::Other("Type mismatch in delete_subscription_from_redb".into())),
         }
     }
 }
@@ -2632,6 +3251,29 @@ impl TreeManager<Definitions> for Definitions {
             DefinitionsDiscriminants::ProductTag => vec![
                 "ProductTag_rel_Product".to_string(),
                 "ProductTag_rel_Tag".to_string(),
+            ],
+        }
+    }
+
+    fn get_subscription_tree_names(model_discriminant: &DefinitionsDiscriminants) -> Vec<String> {
+        match model_discriminant {
+            DefinitionsDiscriminants::User => vec![
+                "User_sub_Updates".to_string(),
+            ],
+            DefinitionsDiscriminants::Product => vec![
+                "Product_sub_Updates".to_string(),
+            ],
+            DefinitionsDiscriminants::Category => vec![
+                "Category_sub_AllProducts".to_string(),
+            ],
+            DefinitionsDiscriminants::Review => vec![
+                "Review_sub_ReviewsForProduct".to_string(),
+            ],
+            DefinitionsDiscriminants::Tag => vec![
+                "Tag_sub_TaggedItems".to_string(),
+            ],
+            DefinitionsDiscriminants::ProductTag => vec![
+                "ProductTag_sub_ProductTags".to_string(),
             ],
         }
     }
@@ -3483,6 +4125,130 @@ fn test_definition_enum_operations() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn test_subscription_feature() -> Result<(), Box<dyn std::error::Error>> {
+    use netabase_store::traits::store::transaction::{ReadTransaction, WriteTransaction};
+
+    println!("\n=== Testing Subscription Feature ===");
+
+    let db_path = "test_subscriptions.redb";
+    let _ = std::fs::remove_file(db_path);
+
+    let store = RedbStore::<Definitions>::new(db_path)?;
+
+    // Create test users with subscriptions
+    let user1 = User {
+        id: 1,
+        email: "user1@example.com".to_string(),
+        name: "User One".to_string(),
+        age: 25,
+    };
+
+    let user2 = User {
+        id: 2,
+        email: "user2@example.com".to_string(),
+        name: "User Two".to_string(),
+        age: 30,
+    };
+
+    let user3 = User {
+        id: 3,
+        email: "user3@example.com".to_string(),
+        name: "User Three".to_string(),
+        age: 35,
+    };
+
+    println!("\n--- Inserting users with subscriptions ---");
+    store.write(|txn| {
+        txn.put(user1.clone())?;
+        txn.put(user2.clone())?;
+        txn.put(user3.clone())?;
+        Ok(())
+    })?;
+    println!("  ✓ Inserted 3 users (subscriptions auto-tracked)");
+
+    println!("\n--- Testing subscription accumulator ---");
+    let (accumulator, count) = store.read(|txn| {
+        txn.get_subscription_accumulator::<User>(
+            UserSubscriptionsDiscriminants::Updates
+        )
+    })?;
+
+    println!("  ✓ Subscription accumulator: {:?}", &accumulator[..8]);
+    println!("  ✓ Item count: {}", count);
+    assert_eq!(count, 3, "Should have 3 items in subscription");
+
+    println!("\n--- Getting subscription keys ---");
+    let keys = store.read(|txn| {
+        txn.get_subscription_keys::<User>(
+            UserSubscriptionsDiscriminants::Updates
+        )
+    })?;
+
+    println!("  ✓ Retrieved {} primary keys from subscription", keys.len());
+    assert_eq!(keys.len(), 3, "Should have 3 keys");
+    for key in &keys {
+        println!("    - User ID: {}", key.0);
+    }
+
+    println!("\n--- Testing order-independent property ---");
+    // Create a second store with same data inserted in different order
+    let db_path2 = "test_subscriptions2.redb";
+    let _ = std::fs::remove_file(db_path2);
+    let store2 = RedbStore::<Definitions>::new(db_path2)?;
+
+    store2.write(|txn| {
+        // Insert in different order: 3, 1, 2 instead of 1, 2, 3
+        txn.put(user3.clone())?;
+        txn.put(user1.clone())?;
+        txn.put(user2.clone())?;
+        Ok(())
+    })?;
+
+    let (accumulator2, count2) = store2.read(|txn| {
+        txn.get_subscription_accumulator::<User>(
+            UserSubscriptionsDiscriminants::Updates
+        )
+    })?;
+
+    assert_eq!(accumulator, accumulator2, "Accumulators should match regardless of insertion order");
+    assert_eq!(count, count2, "Counts should match");
+    println!("  ✓ Accumulators match despite different insertion order!");
+    println!("  ✓ Order-independent comparison verified");
+
+    println!("\n--- Testing subscription sync detection ---");
+    // Add one more user to store2
+    let user4 = User {
+        id: 4,
+        email: "user4@example.com".to_string(),
+        name: "User Four".to_string(),
+        age: 40,
+    };
+
+    store2.write(|txn| {
+        txn.put(user4.clone())?;
+        Ok(())
+    })?;
+
+    let (accumulator_after, count_after) = store2.read(|txn| {
+        txn.get_subscription_accumulator::<User>(
+            UserSubscriptionsDiscriminants::Updates
+        )
+    })?;
+
+    assert_ne!(accumulator, accumulator_after, "Accumulators should differ when stores have different data");
+    assert_eq!(count_after, 4, "Store2 should have 4 items");
+    println!("  ✓ Detected difference between stores (3 vs 4 items)");
+    println!("  ✓ Subscription sync detection working");
+
+    // Cleanup
+    std::fs::remove_file(db_path)?;
+    std::fs::remove_file(db_path2)?;
+
+    println!("\n✓ Subscription feature test completed!");
+
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Comprehensive Boilerplate Example for Netabase Store");
     println!("=====================================================");
@@ -3505,7 +4271,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test Definition enum operations
     test_definition_enum_operations()?;
-    
+
+    // Test Subscription feature
+    test_subscription_feature()?;
+
     println!("\n✅ All tests completed successfully!");
     println!("\nThis example demonstrates:");
     println!("• 6 different model types (User, Product, Category, Review, Tag, ProductTag)");
@@ -3525,6 +4294,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("• Data integrity verification");
     println!("• Definition enum-based store operations (put_definition, get_definition)");
     println!("• Unified interface for inserting and retrieving different model types");
-    
+    println!("• Subscription trees with order-independent comparison (XOR accumulation)");
+    println!("• Automatic subscription tracking on write operations");
+    println!("• Store synchronization detection and comparison");
+
     Ok(())
 }

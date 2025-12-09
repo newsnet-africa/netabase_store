@@ -94,7 +94,9 @@ where
     <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum as strum::IntoDiscriminant>::Discriminant: std::marker::Sync,
     <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum as strum::IntoDiscriminant>::Discriminant: std::marker::Send,
     <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
-    <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum as strum::IntoDiscriminant>::Discriminant: DiscriminantName
+    <<<M as NetabaseModelTrait<D>>::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum as strum::IntoDiscriminant>::Discriminant: DiscriminantName,
+    <M as NetabaseModelTrait<D>>::SubscriptionEnum: IntoDiscriminant + Clone + Debug,
+    <<M as NetabaseModelTrait<D>>::SubscriptionEnum as IntoDiscriminant>::Discriminant: IntoEnumIterator + std::hash::Hash + Eq + Debug + Send + Sync + Clone + DiscriminantName
 {
     pub main_tree: TreeName,
     pub secondary_keys: SecondaryKeyTrees<
@@ -103,7 +105,19 @@ where
     pub relational_keys: RelationalKeyTrees<
         <M::Keys as crate::traits::model::key::NetabaseModelKeyTrait<D, M>>::RelationalEnum,
     >,
+    pub subscription_keys: SubscriptionKeyTrees<
+        <M as NetabaseModelTrait<D>>::SubscriptionEnum,
+    >,
     pub hash_tree: Option<HashTree<M, D>>,
+}
+
+/// Contains discriminants for subscription keys of a specific model
+pub struct SubscriptionKeyTrees<SubEnum>
+where
+    SubEnum: IntoDiscriminant + Clone + Debug,
+    SubEnum::Discriminant: IntoEnumIterator + std::hash::Hash + Eq + Debug + Send + Sync + Clone + DiscriminantName,
+{
+    pub trees: HashMap<SubEnum::Discriminant, TreeName>,
 }
 
 /// The central management structure for all trees - simplified without Box<Any>
@@ -162,4 +176,7 @@ where
 
     /// Get relational tree names for a model using DiscriminantName
     fn get_relational_tree_names(model_discriminant: &D::Discriminant) -> Vec<TreeName>;
+
+    /// Get subscription tree names for a model using DiscriminantName
+    fn get_subscription_tree_names(model_discriminant: &D::Discriminant) -> Vec<TreeName>;
 }

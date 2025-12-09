@@ -1,5 +1,5 @@
 use crate::traits::definition::{DiscriminantName, NetabaseDefinition};
-use crate::traits::model::RedbNetabaseModelTrait;
+use crate::databases::redb_store::RedbNetabaseModelTrait;
 use crate::traits::model::key::NetabaseModelKeyTrait;
 use crate::traits::store::transaction::{ReadTransaction, WriteTransaction};
 use crate::{error::NetabaseResult, traits::model::NetabaseModelTrait};

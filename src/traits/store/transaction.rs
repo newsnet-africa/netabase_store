@@ -1,8 +1,7 @@
 use crate::error::NetabaseResult;
 use crate::traits::definition::{DiscriminantName, NetabaseDefinition};
-use crate::traits::model::{
-    NetabaseModelTrait, RedbNetabaseModelTrait, key::NetabaseModelKeyTrait,
-};
+use crate::traits::model::{NetabaseModelTrait, key::NetabaseModelKeyTrait};
+use crate::databases::redb_store::RedbNetabaseModelTrait;
 use redb::{Key, Value};
 use std::borrow::Borrow;
 use std::fmt::Debug;
@@ -56,6 +55,25 @@ where
             Ok(None)
         }
     }
+
+    /// Get the order-independent hash accumulator for a subscription tree
+    /// Uses XOR to accumulate all hashes, making it independent of insertion order
+    /// Returns the accumulated hash and the count of items
+    fn get_subscription_accumulator<M: NetabaseModelTrait<D> + RedbNetabaseModelTrait<D>>(
+        &self,
+        subscription_discriminant: <<M as NetabaseModelTrait<D>>::SubscriptionEnum as IntoDiscriminant>::Discriminant,
+    ) -> NetabaseResult<([u8; 32], u64)>
+    where
+        M::PrimaryKey: Key + 'static;
+
+    /// Get all primary keys in a subscription tree
+    /// Useful for syncing differences between stores
+    fn get_subscription_keys<M: NetabaseModelTrait<D> + RedbNetabaseModelTrait<D>>(
+        &self,
+        subscription_discriminant: <<M as NetabaseModelTrait<D>>::SubscriptionEnum as IntoDiscriminant>::Discriminant,
+    ) -> NetabaseResult<Vec<M::PrimaryKey>>
+    where
+        M::PrimaryKey: Key + 'static + for<'a> Value<SelfType<'a> = M::PrimaryKey>;
 }
 
 pub trait WriteTransaction<D: NetabaseDefinition>: ReadTransaction<D>

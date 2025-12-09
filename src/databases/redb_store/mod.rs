@@ -4,7 +4,7 @@ use crate::{
     },
     error::NetabaseResult,
     traits::{
-        definition::{NetabaseDefinition, NetabaseDefinitionTrait, DiscriminantName},
+        definition::{NetabaseDefinition, DiscriminantName},
         store::{
             store::StoreTrait,
             transaction::WriteTransaction,
@@ -15,7 +15,12 @@ use redb::ReadableDatabase;
 use strum::{IntoDiscriminant, IntoEnumIterator};
 use std::fmt::Debug;
 
+pub mod backend;
 pub mod transaction;
+pub mod traits;
+
+pub use traits::{RedbModelAssociatedTypesExt, RedbNetabaseModelTrait};
+pub use backend::RedbBackendStore;
 
 pub struct RedbStore<D: NetabaseDefinition>
 where

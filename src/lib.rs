@@ -2,9 +2,15 @@
 //!
 //! # Netabase Store
 //!
-//! A type-safe, high-performance embedded database abstraction layer for Rust, built on top of `redb`.
+//! A type-safe, high-performance embedded database abstraction layer for Rust.
 //! Netabase provides a strongly-typed interface for storing and querying structured data with support
-//! for secondary indices, relational keys, and automatic tree management.
+//! for secondary indices, relational keys, subscription trees, and automatic tree management.
+//!
+//! Netabase is backend-agnostic and can work with any key-value store that implements the
+//! [`BackendStore`](backend::BackendStore) trait. Currently supported backends:
+//! - **redb**: High-performance embedded database (default)
+//! - **sled**: Planned
+//! - **IndexedDB**: Planned for WASM targets
 //!
 //! ## Core Concepts
 //!
@@ -124,10 +130,16 @@
 //! All database operations return `NetabaseResult<T>` which is an alias for
 //! `Result<T, NetabaseError>`. See [`error`] module for error types.
 
+pub mod backend;
 pub mod error;
 pub mod traits;
 pub mod databases;
 
 // Re-export commonly used types
-pub use databases::redb_store::RedbStore;
 pub use error::{NetabaseError, NetabaseResult};
+
+// Backend abstraction re-exports
+pub use backend::{
+    BackendKey, BackendValue, BackendStore, BackendReadTransaction, BackendWriteTransaction,
+    BackendError, BackendTable, BackendReadableTable, BackendWritableTable,
+};

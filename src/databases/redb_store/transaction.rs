@@ -1,8 +1,8 @@
-use crate::databases::redb_store::RedbStore;
-use crate::error::{NetabaseError, NetabaseResult};
+use crate::databases::redb_store::{RedbStore, RedbModelAssociatedTypesExt, RedbNetabaseModelTrait};
+use crate::error::NetabaseResult;
 use crate::traits::definition::{DiscriminantName, NetabaseDefinition, NetabaseDefinitionTrait, ModelAssociatedTypesExt};
 use crate::traits::model::{
-    NetabaseModelTrait, RedbNetabaseModelTrait, key::NetabaseModelKeyTrait,
+    NetabaseModelTrait, key::NetabaseModelKeyTrait,
 };
 use crate::traits::store::transaction::{ReadTransaction, WriteTransaction};
 use redb::{Key, ReadableTable, TableDefinition, Value};
@@ -71,6 +71,63 @@ where
         let result = table.get(secondary_key)?;
         Ok(result.map(|v| v.value()))
     }
+
+    fn get_subscription_accumulator<M: NetabaseModelTrait<D> + RedbNetabaseModelTrait<D>>(
+        &self,
+        subscription_discriminant: <<M as NetabaseModelTrait<D>>::SubscriptionEnum as IntoDiscriminant>::Discriminant,
+    ) -> NetabaseResult<([u8; 32], u64)>
+    where
+        M::PrimaryKey: Key + 'static,
+    {
+        let table_name = M::subscription_key_table_name(subscription_discriminant);
+
+        // Open the subscription tree: PrimaryKey -> Hash
+        let table_def: TableDefinition<M::PrimaryKey, [u8; 32]> = TableDefinition::new(&table_name);
+        let table = self.txn.open_table(table_def)?;
+
+        // XOR accumulator - order-independent hash accumulation
+        let mut accumulator = [0u8; 32];
+        let mut count = 0u64;
+
+        // Iterate through all entries and XOR their hashes
+        for entry in table.iter()? {
+            let (_key, hash) = entry?;
+            let hash_value = hash.value();
+
+            // XOR each byte of the hash into the accumulator
+            for i in 0..32 {
+                accumulator[i] ^= hash_value[i];
+            }
+
+            count += 1;
+        }
+
+        Ok((accumulator, count))
+    }
+
+    fn get_subscription_keys<M: NetabaseModelTrait<D> + RedbNetabaseModelTrait<D>>(
+        &self,
+        subscription_discriminant: <<M as NetabaseModelTrait<D>>::SubscriptionEnum as IntoDiscriminant>::Discriminant,
+    ) -> NetabaseResult<Vec<M::PrimaryKey>>
+    where
+        M::PrimaryKey: Key + 'static + for<'a> Value<SelfType<'a> = M::PrimaryKey>,
+    {
+        let table_name = M::subscription_key_table_name(subscription_discriminant);
+
+        // Open the subscription tree: PrimaryKey -> Hash
+        let table_def: TableDefinition<M::PrimaryKey, [u8; 32]> = TableDefinition::new(&table_name);
+        let table = self.txn.open_table(table_def)?;
+
+        let mut keys = Vec::new();
+
+        // Collect all primary keys
+        for entry in table.iter()? {
+            let (key, _hash) = entry?;
+            keys.push(key.value());
+        }
+
+        Ok(keys)
+    }
 }
 
 /// Queue operation for managing transaction operations using generics
@@ -136,6 +193,7 @@ where
     where
         <D as IntoDiscriminant>::Discriminant:
             IntoEnumIterator + std::hash::Hash + Eq + Debug + DiscriminantName + Clone,
+        D::ModelAssociatedTypes: RedbModelAssociatedTypesExt<D>,
     {
         match self {
             QueueOperation::MainTreeInsert {
@@ -225,6 +283,14 @@ where
         table_name: String,                             // Table name for creating TableDefinition
         priority: u8,
     },
+    Subscription {
+        model_discriminant: D::Discriminant,            // Model discriminant
+        subscription_key_discriminant: D::ModelAssociatedTypes, // Wrapped subscription key discriminant
+        hash: [u8; 32],                                 // Blake3 hash
+        primary_key_ref: D::ModelAssociatedTypes,      // Typed primary key reference
+        table_name: String,                             // Table name
+        priority: u8,
+    },
     Delete {
         table_discriminant: D::Discriminant,            // Model discriminant for tree identification
         primary_key: D::ModelAssociatedTypes,          // Typed primary key
@@ -242,7 +308,7 @@ where
     pub fn execute(self, _wrapper: &mut RedbWriteTransaction<D>) -> NetabaseResult<()> {
         match self {
             ConcreteOperationExecutor::MainTree {
-                table_discriminant,
+                table_discriminant: _,
                 primary_key,
                 model_data,
                 table_name,
@@ -257,8 +323,8 @@ where
                 model_data.insert_model_into_redb(&_wrapper.txn, &table_name, &primary_key)?;
             }
             ConcreteOperationExecutor::SecondaryKey {
-                model_discriminant,
-                key_discriminant,
+                model_discriminant: _,
+                key_discriminant: _,
                 key_data,
                 primary_key_ref,
                 table_name,
@@ -273,8 +339,8 @@ where
                 key_data.insert_secondary_key_into_redb(&_wrapper.txn, &table_name, &primary_key_ref)?;
             }
             ConcreteOperationExecutor::RelationalKey {
-                model_discriminant,
-                key_discriminant,
+                model_discriminant: _,
+                key_discriminant: _,
                 key_data,
                 primary_key_ref,
                 table_name,
@@ -289,7 +355,7 @@ where
                 key_data.insert_relational_key_into_redb(&_wrapper.txn, &table_name, &primary_key_ref)?;
             }
             ConcreteOperationExecutor::HashTree {
-                model_discriminant,
+                model_discriminant: _,
                 hash,
                 primary_key_ref,
                 table_name,
@@ -303,8 +369,25 @@ where
                 */
                 D::ModelAssociatedTypes::insert_hash_into_redb(&hash, &_wrapper.txn, &table_name, &primary_key_ref)?;
             }
+            ConcreteOperationExecutor::Subscription {
+                model_discriminant: _,
+                subscription_key_discriminant: _,
+                hash,
+                primary_key_ref,
+                table_name,
+                ..
+            } => {
+                /*
+                println!(
+                    "Executing Subscription operation for subscription tree"
+                );
+                */
+                // Insert primary key -> hash mapping into subscription tree
+                // This allows us to track which models are in this subscription
+                D::ModelAssociatedTypes::insert_subscription_into_redb(&hash, &_wrapper.txn, &table_name, &primary_key_ref)?;
+            }
             ConcreteOperationExecutor::Delete {
-                table_discriminant,
+                table_discriminant: _,
                 primary_key,
                 table_name,
                 ..
@@ -327,6 +410,7 @@ where
             ConcreteOperationExecutor::SecondaryKey { priority, .. } => *priority,
             ConcreteOperationExecutor::RelationalKey { priority, .. } => *priority,
             ConcreteOperationExecutor::HashTree { priority, .. } => *priority,
+            ConcreteOperationExecutor::Subscription { priority, .. } => *priority,
             ConcreteOperationExecutor::Delete { priority, .. } => *priority,
         }
     }
@@ -338,6 +422,7 @@ where
             ConcreteOperationExecutor::SecondaryKey { table_name, .. } => table_name,
             ConcreteOperationExecutor::RelationalKey { table_name, .. } => table_name,
             ConcreteOperationExecutor::HashTree { table_name, .. } => table_name,
+            ConcreteOperationExecutor::Subscription { table_name, .. } => table_name,
             ConcreteOperationExecutor::Delete { table_name, .. } => table_name,
         }
     }
@@ -355,6 +440,9 @@ where
                 model_discriminant, ..
             } => model_discriminant,
             ConcreteOperationExecutor::HashTree {
+                model_discriminant, ..
+            } => model_discriminant,
+            ConcreteOperationExecutor::Subscription {
                 model_discriminant, ..
             } => model_discriminant,
             ConcreteOperationExecutor::Delete {
@@ -458,6 +546,63 @@ where
         // Look up the primary key
         let result = table.get(secondary_key)?;
         Ok(result.map(|v| v.value()))
+    }
+
+    fn get_subscription_accumulator<M: NetabaseModelTrait<D> + RedbNetabaseModelTrait<D>>(
+        &self,
+        subscription_discriminant: <<M as NetabaseModelTrait<D>>::SubscriptionEnum as IntoDiscriminant>::Discriminant,
+    ) -> NetabaseResult<([u8; 32], u64)>
+    where
+        M::PrimaryKey: Key + 'static,
+    {
+        let table_name = M::subscription_key_table_name(subscription_discriminant);
+
+        // Open the subscription tree: PrimaryKey -> Hash
+        let table_def: TableDefinition<M::PrimaryKey, [u8; 32]> = TableDefinition::new(&table_name);
+        let table = self.txn.open_table(table_def)?;
+
+        // XOR accumulator - order-independent hash accumulation
+        let mut accumulator = [0u8; 32];
+        let mut count = 0u64;
+
+        // Iterate through all entries and XOR their hashes
+        for entry in table.iter()? {
+            let (_key, hash) = entry?;
+            let hash_value = hash.value();
+
+            // XOR each byte of the hash into the accumulator
+            for i in 0..32 {
+                accumulator[i] ^= hash_value[i];
+            }
+
+            count += 1;
+        }
+
+        Ok((accumulator, count))
+    }
+
+    fn get_subscription_keys<M: NetabaseModelTrait<D> + RedbNetabaseModelTrait<D>>(
+        &self,
+        subscription_discriminant: <<M as NetabaseModelTrait<D>>::SubscriptionEnum as IntoDiscriminant>::Discriminant,
+    ) -> NetabaseResult<Vec<M::PrimaryKey>>
+    where
+        M::PrimaryKey: Key + 'static + for<'a> Value<SelfType<'a> = M::PrimaryKey>,
+    {
+        let table_name = M::subscription_key_table_name(subscription_discriminant);
+
+        // Open the subscription tree: PrimaryKey -> Hash
+        let table_def: TableDefinition<M::PrimaryKey, [u8; 32]> = TableDefinition::new(&table_name);
+        let table = self.txn.open_table(table_def)?;
+
+        let mut keys = Vec::new();
+
+        // Collect all primary keys
+        for entry in table.iter()? {
+            let (key, _hash) = entry?;
+            keys.push(key.value());
+        }
+
+        Ok(keys)
     }
 }
 
@@ -585,6 +730,35 @@ where
         };
 
         self.add_operation(hash_operation);
+
+        // 5. Queue Subscription Operations
+        // Get subscriptions from the model
+        let subscriptions = model.get_subscriptions();
+        for subscription in subscriptions {
+            let subscription_discriminant = subscription.discriminant();
+            let subscription_discriminant_for_wrap = subscription.discriminant();
+
+            // Wrap subscription key discriminant
+            let subscription_discriminant_wrapped =
+                M::wrap_subscription_key_discriminant(subscription_discriminant_for_wrap);
+
+            // Generate table name for this subscription
+            let table_name = M::subscription_key_table_name(subscription_discriminant);
+
+            // Reference to primary key for lookup
+            let pk_ref_wrapped = D::ModelAssociatedTypes::from_primary_key::<M>(pk.clone());
+
+            let subscription_operation = ConcreteOperationExecutor::Subscription {
+                model_discriminant: M::MODEL_TREE_NAME,
+                subscription_key_discriminant: subscription_discriminant_wrapped,
+                hash: hash.clone(),  // Reuse the same hash we computed earlier
+                primary_key_ref: pk_ref_wrapped,
+                table_name,
+                priority: 4,
+            };
+
+            self.add_operation(subscription_operation);
+        }
 
         Ok(())
     }
