@@ -2,10 +2,9 @@
 // for any Netabase store by using the Definition enum as the serialization layer
 
 use netabase_store::{
-    databases::redb_store::{RedbStore, RedbNetabaseModelTrait},
+    databases::redb_store::RedbStore,
     traits::{
         definition::{NetabaseDefinition, DiscriminantName},
-        model::NetabaseModelTrait,
         store::store::StoreTrait,
     },
 };
@@ -151,7 +150,7 @@ where
 
     /// Extract primary key from Definition enum
     /// This needs to be implemented based on your specific Definition enum
-    fn extract_key_from_definition(&self, definition: &D) -> Vec<u8> {
+    fn _extract_key_from_definition(&self, _definition: &D) -> Vec<u8> {
         // In practice, you'd pattern match on the Definition enum variants
         // and extract the primary key from each model type
         // For now, we'll use a placeholder
@@ -400,7 +399,7 @@ where
 
     /// Remove a record by key
     fn remove(&mut self, k: &kad::Key) {
-        let key_bytes = k.to_vec();
+        let _key_bytes = k.to_vec();
 
         // In practice, you'd need to know which model type this key belongs to
         // One approach: maintain a key->model_type index
@@ -413,7 +412,7 @@ where
     fn records(&self) -> Self::RecordsIter<'_> {
         // Get all models as Definition enums
         // (This would use the iter_all_models method we created earlier)
-        let mut records = Vec::new();
+        let records = Vec::new();
 
         // For each model type, fetch all instances and convert to Records
         // This is where you'd use your AllModelsIterator

@@ -21,6 +21,9 @@
 //!     Err(NetabaseError::RedbError(e)) => {
 //!         eprintln!("Database error: {}", e);
 //!     }
+//!     Err(NetabaseError::SledError(e)) => {
+//!         eprintln!("Sled error: {}", e);
+//!     }
 //!     Err(NetabaseError::DecodeError(e)) => {
 //!         eprintln!("Deserialization error: {}", e);
 //!     }
@@ -77,11 +80,13 @@ pub type NetabaseResult<T> = Result<T, NetabaseError>;
 /// The main error type for Netabase operations.
 ///
 /// This enum wraps all possible errors that can occur during database operations,
-/// including errors from the underlying `redb` database and `bincode` serialization.
+/// including errors from the underlying database backends (`redb` or `sled`) and
+/// `bincode` serialization.
 ///
 /// # Variants
 ///
-/// - `RedbError`: Errors from the underlying redb database
+/// - `RedbError`: Errors from the redb database backend
+/// - `SledError`: Errors from the sled database backend
 /// - `DecodeError`: Deserialization errors from bincode
 /// - `EncodeError`: Serialization errors from bincode
 /// - `Other`: Custom error messages
@@ -100,6 +105,10 @@ pub enum NetabaseError {
     /// Wraps errors from the redb database
     #[error(transparent)]
     RedbError(#[from] RedbError),
+
+    /// Wraps errors from the sled database
+    #[error(transparent)]
+    SledError(#[from] sled::Error),
 
     /// Wraps deserialization errors from bincode
     #[error(transparent)]

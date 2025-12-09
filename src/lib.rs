@@ -8,8 +8,8 @@
 //!
 //! Netabase is backend-agnostic and can work with any key-value store that implements the
 //! [`BackendStore`](backend::BackendStore) trait. Currently supported backends:
-//! - **redb**: High-performance embedded database (default)
-//! - **sled**: Planned
+//! - **redb**: High-performance embedded database with typed tables and zero-copy reads
+//! - **sled**: Lightweight embedded database using bincode serialization
 //! - **IndexedDB**: Planned for WASM targets
 //!
 //! ## Core Concepts

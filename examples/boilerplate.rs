@@ -1,26 +1,32 @@
-use derive_more::TryInto;
 use bincode::{Decode, Encode};
+use derive_more::TryInto;
 use netabase_store::{
-    databases::redb_store::{RedbStore, RedbModelAssociatedTypesExt, RedbNetabaseModelTrait},
-    error::{NetabaseResult, NetabaseError},
+    databases::redb_store::{RedbModelAssociatedTypesExt, RedbNetabaseModelTrait, RedbStore},
+    databases::sled_store::{
+        SledModelAssociatedTypesExt, SledNetabaseModelTrait, SledStore, SledStoreTrait,
+    },
+    error::{NetabaseError, NetabaseResult},
     traits::{
-        definition::{NetabaseDefinitionTrait, DiscriminantName, key::NetabaseDefinitionKeyTrait, ModelAssociatedTypesExt},
+        definition::{
+            DiscriminantName, ModelAssociatedTypesExt, NetabaseDefinitionTrait,
+            key::NetabaseDefinitionKeyTrait,
+        },
         model::{NetabaseModelTrait, key::NetabaseModelKeyTrait},
         store::{
-            tree_manager::{TreeManager, AllTrees},
             store::StoreTrait,
+            tree_manager::{AllTrees, TreeManager},
         },
     },
 };
-use redb::{Key, Value, TableDefinition, TypeName, WriteTransaction, ReadableTable};
+use redb::{Key, TableDefinition, TypeName, Value, WriteTransaction};
 use std::{borrow::Cow, path::Path};
-use strum::{EnumIter, EnumDiscriminants, AsRefStr, IntoEnumIterator, IntoDiscriminant};
+use strum::{AsRefStr, EnumDiscriminants, EnumIter, IntoDiscriminant, IntoEnumIterator};
 
 // ================================================================================= ================
 // Model 1: User
 // ================================================================================= ================
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default, Encode, Decode)]
 pub struct User {
     pub id: u64,
     pub email: String,
@@ -83,16 +89,17 @@ impl_key_wrapper!(UserAge, u32, "UserAge");
 // Bincode 2.0 conversions for UserId
 impl TryFrom<Vec<u8>> for UserId {
     type Error = bincode::error::DecodeError;
-    
+
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        let (value, _): (u64, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        let (value, _): (u64, usize) =
+            bincode::decode_from_slice(&data, bincode::config::standard())?;
         Ok(UserId(value))
     }
 }
 
 impl TryFrom<UserId> for Vec<u8> {
     type Error = bincode::error::EncodeError;
-    
+
     fn try_from(value: UserId) -> Result<Self, Self::Error> {
         bincode::encode_to_vec(value.0, bincode::config::standard())
     }
@@ -117,7 +124,12 @@ impl Value for User {
         let email_end = 20 + email_len;
         let email = String::from_utf8(data[20..email_end].to_vec()).unwrap();
         let name = String::from_utf8(data[email_end..].to_vec()).unwrap();
-        User { id, email, name, age }
+        User {
+            id,
+            email,
+            name,
+            age,
+        }
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
@@ -186,7 +198,10 @@ impl Value for UserSecondaryKeys {
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
-        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize UserSecondaryKeys");
+        let bytes: Vec<u8> = value
+            .clone()
+            .try_into()
+            .expect("Failed to serialize UserSecondaryKeys");
         std::borrow::Cow::Owned(bytes)
     }
 
@@ -204,16 +219,17 @@ impl Key for UserSecondaryKeys {
 // Bincode conversions for UserSecondaryKeys
 impl TryFrom<Vec<u8>> for UserSecondaryKeys {
     type Error = bincode::error::DecodeError;
-    
+
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        let (value, _): (UserSecondaryKeys, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        let (value, _): (UserSecondaryKeys, usize) =
+            bincode::decode_from_slice(&data, bincode::config::standard())?;
         Ok(value)
     }
 }
 
 impl TryFrom<UserSecondaryKeys> for Vec<u8> {
     type Error = bincode::error::EncodeError;
-    
+
     fn try_from(value: UserSecondaryKeys) -> Result<Self, Self::Error> {
         bincode::encode_to_vec(value, bincode::config::standard())
     }
@@ -286,7 +302,10 @@ impl Value for UserSubscriptions {
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
-        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize UserSubscriptions");
+        let bytes: Vec<u8> = value
+            .clone()
+            .try_into()
+            .expect("Failed to serialize UserSubscriptions");
         std::borrow::Cow::Owned(bytes)
     }
 
@@ -304,16 +323,17 @@ impl Key for UserSubscriptions {
 // Bincode conversions for UserSubscriptions
 impl TryFrom<Vec<u8>> for UserSubscriptions {
     type Error = bincode::error::DecodeError;
-    
+
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        let (value, _): (UserSubscriptions, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        let (value, _): (UserSubscriptions, usize) =
+            bincode::decode_from_slice(&data, bincode::config::standard())?;
         Ok(value)
     }
 }
 
 impl TryFrom<UserSubscriptions> for Vec<u8> {
     type Error = bincode::error::EncodeError;
-    
+
     fn try_from(value: UserSubscriptions) -> Result<Self, Self::Error> {
         bincode::encode_to_vec(value, bincode::config::standard())
     }
@@ -335,7 +355,10 @@ impl Value for UserRelationalKeys {
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
-        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize UserRelationalKeys");
+        let bytes: Vec<u8> = value
+            .clone()
+            .try_into()
+            .expect("Failed to serialize UserRelationalKeys");
         std::borrow::Cow::Owned(bytes)
     }
 
@@ -353,16 +376,17 @@ impl Key for UserRelationalKeys {
 // Bincode 2.0 conversions for UserRelationalKeys
 impl TryFrom<Vec<u8>> for UserRelationalKeys {
     type Error = bincode::error::DecodeError;
-    
+
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        let (value, _): (UserRelationalKeys, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        let (value, _): (UserRelationalKeys, usize) =
+            bincode::decode_from_slice(&data, bincode::config::standard())?;
         Ok(value)
     }
 }
 
 impl TryFrom<UserRelationalKeys> for Vec<u8> {
     type Error = bincode::error::EncodeError;
-    
+
     fn try_from(value: UserRelationalKeys) -> Result<Self, Self::Error> {
         bincode::encode_to_vec(value, bincode::config::standard())
     }
@@ -416,7 +440,8 @@ impl NetabaseModelTrait<Definitions> for User {
                 UserSecondaryKeys::Email(UserEmail(self.email.clone())),
                 UserSecondaryKeys::Name(UserName(self.name.clone())),
                 UserSecondaryKeys::Age(UserAge(self.age)),
-            ].into_iter()
+            ]
+            .into_iter(),
         }
     }
 
@@ -424,7 +449,7 @@ impl NetabaseModelTrait<Definitions> for User {
         // Relational keys should be fetched from the database, not generated from the model
         // This is a limitation of the current API - it should be lazy or require a transaction context
         UserRelationalKeysIter {
-            iter: vec![].into_iter()
+            iter: vec![].into_iter(),
         }
     }
 
@@ -462,15 +487,21 @@ impl NetabaseModelTrait<Definitions> for User {
         DefinitionModelAssociatedTypes::UserSubscriptionKey(key)
     }
 
-    fn wrap_secondary_key_discriminant(key: UserSecondaryKeysDiscriminants) -> DefinitionModelAssociatedTypes {
+    fn wrap_secondary_key_discriminant(
+        key: UserSecondaryKeysDiscriminants,
+    ) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::UserSecondaryKeyDiscriminant(key)
     }
 
-    fn wrap_relational_key_discriminant(key: UserRelationalKeysDiscriminants) -> DefinitionModelAssociatedTypes {
+    fn wrap_relational_key_discriminant(
+        key: UserRelationalKeysDiscriminants,
+    ) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::UserRelationalKeyDiscriminant(key)
     }
 
-    fn wrap_subscription_key_discriminant(key: UserSubscriptionsDiscriminants) -> DefinitionModelAssociatedTypes {
+    fn wrap_subscription_key_discriminant(
+        key: UserSubscriptionsDiscriminants,
+    ) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::UserSubscriptionKeyDiscriminant(key)
     }
 }
@@ -480,25 +511,37 @@ impl RedbNetabaseModelTrait<Definitions> for User {
         let _ = db; // Avoid unused parameter warning
         TableDefinition::new(Self::MODEL_TREE_NAME.as_ref())
     }
-    
-    fn secondary_key_table_name(
-        key_discriminant: UserSecondaryKeysDiscriminants,
-    ) -> String {
+
+    fn secondary_key_table_name(key_discriminant: UserSecondaryKeysDiscriminants) -> String {
+        format!("User:Secondary:{}", key_discriminant.as_ref())
+    }
+
+    fn relational_key_table_name(key_discriminant: UserRelationalKeysDiscriminants) -> String {
+        format!("User:Relation:{}", key_discriminant.as_ref())
+    }
+
+    fn subscription_key_table_name(key_discriminant: UserSubscriptionsDiscriminants) -> String {
+        format!("User:Subscription:{}", key_discriminant.as_ref())
+    }
+
+    fn hash_tree_table_name() -> String {
+        "User:Hash".to_string()
+    }
+}
+
+impl SledNetabaseModelTrait<Definitions> for User {
+    fn secondary_key_table_name(key_discriminant: UserSecondaryKeysDiscriminants) -> String {
         format!("User_sec_{}", key_discriminant.as_ref())
     }
-    
-    fn relational_key_table_name(
-        key_discriminant: UserRelationalKeysDiscriminants,
-    ) -> String {
+
+    fn relational_key_table_name(key_discriminant: UserRelationalKeysDiscriminants) -> String {
         format!("User_rel_{}", key_discriminant.as_ref())
     }
 
-    fn subscription_key_table_name(
-        key_discriminant: UserSubscriptionsDiscriminants,
-    ) -> String {
+    fn subscription_key_table_name(key_discriminant: UserSubscriptionsDiscriminants) -> String {
         format!("User_sub_{}", key_discriminant.as_ref())
     }
-    
+
     fn hash_tree_table_name() -> String {
         "User_hash".to_string()
     }
@@ -508,12 +551,12 @@ impl RedbNetabaseModelTrait<Definitions> for User {
 // Model 2: Product
 // ================================================================================= ================
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default, Encode, Decode)]
 pub struct Product {
     pub uuid: u128,
     pub title: String,
     pub score: i32,
-    pub created_by: u64,  // Foreign key to User.id
+    pub created_by: u64, // Foreign key to User.id
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Ord, Eq, Encode, Decode)]
@@ -532,16 +575,17 @@ impl_key_wrapper!(ProductScore, i32, "ProductScore");
 // Bincode 2.0 conversions for ProductId
 impl TryFrom<Vec<u8>> for ProductId {
     type Error = bincode::error::DecodeError;
-    
+
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        let (value, _): (u128, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        let (value, _): (u128, usize) =
+            bincode::decode_from_slice(&data, bincode::config::standard())?;
         Ok(ProductId(value))
     }
 }
 
 impl TryFrom<ProductId> for Vec<u8> {
     type Error = bincode::error::EncodeError;
-    
+
     fn try_from(value: ProductId) -> Result<Self, Self::Error> {
         bincode::encode_to_vec(value.0, bincode::config::standard())
     }
@@ -563,7 +607,12 @@ impl Value for Product {
         let score = i32::from_le_bytes(data[16..20].try_into().unwrap());
         let created_by = u64::from_le_bytes(data[20..28].try_into().unwrap());
         let title = String::from_utf8(data[28..].to_vec()).unwrap();
-        Product { uuid, title, score, created_by }
+        Product {
+            uuid,
+            title,
+            score,
+            created_by,
+        }
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
@@ -628,7 +677,10 @@ impl Value for ProductSecondaryKeys {
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
-        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize ProductSecondaryKeys");
+        let bytes: Vec<u8> = value
+            .clone()
+            .try_into()
+            .expect("Failed to serialize ProductSecondaryKeys");
         std::borrow::Cow::Owned(bytes)
     }
 
@@ -646,16 +698,17 @@ impl Key for ProductSecondaryKeys {
 // Bincode 2.0 conversions for ProductSecondaryKeys
 impl TryFrom<Vec<u8>> for ProductSecondaryKeys {
     type Error = bincode::error::DecodeError;
-    
+
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        let (value, _): (ProductSecondaryKeys, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        let (value, _): (ProductSecondaryKeys, usize) =
+            bincode::decode_from_slice(&data, bincode::config::standard())?;
         Ok(value)
     }
 }
 
 impl TryFrom<ProductSecondaryKeys> for Vec<u8> {
     type Error = bincode::error::EncodeError;
-    
+
     fn try_from(value: ProductSecondaryKeys) -> Result<Self, Self::Error> {
         bincode::encode_to_vec(value, bincode::config::standard())
     }
@@ -724,7 +777,10 @@ impl Value for ProductSubscriptions {
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
-        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize ProductSubscriptions");
+        let bytes: Vec<u8> = value
+            .clone()
+            .try_into()
+            .expect("Failed to serialize ProductSubscriptions");
         std::borrow::Cow::Owned(bytes)
     }
 
@@ -741,16 +797,17 @@ impl Key for ProductSubscriptions {
 
 impl TryFrom<Vec<u8>> for ProductSubscriptions {
     type Error = bincode::error::DecodeError;
-    
+
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        let (value, _): (ProductSubscriptions, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        let (value, _): (ProductSubscriptions, usize) =
+            bincode::decode_from_slice(&data, bincode::config::standard())?;
         Ok(value)
     }
 }
 
 impl TryFrom<ProductSubscriptions> for Vec<u8> {
     type Error = bincode::error::EncodeError;
-    
+
     fn try_from(value: ProductSubscriptions) -> Result<Self, Self::Error> {
         bincode::encode_to_vec(value, bincode::config::standard())
     }
@@ -772,7 +829,10 @@ impl Value for ProductRelationalKeys {
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
-        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize ProductRelationalKeys");
+        let bytes: Vec<u8> = value
+            .clone()
+            .try_into()
+            .expect("Failed to serialize ProductRelationalKeys");
         std::borrow::Cow::Owned(bytes)
     }
 
@@ -790,16 +850,17 @@ impl Key for ProductRelationalKeys {
 // Bincode 2.0 conversions for ProductRelationalKeys
 impl TryFrom<Vec<u8>> for ProductRelationalKeys {
     type Error = bincode::error::DecodeError;
-    
+
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        let (value, _): (ProductRelationalKeys, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        let (value, _): (ProductRelationalKeys, usize) =
+            bincode::decode_from_slice(&data, bincode::config::standard())?;
         Ok(value)
     }
 }
 
 impl TryFrom<ProductRelationalKeys> for Vec<u8> {
     type Error = bincode::error::EncodeError;
-    
+
     fn try_from(value: ProductRelationalKeys) -> Result<Self, Self::Error> {
         bincode::encode_to_vec(value, bincode::config::standard())
     }
@@ -827,9 +888,7 @@ impl NetabaseModelKeyTrait<Definitions, Product> for ProductKeys {
     fn relational_keys(model: &Product) -> Vec<Self::RelationalEnum> {
         // Product knows who created it (stored in model.created_by field)
         // so we can generate this relational key directly
-        vec![
-            ProductRelationalKeys::CreatedBy(UserId(model.created_by)),
-        ]
+        vec![ProductRelationalKeys::CreatedBy(UserId(model.created_by))]
     }
 }
 
@@ -851,15 +910,14 @@ impl NetabaseModelTrait<Definitions> for Product {
             iter: vec![
                 ProductSecondaryKeys::Title(ProductTitle(self.title.clone())),
                 ProductSecondaryKeys::Score(ProductScore(self.score)),
-            ].into_iter()
+            ]
+            .into_iter(),
         }
     }
 
     fn get_relational_keys(&self) -> Self::RelationalKeys {
         ProductRelationalKeysIter {
-            iter: vec![
-                ProductRelationalKeys::CreatedBy(UserId(self.created_by)),
-            ].into_iter()
+            iter: vec![ProductRelationalKeys::CreatedBy(UserId(self.created_by))].into_iter(),
         }
     }
 
@@ -897,15 +955,21 @@ impl NetabaseModelTrait<Definitions> for Product {
         DefinitionModelAssociatedTypes::ProductSubscriptionKey(key)
     }
 
-    fn wrap_secondary_key_discriminant(key: ProductSecondaryKeysDiscriminants) -> DefinitionModelAssociatedTypes {
+    fn wrap_secondary_key_discriminant(
+        key: ProductSecondaryKeysDiscriminants,
+    ) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::ProductSecondaryKeyDiscriminant(key)
     }
 
-    fn wrap_relational_key_discriminant(key: ProductRelationalKeysDiscriminants) -> DefinitionModelAssociatedTypes {
+    fn wrap_relational_key_discriminant(
+        key: ProductRelationalKeysDiscriminants,
+    ) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::ProductRelationalKeyDiscriminant(key)
     }
 
-    fn wrap_subscription_key_discriminant(key: ProductSubscriptionsDiscriminants) -> DefinitionModelAssociatedTypes {
+    fn wrap_subscription_key_discriminant(
+        key: ProductSubscriptionsDiscriminants,
+    ) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::ProductSubscriptionKeyDiscriminant(key)
     }
 }
@@ -915,25 +979,37 @@ impl RedbNetabaseModelTrait<Definitions> for Product {
         let _ = db; // Avoid unused parameter warning
         TableDefinition::new(Self::MODEL_TREE_NAME.as_ref())
     }
-    
-    fn secondary_key_table_name(
-        key_discriminant: ProductSecondaryKeysDiscriminants,
-    ) -> String {
+
+    fn secondary_key_table_name(key_discriminant: ProductSecondaryKeysDiscriminants) -> String {
         format!("Product_sec_{}", key_discriminant.as_ref())
     }
-    
-    fn relational_key_table_name(
-        key_discriminant: ProductRelationalKeysDiscriminants,
-    ) -> String {
+
+    fn relational_key_table_name(key_discriminant: ProductRelationalKeysDiscriminants) -> String {
         format!("Product_rel_{}", key_discriminant.as_ref())
     }
 
-    fn subscription_key_table_name(
-        key_discriminant: ProductSubscriptionsDiscriminants,
-    ) -> String {
+    fn subscription_key_table_name(key_discriminant: ProductSubscriptionsDiscriminants) -> String {
         format!("Product_sub_{}", key_discriminant.as_ref())
     }
-    
+
+    fn hash_tree_table_name() -> String {
+        "Product_hash".to_string()
+    }
+}
+
+impl SledNetabaseModelTrait<Definitions> for Product {
+    fn secondary_key_table_name(key_discriminant: ProductSecondaryKeysDiscriminants) -> String {
+        format!("Product_sec_{}", key_discriminant.as_ref())
+    }
+
+    fn relational_key_table_name(key_discriminant: ProductRelationalKeysDiscriminants) -> String {
+        format!("Product_rel_{}", key_discriminant.as_ref())
+    }
+
+    fn subscription_key_table_name(key_discriminant: ProductSubscriptionsDiscriminants) -> String {
+        format!("Product_sub_{}", key_discriminant.as_ref())
+    }
+
     fn hash_tree_table_name() -> String {
         "Product_hash".to_string()
     }
@@ -943,7 +1019,7 @@ impl RedbNetabaseModelTrait<Definitions> for Product {
 // Model 3: Category
 // ================================================================================= ================
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default, Encode, Decode)]
 pub struct Category {
     pub id: u64,
     pub name: String,
@@ -964,7 +1040,8 @@ impl TryFrom<Vec<u8>> for CategoryId {
     type Error = bincode::error::DecodeError;
 
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        let (value, _): (u64, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        let (value, _): (u64, usize) =
+            bincode::decode_from_slice(&data, bincode::config::standard())?;
         Ok(CategoryId(value))
     }
 }
@@ -995,7 +1072,11 @@ impl Value for Category {
         let name_end = 16 + name_len;
         let name = String::from_utf8(data[16..name_end].to_vec()).unwrap();
         let description = String::from_utf8(data[name_end..].to_vec()).unwrap();
-        Category { id, name, description }
+        Category {
+            id,
+            name,
+            description,
+        }
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
@@ -1057,7 +1138,10 @@ impl Value for CategorySecondaryKeys {
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
-        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize CategorySecondaryKeys");
+        let bytes: Vec<u8> = value
+            .clone()
+            .try_into()
+            .expect("Failed to serialize CategorySecondaryKeys");
         std::borrow::Cow::Owned(bytes)
     }
 
@@ -1077,7 +1161,8 @@ impl TryFrom<Vec<u8>> for CategorySecondaryKeys {
     type Error = bincode::error::DecodeError;
 
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        let (value, _): (CategorySecondaryKeys, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        let (value, _): (CategorySecondaryKeys, usize) =
+            bincode::decode_from_slice(&data, bincode::config::standard())?;
         Ok(value)
     }
 }
@@ -1152,7 +1237,10 @@ impl Value for CategorySubscriptions {
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
-        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize CategorySubscriptions");
+        let bytes: Vec<u8> = value
+            .clone()
+            .try_into()
+            .expect("Failed to serialize CategorySubscriptions");
         std::borrow::Cow::Owned(bytes)
     }
 
@@ -1169,16 +1257,17 @@ impl Key for CategorySubscriptions {
 
 impl TryFrom<Vec<u8>> for CategorySubscriptions {
     type Error = bincode::error::DecodeError;
-    
+
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        let (value, _): (CategorySubscriptions, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        let (value, _): (CategorySubscriptions, usize) =
+            bincode::decode_from_slice(&data, bincode::config::standard())?;
         Ok(value)
     }
 }
 
 impl TryFrom<CategorySubscriptions> for Vec<u8> {
     type Error = bincode::error::EncodeError;
-    
+
     fn try_from(value: CategorySubscriptions) -> Result<Self, Self::Error> {
         bincode::encode_to_vec(value, bincode::config::standard())
     }
@@ -1200,7 +1289,10 @@ impl Value for CategoryRelationalKeys {
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
-        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize CategoryRelationalKeys");
+        let bytes: Vec<u8> = value
+            .clone()
+            .try_into()
+            .expect("Failed to serialize CategoryRelationalKeys");
         std::borrow::Cow::Owned(bytes)
     }
 
@@ -1220,7 +1312,8 @@ impl TryFrom<Vec<u8>> for CategoryRelationalKeys {
     type Error = bincode::error::DecodeError;
 
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        let (value, _): (CategoryRelationalKeys, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        let (value, _): (CategoryRelationalKeys, usize) =
+            bincode::decode_from_slice(&data, bincode::config::standard())?;
         Ok(value)
     }
 }
@@ -1246,9 +1339,9 @@ impl NetabaseModelKeyTrait<Definitions, Category> for CategoryKeys {
     type RelationalEnum = CategoryRelationalKeys;
 
     fn secondary_keys(model: &Category) -> Vec<Self::SecondaryEnum> {
-        vec![
-            CategorySecondaryKeys::Name(CategoryName(model.name.clone())),
-        ]
+        vec![CategorySecondaryKeys::Name(CategoryName(
+            model.name.clone(),
+        ))]
     }
 
     fn relational_keys(_model: &Category) -> Vec<Self::RelationalEnum> {
@@ -1272,15 +1365,13 @@ impl NetabaseModelTrait<Definitions> for Category {
 
     fn get_secondary_keys(&self) -> Self::SecondaryKeys {
         CategorySecondaryKeysIter {
-            iter: vec![
-                CategorySecondaryKeys::Name(CategoryName(self.name.clone())),
-            ].into_iter()
+            iter: vec![CategorySecondaryKeys::Name(CategoryName(self.name.clone()))].into_iter(),
         }
     }
 
     fn get_relational_keys(&self) -> Self::RelationalKeys {
         CategoryRelationalKeysIter {
-            iter: vec![].into_iter()
+            iter: vec![].into_iter(),
         }
     }
 
@@ -1317,15 +1408,21 @@ impl NetabaseModelTrait<Definitions> for Category {
         DefinitionModelAssociatedTypes::CategorySubscriptionKey(key)
     }
 
-    fn wrap_secondary_key_discriminant(key: CategorySecondaryKeysDiscriminants) -> DefinitionModelAssociatedTypes {
+    fn wrap_secondary_key_discriminant(
+        key: CategorySecondaryKeysDiscriminants,
+    ) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::CategorySecondaryKeyDiscriminant(key)
     }
 
-    fn wrap_relational_key_discriminant(key: CategoryRelationalKeysDiscriminants) -> DefinitionModelAssociatedTypes {
+    fn wrap_relational_key_discriminant(
+        key: CategoryRelationalKeysDiscriminants,
+    ) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::CategoryRelationalKeyDiscriminant(key)
     }
 
-    fn wrap_subscription_key_discriminant(key: CategorySubscriptionsDiscriminants) -> DefinitionModelAssociatedTypes {
+    fn wrap_subscription_key_discriminant(
+        key: CategorySubscriptionsDiscriminants,
+    ) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::CategorySubscriptionKeyDiscriminant(key)
     }
 }
@@ -1336,21 +1433,33 @@ impl RedbNetabaseModelTrait<Definitions> for Category {
         TableDefinition::new(Self::MODEL_TREE_NAME.as_ref())
     }
 
-    fn secondary_key_table_name(
-        key_discriminant: CategorySecondaryKeysDiscriminants,
-    ) -> String {
+    fn secondary_key_table_name(key_discriminant: CategorySecondaryKeysDiscriminants) -> String {
         format!("Category_sec_{}", key_discriminant.as_ref())
     }
 
-    fn relational_key_table_name(
-        key_discriminant: CategoryRelationalKeysDiscriminants,
-    ) -> String {
+    fn relational_key_table_name(key_discriminant: CategoryRelationalKeysDiscriminants) -> String {
         format!("Category_rel_{}", key_discriminant.as_ref())
     }
 
-    fn subscription_key_table_name(
-        key_discriminant: CategorySubscriptionsDiscriminants,
-    ) -> String {
+    fn subscription_key_table_name(key_discriminant: CategorySubscriptionsDiscriminants) -> String {
+        format!("Category_sub_{}", key_discriminant.as_ref())
+    }
+
+    fn hash_tree_table_name() -> String {
+        "Category_hash".to_string()
+    }
+}
+
+impl SledNetabaseModelTrait<Definitions> for Category {
+    fn secondary_key_table_name(key_discriminant: CategorySecondaryKeysDiscriminants) -> String {
+        format!("Category_sec_{}", key_discriminant.as_ref())
+    }
+
+    fn relational_key_table_name(key_discriminant: CategoryRelationalKeysDiscriminants) -> String {
+        format!("Category_rel_{}", key_discriminant.as_ref())
+    }
+
+    fn subscription_key_table_name(key_discriminant: CategorySubscriptionsDiscriminants) -> String {
         format!("Category_sub_{}", key_discriminant.as_ref())
     }
 
@@ -1387,7 +1496,8 @@ impl TryFrom<Vec<u8>> for ReviewId {
     type Error = bincode::error::DecodeError;
 
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        let (value, _): (u64, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        let (value, _): (u64, usize) =
+            bincode::decode_from_slice(&data, bincode::config::standard())?;
         Ok(ReviewId(value))
     }
 }
@@ -1404,8 +1514,14 @@ impl_key_wrapper!(ReviewId, u64, "ReviewId");
 
 // Implement redb::Value for Review
 impl redb::Value for Review {
-    type SelfType<'a> = Self where Self: 'a;
-    type AsBytes<'a> = Vec<u8> where Self: 'a;
+    type SelfType<'a>
+        = Self
+    where
+        Self: 'a;
+    type AsBytes<'a>
+        = Vec<u8>
+    where
+        Self: 'a;
 
     fn fixed_width() -> Option<usize> {
         None
@@ -1507,7 +1623,10 @@ impl Value for ReviewSubscriptions {
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
-        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize ReviewSubscriptions");
+        let bytes: Vec<u8> = value
+            .clone()
+            .try_into()
+            .expect("Failed to serialize ReviewSubscriptions");
         std::borrow::Cow::Owned(bytes)
     }
 
@@ -1524,16 +1643,17 @@ impl Key for ReviewSubscriptions {
 
 impl TryFrom<Vec<u8>> for ReviewSubscriptions {
     type Error = bincode::error::DecodeError;
-    
+
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        let (value, _): (ReviewSubscriptions, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        let (value, _): (ReviewSubscriptions, usize) =
+            bincode::decode_from_slice(&data, bincode::config::standard())?;
         Ok(value)
     }
 }
 
 impl TryFrom<ReviewSubscriptions> for Vec<u8> {
     type Error = bincode::error::EncodeError;
-    
+
     fn try_from(value: ReviewSubscriptions) -> Result<Self, Self::Error> {
         bincode::encode_to_vec(value, bincode::config::standard())
     }
@@ -1556,7 +1676,10 @@ impl Value for ReviewSecondaryKeys {
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
-        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize ReviewSecondaryKeys");
+        let bytes: Vec<u8> = value
+            .clone()
+            .try_into()
+            .expect("Failed to serialize ReviewSecondaryKeys");
         std::borrow::Cow::Owned(bytes)
     }
 
@@ -1581,7 +1704,10 @@ impl Value for ReviewRelationalKeys {
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
-        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize ReviewRelationalKeys");
+        let bytes: Vec<u8> = value
+            .clone()
+            .try_into()
+            .expect("Failed to serialize ReviewRelationalKeys");
         std::borrow::Cow::Owned(bytes)
     }
 
@@ -1681,13 +1807,13 @@ impl NetabaseModelTrait<Definitions> for Review {
 
     fn get_secondary_keys(&self) -> Self::SecondaryKeys {
         ReviewSecondaryKeysIter {
-            iter: ReviewKeys::secondary_keys(self).into_iter()
+            iter: ReviewKeys::secondary_keys(self).into_iter(),
         }
     }
 
     fn get_relational_keys(&self) -> Self::RelationalKeys {
         ReviewRelationalKeysIter {
-            iter: ReviewKeys::relational_keys(self).into_iter()
+            iter: ReviewKeys::relational_keys(self).into_iter(),
         }
     }
 
@@ -1727,15 +1853,21 @@ impl NetabaseModelTrait<Definitions> for Review {
         DefinitionModelAssociatedTypes::ReviewSubscriptionKey(key)
     }
 
-    fn wrap_secondary_key_discriminant(key: ReviewSecondaryKeysDiscriminants) -> DefinitionModelAssociatedTypes {
+    fn wrap_secondary_key_discriminant(
+        key: ReviewSecondaryKeysDiscriminants,
+    ) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::ReviewSecondaryKeyDiscriminant(key)
     }
 
-    fn wrap_relational_key_discriminant(key: ReviewRelationalKeysDiscriminants) -> DefinitionModelAssociatedTypes {
+    fn wrap_relational_key_discriminant(
+        key: ReviewRelationalKeysDiscriminants,
+    ) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::ReviewRelationalKeyDiscriminant(key)
     }
 
-    fn wrap_subscription_key_discriminant(key: ReviewSubscriptionsDiscriminants) -> DefinitionModelAssociatedTypes {
+    fn wrap_subscription_key_discriminant(
+        key: ReviewSubscriptionsDiscriminants,
+    ) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::ReviewSubscriptionKeyDiscriminant(key)
     }
 }
@@ -1771,21 +1903,33 @@ impl RedbNetabaseModelTrait<Definitions> for Review {
         TableDefinition::new(Self::MODEL_TREE_NAME.as_ref())
     }
 
-    fn secondary_key_table_name(
-        key_discriminant: ReviewSecondaryKeysDiscriminants,
-    ) -> String {
+    fn secondary_key_table_name(key_discriminant: ReviewSecondaryKeysDiscriminants) -> String {
         format!("Review_sec_{}", key_discriminant.as_ref())
     }
 
-    fn relational_key_table_name(
-        key_discriminant: ReviewRelationalKeysDiscriminants,
-    ) -> String {
+    fn relational_key_table_name(key_discriminant: ReviewRelationalKeysDiscriminants) -> String {
         format!("Review_rel_{}", key_discriminant.as_ref())
     }
 
-    fn subscription_key_table_name(
-        key_discriminant: ReviewSubscriptionsDiscriminants,
-    ) -> String {
+    fn subscription_key_table_name(key_discriminant: ReviewSubscriptionsDiscriminants) -> String {
+        format!("Review_sub_{}", key_discriminant.as_ref())
+    }
+
+    fn hash_tree_table_name() -> String {
+        "Review_hash".to_string()
+    }
+}
+
+impl SledNetabaseModelTrait<Definitions> for Review {
+    fn secondary_key_table_name(key_discriminant: ReviewSecondaryKeysDiscriminants) -> String {
+        format!("Review_sec_{}", key_discriminant.as_ref())
+    }
+
+    fn relational_key_table_name(key_discriminant: ReviewRelationalKeysDiscriminants) -> String {
+        format!("Review_rel_{}", key_discriminant.as_ref())
+    }
+
+    fn subscription_key_table_name(key_discriminant: ReviewSubscriptionsDiscriminants) -> String {
         format!("Review_sub_{}", key_discriminant.as_ref())
     }
 
@@ -1815,7 +1959,8 @@ impl TryFrom<Vec<u8>> for TagId {
     type Error = bincode::error::DecodeError;
 
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        let (value, _): (u64, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        let (value, _): (u64, usize) =
+            bincode::decode_from_slice(&data, bincode::config::standard())?;
         Ok(TagId(value))
     }
 }
@@ -1832,8 +1977,14 @@ impl_key_wrapper!(TagId, u64, "TagId");
 
 // Implement redb::Value for Tag
 impl redb::Value for Tag {
-    type SelfType<'a> = Self where Self: 'a;
-    type AsBytes<'a> = Vec<u8> where Self: 'a;
+    type SelfType<'a>
+        = Self
+    where
+        Self: 'a;
+    type AsBytes<'a>
+        = Vec<u8>
+    where
+        Self: 'a;
 
     fn fixed_width() -> Option<usize> {
         None
@@ -1931,7 +2082,10 @@ impl Value for TagSubscriptions {
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
-        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize TagSubscriptions");
+        let bytes: Vec<u8> = value
+            .clone()
+            .try_into()
+            .expect("Failed to serialize TagSubscriptions");
         std::borrow::Cow::Owned(bytes)
     }
 
@@ -1948,16 +2102,17 @@ impl Key for TagSubscriptions {
 
 impl TryFrom<Vec<u8>> for TagSubscriptions {
     type Error = bincode::error::DecodeError;
-    
+
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        let (value, _): (TagSubscriptions, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        let (value, _): (TagSubscriptions, usize) =
+            bincode::decode_from_slice(&data, bincode::config::standard())?;
         Ok(value)
     }
 }
 
 impl TryFrom<TagSubscriptions> for Vec<u8> {
     type Error = bincode::error::EncodeError;
-    
+
     fn try_from(value: TagSubscriptions) -> Result<Self, Self::Error> {
         bincode::encode_to_vec(value, bincode::config::standard())
     }
@@ -1980,7 +2135,10 @@ impl Value for TagSecondaryKeys {
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
-        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize TagSecondaryKeys");
+        let bytes: Vec<u8> = value
+            .clone()
+            .try_into()
+            .expect("Failed to serialize TagSecondaryKeys");
         std::borrow::Cow::Owned(bytes)
     }
 
@@ -2005,7 +2163,10 @@ impl Value for TagRelationalKeys {
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
-        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize TagRelationalKeys");
+        let bytes: Vec<u8> = value
+            .clone()
+            .try_into()
+            .expect("Failed to serialize TagRelationalKeys");
         std::borrow::Cow::Owned(bytes)
     }
 
@@ -2100,13 +2261,13 @@ impl NetabaseModelTrait<Definitions> for Tag {
 
     fn get_secondary_keys(&self) -> Self::SecondaryKeys {
         TagSecondaryKeysIter {
-            iter: TagKeys::secondary_keys(self).into_iter()
+            iter: TagKeys::secondary_keys(self).into_iter(),
         }
     }
 
     fn get_relational_keys(&self) -> Self::RelationalKeys {
         TagRelationalKeysIter {
-            iter: TagKeys::relational_keys(self).into_iter()
+            iter: TagKeys::relational_keys(self).into_iter(),
         }
     }
 
@@ -2142,15 +2303,21 @@ impl NetabaseModelTrait<Definitions> for Tag {
         DefinitionModelAssociatedTypes::TagSubscriptionKey(key)
     }
 
-    fn wrap_secondary_key_discriminant(key: TagSecondaryKeysDiscriminants) -> DefinitionModelAssociatedTypes {
+    fn wrap_secondary_key_discriminant(
+        key: TagSecondaryKeysDiscriminants,
+    ) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::TagSecondaryKeyDiscriminant(key)
     }
 
-    fn wrap_relational_key_discriminant(key: TagRelationalKeysDiscriminants) -> DefinitionModelAssociatedTypes {
+    fn wrap_relational_key_discriminant(
+        key: TagRelationalKeysDiscriminants,
+    ) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::TagRelationalKeyDiscriminant(key)
     }
 
-    fn wrap_subscription_key_discriminant(key: TagSubscriptionsDiscriminants) -> DefinitionModelAssociatedTypes {
+    fn wrap_subscription_key_discriminant(
+        key: TagSubscriptionsDiscriminants,
+    ) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::TagSubscriptionKeyDiscriminant(key)
     }
 }
@@ -2186,21 +2353,33 @@ impl RedbNetabaseModelTrait<Definitions> for Tag {
         TableDefinition::new(Self::MODEL_TREE_NAME.as_ref())
     }
 
-    fn secondary_key_table_name(
-        key_discriminant: TagSecondaryKeysDiscriminants,
-    ) -> String {
+    fn secondary_key_table_name(key_discriminant: TagSecondaryKeysDiscriminants) -> String {
         format!("Tag_sec_{}", key_discriminant.as_ref())
     }
 
-    fn relational_key_table_name(
-        key_discriminant: TagRelationalKeysDiscriminants,
-    ) -> String {
+    fn relational_key_table_name(key_discriminant: TagRelationalKeysDiscriminants) -> String {
         format!("Tag_rel_{}", key_discriminant.as_ref())
     }
 
-    fn subscription_key_table_name(
-        key_discriminant: TagSubscriptionsDiscriminants,
-    ) -> String {
+    fn subscription_key_table_name(key_discriminant: TagSubscriptionsDiscriminants) -> String {
+        format!("Tag_sub_{}", key_discriminant.as_ref())
+    }
+
+    fn hash_tree_table_name() -> String {
+        "Tag_hash".to_string()
+    }
+}
+
+impl SledNetabaseModelTrait<Definitions> for Tag {
+    fn secondary_key_table_name(key_discriminant: TagSecondaryKeysDiscriminants) -> String {
+        format!("Tag_sec_{}", key_discriminant.as_ref())
+    }
+
+    fn relational_key_table_name(key_discriminant: TagRelationalKeysDiscriminants) -> String {
+        format!("Tag_rel_{}", key_discriminant.as_ref())
+    }
+
+    fn subscription_key_table_name(key_discriminant: TagSubscriptionsDiscriminants) -> String {
         format!("Tag_sub_{}", key_discriminant.as_ref())
     }
 
@@ -2237,7 +2416,8 @@ impl TryFrom<Vec<u8>> for ProductTagId {
     type Error = bincode::error::DecodeError;
 
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        let (value, _): (ProductTagId, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        let (value, _): (ProductTagId, usize) =
+            bincode::decode_from_slice(&data, bincode::config::standard())?;
         Ok(value)
     }
 }
@@ -2252,8 +2432,14 @@ impl TryFrom<ProductTagId> for Vec<u8> {
 
 // Manual implementation of Key and Value for composite key ProductTagId
 impl redb::Value for ProductTagId {
-    type SelfType<'a> = Self where Self: 'a;
-    type AsBytes<'a> = Vec<u8> where Self: 'a;
+    type SelfType<'a>
+        = Self
+    where
+        Self: 'a;
+    type AsBytes<'a>
+        = Vec<u8>
+    where
+        Self: 'a;
 
     fn fixed_width() -> Option<usize> {
         None
@@ -2298,8 +2484,14 @@ impl redb::Key for ProductTagId {
 
 // Implement redb::Value for ProductTag
 impl redb::Value for ProductTag {
-    type SelfType<'a> = Self where Self: 'a;
-    type AsBytes<'a> = Vec<u8> where Self: 'a;
+    type SelfType<'a>
+        = Self
+    where
+        Self: 'a;
+    type AsBytes<'a>
+        = Vec<u8>
+    where
+        Self: 'a;
 
     fn fixed_width() -> Option<usize> {
         None
@@ -2401,7 +2593,10 @@ impl Value for ProductTagSubscriptions {
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
-        let bytes: Vec<u8> = value.clone().try_into().expect("Failed to serialize ProductTagSubscriptions");
+        let bytes: Vec<u8> = value
+            .clone()
+            .try_into()
+            .expect("Failed to serialize ProductTagSubscriptions");
         std::borrow::Cow::Owned(bytes)
     }
 
@@ -2418,16 +2613,17 @@ impl Key for ProductTagSubscriptions {
 
 impl TryFrom<Vec<u8>> for ProductTagSubscriptions {
     type Error = bincode::error::DecodeError;
-    
+
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        let (value, _): (ProductTagSubscriptions, usize) = bincode::decode_from_slice(&data, bincode::config::standard())?;
+        let (value, _): (ProductTagSubscriptions, usize) =
+            bincode::decode_from_slice(&data, bincode::config::standard())?;
         Ok(value)
     }
 }
 
 impl TryFrom<ProductTagSubscriptions> for Vec<u8> {
     type Error = bincode::error::EncodeError;
-    
+
     fn try_from(value: ProductTagSubscriptions) -> Result<Self, Self::Error> {
         bincode::encode_to_vec(value, bincode::config::standard())
     }
@@ -2592,13 +2788,13 @@ impl NetabaseModelTrait<Definitions> for ProductTag {
 
     fn get_secondary_keys(&self) -> Self::SecondaryKeys {
         ProductTagSecondaryKeysIter {
-            iter: ProductTagKeys::secondary_keys(self).into_iter()
+            iter: ProductTagKeys::secondary_keys(self).into_iter(),
         }
     }
 
     fn get_relational_keys(&self) -> Self::RelationalKeys {
         ProductTagRelationalKeysIter {
-            iter: ProductTagKeys::relational_keys(self).into_iter()
+            iter: ProductTagKeys::relational_keys(self).into_iter(),
         }
     }
 
@@ -2634,15 +2830,21 @@ impl NetabaseModelTrait<Definitions> for ProductTag {
         DefinitionModelAssociatedTypes::ProductTagSubscriptionKey(key)
     }
 
-    fn wrap_secondary_key_discriminant(key: ProductTagSecondaryKeysDiscriminants) -> DefinitionModelAssociatedTypes {
+    fn wrap_secondary_key_discriminant(
+        key: ProductTagSecondaryKeysDiscriminants,
+    ) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::ProductTagSecondaryKeyDiscriminant(key)
     }
 
-    fn wrap_relational_key_discriminant(key: ProductTagRelationalKeysDiscriminants) -> DefinitionModelAssociatedTypes {
+    fn wrap_relational_key_discriminant(
+        key: ProductTagRelationalKeysDiscriminants,
+    ) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::ProductTagRelationalKeyDiscriminant(key)
     }
 
-    fn wrap_subscription_key_discriminant(key: ProductTagSubscriptionsDiscriminants) -> DefinitionModelAssociatedTypes {
+    fn wrap_subscription_key_discriminant(
+        key: ProductTagSubscriptionsDiscriminants,
+    ) -> DefinitionModelAssociatedTypes {
         DefinitionModelAssociatedTypes::ProductTagSubscriptionKeyDiscriminant(key)
     }
 }
@@ -2678,9 +2880,29 @@ impl RedbNetabaseModelTrait<Definitions> for ProductTag {
         TableDefinition::new(Self::MODEL_TREE_NAME.as_ref())
     }
 
-    fn secondary_key_table_name(
-        key_discriminant: ProductTagSecondaryKeysDiscriminants,
+    fn secondary_key_table_name(key_discriminant: ProductTagSecondaryKeysDiscriminants) -> String {
+        format!("ProductTag_sec_{}", key_discriminant.as_ref())
+    }
+
+    fn relational_key_table_name(
+        key_discriminant: ProductTagRelationalKeysDiscriminants,
     ) -> String {
+        format!("ProductTag_rel_{}", key_discriminant.as_ref())
+    }
+
+    fn subscription_key_table_name(
+        key_discriminant: ProductTagSubscriptionsDiscriminants,
+    ) -> String {
+        format!("ProductTag_sub_{}", key_discriminant.as_ref())
+    }
+
+    fn hash_tree_table_name() -> String {
+        "ProductTag_hash".to_string()
+    }
+}
+
+impl SledNetabaseModelTrait<Definitions> for ProductTag {
+    fn secondary_key_table_name(key_discriminant: ProductTagSecondaryKeysDiscriminants) -> String {
         format!("ProductTag_sec_{}", key_discriminant.as_ref())
     }
 
@@ -2777,37 +2999,37 @@ impl ModelAssociatedTypesExt<Definitions> for DefinitionModelAssociatedTypes {
     fn from_primary_key<M: NetabaseModelTrait<Definitions>>(key: M::PrimaryKey) -> Self {
         M::wrap_primary_key(key)
     }
-    
+
     fn from_model<M: NetabaseModelTrait<Definitions>>(model: M) -> Self {
         M::wrap_model(model)
     }
-    
+
     fn from_secondary_key<M: NetabaseModelTrait<Definitions>>(
-        key: <<M::Keys as NetabaseModelKeyTrait<Definitions, M>>::SecondaryEnum as IntoDiscriminant>::Discriminant
+        key: <<M::Keys as NetabaseModelKeyTrait<Definitions, M>>::SecondaryEnum as IntoDiscriminant>::Discriminant,
     ) -> Self {
         M::wrap_secondary_key_discriminant(key)
     }
-    
+
     fn from_relational_key_discriminant<M: NetabaseModelTrait<Definitions>>(
-        key: <<M::Keys as NetabaseModelKeyTrait<Definitions, M>>::RelationalEnum as IntoDiscriminant>::Discriminant
+        key: <<M::Keys as NetabaseModelKeyTrait<Definitions, M>>::RelationalEnum as IntoDiscriminant>::Discriminant,
     ) -> Self {
         M::wrap_relational_key_discriminant(key)
     }
-    
+
     fn from_secondary_key_data<M: NetabaseModelTrait<Definitions>>(
-        key: <M::Keys as NetabaseModelKeyTrait<Definitions, M>>::SecondaryEnum
+        key: <M::Keys as NetabaseModelKeyTrait<Definitions, M>>::SecondaryEnum,
     ) -> Self {
         M::wrap_secondary_key(key)
     }
-    
+
     fn from_relational_key_data<M: NetabaseModelTrait<Definitions>>(
-        key: <M::Keys as NetabaseModelKeyTrait<Definitions, M>>::RelationalEnum
+        key: <M::Keys as NetabaseModelKeyTrait<Definitions, M>>::RelationalEnum,
     ) -> Self {
         M::wrap_relational_key(key)
     }
 
     fn from_subscription_key_discriminant<M: NetabaseModelTrait<Definitions>>(
-        key: <<M as NetabaseModelTrait<Definitions>>::SubscriptionEnum as IntoDiscriminant>::Discriminant
+        key: <<M as NetabaseModelTrait<Definitions>>::SubscriptionEnum as IntoDiscriminant>::Discriminant,
     ) -> Self {
         M::wrap_subscription_key_discriminant(key)
     }
@@ -2822,43 +3044,66 @@ impl RedbModelAssociatedTypesExt<Definitions> for DefinitionModelAssociatedTypes
         key: &Self,
     ) -> NetabaseResult<()> {
         match (self, key) {
-            (DefinitionModelAssociatedTypes::UserModel(model), DefinitionModelAssociatedTypes::UserPrimaryKey(pk)) => {
+            (
+                DefinitionModelAssociatedTypes::UserModel(model),
+                DefinitionModelAssociatedTypes::UserPrimaryKey(pk),
+            ) => {
                 let table_def: TableDefinition<UserId, User> = TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(pk, model)?;
                 Ok(())
-            },
-            (DefinitionModelAssociatedTypes::ProductModel(model), DefinitionModelAssociatedTypes::ProductPrimaryKey(pk)) => {
-                let table_def: TableDefinition<ProductId, Product> = TableDefinition::new(table_name);
+            }
+            (
+                DefinitionModelAssociatedTypes::ProductModel(model),
+                DefinitionModelAssociatedTypes::ProductPrimaryKey(pk),
+            ) => {
+                let table_def: TableDefinition<ProductId, Product> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(pk, model)?;
                 Ok(())
-            },
-            (DefinitionModelAssociatedTypes::CategoryModel(model), DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk)) => {
-                let table_def: TableDefinition<CategoryId, Category> = TableDefinition::new(table_name);
+            }
+            (
+                DefinitionModelAssociatedTypes::CategoryModel(model),
+                DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk),
+            ) => {
+                let table_def: TableDefinition<CategoryId, Category> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(pk, model)?;
                 Ok(())
-            },
-            (DefinitionModelAssociatedTypes::ReviewModel(model), DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk)) => {
+            }
+            (
+                DefinitionModelAssociatedTypes::ReviewModel(model),
+                DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk),
+            ) => {
                 let table_def: TableDefinition<ReviewId, Review> = TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(pk, model)?;
                 Ok(())
-            },
-            (DefinitionModelAssociatedTypes::TagModel(model), DefinitionModelAssociatedTypes::TagPrimaryKey(pk)) => {
+            }
+            (
+                DefinitionModelAssociatedTypes::TagModel(model),
+                DefinitionModelAssociatedTypes::TagPrimaryKey(pk),
+            ) => {
                 let table_def: TableDefinition<TagId, Tag> = TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(pk, model)?;
                 Ok(())
-            },
-            (DefinitionModelAssociatedTypes::ProductTagModel(model), DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk)) => {
-                let table_def: TableDefinition<ProductTagId, ProductTag> = TableDefinition::new(table_name);
+            }
+            (
+                DefinitionModelAssociatedTypes::ProductTagModel(model),
+                DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk),
+            ) => {
+                let table_def: TableDefinition<ProductTagId, ProductTag> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(pk, model)?;
                 Ok(())
-            },
-            _ => Err(NetabaseError::Other("Type mismatch in insert_model_into_redb".into())),
+            }
+            _ => Err(NetabaseError::Other(
+                "Type mismatch in insert_model_into_redb".into(),
+            )),
         }
     }
 
@@ -2869,43 +3114,69 @@ impl RedbModelAssociatedTypesExt<Definitions> for DefinitionModelAssociatedTypes
         primary_key_ref: &Self,
     ) -> NetabaseResult<()> {
         match (self, primary_key_ref) {
-            (DefinitionModelAssociatedTypes::UserSecondaryKey(sk), DefinitionModelAssociatedTypes::UserPrimaryKey(pk)) => {
-                let table_def: TableDefinition<UserSecondaryKeys, UserId> = TableDefinition::new(table_name);
+            (
+                DefinitionModelAssociatedTypes::UserSecondaryKey(sk),
+                DefinitionModelAssociatedTypes::UserPrimaryKey(pk),
+            ) => {
+                let table_def: TableDefinition<UserSecondaryKeys, UserId> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(sk, pk)?;
                 Ok(())
-            },
-            (DefinitionModelAssociatedTypes::ProductSecondaryKey(sk), DefinitionModelAssociatedTypes::ProductPrimaryKey(pk)) => {
-                let table_def: TableDefinition<ProductSecondaryKeys, ProductId> = TableDefinition::new(table_name);
+            }
+            (
+                DefinitionModelAssociatedTypes::ProductSecondaryKey(sk),
+                DefinitionModelAssociatedTypes::ProductPrimaryKey(pk),
+            ) => {
+                let table_def: TableDefinition<ProductSecondaryKeys, ProductId> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(sk, pk)?;
                 Ok(())
-            },
-            (DefinitionModelAssociatedTypes::CategorySecondaryKey(sk), DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk)) => {
-                let table_def: TableDefinition<CategorySecondaryKeys, CategoryId> = TableDefinition::new(table_name);
+            }
+            (
+                DefinitionModelAssociatedTypes::CategorySecondaryKey(sk),
+                DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk),
+            ) => {
+                let table_def: TableDefinition<CategorySecondaryKeys, CategoryId> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(sk, pk)?;
                 Ok(())
-            },
-            (DefinitionModelAssociatedTypes::ReviewSecondaryKey(sk), DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk)) => {
-                let table_def: TableDefinition<ReviewSecondaryKeys, ReviewId> = TableDefinition::new(table_name);
+            }
+            (
+                DefinitionModelAssociatedTypes::ReviewSecondaryKey(sk),
+                DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk),
+            ) => {
+                let table_def: TableDefinition<ReviewSecondaryKeys, ReviewId> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(sk, pk)?;
                 Ok(())
-            },
-            (DefinitionModelAssociatedTypes::TagSecondaryKey(sk), DefinitionModelAssociatedTypes::TagPrimaryKey(pk)) => {
-                let table_def: TableDefinition<TagSecondaryKeys, TagId> = TableDefinition::new(table_name);
+            }
+            (
+                DefinitionModelAssociatedTypes::TagSecondaryKey(sk),
+                DefinitionModelAssociatedTypes::TagPrimaryKey(pk),
+            ) => {
+                let table_def: TableDefinition<TagSecondaryKeys, TagId> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(sk, pk)?;
                 Ok(())
-            },
-            (DefinitionModelAssociatedTypes::ProductTagSecondaryKey(sk), DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk)) => {
-                let table_def: TableDefinition<ProductTagSecondaryKeys, ProductTagId> = TableDefinition::new(table_name);
+            }
+            (
+                DefinitionModelAssociatedTypes::ProductTagSecondaryKey(sk),
+                DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk),
+            ) => {
+                let table_def: TableDefinition<ProductTagSecondaryKeys, ProductTagId> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(sk, pk)?;
                 Ok(())
-            },
-            _ => Err(NetabaseError::Other("Type mismatch in insert_secondary_key_into_redb".into())),
+            }
+            _ => Err(NetabaseError::Other(
+                "Type mismatch in insert_secondary_key_into_redb".into(),
+            )),
         }
     }
 
@@ -2917,48 +3188,74 @@ impl RedbModelAssociatedTypesExt<Definitions> for DefinitionModelAssociatedTypes
     ) -> NetabaseResult<()> {
         match (self, primary_key_ref) {
             // For User relational keys: stores ProductId -> UserId mappings
-            (DefinitionModelAssociatedTypes::UserRelationalKey(rk), DefinitionModelAssociatedTypes::UserPrimaryKey(pk)) => {
-                let table_def: TableDefinition<UserRelationalKeys, UserId> = TableDefinition::new(table_name);
+            (
+                DefinitionModelAssociatedTypes::UserRelationalKey(rk),
+                DefinitionModelAssociatedTypes::UserPrimaryKey(pk),
+            ) => {
+                let table_def: TableDefinition<UserRelationalKeys, UserId> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(rk, pk)?;
                 Ok(())
-            },
+            }
             // For Product relational keys: stores UserId -> ProductId mappings
-            (DefinitionModelAssociatedTypes::ProductRelationalKey(rk), DefinitionModelAssociatedTypes::ProductPrimaryKey(pk)) => {
-                let table_def: TableDefinition<ProductRelationalKeys, ProductId> = TableDefinition::new(table_name);
+            (
+                DefinitionModelAssociatedTypes::ProductRelationalKey(rk),
+                DefinitionModelAssociatedTypes::ProductPrimaryKey(pk),
+            ) => {
+                let table_def: TableDefinition<ProductRelationalKeys, ProductId> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(rk, pk)?;
                 Ok(())
-            },
+            }
             // For Category relational keys
-            (DefinitionModelAssociatedTypes::CategoryRelationalKey(rk), DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk)) => {
-                let table_def: TableDefinition<CategoryRelationalKeys, CategoryId> = TableDefinition::new(table_name);
+            (
+                DefinitionModelAssociatedTypes::CategoryRelationalKey(rk),
+                DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk),
+            ) => {
+                let table_def: TableDefinition<CategoryRelationalKeys, CategoryId> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(rk, pk)?;
                 Ok(())
-            },
+            }
             // For Review relational keys: stores ProductId/UserId -> ReviewId mappings
-            (DefinitionModelAssociatedTypes::ReviewRelationalKey(rk), DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk)) => {
-                let table_def: TableDefinition<ReviewRelationalKeys, ReviewId> = TableDefinition::new(table_name);
+            (
+                DefinitionModelAssociatedTypes::ReviewRelationalKey(rk),
+                DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk),
+            ) => {
+                let table_def: TableDefinition<ReviewRelationalKeys, ReviewId> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(rk, pk)?;
                 Ok(())
-            },
+            }
             // For Tag relational keys
-            (DefinitionModelAssociatedTypes::TagRelationalKey(rk), DefinitionModelAssociatedTypes::TagPrimaryKey(pk)) => {
-                let table_def: TableDefinition<TagRelationalKeys, TagId> = TableDefinition::new(table_name);
+            (
+                DefinitionModelAssociatedTypes::TagRelationalKey(rk),
+                DefinitionModelAssociatedTypes::TagPrimaryKey(pk),
+            ) => {
+                let table_def: TableDefinition<TagRelationalKeys, TagId> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(rk, pk)?;
                 Ok(())
-            },
+            }
             // For ProductTag relational keys: junction table mappings
-            (DefinitionModelAssociatedTypes::ProductTagRelationalKey(rk), DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk)) => {
-                let table_def: TableDefinition<ProductTagRelationalKeys, ProductTagId> = TableDefinition::new(table_name);
+            (
+                DefinitionModelAssociatedTypes::ProductTagRelationalKey(rk),
+                DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk),
+            ) => {
+                let table_def: TableDefinition<ProductTagRelationalKeys, ProductTagId> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(rk, pk)?;
                 Ok(())
-            },
-            _ => Err(NetabaseError::Other("Type mismatch in insert_relational_key_into_redb".into())),
+            }
+            _ => Err(NetabaseError::Other(
+                "Type mismatch in insert_relational_key_into_redb".into(),
+            )),
         }
     }
 
@@ -2975,38 +3272,44 @@ impl RedbModelAssociatedTypesExt<Definitions> for DefinitionModelAssociatedTypes
                 let mut table = txn.open_table(table_def)?;
                 table.insert(hash, pk)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::ProductPrimaryKey(pk) => {
-                let table_def: TableDefinition<[u8; 32], ProductId> = TableDefinition::new(table_name);
+                let table_def: TableDefinition<[u8; 32], ProductId> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(hash, pk)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk) => {
-                let table_def: TableDefinition<[u8; 32], CategoryId> = TableDefinition::new(table_name);
+                let table_def: TableDefinition<[u8; 32], CategoryId> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(hash, pk)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk) => {
-                let table_def: TableDefinition<[u8; 32], ReviewId> = TableDefinition::new(table_name);
+                let table_def: TableDefinition<[u8; 32], ReviewId> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(hash, pk)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::TagPrimaryKey(pk) => {
                 let table_def: TableDefinition<[u8; 32], TagId> = TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(hash, pk)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk) => {
-                let table_def: TableDefinition<[u8; 32], ProductTagId> = TableDefinition::new(table_name);
+                let table_def: TableDefinition<[u8; 32], ProductTagId> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(hash, pk)?;
                 Ok(())
-            },
-            _ => Err(NetabaseError::Other("Type mismatch in insert_hash_into_redb".into())),
+            }
+            _ => Err(NetabaseError::Other(
+                "Type mismatch in insert_hash_into_redb".into(),
+            )),
         }
     }
 
@@ -3025,38 +3328,44 @@ impl RedbModelAssociatedTypesExt<Definitions> for DefinitionModelAssociatedTypes
                 let mut table = txn.open_table(table_def)?;
                 table.insert(pk, hash)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::ProductPrimaryKey(pk) => {
-                let table_def: TableDefinition<ProductId, [u8; 32]> = TableDefinition::new(table_name);
+                let table_def: TableDefinition<ProductId, [u8; 32]> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(pk, hash)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk) => {
-                let table_def: TableDefinition<CategoryId, [u8; 32]> = TableDefinition::new(table_name);
+                let table_def: TableDefinition<CategoryId, [u8; 32]> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(pk, hash)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk) => {
-                let table_def: TableDefinition<ReviewId, [u8; 32]> = TableDefinition::new(table_name);
+                let table_def: TableDefinition<ReviewId, [u8; 32]> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(pk, hash)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::TagPrimaryKey(pk) => {
                 let table_def: TableDefinition<TagId, [u8; 32]> = TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(pk, hash)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk) => {
-                let table_def: TableDefinition<ProductTagId, [u8; 32]> = TableDefinition::new(table_name);
+                let table_def: TableDefinition<ProductTagId, [u8; 32]> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.insert(pk, hash)?;
                 Ok(())
-            },
-            _ => Err(NetabaseError::Other("Type mismatch in insert_subscription_into_redb".into())),
+            }
+            _ => Err(NetabaseError::Other(
+                "Type mismatch in insert_subscription_into_redb".into(),
+            )),
         }
     }
 
@@ -3071,38 +3380,43 @@ impl RedbModelAssociatedTypesExt<Definitions> for DefinitionModelAssociatedTypes
                 let mut table = txn.open_table(table_def)?;
                 table.remove(pk)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::ProductPrimaryKey(pk) => {
-                let table_def: TableDefinition<ProductId, Product> = TableDefinition::new(table_name);
+                let table_def: TableDefinition<ProductId, Product> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.remove(pk)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk) => {
-                let table_def: TableDefinition<CategoryId, Category> = TableDefinition::new(table_name);
+                let table_def: TableDefinition<CategoryId, Category> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.remove(pk)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk) => {
                 let table_def: TableDefinition<ReviewId, Review> = TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.remove(pk)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::TagPrimaryKey(pk) => {
                 let table_def: TableDefinition<TagId, Tag> = TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.remove(pk)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk) => {
-                let table_def: TableDefinition<ProductTagId, ProductTag> = TableDefinition::new(table_name);
+                let table_def: TableDefinition<ProductTagId, ProductTag> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.remove(pk)?;
                 Ok(())
-            },
-            _ => Err(NetabaseError::Other("Type mismatch in delete_model_from_redb".into())),
+            }
+            _ => Err(NetabaseError::Other(
+                "Type mismatch in delete_model_from_redb".into(),
+            )),
         }
     }
 
@@ -3119,39 +3433,410 @@ impl RedbModelAssociatedTypesExt<Definitions> for DefinitionModelAssociatedTypes
                 let mut table = txn.open_table(table_def)?;
                 table.remove(pk)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::ProductPrimaryKey(pk) => {
-                let table_def: TableDefinition<ProductId, [u8; 32]> = TableDefinition::new(table_name);
+                let table_def: TableDefinition<ProductId, [u8; 32]> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.remove(pk)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk) => {
-                let table_def: TableDefinition<CategoryId, [u8; 32]> = TableDefinition::new(table_name);
+                let table_def: TableDefinition<CategoryId, [u8; 32]> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.remove(pk)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk) => {
-                let table_def: TableDefinition<ReviewId, [u8; 32]> = TableDefinition::new(table_name);
+                let table_def: TableDefinition<ReviewId, [u8; 32]> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.remove(pk)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::TagPrimaryKey(pk) => {
                 let table_def: TableDefinition<TagId, [u8; 32]> = TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.remove(pk)?;
                 Ok(())
-            },
+            }
             DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk) => {
-                let table_def: TableDefinition<ProductTagId, [u8; 32]> = TableDefinition::new(table_name);
+                let table_def: TableDefinition<ProductTagId, [u8; 32]> =
+                    TableDefinition::new(table_name);
                 let mut table = txn.open_table(table_def)?;
                 table.remove(pk)?;
                 Ok(())
-            },
-            _ => Err(NetabaseError::Other("Type mismatch in delete_subscription_from_redb".into())),
+            }
+            _ => Err(NetabaseError::Other(
+                "Type mismatch in delete_subscription_from_redb".into(),
+            )),
         }
+    }
+}
+
+// Implement SledModelAssociatedTypesExt with direct implementations
+impl SledModelAssociatedTypesExt<Definitions> for DefinitionModelAssociatedTypes {
+    fn insert_model_into_sled(
+        &self,
+        db: &sled::Db,
+        tree_name: &str,
+        key: &Self,
+    ) -> NetabaseResult<()> {
+        let config = bincode::config::standard();
+        match (self, key) {
+            (
+                DefinitionModelAssociatedTypes::UserModel(model),
+                DefinitionModelAssociatedTypes::UserPrimaryKey(pk),
+            ) => {
+                let tree = db.open_tree(tree_name)?;
+                let key_bytes = bincode::encode_to_vec(pk, config)?;
+                let value_bytes = bincode::encode_to_vec(model, config)?;
+                tree.insert(key_bytes, value_bytes)?;
+                Ok(())
+            }
+            (
+                DefinitionModelAssociatedTypes::ProductModel(model),
+                DefinitionModelAssociatedTypes::ProductPrimaryKey(pk),
+            ) => {
+                let tree = db.open_tree(tree_name)?;
+                let key_bytes = bincode::encode_to_vec(pk, config)?;
+                let value_bytes = bincode::encode_to_vec(model, config)?;
+                tree.insert(key_bytes, value_bytes)?;
+                Ok(())
+            }
+            (
+                DefinitionModelAssociatedTypes::CategoryModel(model),
+                DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk),
+            ) => {
+                let tree = db.open_tree(tree_name)?;
+                let key_bytes = bincode::encode_to_vec(pk, config)?;
+                let value_bytes = bincode::encode_to_vec(model, config)?;
+                tree.insert(key_bytes, value_bytes)?;
+                Ok(())
+            }
+            (
+                DefinitionModelAssociatedTypes::ReviewModel(model),
+                DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk),
+            ) => {
+                let tree = db.open_tree(tree_name)?;
+                let key_bytes = bincode::encode_to_vec(pk, config)?;
+                let value_bytes = bincode::encode_to_vec(model, config)?;
+                tree.insert(key_bytes, value_bytes)?;
+                Ok(())
+            }
+            (
+                DefinitionModelAssociatedTypes::TagModel(model),
+                DefinitionModelAssociatedTypes::TagPrimaryKey(pk),
+            ) => {
+                let tree = db.open_tree(tree_name)?;
+                let key_bytes = bincode::encode_to_vec(pk, config)?;
+                let value_bytes = bincode::encode_to_vec(model, config)?;
+                tree.insert(key_bytes, value_bytes)?;
+                Ok(())
+            }
+            (
+                DefinitionModelAssociatedTypes::ProductTagModel(model),
+                DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk),
+            ) => {
+                let tree = db.open_tree(tree_name)?;
+                let key_bytes = bincode::encode_to_vec(pk, config)?;
+                let value_bytes = bincode::encode_to_vec(model, config)?;
+                tree.insert(key_bytes, value_bytes)?;
+                Ok(())
+            }
+            _ => Err(NetabaseError::Other(
+                "Type mismatch in insert_model_into_sled".into(),
+            )),
+        }
+    }
+
+    fn insert_secondary_key_into_sled(
+        &self,
+        db: &sled::Db,
+        tree_name: &str,
+        primary_key_ref: &Self,
+    ) -> NetabaseResult<()> {
+        let config = bincode::config::standard();
+        match (self, primary_key_ref) {
+            (
+                DefinitionModelAssociatedTypes::UserSecondaryKey(sk),
+                DefinitionModelAssociatedTypes::UserPrimaryKey(pk),
+            ) => {
+                let tree = db.open_tree(tree_name)?;
+                let sk_bytes = bincode::encode_to_vec(sk, config)?;
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(sk_bytes, pk_bytes)?;
+                Ok(())
+            }
+            (
+                DefinitionModelAssociatedTypes::ProductSecondaryKey(sk),
+                DefinitionModelAssociatedTypes::ProductPrimaryKey(pk),
+            ) => {
+                let tree = db.open_tree(tree_name)?;
+                let sk_bytes = bincode::encode_to_vec(sk, config)?;
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(sk_bytes, pk_bytes)?;
+                Ok(())
+            }
+            (
+                DefinitionModelAssociatedTypes::CategorySecondaryKey(sk),
+                DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk),
+            ) => {
+                let tree = db.open_tree(tree_name)?;
+                let sk_bytes = bincode::encode_to_vec(sk, config)?;
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(sk_bytes, pk_bytes)?;
+                Ok(())
+            }
+            (
+                DefinitionModelAssociatedTypes::ReviewSecondaryKey(sk),
+                DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk),
+            ) => {
+                let tree = db.open_tree(tree_name)?;
+                let sk_bytes = bincode::encode_to_vec(sk, config)?;
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(sk_bytes, pk_bytes)?;
+                Ok(())
+            }
+            (
+                DefinitionModelAssociatedTypes::TagSecondaryKey(sk),
+                DefinitionModelAssociatedTypes::TagPrimaryKey(pk),
+            ) => {
+                let tree = db.open_tree(tree_name)?;
+                let sk_bytes = bincode::encode_to_vec(sk, config)?;
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(sk_bytes, pk_bytes)?;
+                Ok(())
+            }
+            (
+                DefinitionModelAssociatedTypes::ProductTagSecondaryKey(sk),
+                DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk),
+            ) => {
+                let tree = db.open_tree(tree_name)?;
+                let sk_bytes = bincode::encode_to_vec(sk, config)?;
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(sk_bytes, pk_bytes)?;
+                Ok(())
+            }
+            _ => Err(NetabaseError::Other(
+                "Type mismatch in insert_secondary_key_into_sled".into(),
+            )),
+        }
+    }
+
+    fn insert_relational_key_into_sled(
+        &self,
+        db: &sled::Db,
+        tree_name: &str,
+        primary_key_ref: &Self,
+    ) -> NetabaseResult<()> {
+        let config = bincode::config::standard();
+        match (self, primary_key_ref) {
+            (
+                DefinitionModelAssociatedTypes::UserRelationalKey(rk),
+                DefinitionModelAssociatedTypes::UserPrimaryKey(pk),
+            ) => {
+                let tree = db.open_tree(tree_name)?;
+                let rk_bytes = bincode::encode_to_vec(rk, config)?;
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(rk_bytes, pk_bytes)?;
+                Ok(())
+            }
+            (
+                DefinitionModelAssociatedTypes::ProductRelationalKey(rk),
+                DefinitionModelAssociatedTypes::ProductPrimaryKey(pk),
+            ) => {
+                let tree = db.open_tree(tree_name)?;
+                let rk_bytes = bincode::encode_to_vec(rk, config)?;
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(rk_bytes, pk_bytes)?;
+                Ok(())
+            }
+            (
+                DefinitionModelAssociatedTypes::CategoryRelationalKey(rk),
+                DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk),
+            ) => {
+                let tree = db.open_tree(tree_name)?;
+                let rk_bytes = bincode::encode_to_vec(rk, config)?;
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(rk_bytes, pk_bytes)?;
+                Ok(())
+            }
+            (
+                DefinitionModelAssociatedTypes::ReviewRelationalKey(rk),
+                DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk),
+            ) => {
+                let tree = db.open_tree(tree_name)?;
+                let rk_bytes = bincode::encode_to_vec(rk, config)?;
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(rk_bytes, pk_bytes)?;
+                Ok(())
+            }
+            (
+                DefinitionModelAssociatedTypes::TagRelationalKey(rk),
+                DefinitionModelAssociatedTypes::TagPrimaryKey(pk),
+            ) => {
+                let tree = db.open_tree(tree_name)?;
+                let rk_bytes = bincode::encode_to_vec(rk, config)?;
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(rk_bytes, pk_bytes)?;
+                Ok(())
+            }
+            (
+                DefinitionModelAssociatedTypes::ProductTagRelationalKey(rk),
+                DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk),
+            ) => {
+                let tree = db.open_tree(tree_name)?;
+                let rk_bytes = bincode::encode_to_vec(rk, config)?;
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(rk_bytes, pk_bytes)?;
+                Ok(())
+            }
+            _ => Err(NetabaseError::Other(
+                "Type mismatch in insert_relational_key_into_sled".into(),
+            )),
+        }
+    }
+
+    fn insert_hash_into_sled(
+        hash: &[u8; 32],
+        db: &sled::Db,
+        tree_name: &str,
+        primary_key_ref: &Self,
+    ) -> NetabaseResult<()> {
+        let config = bincode::config::standard();
+        let tree = db.open_tree(tree_name)?;
+        let hash_bytes = bincode::encode_to_vec(hash, config)?;
+
+        match primary_key_ref {
+            DefinitionModelAssociatedTypes::UserPrimaryKey(pk) => {
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(pk_bytes, hash_bytes)?;
+                Ok(())
+            }
+            DefinitionModelAssociatedTypes::ProductPrimaryKey(pk) => {
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(pk_bytes, hash_bytes)?;
+                Ok(())
+            }
+            DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk) => {
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(pk_bytes, hash_bytes)?;
+                Ok(())
+            }
+            DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk) => {
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(pk_bytes, hash_bytes)?;
+                Ok(())
+            }
+            DefinitionModelAssociatedTypes::TagPrimaryKey(pk) => {
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(pk_bytes, hash_bytes)?;
+                Ok(())
+            }
+            DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk) => {
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(pk_bytes, hash_bytes)?;
+                Ok(())
+            }
+            _ => Err(NetabaseError::Other(
+                "Type mismatch in insert_hash_into_sled".into(),
+            )),
+        }
+    }
+
+    fn insert_subscription_into_sled(
+        hash: &[u8; 32],
+        db: &sled::Db,
+        tree_name: &str,
+        primary_key_ref: &Self,
+    ) -> NetabaseResult<()> {
+        let config = bincode::config::standard();
+        let tree = db.open_tree(tree_name)?;
+        let hash_bytes = bincode::encode_to_vec(hash, config)?;
+
+        match primary_key_ref {
+            DefinitionModelAssociatedTypes::UserPrimaryKey(pk) => {
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(pk_bytes, hash_bytes)?;
+                Ok(())
+            }
+            DefinitionModelAssociatedTypes::ProductPrimaryKey(pk) => {
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(pk_bytes, hash_bytes)?;
+                Ok(())
+            }
+            DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk) => {
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(pk_bytes, hash_bytes)?;
+                Ok(())
+            }
+            DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk) => {
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(pk_bytes, hash_bytes)?;
+                Ok(())
+            }
+            DefinitionModelAssociatedTypes::TagPrimaryKey(pk) => {
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(pk_bytes, hash_bytes)?;
+                Ok(())
+            }
+            DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk) => {
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.insert(pk_bytes, hash_bytes)?;
+                Ok(())
+            }
+            _ => Err(NetabaseError::Other(
+                "Type mismatch in insert_subscription_into_sled".into(),
+            )),
+        }
+    }
+
+    fn delete_model_from_sled(&self, db: &sled::Db, tree_name: &str) -> NetabaseResult<()> {
+        let config = bincode::config::standard();
+        let tree = db.open_tree(tree_name)?;
+
+        match self {
+            DefinitionModelAssociatedTypes::UserPrimaryKey(pk) => {
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.remove(pk_bytes)?;
+                Ok(())
+            }
+            DefinitionModelAssociatedTypes::ProductPrimaryKey(pk) => {
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.remove(pk_bytes)?;
+                Ok(())
+            }
+            DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk) => {
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.remove(pk_bytes)?;
+                Ok(())
+            }
+            DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk) => {
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.remove(pk_bytes)?;
+                Ok(())
+            }
+            DefinitionModelAssociatedTypes::TagPrimaryKey(pk) => {
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.remove(pk_bytes)?;
+                Ok(())
+            }
+            DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk) => {
+                let pk_bytes = bincode::encode_to_vec(pk, config)?;
+                tree.remove(pk_bytes)?;
+                Ok(())
+            }
+            _ => Err(NetabaseError::Other(
+                "Type mismatch in delete_model_from_sled".into(),
+            )),
+        }
+    }
+
+    fn delete_subscription_from_sled(&self, db: &sled::Db, tree_name: &str) -> NetabaseResult<()> {
+        // Reuse delete_model_from_sled logic as it's just removing by primary key
+        self.delete_model_from_sled(db, tree_name)
     }
 }
 
@@ -3190,7 +3875,7 @@ impl TreeManager<Definitions> for Definitions {
     fn all_trees() -> AllTrees<Definitions> {
         AllTrees::new()
     }
-    
+
     fn get_tree_name(model_discriminant: &DefinitionsDiscriminants) -> Option<String> {
         match model_discriminant {
             DefinitionsDiscriminants::User => Some("User".to_string()),
@@ -3209,20 +3894,14 @@ impl TreeManager<Definitions> for Definitions {
                 "User_Name".to_string(),
                 "User_Age".to_string(),
             ],
-            DefinitionsDiscriminants::Product => vec![
-                "Product_Title".to_string(),
-                "Product_Score".to_string(),
-            ],
-            DefinitionsDiscriminants::Category => vec![
-                "Category_Name".to_string(),
-            ],
-            DefinitionsDiscriminants::Review => vec![
-                "Review_Rating".to_string(),
-                "Review_CreatedAt".to_string(),
-            ],
-            DefinitionsDiscriminants::Tag => vec![
-                "Tag_Name".to_string(),
-            ],
+            DefinitionsDiscriminants::Product => {
+                vec!["Product_Title".to_string(), "Product_Score".to_string()]
+            }
+            DefinitionsDiscriminants::Category => vec!["Category_Name".to_string()],
+            DefinitionsDiscriminants::Review => {
+                vec!["Review_Rating".to_string(), "Review_CreatedAt".to_string()]
+            }
+            DefinitionsDiscriminants::Tag => vec!["Tag_Name".to_string()],
             DefinitionsDiscriminants::ProductTag => vec![
                 "ProductTag_ProductId".to_string(),
                 "ProductTag_TagId".to_string(),
@@ -3232,22 +3911,14 @@ impl TreeManager<Definitions> for Definitions {
 
     fn get_relational_tree_names(model_discriminant: &DefinitionsDiscriminants) -> Vec<String> {
         match model_discriminant {
-            DefinitionsDiscriminants::User => vec![
-                "User_rel_CreatedProducts".to_string(),
-            ],
-            DefinitionsDiscriminants::Product => vec![
-                "Product_rel_CreatedBy".to_string(),
-            ],
-            DefinitionsDiscriminants::Category => vec![
-                "Category_rel_Products".to_string(),
-            ],
+            DefinitionsDiscriminants::User => vec!["User_rel_CreatedProducts".to_string()],
+            DefinitionsDiscriminants::Product => vec!["Product_rel_CreatedBy".to_string()],
+            DefinitionsDiscriminants::Category => vec!["Category_rel_Products".to_string()],
             DefinitionsDiscriminants::Review => vec![
                 "Review_rel_ReviewedProduct".to_string(),
                 "Review_rel_Reviewer".to_string(),
             ],
-            DefinitionsDiscriminants::Tag => vec![
-                "Tag_rel_TaggedProducts".to_string(),
-            ],
+            DefinitionsDiscriminants::Tag => vec!["Tag_rel_TaggedProducts".to_string()],
             DefinitionsDiscriminants::ProductTag => vec![
                 "ProductTag_rel_Product".to_string(),
                 "ProductTag_rel_Tag".to_string(),
@@ -3257,24 +3928,12 @@ impl TreeManager<Definitions> for Definitions {
 
     fn get_subscription_tree_names(model_discriminant: &DefinitionsDiscriminants) -> Vec<String> {
         match model_discriminant {
-            DefinitionsDiscriminants::User => vec![
-                "User_sub_Updates".to_string(),
-            ],
-            DefinitionsDiscriminants::Product => vec![
-                "Product_sub_Updates".to_string(),
-            ],
-            DefinitionsDiscriminants::Category => vec![
-                "Category_sub_AllProducts".to_string(),
-            ],
-            DefinitionsDiscriminants::Review => vec![
-                "Review_sub_ReviewsForProduct".to_string(),
-            ],
-            DefinitionsDiscriminants::Tag => vec![
-                "Tag_sub_TaggedItems".to_string(),
-            ],
-            DefinitionsDiscriminants::ProductTag => vec![
-                "ProductTag_sub_ProductTags".to_string(),
-            ],
+            DefinitionsDiscriminants::User => vec!["User_sub_Updates".to_string()],
+            DefinitionsDiscriminants::Product => vec!["Product_sub_Updates".to_string()],
+            DefinitionsDiscriminants::Category => vec!["Category_sub_AllProducts".to_string()],
+            DefinitionsDiscriminants::Review => vec!["Review_sub_ReviewsForProduct".to_string()],
+            DefinitionsDiscriminants::Tag => vec!["Tag_sub_TaggedItems".to_string()],
+            DefinitionsDiscriminants::ProductTag => vec!["ProductTag_sub_ProductTags".to_string()],
         }
     }
 }
@@ -3285,7 +3944,9 @@ impl NetabaseDefinitionKeyTrait<Definitions> for DefinitionKeys {
         Self: TryInto<M::Keys>,
         <Self as TryInto<M::Keys>>::Error: std::fmt::Debug,
     {
-        self.clone().try_into().expect("Key variant does not match requested Model")
+        self.clone()
+            .try_into()
+            .expect("Key variant does not match requested Model")
     }
 }
 
@@ -3299,10 +3960,16 @@ pub trait DefinitionStoreExt {
     fn put_definition(&self, definition: Definitions) -> Result<(), Box<dyn std::error::Error>>;
 
     /// Retrieve a model as a Definition enum variant using a typed primary key
-    fn get_definition(&self, key: DefinitionModelAssociatedTypes) -> Result<Option<Definitions>, Box<dyn std::error::Error>>;
+    fn get_definition(
+        &self,
+        key: DefinitionModelAssociatedTypes,
+    ) -> Result<Option<Definitions>, Box<dyn std::error::Error>>;
 
     /// Batch insert multiple models from Definition enum variants
-    fn put_many_definitions(&self, definitions: Vec<Definitions>) -> Result<(), Box<dyn std::error::Error>>;
+    fn put_many_definitions(
+        &self,
+        definitions: Vec<Definitions>,
+    ) -> Result<(), Box<dyn std::error::Error>>;
 
     /// Returns an iterator over all models in the database
     fn iter_all_models(&self) -> Result<AllModelsIterator, Box<dyn std::error::Error>>;
@@ -3320,31 +3987,37 @@ impl DefinitionStoreExt for RedbStore<Definitions> {
         }
     }
 
-    fn get_definition(&self, key: DefinitionModelAssociatedTypes) -> Result<Option<Definitions>, Box<dyn std::error::Error>> {
+    fn get_definition(
+        &self,
+        key: DefinitionModelAssociatedTypes,
+    ) -> Result<Option<Definitions>, Box<dyn std::error::Error>> {
         match key {
             DefinitionModelAssociatedTypes::UserPrimaryKey(pk) => {
                 Ok(self.get_one::<User>(pk)?.map(Definitions::User))
-            },
+            }
             DefinitionModelAssociatedTypes::ProductPrimaryKey(pk) => {
                 Ok(self.get_one::<Product>(pk)?.map(Definitions::Product))
-            },
+            }
             DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk) => {
                 Ok(self.get_one::<Category>(pk)?.map(Definitions::Category))
-            },
+            }
             DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk) => {
                 Ok(self.get_one::<Review>(pk)?.map(Definitions::Review))
-            },
+            }
             DefinitionModelAssociatedTypes::TagPrimaryKey(pk) => {
                 Ok(self.get_one::<Tag>(pk)?.map(Definitions::Tag))
-            },
+            }
             DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk) => {
                 Ok(self.get_one::<ProductTag>(pk)?.map(Definitions::ProductTag))
-            },
+            }
             _ => Err("Invalid key type - only PrimaryKey variants are supported".into()),
         }
     }
 
-    fn put_many_definitions(&self, definitions: Vec<Definitions>) -> Result<(), Box<dyn std::error::Error>> {
+    fn put_many_definitions(
+        &self,
+        definitions: Vec<Definitions>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         for definition in definitions {
             self.put_definition(definition)?;
         }
@@ -3394,7 +4067,14 @@ impl Iterator for AllModelsIterator {
 // Comprehensive Testing Functions
 // ================================================================================= ================
 
-fn create_test_data() -> (Vec<User>, Vec<Product>, Vec<Category>, Vec<Review>, Vec<Tag>, Vec<ProductTag>) {
+fn create_test_data() -> (
+    Vec<User>,
+    Vec<Product>,
+    Vec<Category>,
+    Vec<Review>,
+    Vec<Tag>,
+    Vec<ProductTag>,
+) {
     let users = vec![
         User {
             id: 1,
@@ -3559,12 +4239,12 @@ fn create_test_data() -> (Vec<User>, Vec<Product>, Vec<Category>, Vec<Review>, V
 
 fn test_primary_key_access(users: &[User], products: &[Product]) {
     println!("\n=== Testing Primary Key Access ===");
-    
+
     for user in users {
         let pk = user.primary_key();
         println!("User '{}' primary key: {:?}", user.name, pk.0);
     }
-    
+
     for product in products {
         let pk = product.primary_key();
         println!("Product '{}' primary key: {:?}", product.title, pk.0);
@@ -3573,28 +4253,30 @@ fn test_primary_key_access(users: &[User], products: &[Product]) {
 
 fn test_secondary_keys(users: &[User], products: &[Product]) {
     println!("\n=== Testing Secondary Keys ===");
-    
+
     for user in users {
         println!("User '{}' secondary keys:", user.name);
-        let secondary_keys = <UserKeys as NetabaseModelKeyTrait<Definitions, User>>::secondary_keys(user);
+        let secondary_keys =
+            <UserKeys as NetabaseModelKeyTrait<Definitions, User>>::secondary_keys(user);
         for (i, sk) in secondary_keys.iter().enumerate() {
             println!("  [{}] {:?}", i, sk);
         }
-        
+
         // Test iterator access
         println!("  Iterator access:");
         for (i, sk) in user.get_secondary_keys().enumerate() {
             println!("    [{}] {:?}", i, sk);
         }
     }
-    
+
     for product in products {
         println!("Product '{}' secondary keys:", product.title);
-        let secondary_keys = <ProductKeys as NetabaseModelKeyTrait<Definitions, Product>>::secondary_keys(product);
+        let secondary_keys =
+            <ProductKeys as NetabaseModelKeyTrait<Definitions, Product>>::secondary_keys(product);
         for (i, sk) in secondary_keys.iter().enumerate() {
             println!("  [{}] {:?}", i, sk);
         }
-        
+
         // Test iterator access
         println!("  Iterator access:");
         for (i, sk) in product.get_secondary_keys().enumerate() {
@@ -3605,29 +4287,31 @@ fn test_secondary_keys(users: &[User], products: &[Product]) {
 
 fn test_relational_keys(users: &[User], products: &[Product]) {
     println!("\n=== Testing Relational Keys ===");
-    
+
     for user in users {
         println!("User '{}' relational keys:", user.name);
-        let relational_keys = <UserKeys as NetabaseModelKeyTrait<Definitions, User>>::relational_keys(user);
+        let relational_keys =
+            <UserKeys as NetabaseModelKeyTrait<Definitions, User>>::relational_keys(user);
         for (i, rk) in relational_keys.iter().enumerate() {
             println!("  [{}] {:?}", i, rk);
         }
-        
+
         // Test iterator access
         println!("  Iterator access:");
         for (i, rk) in user.get_relational_keys().enumerate() {
             println!("    [{}] {:?}", i, rk);
         }
     }
-    
+
     for product in products {
         println!("Product '{}' relational keys:", product.title);
-        let relational_keys = <ProductKeys as NetabaseModelKeyTrait<Definitions, Product>>::relational_keys(product);
+        let relational_keys =
+            <ProductKeys as NetabaseModelKeyTrait<Definitions, Product>>::relational_keys(product);
         for (i, rk) in relational_keys.iter().enumerate() {
             println!("  [{}] {:?}", i, rk);
         }
-        
-        // Test iterator access  
+
+        // Test iterator access
         println!("  Iterator access:");
         for (i, rk) in product.get_relational_keys().enumerate() {
             println!("    [{}] {:?}", i, rk);
@@ -3637,12 +4321,12 @@ fn test_relational_keys(users: &[User], products: &[Product]) {
 
 fn test_hash_computation(users: &[User], products: &[Product]) {
     println!("\n=== Testing Hash Computation ===");
-    
+
     for user in users {
         let hash = user.compute_hash();
         println!("User '{}' hash: {}", user.name, hex::encode(hash));
     }
-    
+
     for product in products {
         let hash = product.compute_hash();
         println!("Product '{}' hash: {}", product.title, hex::encode(hash));
@@ -3651,27 +4335,27 @@ fn test_hash_computation(users: &[User], products: &[Product]) {
 
 fn test_discriminant_enumeration() {
     println!("\n=== Testing Discriminant Enumeration ===");
-    
+
     println!("Definition discriminants:");
     for discriminant in DefinitionsDiscriminants::iter() {
         println!("  {:?} -> {}", discriminant, discriminant.as_ref());
     }
-    
+
     println!("User secondary key discriminants:");
     for discriminant in UserSecondaryKeysDiscriminants::iter() {
         println!("  {:?} -> {}", discriminant, discriminant.as_ref());
     }
-    
+
     println!("User relational key discriminants:");
     for discriminant in UserRelationalKeysDiscriminants::iter() {
         println!("  {:?} -> {}", discriminant, discriminant.as_ref());
     }
-    
+
     println!("Product secondary key discriminants:");
     for discriminant in ProductSecondaryKeysDiscriminants::iter() {
         println!("  {:?} -> {}", discriminant, discriminant.as_ref());
     }
-    
+
     println!("Product relational key discriminants:");
     for discriminant in ProductRelationalKeysDiscriminants::iter() {
         println!("  {:?} -> {}", discriminant, discriminant.as_ref());
@@ -3680,20 +4364,20 @@ fn test_discriminant_enumeration() {
 
 fn test_tree_naming() {
     println!("\n=== Testing Tree Naming ===");
-    
+
     for discriminant in DefinitionsDiscriminants::iter() {
         println!("Model: {:?}", discriminant);
-        
+
         if let Some(tree_name) = Definitions::get_tree_name(&discriminant) {
             println!("  Main tree: {}", tree_name);
         }
-        
+
         let secondary_trees = Definitions::get_secondary_tree_names(&discriminant);
         println!("  Secondary trees:");
         for tree in secondary_trees {
             println!("    {}", tree);
         }
-        
+
         let relational_trees = Definitions::get_relational_tree_names(&discriminant);
         println!("  Relational trees:");
         for tree in relational_trees {
@@ -3707,29 +4391,42 @@ fn test_table_name_generation() {
 
     println!("User table names:");
     for discriminant in UserSecondaryKeysDiscriminants::iter() {
-        let table_name = User::secondary_key_table_name(discriminant);
+        let table_name =
+            <User as RedbNetabaseModelTrait<Definitions>>::secondary_key_table_name(discriminant);
         println!("  Secondary [{}] : {}", discriminant.as_ref(), table_name);
     }
 
     for discriminant in UserRelationalKeysDiscriminants::iter() {
-        let table_name = User::relational_key_table_name(discriminant);
+        let table_name =
+            <User as RedbNetabaseModelTrait<Definitions>>::relational_key_table_name(discriminant);
         println!("  Relational [{}] : {}", discriminant.as_ref(), table_name);
     }
 
-    println!("  Hash: {}", User::hash_tree_table_name());
+    println!(
+        "  Hash: {}",
+        <User as RedbNetabaseModelTrait<Definitions>>::hash_tree_table_name()
+    );
 
     println!("Product table names:");
     for discriminant in ProductSecondaryKeysDiscriminants::iter() {
-        let table_name = Product::secondary_key_table_name(discriminant);
+        let table_name = <Product as RedbNetabaseModelTrait<Definitions>>::secondary_key_table_name(
+            discriminant,
+        );
         println!("  Secondary [{}] : {}", discriminant.as_ref(), table_name);
     }
 
     for discriminant in ProductRelationalKeysDiscriminants::iter() {
-        let table_name = Product::relational_key_table_name(discriminant);
+        let table_name =
+            <Product as RedbNetabaseModelTrait<Definitions>>::relational_key_table_name(
+                discriminant,
+            );
         println!("  Relational [{}] : {}", discriminant.as_ref(), table_name);
     }
 
-    println!("  Hash: {}", Product::hash_tree_table_name());
+    println!(
+        "  Hash: {}",
+        <Product as RedbNetabaseModelTrait<Definitions>>::hash_tree_table_name()
+    );
 }
 
 fn test_tree_access_enums() {
@@ -3737,22 +4434,38 @@ fn test_tree_access_enums() {
 
     println!("User Secondary Tree Names (Copy, lightweight):");
     for tree_name in UserSecondaryTreeNames::iter() {
-        println!("  Tree: {} (name: {})", format!("{:?}", tree_name), tree_name.as_ref());
+        println!(
+            "  Tree: {} (name: {})",
+            format!("{:?}", tree_name),
+            tree_name.as_ref()
+        );
     }
 
     println!("User Relational Tree Names:");
     for tree_name in UserRelationalTreeNames::iter() {
-        println!("  Tree: {} (name: {})", format!("{:?}", tree_name), tree_name.as_ref());
+        println!(
+            "  Tree: {} (name: {})",
+            format!("{:?}", tree_name),
+            tree_name.as_ref()
+        );
     }
 
     println!("Product Secondary Tree Names:");
     for tree_name in ProductSecondaryTreeNames::iter() {
-        println!("  Tree: {} (name: {})", format!("{:?}", tree_name), tree_name.as_ref());
+        println!(
+            "  Tree: {} (name: {})",
+            format!("{:?}", tree_name),
+            tree_name.as_ref()
+        );
     }
 
     println!("Product Relational Tree Names:");
     for tree_name in ProductRelationalTreeNames::iter() {
-        println!("  Tree: {} (name: {})", format!("{:?}", tree_name), tree_name.as_ref());
+        println!(
+            "  Tree: {} (name: {})",
+            format!("{:?}", tree_name),
+            tree_name.as_ref()
+        );
     }
 
     // Demonstrate Copy trait
@@ -3760,12 +4473,16 @@ fn test_tree_access_enums() {
     let tree_copy = tree; // This is a copy, not a move!
     println!("\nDemonstrating Copy trait:");
     println!("  Original: {:?}, Copy: {:?}", tree, tree_copy);
-    println!("  Both can still be used: {} == {}", tree.as_ref(), tree_copy.as_ref());
+    println!(
+        "  Both can still be used: {} == {}",
+        tree.as_ref(),
+        tree_copy.as_ref()
+    );
 }
 
 fn test_serialization_roundtrip(users: &[User], products: &[Product]) {
     println!("\n=== Testing Serialization Roundtrip ===");
-    
+
     // Test primary key serialization
     for user in users {
         let pk = user.primary_key();
@@ -3774,7 +4491,7 @@ fn test_serialization_roundtrip(users: &[User], products: &[Product]) {
         assert_eq!(pk.0, deserialized.0);
         println!("User PK roundtrip successful: {}", pk.0);
     }
-    
+
     for product in products {
         let pk = product.primary_key();
         let serialized: Vec<u8> = pk.clone().try_into().expect("Serialization failed");
@@ -3782,16 +4499,140 @@ fn test_serialization_roundtrip(users: &[User], products: &[Product]) {
         assert_eq!(pk.0, deserialized.0);
         println!("Product PK roundtrip successful: {}", pk.0);
     }
-    
+
     // Test secondary key serialization
     for user in users {
-        let secondary_keys = <UserKeys as NetabaseModelKeyTrait<Definitions, User>>::secondary_keys(user);
+        let secondary_keys =
+            <UserKeys as NetabaseModelKeyTrait<Definitions, User>>::secondary_keys(user);
         for sk in secondary_keys {
             let serialized: Vec<u8> = sk.clone().try_into().expect("Serialization failed");
-            let deserialized = UserSecondaryKeys::try_from(serialized).expect("Deserialization failed");
-            println!("User secondary key roundtrip successful: {:?} -> {:?}", sk, deserialized);
+            let deserialized =
+                UserSecondaryKeys::try_from(serialized).expect("Deserialization failed");
+            println!(
+                "User secondary key roundtrip successful: {:?} -> {:?}",
+                sk, deserialized
+            );
         }
     }
+}
+
+fn test_sled_database_operations(
+    users: &[User],
+    products: &[Product],
+    categories: &[Category],
+    reviews: &[Review],
+    tags: &[Tag],
+    product_tags: &[ProductTag],
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!("\n=== Testing Sled Database Operations ===");
+
+    // Create a temporary database
+    let db_path = "/tmp/boilerplate_sled_test.db";
+    if Path::new(db_path).exists() {
+        std::fs::remove_dir_all(db_path)?;
+    }
+
+    let store = SledStore::<Definitions>::new(db_path)?;
+
+    // ========== STORING ALL ENTITIES ==========
+    println!("\n--- Storing Users (Sled) ---");
+    for user in users {
+        store.put_one(user.clone())?;
+        println!("  ✓ Stored user: {} (ID: {})", user.name, user.id);
+    }
+
+    println!("\n--- Storing Categories (Sled) ---");
+    for category in categories {
+        store.put_one(category.clone())?;
+        println!(
+            "  ✓ Stored category: {} (ID: {})",
+            category.name, category.id
+        );
+    }
+
+    println!("\n--- Storing Products (Sled) ---");
+    for product in products {
+        store.put_one(product.clone())?;
+        println!(
+            "  ✓ Stored product: {} (ID: {})",
+            product.title, product.uuid
+        );
+    }
+
+    println!("\n--- Storing Reviews (Sled) ---");
+    for review in reviews {
+        store.put_one(review.clone())?;
+        println!(
+            "  ✓ Stored review ID {} for product {} by user {}",
+            review.id, review.product_id, review.user_id
+        );
+    }
+
+    println!("\n--- Storing Tags (Sled) ---");
+    for tag in tags {
+        store.put_one(tag.clone())?;
+        println!("  ✓ Stored tag: {} (ID: {})", tag.name, tag.id);
+    }
+
+    println!("\n--- Storing ProductTags (Sled) ---");
+    for product_tag in product_tags {
+        store.put_one(product_tag.clone())?;
+        println!(
+            "  ✓ Stored ProductTag: product {} <-> tag {}",
+            product_tag.product_id, product_tag.tag_id
+        );
+    }
+
+    // ========== RETRIEVING BY PRIMARY KEY ==========
+    println!("\n--- Retrieving Users by Primary Key (Sled) ---");
+    for user in users {
+        let retrieved = store.get_one::<User>(user.primary_key())?;
+        match retrieved {
+            Some(u) => {
+                assert_eq!(u.id, user.id);
+                assert_eq!(u.name, user.name);
+                assert_eq!(u.email, user.email);
+                assert_eq!(u.age, user.age);
+                println!("  ✓ Retrieved user: {} (ID: {})", u.name, u.id);
+            }
+            None => panic!("User not found: {}", user.name),
+        }
+    }
+
+    println!("\n--- Retrieving Categories by Primary Key (Sled) ---");
+    for category in categories {
+        let retrieved = store.get_one::<Category>(category.primary_key())?;
+        match retrieved {
+            Some(c) => {
+                assert_eq!(c.id, category.id);
+                assert_eq!(c.name, category.name);
+                assert_eq!(c.description, category.description);
+                println!("  ✓ Retrieved category: {} (ID: {})", c.name, c.id);
+            }
+            None => panic!("Category not found: {}", category.name),
+        }
+    }
+
+    println!("\n--- Retrieving Products by Primary Key (Sled) ---");
+    for product in products {
+        let retrieved = store.get_one::<Product>(product.primary_key())?;
+        match retrieved {
+            Some(p) => {
+                assert_eq!(p.uuid, product.uuid);
+                assert_eq!(p.title, product.title);
+                assert_eq!(p.score, product.score);
+                assert_eq!(p.created_by, product.created_by);
+                println!("  ✓ Retrieved product: {} (ID: {})", p.title, p.uuid);
+            }
+            None => panic!("Product not found: {}", product.title),
+        }
+    }
+
+    // Clean up
+    std::fs::remove_dir_all(db_path)?;
+    println!("\n✓ Sled database cleaned up");
+
+    Ok(())
 }
 
 fn test_real_database_operations(
@@ -3822,20 +4663,28 @@ fn test_real_database_operations(
     println!("\n--- Storing Categories ---");
     for category in categories {
         store.put_one(category.clone())?;
-        println!("  ✓ Stored category: {} (ID: {})", category.name, category.id);
+        println!(
+            "  ✓ Stored category: {} (ID: {})",
+            category.name, category.id
+        );
     }
 
     println!("\n--- Storing Products ---");
     for product in products {
         store.put_one(product.clone())?;
-        println!("  ✓ Stored product: {} (ID: {})", product.title, product.uuid);
+        println!(
+            "  ✓ Stored product: {} (ID: {})",
+            product.title, product.uuid
+        );
     }
 
     println!("\n--- Storing Reviews ---");
     for review in reviews {
         store.put_one(review.clone())?;
-        println!("  ✓ Stored review ID {} for product {} by user {}",
-            review.id, review.product_id, review.user_id);
+        println!(
+            "  ✓ Stored review ID {} for product {} by user {}",
+            review.id, review.product_id, review.user_id
+        );
     }
 
     println!("\n--- Storing Tags ---");
@@ -3847,8 +4696,10 @@ fn test_real_database_operations(
     println!("\n--- Storing ProductTags (junction table) ---");
     for product_tag in product_tags {
         store.put_one(product_tag.clone())?;
-        println!("  ✓ Stored ProductTag: product {} <-> tag {}",
-            product_tag.product_id, product_tag.tag_id);
+        println!(
+            "  ✓ Stored ProductTag: product {} <-> tag {}",
+            product_tag.product_id, product_tag.tag_id
+        );
     }
 
     // ========== RETRIEVING BY PRIMARY KEY ==========
@@ -3862,7 +4713,7 @@ fn test_real_database_operations(
                 assert_eq!(u.email, user.email);
                 assert_eq!(u.age, user.age);
                 println!("  ✓ Retrieved user: {} (ID: {})", u.name, u.id);
-            },
+            }
             None => panic!("User not found: {}", user.name),
         }
     }
@@ -3876,7 +4727,7 @@ fn test_real_database_operations(
                 assert_eq!(c.name, category.name);
                 assert_eq!(c.description, category.description);
                 println!("  ✓ Retrieved category: {} (ID: {})", c.name, c.id);
-            },
+            }
             None => panic!("Category not found: {}", category.name),
         }
     }
@@ -3891,7 +4742,7 @@ fn test_real_database_operations(
                 assert_eq!(p.score, product.score);
                 assert_eq!(p.created_by, product.created_by);
                 println!("  ✓ Retrieved product: {} (ID: {})", p.title, p.uuid);
-            },
+            }
             None => panic!("Product not found: {}", product.title),
         }
     }
@@ -3907,7 +4758,7 @@ fn test_real_database_operations(
                 assert_eq!(r.rating, review.rating);
                 assert_eq!(r.comment, review.comment);
                 println!("  ✓ Retrieved review ID {} (rating: {})", r.id, r.rating);
-            },
+            }
             None => panic!("Review not found: {}", review.id),
         }
     }
@@ -3920,7 +4771,7 @@ fn test_real_database_operations(
                 assert_eq!(t.id, tag.id);
                 assert_eq!(t.name, tag.name);
                 println!("  ✓ Retrieved tag: {} (ID: {})", t.name, t.id);
-            },
+            }
             None => panic!("Tag not found: {}", tag.name),
         }
     }
@@ -3932,11 +4783,15 @@ fn test_real_database_operations(
             Some(pt) => {
                 assert_eq!(pt.product_id, product_tag.product_id);
                 assert_eq!(pt.tag_id, product_tag.tag_id);
-                println!("  ✓ Retrieved ProductTag: product {} <-> tag {}",
-                    pt.product_id, pt.tag_id);
-            },
-            None => panic!("ProductTag not found: product {} tag {}",
-                product_tag.product_id, product_tag.tag_id),
+                println!(
+                    "  ✓ Retrieved ProductTag: product {} <-> tag {}",
+                    pt.product_id, pt.tag_id
+                );
+            }
+            None => panic!(
+                "ProductTag not found: product {} tag {}",
+                product_tag.product_id, product_tag.tag_id
+            ),
         }
     }
 
@@ -3957,7 +4812,10 @@ fn test_real_database_operations(
 
     let category_pks: Vec<_> = categories.iter().map(|c| c.primary_key()).collect();
     let retrieved_categories = store.get_many::<Category>(category_pks)?;
-    let category_count = retrieved_categories.iter().filter_map(|c| c.as_ref()).count();
+    let category_count = retrieved_categories
+        .iter()
+        .filter_map(|c| c.as_ref())
+        .count();
     assert_eq!(category_count, categories.len());
     println!("  ✓ Batch retrieved {} categories", category_count);
 
@@ -3975,7 +4833,10 @@ fn test_real_database_operations(
 
     let product_tag_pks: Vec<_> = product_tags.iter().map(|pt| pt.primary_key()).collect();
     let retrieved_product_tags = store.get_many::<ProductTag>(product_tag_pks)?;
-    let product_tag_count = retrieved_product_tags.iter().filter_map(|pt| pt.as_ref()).count();
+    let product_tag_count = retrieved_product_tags
+        .iter()
+        .filter_map(|pt| pt.as_ref())
+        .count();
     assert_eq!(product_tag_count, product_tags.len());
     println!("  ✓ Batch retrieved {} product tags", product_tag_count);
 
@@ -3986,10 +4847,16 @@ fn test_real_database_operations(
     for review in reviews {
         let product_exists = products.iter().any(|p| p.uuid == review.product_id);
         let user_exists = users.iter().any(|u| u.id == review.user_id);
-        assert!(product_exists, "Review {} references non-existent product {}",
-            review.id, review.product_id);
-        assert!(user_exists, "Review {} references non-existent user {}",
-            review.id, review.user_id);
+        assert!(
+            product_exists,
+            "Review {} references non-existent product {}",
+            review.id, review.product_id
+        );
+        assert!(
+            user_exists,
+            "Review {} references non-existent user {}",
+            review.id, review.user_id
+        );
     }
     println!("  ✓ All reviews reference valid products and users");
 
@@ -3997,10 +4864,16 @@ fn test_real_database_operations(
     for product_tag in product_tags {
         let product_exists = products.iter().any(|p| p.uuid == product_tag.product_id);
         let tag_exists = tags.iter().any(|t| t.id == product_tag.tag_id);
-        assert!(product_exists, "ProductTag references non-existent product {}",
-            product_tag.product_id);
-        assert!(tag_exists, "ProductTag references non-existent tag {}",
-            product_tag.tag_id);
+        assert!(
+            product_exists,
+            "ProductTag references non-existent product {}",
+            product_tag.product_id
+        );
+        assert!(
+            tag_exists,
+            "ProductTag references non-existent tag {}",
+            product_tag.tag_id
+        );
     }
     println!("  ✓ All product tags reference valid products and tags");
 
@@ -4014,11 +4887,17 @@ fn test_real_database_operations(
 
     // Count products per tag
     let tech_tag_products = product_tags.iter().filter(|pt| pt.tag_id == 1).count();
-    println!("  ✓ Tech tag is associated with {} products", tech_tag_products);
+    println!(
+        "  ✓ Tech tag is associated with {} products",
+        tech_tag_products
+    );
     assert_eq!(tech_tag_products, 2);
 
     // Count tags per product
-    let laptop_tags = product_tags.iter().filter(|pt| pt.product_id == 100).count();
+    let laptop_tags = product_tags
+        .iter()
+        .filter(|pt| pt.product_id == 100)
+        .count();
     println!("  ✓ Laptop Pro has {} tags", laptop_tags);
     assert_eq!(laptop_tags, 3);
 
@@ -4061,21 +4940,20 @@ fn test_definition_enum_operations() -> Result<(), Box<dyn std::error::Error>> {
     println!("  ✓ Inserted product via Definition enum");
 
     println!("\n--- Testing get_definition ---");
-    let retrieved_user = store.get_definition(
-        DefinitionModelAssociatedTypes::UserPrimaryKey(UserId(100))
-    )?;
+    let retrieved_user =
+        store.get_definition(DefinitionModelAssociatedTypes::UserPrimaryKey(UserId(100)))?;
 
     match retrieved_user {
         Some(Definitions::User(u)) => {
             assert_eq!(u.id, 100);
             assert_eq!(u.name, "Test User");
             println!("  ✓ Retrieved user via Definition enum: {}", u.name);
-        },
+        }
         _ => panic!("Failed to retrieve user"),
     }
 
     let retrieved_product = store.get_definition(
-        DefinitionModelAssociatedTypes::ProductPrimaryKey(ProductId(200))
+        DefinitionModelAssociatedTypes::ProductPrimaryKey(ProductId(200)),
     )?;
 
     match retrieved_product {
@@ -4083,7 +4961,7 @@ fn test_definition_enum_operations() -> Result<(), Box<dyn std::error::Error>> {
             assert_eq!(p.uuid, 200);
             assert_eq!(p.title, "Test Product");
             println!("  ✓ Retrieved product via Definition enum: {}", p.title);
-        },
+        }
         _ => panic!("Failed to retrieve product"),
     }
 
@@ -4107,15 +4985,13 @@ fn test_definition_enum_operations() -> Result<(), Box<dyn std::error::Error>> {
     println!("  ✓ Batch inserted 2 users via Definition enum");
 
     // Verify batch insert
-    let batch_user1 = store.get_definition(
-        DefinitionModelAssociatedTypes::UserPrimaryKey(UserId(101))
-    )?;
+    let batch_user1 =
+        store.get_definition(DefinitionModelAssociatedTypes::UserPrimaryKey(UserId(101)))?;
     assert!(batch_user1.is_some());
     println!("  ✓ Verified batch user 1");
 
-    let batch_user2 = store.get_definition(
-        DefinitionModelAssociatedTypes::UserPrimaryKey(UserId(102))
-    )?;
+    let batch_user2 =
+        store.get_definition(DefinitionModelAssociatedTypes::UserPrimaryKey(UserId(102)))?;
     assert!(batch_user2.is_some());
     println!("  ✓ Verified batch user 2");
 
@@ -4168,9 +5044,7 @@ fn test_subscription_feature() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n--- Testing subscription accumulator ---");
     let (accumulator, count) = store.read(|txn| {
-        txn.get_subscription_accumulator::<User>(
-            UserSubscriptionsDiscriminants::Updates
-        )
+        txn.get_subscription_accumulator::<User>(UserSubscriptionsDiscriminants::Updates)
     })?;
 
     println!("  ✓ Subscription accumulator: {:?}", &accumulator[..8]);
@@ -4178,13 +5052,13 @@ fn test_subscription_feature() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(count, 3, "Should have 3 items in subscription");
 
     println!("\n--- Getting subscription keys ---");
-    let keys = store.read(|txn| {
-        txn.get_subscription_keys::<User>(
-            UserSubscriptionsDiscriminants::Updates
-        )
-    })?;
+    let keys = store
+        .read(|txn| txn.get_subscription_keys::<User>(UserSubscriptionsDiscriminants::Updates))?;
 
-    println!("  ✓ Retrieved {} primary keys from subscription", keys.len());
+    println!(
+        "  ✓ Retrieved {} primary keys from subscription",
+        keys.len()
+    );
     assert_eq!(keys.len(), 3, "Should have 3 keys");
     for key in &keys {
         println!("    - User ID: {}", key.0);
@@ -4205,12 +5079,13 @@ fn test_subscription_feature() -> Result<(), Box<dyn std::error::Error>> {
     })?;
 
     let (accumulator2, count2) = store2.read(|txn| {
-        txn.get_subscription_accumulator::<User>(
-            UserSubscriptionsDiscriminants::Updates
-        )
+        txn.get_subscription_accumulator::<User>(UserSubscriptionsDiscriminants::Updates)
     })?;
 
-    assert_eq!(accumulator, accumulator2, "Accumulators should match regardless of insertion order");
+    assert_eq!(
+        accumulator, accumulator2,
+        "Accumulators should match regardless of insertion order"
+    );
     assert_eq!(count, count2, "Counts should match");
     println!("  ✓ Accumulators match despite different insertion order!");
     println!("  ✓ Order-independent comparison verified");
@@ -4230,12 +5105,13 @@ fn test_subscription_feature() -> Result<(), Box<dyn std::error::Error>> {
     })?;
 
     let (accumulator_after, count_after) = store2.read(|txn| {
-        txn.get_subscription_accumulator::<User>(
-            UserSubscriptionsDiscriminants::Updates
-        )
+        txn.get_subscription_accumulator::<User>(UserSubscriptionsDiscriminants::Updates)
     })?;
 
-    assert_ne!(accumulator, accumulator_after, "Accumulators should differ when stores have different data");
+    assert_ne!(
+        accumulator, accumulator_after,
+        "Accumulators should differ when stores have different data"
+    );
     assert_eq!(count_after, 4, "Store2 should have 4 items");
     println!("  ✓ Detected difference between stores (3 vs 4 items)");
     println!("  ✓ Subscription sync detection working");
@@ -4267,7 +5143,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     test_serialization_roundtrip(&users, &products);
 
     // Test real database operations
-    test_real_database_operations(&users, &products, &categories, &reviews, &tags, &product_tags)?;
+    test_real_database_operations(
+        &users,
+        &products,
+        &categories,
+        &reviews,
+        &tags,
+        &product_tags,
+    )?;
+    test_sled_database_operations(
+        &users,
+        &products,
+        &categories,
+        &reviews,
+        &tags,
+        &product_tags,
+    )?;
 
     // Test Definition enum operations
     test_definition_enum_operations()?;
