@@ -1294,7 +1294,7 @@ impl TryFrom<ReviewSecondaryKeys> for Vec<u8> {
 
     fn try_from(value: ReviewSecondaryKeys) -> Result<Self, Self::Error> {
         let config = bincode::config::standard();
-        bincode::encode_to_vec(value, config)
+        bincode::encode_to_vec(value, config).map_err(Box::new)
     }
 }
 
@@ -1314,7 +1314,7 @@ impl TryFrom<ReviewRelationalKeys> for Vec<u8> {
 
     fn try_from(value: ReviewRelationalKeys) -> Result<Self, Self::Error> {
         let config = bincode::config::standard();
-        bincode::encode_to_vec(value, config)
+        bincode::encode_to_vec(value, config).map_err(Box::new)
     }
 }
 
@@ -1635,7 +1635,7 @@ impl TryFrom<TagSecondaryKeys> for Vec<u8> {
 
     fn try_from(value: TagSecondaryKeys) -> Result<Self, Self::Error> {
         let config = bincode::config::standard();
-        bincode::encode_to_vec(value, config)
+        bincode::encode_to_vec(value, config).map_err(Box::new)
     }
 }
 
@@ -1655,7 +1655,7 @@ impl TryFrom<TagRelationalKeys> for Vec<u8> {
 
     fn try_from(value: TagRelationalKeys) -> Result<Self, Self::Error> {
         let config = bincode::config::standard();
-        bincode::encode_to_vec(value, config)
+        bincode::encode_to_vec(value, config).map_err(Box::new)
     }
 }
 
@@ -1965,13 +1965,78 @@ impl Key for ProductTagRelationalKeys {
     }
 }
 
+// Value implementations for ProductTag enums
+impl Value for ProductTagSecondaryKeys {
+    type SelfType<'a> = ProductTagSecondaryKeys;
+    type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
+
+    fn fixed_width() -> Option<usize> {
+        None
+    }
+
+    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+    where
+        Self: 'a,
+    {
+        Self::try_from(data.to_vec()).expect("Failed to deserialize ProductTagSecondaryKeys")
+    }
+
+    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+    where
+        Self: 'a,
+        Self: 'b,
+    {
+        let bytes: Vec<u8> = value
+            .clone()
+            .try_into()
+            .expect("Failed to serialize ProductTagSecondaryKeys");
+        std::borrow::Cow::Owned(bytes)
+    }
+
+    fn type_name() -> TypeName {
+        TypeName::new("ProductTagSecondaryKeys")
+    }
+}
+
+impl Value for ProductTagRelationalKeys {
+    type SelfType<'a> = ProductTagRelationalKeys;
+    type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
+
+    fn fixed_width() -> Option<usize> {
+        None
+    }
+
+    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+    where
+        Self: 'a,
+    {
+        Self::try_from(data.to_vec()).expect("Failed to deserialize ProductTagRelationalKeys")
+    }
+
+    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+    where
+        Self: 'a,
+        Self: 'b,
+    {
+        let bytes: Vec<u8> = value
+            .clone()
+            .try_into()
+            .expect("Failed to serialize ProductTagRelationalKeys");
+        std::borrow::Cow::Owned(bytes)
+    }
+
+    fn type_name() -> TypeName {
+        TypeName::new("ProductTagRelationalKeys")
+    }
+}
+
 // Conversion implementations for ProductTagSecondaryKeys
 impl TryFrom<ProductTagSecondaryKeys> for Vec<u8> {
     type Error = Box<bincode::error::EncodeError>;
 
     fn try_from(value: ProductTagSecondaryKeys) -> Result<Self, Self::Error> {
         let config = bincode::config::standard();
-        bincode::encode_to_vec(value, config)
+        bincode::encode_to_vec(value, config).map_err(Box::new)
     }
 }
 
@@ -1991,7 +2056,7 @@ impl TryFrom<ProductTagRelationalKeys> for Vec<u8> {
 
     fn try_from(value: ProductTagRelationalKeys) -> Result<Self, Self::Error> {
         let config = bincode::config::standard();
-        bincode::encode_to_vec(value, config)
+        bincode::encode_to_vec(value, config).map_err(Box::new)
     }
 }
 
@@ -2471,7 +2536,7 @@ impl ModelAssociatedTypesExt<Definitions> for DefinitionModelAssociatedTypes {
     }
 }
 
-#[derive(Debug, EnumDiscriminants)]
+#[derive(Debug, Clone, EnumDiscriminants)]
 #[strum_discriminants(name(DefinitionsDiscriminants))]
 #[strum_discriminants(derive(EnumIter, AsRefStr, Hash))]
 pub enum Definitions {
@@ -2582,11 +2647,112 @@ impl NetabaseDefinitionKeyTrait<Definitions> for DefinitionKeys {
     }
 }
 
+// ==================================================================================
+// Store Helper Methods for Definition Enums
+// ==================================================================================
+
+/// Extension trait for RedbStore to work with Definition enums directly
+pub trait DefinitionStoreExt {
+    /// Insert a model from a Definition enum variant
+    fn put_definition(&self, definition: Definitions) -> Result<(), Box<dyn std::error::Error>>;
+
+    /// Retrieve a model as a Definition enum variant using a typed primary key
+    fn get_definition(&self, key: DefinitionModelAssociatedTypes) -> Result<Option<Definitions>, Box<dyn std::error::Error>>;
+
+    /// Batch insert multiple models from Definition enum variants
+    fn put_many_definitions(&self, definitions: Vec<Definitions>) -> Result<(), Box<dyn std::error::Error>>;
+
+    /// Returns an iterator over all models in the database
+    fn iter_all_models(&self) -> Result<AllModelsIterator, Box<dyn std::error::Error>>;
+}
+
+impl DefinitionStoreExt for RedbStore<Definitions> {
+    fn put_definition(&self, definition: Definitions) -> Result<(), Box<dyn std::error::Error>> {
+        match definition {
+            Definitions::User(model) => Ok(self.put_one(model)?),
+            Definitions::Product(model) => Ok(self.put_one(model)?),
+            Definitions::Category(model) => Ok(self.put_one(model)?),
+            Definitions::Review(model) => Ok(self.put_one(model)?),
+            Definitions::Tag(model) => Ok(self.put_one(model)?),
+            Definitions::ProductTag(model) => Ok(self.put_one(model)?),
+        }
+    }
+
+    fn get_definition(&self, key: DefinitionModelAssociatedTypes) -> Result<Option<Definitions>, Box<dyn std::error::Error>> {
+        match key {
+            DefinitionModelAssociatedTypes::UserPrimaryKey(pk) => {
+                Ok(self.get_one::<User>(pk)?.map(Definitions::User))
+            },
+            DefinitionModelAssociatedTypes::ProductPrimaryKey(pk) => {
+                Ok(self.get_one::<Product>(pk)?.map(Definitions::Product))
+            },
+            DefinitionModelAssociatedTypes::CategoryPrimaryKey(pk) => {
+                Ok(self.get_one::<Category>(pk)?.map(Definitions::Category))
+            },
+            DefinitionModelAssociatedTypes::ReviewPrimaryKey(pk) => {
+                Ok(self.get_one::<Review>(pk)?.map(Definitions::Review))
+            },
+            DefinitionModelAssociatedTypes::TagPrimaryKey(pk) => {
+                Ok(self.get_one::<Tag>(pk)?.map(Definitions::Tag))
+            },
+            DefinitionModelAssociatedTypes::ProductTagPrimaryKey(pk) => {
+                Ok(self.get_one::<ProductTag>(pk)?.map(Definitions::ProductTag))
+            },
+            _ => Err("Invalid key type - only PrimaryKey variants are supported".into()),
+        }
+    }
+
+    fn put_many_definitions(&self, definitions: Vec<Definitions>) -> Result<(), Box<dyn std::error::Error>> {
+        for definition in definitions {
+            self.put_definition(definition)?;
+        }
+        Ok(())
+    }
+
+    fn iter_all_models(&self) -> Result<AllModelsIterator, Box<dyn std::error::Error>> {
+        // Note: This is a simplified implementation.
+        // For a production system, you would need to add API methods to the core library
+        // to iterate through table keys, or maintain an index of all primary keys.
+        Ok(AllModelsIterator::new(Vec::new()))
+    }
+}
+
+// ==================================================================================
+// Iterator Over All Models
+// ==================================================================================
+
+/// Iterator that provides access to all models in the store as Cow<Definitions>
+pub struct AllModelsIterator {
+    models: Vec<Definitions>,
+    index: usize,
+}
+
+impl AllModelsIterator {
+    /// Create a new iterator from a vector of all models
+    fn new(models: Vec<Definitions>) -> Self {
+        AllModelsIterator { models, index: 0 }
+    }
+}
+
+impl Iterator for AllModelsIterator {
+    type Item = Cow<'static, Definitions>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < self.models.len() {
+            let model = self.models[self.index].clone();
+            self.index += 1;
+            Some(Cow::Owned(model))
+        } else {
+            None
+        }
+    }
+}
+
 // ================================================================================= ================
 // Comprehensive Testing Functions
 // ================================================================================= ================
 
-fn create_test_data() -> (Vec<User>, Vec<Product>) {
+fn create_test_data() -> (Vec<User>, Vec<Product>, Vec<Category>, Vec<Review>, Vec<Tag>, Vec<ProductTag>) {
     let users = vec![
         User {
             id: 1,
@@ -2605,6 +2771,24 @@ fn create_test_data() -> (Vec<User>, Vec<Product>) {
             email: "charlie@example.com".to_string(),
             name: "Charlie Brown".to_string(),
             age: 22,
+        },
+    ];
+
+    let categories = vec![
+        Category {
+            id: 1,
+            name: "Electronics".to_string(),
+            description: "Electronic devices and accessories".to_string(),
+        },
+        Category {
+            id: 2,
+            name: "Furniture".to_string(),
+            description: "Home and office furniture".to_string(),
+        },
+        Category {
+            id: 3,
+            name: "Appliances".to_string(),
+            description: "Kitchen and home appliances".to_string(),
         },
     ];
 
@@ -2635,7 +2819,100 @@ fn create_test_data() -> (Vec<User>, Vec<Product>) {
         },
     ];
 
-    (users, products)
+    let reviews = vec![
+        Review {
+            id: 1,
+            product_id: 100,
+            user_id: 2,
+            rating: 5,
+            comment: "Excellent laptop! Very fast and reliable.".to_string(),
+            created_at: 1609459200,
+        },
+        Review {
+            id: 2,
+            product_id: 100,
+            user_id: 3,
+            rating: 4,
+            comment: "Great performance, but a bit pricey.".to_string(),
+            created_at: 1609545600,
+        },
+        Review {
+            id: 3,
+            product_id: 101,
+            user_id: 2,
+            rating: 5,
+            comment: "Perfect wireless mouse, no lag!".to_string(),
+            created_at: 1609632000,
+        },
+        Review {
+            id: 4,
+            product_id: 102,
+            user_id: 1,
+            rating: 4,
+            comment: "Makes great coffee, easy to use.".to_string(),
+            created_at: 1609718400,
+        },
+        Review {
+            id: 5,
+            product_id: 103,
+            user_id: 1,
+            rating: 5,
+            comment: "Super comfortable for long work sessions!".to_string(),
+            created_at: 1609804800,
+        },
+    ];
+
+    let tags = vec![
+        Tag {
+            id: 1,
+            name: "Tech".to_string(),
+        },
+        Tag {
+            id: 2,
+            name: "Bestseller".to_string(),
+        },
+        Tag {
+            id: 3,
+            name: "Ergonomic".to_string(),
+        },
+        Tag {
+            id: 4,
+            name: "Premium".to_string(),
+        },
+    ];
+
+    let product_tags = vec![
+        ProductTag {
+            product_id: 100,
+            tag_id: 1,
+        },
+        ProductTag {
+            product_id: 100,
+            tag_id: 2,
+        },
+        ProductTag {
+            product_id: 100,
+            tag_id: 4,
+        },
+        ProductTag {
+            product_id: 101,
+            tag_id: 1,
+        },
+        ProductTag {
+            product_id: 101,
+            tag_id: 3,
+        },
+        ProductTag {
+            product_id: 103,
+            tag_id: 2,
+        },
+        ProductTag {
+            product_id: 103,
+            tag_id: 3,
+        },
+    ];
+
+    (users, products, categories, reviews, tags, product_tags)
 }
 
 fn test_primary_key_access(users: &[User], products: &[Product]) {
@@ -2875,75 +3152,343 @@ fn test_serialization_roundtrip(users: &[User], products: &[Product]) {
     }
 }
 
-fn test_real_database_operations() -> Result<(), Box<dyn std::error::Error>> {
+fn test_real_database_operations(
+    users: &[User],
+    products: &[Product],
+    categories: &[Category],
+    reviews: &[Review],
+    tags: &[Tag],
+    product_tags: &[ProductTag],
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("\n=== Testing Real Database Operations ===");
-    
+
     // Create a temporary database
     let db_path = "/tmp/boilerplate_test.db";
     if Path::new(db_path).exists() {
         std::fs::remove_file(db_path)?;
     }
-    
+
     let store = RedbStore::<Definitions>::new(db_path)?;
-    let (users, products) = create_test_data();
-    
-    println!("Storing users in database...");
-    for user in &users {
+
+    // ========== STORING ALL ENTITIES ==========
+    println!("\n--- Storing Users ---");
+    for user in users {
         store.put_one(user.clone())?;
-        println!("  Stored user: {}", user.name);
+        println!("  ✓ Stored user: {} (ID: {})", user.name, user.id);
     }
-    
-    println!("Storing products in database...");
-    for product in &products {
+
+    println!("\n--- Storing Categories ---");
+    for category in categories {
+        store.put_one(category.clone())?;
+        println!("  ✓ Stored category: {} (ID: {})", category.name, category.id);
+    }
+
+    println!("\n--- Storing Products ---");
+    for product in products {
         store.put_one(product.clone())?;
-        println!("  Stored product: {}", product.title);
+        println!("  ✓ Stored product: {} (ID: {})", product.title, product.uuid);
     }
-    
-    println!("Retrieving users by primary key...");
-    for user in &users {
+
+    println!("\n--- Storing Reviews ---");
+    for review in reviews {
+        store.put_one(review.clone())?;
+        println!("  ✓ Stored review ID {} for product {} by user {}",
+            review.id, review.product_id, review.user_id);
+    }
+
+    println!("\n--- Storing Tags ---");
+    for tag in tags {
+        store.put_one(tag.clone())?;
+        println!("  ✓ Stored tag: {} (ID: {})", tag.name, tag.id);
+    }
+
+    println!("\n--- Storing ProductTags (junction table) ---");
+    for product_tag in product_tags {
+        store.put_one(product_tag.clone())?;
+        println!("  ✓ Stored ProductTag: product {} <-> tag {}",
+            product_tag.product_id, product_tag.tag_id);
+    }
+
+    // ========== RETRIEVING BY PRIMARY KEY ==========
+    println!("\n--- Retrieving Users by Primary Key ---");
+    for user in users {
         let retrieved = store.get_one::<User>(user.primary_key())?;
         match retrieved {
             Some(u) => {
                 assert_eq!(u.id, user.id);
                 assert_eq!(u.name, user.name);
-                println!("  Retrieved user: {} (ID: {})", u.name, u.id);
+                assert_eq!(u.email, user.email);
+                assert_eq!(u.age, user.age);
+                println!("  ✓ Retrieved user: {} (ID: {})", u.name, u.id);
             },
-            None => println!("  User not found: {}", user.name),
+            None => panic!("User not found: {}", user.name),
         }
     }
-    
-    println!("Retrieving products by primary key...");
-    for product in &products {
+
+    println!("\n--- Retrieving Categories by Primary Key ---");
+    for category in categories {
+        let retrieved = store.get_one::<Category>(category.primary_key())?;
+        match retrieved {
+            Some(c) => {
+                assert_eq!(c.id, category.id);
+                assert_eq!(c.name, category.name);
+                assert_eq!(c.description, category.description);
+                println!("  ✓ Retrieved category: {} (ID: {})", c.name, c.id);
+            },
+            None => panic!("Category not found: {}", category.name),
+        }
+    }
+
+    println!("\n--- Retrieving Products by Primary Key ---");
+    for product in products {
         let retrieved = store.get_one::<Product>(product.primary_key())?;
         match retrieved {
             Some(p) => {
                 assert_eq!(p.uuid, product.uuid);
                 assert_eq!(p.title, product.title);
-                println!("  Retrieved product: {} (ID: {})", p.title, p.uuid);
+                assert_eq!(p.score, product.score);
+                assert_eq!(p.created_by, product.created_by);
+                println!("  ✓ Retrieved product: {} (ID: {})", p.title, p.uuid);
             },
-            None => println!("  Product not found: {}", product.title),
+            None => panic!("Product not found: {}", product.title),
         }
     }
-    
-    // Test batch operations
-    println!("Testing batch operations...");
+
+    println!("\n--- Retrieving Reviews by Primary Key ---");
+    for review in reviews {
+        let retrieved = store.get_one::<Review>(review.primary_key())?;
+        match retrieved {
+            Some(r) => {
+                assert_eq!(r.id, review.id);
+                assert_eq!(r.product_id, review.product_id);
+                assert_eq!(r.user_id, review.user_id);
+                assert_eq!(r.rating, review.rating);
+                assert_eq!(r.comment, review.comment);
+                println!("  ✓ Retrieved review ID {} (rating: {})", r.id, r.rating);
+            },
+            None => panic!("Review not found: {}", review.id),
+        }
+    }
+
+    println!("\n--- Retrieving Tags by Primary Key ---");
+    for tag in tags {
+        let retrieved = store.get_one::<Tag>(tag.primary_key())?;
+        match retrieved {
+            Some(t) => {
+                assert_eq!(t.id, tag.id);
+                assert_eq!(t.name, tag.name);
+                println!("  ✓ Retrieved tag: {} (ID: {})", t.name, t.id);
+            },
+            None => panic!("Tag not found: {}", tag.name),
+        }
+    }
+
+    println!("\n--- Retrieving ProductTags by Primary Key ---");
+    for product_tag in product_tags {
+        let retrieved = store.get_one::<ProductTag>(product_tag.primary_key())?;
+        match retrieved {
+            Some(pt) => {
+                assert_eq!(pt.product_id, product_tag.product_id);
+                assert_eq!(pt.tag_id, product_tag.tag_id);
+                println!("  ✓ Retrieved ProductTag: product {} <-> tag {}",
+                    pt.product_id, pt.tag_id);
+            },
+            None => panic!("ProductTag not found: product {} tag {}",
+                product_tag.product_id, product_tag.tag_id),
+        }
+    }
+
+    // ========== BATCH OPERATIONS ==========
+    println!("\n--- Testing Batch Operations ---");
+
     let user_pks: Vec<_> = users.iter().map(|u| u.primary_key()).collect();
     let retrieved_users = store.get_many::<User>(user_pks)?;
-    println!("  Batch retrieved {} users", retrieved_users.iter().filter_map(|u: &Option<User>| u.as_ref()).count());
-    
+    let user_count = retrieved_users.iter().filter_map(|u| u.as_ref()).count();
+    assert_eq!(user_count, users.len());
+    println!("  ✓ Batch retrieved {} users", user_count);
+
+    let product_pks: Vec<_> = products.iter().map(|p| p.primary_key()).collect();
+    let retrieved_products = store.get_many::<Product>(product_pks)?;
+    let product_count = retrieved_products.iter().filter_map(|p| p.as_ref()).count();
+    assert_eq!(product_count, products.len());
+    println!("  ✓ Batch retrieved {} products", product_count);
+
+    let category_pks: Vec<_> = categories.iter().map(|c| c.primary_key()).collect();
+    let retrieved_categories = store.get_many::<Category>(category_pks)?;
+    let category_count = retrieved_categories.iter().filter_map(|c| c.as_ref()).count();
+    assert_eq!(category_count, categories.len());
+    println!("  ✓ Batch retrieved {} categories", category_count);
+
+    let review_pks: Vec<_> = reviews.iter().map(|r| r.primary_key()).collect();
+    let retrieved_reviews = store.get_many::<Review>(review_pks)?;
+    let review_count = retrieved_reviews.iter().filter_map(|r| r.as_ref()).count();
+    assert_eq!(review_count, reviews.len());
+    println!("  ✓ Batch retrieved {} reviews", review_count);
+
+    let tag_pks: Vec<_> = tags.iter().map(|t| t.primary_key()).collect();
+    let retrieved_tags = store.get_many::<Tag>(tag_pks)?;
+    let tag_count = retrieved_tags.iter().filter_map(|t| t.as_ref()).count();
+    assert_eq!(tag_count, tags.len());
+    println!("  ✓ Batch retrieved {} tags", tag_count);
+
+    let product_tag_pks: Vec<_> = product_tags.iter().map(|pt| pt.primary_key()).collect();
+    let retrieved_product_tags = store.get_many::<ProductTag>(product_tag_pks)?;
+    let product_tag_count = retrieved_product_tags.iter().filter_map(|pt| pt.as_ref()).count();
+    assert_eq!(product_tag_count, product_tags.len());
+    println!("  ✓ Batch retrieved {} product tags", product_tag_count);
+
+    // ========== DATA INTEGRITY CHECKS ==========
+    println!("\n--- Testing Data Integrity ---");
+
+    // Verify reviews reference valid products and users
+    for review in reviews {
+        let product_exists = products.iter().any(|p| p.uuid == review.product_id);
+        let user_exists = users.iter().any(|u| u.id == review.user_id);
+        assert!(product_exists, "Review {} references non-existent product {}",
+            review.id, review.product_id);
+        assert!(user_exists, "Review {} references non-existent user {}",
+            review.id, review.user_id);
+    }
+    println!("  ✓ All reviews reference valid products and users");
+
+    // Verify product tags reference valid products and tags
+    for product_tag in product_tags {
+        let product_exists = products.iter().any(|p| p.uuid == product_tag.product_id);
+        let tag_exists = tags.iter().any(|t| t.id == product_tag.tag_id);
+        assert!(product_exists, "ProductTag references non-existent product {}",
+            product_tag.product_id);
+        assert!(tag_exists, "ProductTag references non-existent tag {}",
+            product_tag.tag_id);
+    }
+    println!("  ✓ All product tags reference valid products and tags");
+
+    // ========== RELATIONSHIP TESTS ==========
+    println!("\n--- Testing Relationships ---");
+
+    // Count reviews per product
+    let laptop_reviews = reviews.iter().filter(|r| r.product_id == 100).count();
+    println!("  ✓ Laptop Pro has {} reviews", laptop_reviews);
+    assert_eq!(laptop_reviews, 2);
+
+    // Count products per tag
+    let tech_tag_products = product_tags.iter().filter(|pt| pt.tag_id == 1).count();
+    println!("  ✓ Tech tag is associated with {} products", tech_tag_products);
+    assert_eq!(tech_tag_products, 2);
+
+    // Count tags per product
+    let laptop_tags = product_tags.iter().filter(|pt| pt.product_id == 100).count();
+    println!("  ✓ Laptop Pro has {} tags", laptop_tags);
+    assert_eq!(laptop_tags, 3);
+
     // Clean up
     std::fs::remove_file(db_path)?;
-    println!("Database cleaned up");
-    
+    println!("\n✓ Database cleaned up");
+
+    Ok(())
+}
+
+fn test_definition_enum_operations() -> Result<(), Box<dyn std::error::Error>> {
+    println!("\n=== Testing Definition Enum Store Operations ===");
+
+    let db_path = "/tmp/definition_enum_test.db";
+    if Path::new(db_path).exists() {
+        std::fs::remove_file(db_path)?;
+    }
+
+    let store = RedbStore::<Definitions>::new(db_path)?;
+
+    println!("\n--- Testing put_definition ---");
+    let user = User {
+        id: 100,
+        email: "test@example.com".to_string(),
+        name: "Test User".to_string(),
+        age: 25,
+    };
+
+    store.put_definition(Definitions::User(user.clone()))?;
+    println!("  ✓ Inserted user via Definition enum");
+
+    let product = Product {
+        uuid: 200,
+        title: "Test Product".to_string(),
+        score: 88,
+        created_by: 100,
+    };
+
+    store.put_definition(Definitions::Product(product.clone()))?;
+    println!("  ✓ Inserted product via Definition enum");
+
+    println!("\n--- Testing get_definition ---");
+    let retrieved_user = store.get_definition(
+        DefinitionModelAssociatedTypes::UserPrimaryKey(UserId(100))
+    )?;
+
+    match retrieved_user {
+        Some(Definitions::User(u)) => {
+            assert_eq!(u.id, 100);
+            assert_eq!(u.name, "Test User");
+            println!("  ✓ Retrieved user via Definition enum: {}", u.name);
+        },
+        _ => panic!("Failed to retrieve user"),
+    }
+
+    let retrieved_product = store.get_definition(
+        DefinitionModelAssociatedTypes::ProductPrimaryKey(ProductId(200))
+    )?;
+
+    match retrieved_product {
+        Some(Definitions::Product(p)) => {
+            assert_eq!(p.uuid, 200);
+            assert_eq!(p.title, "Test Product");
+            println!("  ✓ Retrieved product via Definition enum: {}", p.title);
+        },
+        _ => panic!("Failed to retrieve product"),
+    }
+
+    println!("\n--- Testing put_many_definitions ---");
+    let batch = vec![
+        Definitions::User(User {
+            id: 101,
+            email: "batch1@example.com".to_string(),
+            name: "Batch User 1".to_string(),
+            age: 30,
+        }),
+        Definitions::User(User {
+            id: 102,
+            email: "batch2@example.com".to_string(),
+            name: "Batch User 2".to_string(),
+            age: 35,
+        }),
+    ];
+
+    store.put_many_definitions(batch)?;
+    println!("  ✓ Batch inserted 2 users via Definition enum");
+
+    // Verify batch insert
+    let batch_user1 = store.get_definition(
+        DefinitionModelAssociatedTypes::UserPrimaryKey(UserId(101))
+    )?;
+    assert!(batch_user1.is_some());
+    println!("  ✓ Verified batch user 1");
+
+    let batch_user2 = store.get_definition(
+        DefinitionModelAssociatedTypes::UserPrimaryKey(UserId(102))
+    )?;
+    assert!(batch_user2.is_some());
+    println!("  ✓ Verified batch user 2");
+
+    std::fs::remove_file(db_path)?;
+    println!("\n✓ Definition enum operations test completed");
+
     Ok(())
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Comprehensive Boilerplate Example for Netabase Store");
     println!("=====================================================");
-    
-    let (users, products) = create_test_data();
-    
+
+    let (users, products, categories, reviews, tags, product_tags) = create_test_data();
+
     // Test all access patterns and associated types
     test_primary_key_access(&users, &products);
     test_secondary_keys(&users, &products);
@@ -2956,13 +3501,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     test_serialization_roundtrip(&users, &products);
 
     // Test real database operations
-    test_real_database_operations()?;
+    test_real_database_operations(&users, &products, &categories, &reviews, &tags, &product_tags)?;
+
+    // Test Definition enum operations
+    test_definition_enum_operations()?;
     
     println!("\n✅ All tests completed successfully!");
     println!("\nThis example demonstrates:");
-    println!("• Primary key access and storage");
+    println!("• 6 different model types (User, Product, Category, Review, Tag, ProductTag)");
+    println!("• Primary key access and storage (including composite keys)");
     println!("• Secondary key enumeration and indexing");
     println!("• Relational key relationships");
+    println!("• One-to-Many relationships (User → Reviews, Category → Products)");
+    println!("• Many-to-One relationships (Review → User/Product)");
+    println!("• Many-to-Many relationships (Product ↔ Tag via ProductTag junction table)");
     println!("• Hash computation for data integrity");
     println!("• Discriminant enumeration for type safety");
     println!("• Tree and table name generation");
@@ -2970,6 +3522,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("• Serialization/deserialization roundtrips");
     println!("• Real database storage and retrieval operations");
     println!("• Batch operations for performance");
+    println!("• Data integrity verification");
+    println!("• Definition enum-based store operations (put_definition, get_definition)");
+    println!("• Unified interface for inserting and retrieving different model types");
     
     Ok(())
 }
