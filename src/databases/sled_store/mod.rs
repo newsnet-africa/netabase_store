@@ -38,9 +38,11 @@ use crate::{
     error::NetabaseResult,
     traits::definition::{DiscriminantName, NetabaseDefinition},
 };
+use log::debug;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::path::Path;
+use std::time::Instant;
 use strum::{IntoDiscriminant, IntoEnumIterator};
 
 pub mod error;
@@ -165,7 +167,13 @@ where
     /// # Ok::<(), netabase_store::error::NetabaseError>(())
     /// ```
     pub fn new<P: AsRef<Path>>(path: P) -> NetabaseResult<Self> {
+        let start = Instant::now();
+        let path_display = path.as_ref().display().to_string();
+        debug!("SledStore: Opening database at {}", path_display);
+        
         let db = sled::open(path)?;
+        
+        debug!("SledStore: Opened in {:?}", start.elapsed());
         Ok(SledStore {
             db,
             _marker: PhantomData,
@@ -191,9 +199,14 @@ where
     /// # Ok::<(), netabase_store::error::NetabaseError>(())
     /// ```
     pub fn temporary() -> NetabaseResult<Self> {
+        let start = Instant::now();
+        debug!("SledStore: Creating temporary database");
+
         let db = sled::Config::new()
             .temporary(true)
             .open()?;
+
+        debug!("SledStore: Created temporary in {:?}", start.elapsed());
         Ok(SledStore {
             db,
             _marker: PhantomData,

@@ -18,7 +18,9 @@ use crate::{
         model::{NetabaseModelTrait, key::NetabaseModelKeyTrait},
     },
 };
+use log::{trace, debug};
 use std::fmt::Debug;
+use std::time::Instant;
 use strum::{IntoDiscriminant, IntoEnumIterator};
 
 // =============================================================================
@@ -342,21 +344,79 @@ where
         self.operation_queue.push(operation);
     }
 
-    /// Process the operation queue atomically
+    /// Process the operation queue atomically using sled::Batch
     fn process_queue(&mut self) -> NetabaseResult<()> {
+        let start = Instant::now();
+        let ops_count = self.operation_queue.len();
+        debug!("SledWriteTransaction: Processing queue with {} operations", ops_count);
+
         // Sort operations by priority
+        let sort_start = Instant::now();
         self.operation_queue.sort_by_key(|op| op.priority());
+        trace!("  Sorted operations in {:?}", sort_start.elapsed());
+
+        let prep_start = Instant::now();
+        let mut batches: std::collections::HashMap<String, sled::Batch> = std::collections::HashMap::new();
+        let mut batch_order: Vec<String> = Vec::new();
 
         // Execute all operations in order
         let operations = std::mem::take(&mut self.operation_queue);
 
         for operation in operations {
-            operation.execute(&self.db)?;
+            let (tree_name, key, value_op) = match operation {
+                SledOperation::MainTreeInsert { tree_name, key_bytes, value_bytes, .. } => {
+                    (tree_name, key_bytes, Some(value_bytes))
+                }
+                SledOperation::SecondaryKeyInsert { tree_name, key_bytes, pk_bytes, .. } => {
+                    (tree_name, key_bytes, Some(pk_bytes))
+                }
+                SledOperation::RelationalKeyInsert { tree_name, key_bytes, pk_bytes, .. } => {
+                    (tree_name, key_bytes, Some(pk_bytes))
+                }
+                SledOperation::HashTreeInsert { tree_name, pk_bytes, hash, .. } => {
+                    let hash_bytes = serialize_value(&hash)?;
+                    (tree_name, pk_bytes, Some(hash_bytes))
+                }
+                SledOperation::SubscriptionInsert { tree_name, pk_bytes, hash, .. } => {
+                    let hash_bytes = serialize_value(&hash)?;
+                    (tree_name, pk_bytes, Some(hash_bytes))
+                }
+                SledOperation::Delete { tree_name, key_bytes, .. } => {
+                    (tree_name, key_bytes, None)
+                }
+            };
+
+            if !batches.contains_key(&tree_name) {
+                batches.insert(tree_name.clone(), sled::Batch::default());
+                batch_order.push(tree_name.clone());
+            }
+
+            let batch = batches.get_mut(&tree_name).unwrap();
+            match value_op {
+                Some(value) => batch.insert(key, value),
+                None => batch.remove(key),
+            }
         }
+        trace!("  Prepared {} batches in {:?}", batch_order.len(), prep_start.elapsed());
+
+        // Apply batches in order
+        let apply_start = Instant::now();
+        for tree_name in batch_order {
+            if let Some(batch) = batches.remove(&tree_name) {
+                let tree_start = Instant::now();
+                let tree = self.db.open_tree(&tree_name)?;
+                tree.apply_batch(batch)?;
+                trace!("    Applied batch to tree '{}' in {:?}", tree_name, tree_start.elapsed());
+            }
+        }
+        trace!("  Applied all batches in {:?}", apply_start.elapsed());
 
         // Flush to ensure durability
+        let flush_start = Instant::now();
         self.db.flush()?;
+        trace!("  Flushed DB in {:?}", flush_start.elapsed());
 
+        debug!("SledWriteTransaction: Completed in {:?}", start.elapsed());
         Ok(())
     }
 

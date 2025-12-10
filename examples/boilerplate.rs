@@ -5102,6 +5102,7 @@ fn test_sled_batch_operations(users: &[User]) -> Result<(), Box<dyn std::error::
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::init();
     println!("🚀 Comprehensive Boilerplate Example for Netabase Store");
     println!("=====================================================");
 
