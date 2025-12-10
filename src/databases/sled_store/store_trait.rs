@@ -69,6 +69,42 @@ where
         self.write(|txn| txn.put(model))
     }
 
+    /// Put multiple models in a single transaction (batch operation)
+    fn put_many<M>(&self, models: Vec<M>) -> NetabaseResult<()>
+    where
+        M: NetabaseModelTrait<D> + SledNetabaseModelTrait<D> + Clone + Send,
+        M: bincode::Encode + bincode::Decode<()> + 'static,
+        M::PrimaryKey: bincode::Encode + bincode::Decode<()> + Send + Clone + 'static,
+        <M::Keys as NetabaseModelKeyTrait<D, M>>::SecondaryEnum:
+            IntoDiscriminant + Clone + bincode::Encode,
+        <M::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum:
+            IntoDiscriminant + Clone + bincode::Encode,
+        M::Hash: Into<[u8; 32]>,
+    {
+        self.write(|txn| {
+            for model in models {
+                txn.put(model)?;
+            }
+            Ok(())
+        })
+    }
+
+    /// Get multiple models by their primary keys in a single read transaction
+    fn get_many<M>(&self, keys: Vec<M::PrimaryKey>) -> NetabaseResult<Vec<Option<M>>>
+    where
+        M: NetabaseModelTrait<D> + SledNetabaseModelTrait<D>,
+        M: bincode::Encode + bincode::Decode<()> + 'static,
+        M::PrimaryKey: bincode::Encode + bincode::Decode<()> + 'static,
+    {
+        self.read(|txn| {
+            let mut results = Vec::with_capacity(keys.len());
+            for key in keys {
+                results.push(txn.get::<M>(key)?);
+            }
+            Ok(results)
+        })
+    }
+
     /// Delete a model by its primary key (convenience method)
     fn delete_one<M>(&self, key: M::PrimaryKey) -> NetabaseResult<()>
     where

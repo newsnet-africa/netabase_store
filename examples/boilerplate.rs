@@ -19,7 +19,7 @@ use netabase_store::{
     },
 };
 use redb::{Key, TableDefinition, TypeName, Value, WriteTransaction};
-use std::{borrow::Cow, path::Path};
+use std::{borrow::Cow, path::Path, time::Instant};
 use strum::{AsRefStr, EnumDiscriminants, EnumIter, IntoDiscriminant, IntoEnumIterator};
 
 // ================================================================================= ================
@@ -4536,52 +4536,22 @@ fn test_sled_database_operations(
 
     // ========== STORING ALL ENTITIES ==========
     println!("\n--- Storing Users (Sled) ---");
-    for user in users {
-        store.put_one(user.clone())?;
-        println!("  ✓ Stored user: {} (ID: {})", user.name, user.id);
-    }
+    store.put_many(users.to_vec())?;
 
     println!("\n--- Storing Categories (Sled) ---");
-    for category in categories {
-        store.put_one(category.clone())?;
-        println!(
-            "  ✓ Stored category: {} (ID: {})",
-            category.name, category.id
-        );
-    }
+    store.put_many(categories.to_vec())?;
 
     println!("\n--- Storing Products (Sled) ---");
-    for product in products {
-        store.put_one(product.clone())?;
-        println!(
-            "  ✓ Stored product: {} (ID: {})",
-            product.title, product.uuid
-        );
-    }
+    store.put_many(products.to_vec())?;
 
     println!("\n--- Storing Reviews (Sled) ---");
-    for review in reviews {
-        store.put_one(review.clone())?;
-        println!(
-            "  ✓ Stored review ID {} for product {} by user {}",
-            review.id, review.product_id, review.user_id
-        );
-    }
+    store.put_many(reviews.to_vec())?;
 
     println!("\n--- Storing Tags (Sled) ---");
-    for tag in tags {
-        store.put_one(tag.clone())?;
-        println!("  ✓ Stored tag: {} (ID: {})", tag.name, tag.id);
-    }
+    store.put_many(tags.to_vec())?;
 
     println!("\n--- Storing ProductTags (Sled) ---");
-    for product_tag in product_tags {
-        store.put_one(product_tag.clone())?;
-        println!(
-            "  ✓ Stored ProductTag: product {} <-> tag {}",
-            product_tag.product_id, product_tag.tag_id
-        );
-    }
+    store.put_many(product_tags.to_vec())?;
 
     // ========== RETRIEVING BY PRIMARY KEY ==========
     println!("\n--- Retrieving Users by Primary Key (Sled) ---");
@@ -4655,52 +4625,22 @@ fn test_real_database_operations(
 
     // ========== STORING ALL ENTITIES ==========
     println!("\n--- Storing Users ---");
-    for user in users {
-        store.put_one(user.clone())?;
-        println!("  ✓ Stored user: {} (ID: {})", user.name, user.id);
-    }
+    store.put_many(users.to_vec())?;
 
     println!("\n--- Storing Categories ---");
-    for category in categories {
-        store.put_one(category.clone())?;
-        println!(
-            "  ✓ Stored category: {} (ID: {})",
-            category.name, category.id
-        );
-    }
+    store.put_many(categories.to_vec())?;
 
     println!("\n--- Storing Products ---");
-    for product in products {
-        store.put_one(product.clone())?;
-        println!(
-            "  ✓ Stored product: {} (ID: {})",
-            product.title, product.uuid
-        );
-    }
+    store.put_many(products.to_vec())?;
 
     println!("\n--- Storing Reviews ---");
-    for review in reviews {
-        store.put_one(review.clone())?;
-        println!(
-            "  ✓ Stored review ID {} for product {} by user {}",
-            review.id, review.product_id, review.user_id
-        );
-    }
+    store.put_many(reviews.to_vec())?;
 
     println!("\n--- Storing Tags ---");
-    for tag in tags {
-        store.put_one(tag.clone())?;
-        println!("  ✓ Stored tag: {} (ID: {})", tag.name, tag.id);
-    }
+    store.put_many(tags.to_vec())?;
 
     println!("\n--- Storing ProductTags (junction table) ---");
-    for product_tag in product_tags {
-        store.put_one(product_tag.clone())?;
-        println!(
-            "  ✓ Stored ProductTag: product {} <-> tag {}",
-            product_tag.product_id, product_tag.tag_id
-        );
-    }
+    store.put_many(product_tags.to_vec())?;
 
     // ========== RETRIEVING BY PRIMARY KEY ==========
     println!("\n--- Retrieving Users by Primary Key ---");
@@ -5125,6 +5065,42 @@ fn test_subscription_feature() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn test_sled_batch_operations(users: &[User]) -> Result<(), Box<dyn std::error::Error>> {
+    println!("\n=== Testing Sled Batch Operations ===");
+
+    let db_path = "/tmp/boilerplate_sled_batch_test.db";
+    if Path::new(db_path).exists() {
+        std::fs::remove_dir_all(db_path)?;
+    }
+
+    let store = SledStore::<Definitions>::new(db_path)?;
+
+    println!("\n--- Testing put_many (Sled) ---");
+    // Insert all users in one batch
+    store.put_many(users.to_vec())?;
+    println!("  ✓ Batch inserted {} users", users.len());
+
+    println!("\n--- Testing get_many (Sled) ---");
+    let user_pks: Vec<_> = users.iter().map(|u| u.primary_key()).collect();
+    let retrieved_users = store.get_many::<User>(user_pks)?;
+
+    assert_eq!(retrieved_users.len(), users.len());
+    for (i, retrieved) in retrieved_users.iter().enumerate() {
+        match retrieved {
+            Some(u) => {
+                assert_eq!(u.id, users[i].id);
+                println!("  ✓ Retrieved user: {}", u.name);
+            }
+            None => panic!("Failed to retrieve user {}", users[i].name),
+        }
+    }
+
+    std::fs::remove_dir_all(db_path)?;
+    println!("\n✓ Sled batch operations test completed");
+
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Comprehensive Boilerplate Example for Netabase Store");
     println!("=====================================================");
@@ -5143,6 +5119,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     test_serialization_roundtrip(&users, &products);
 
     // Test real database operations
+    let redb_start = Instant::now();
     test_real_database_operations(
         &users,
         &products,
@@ -5151,6 +5128,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &tags,
         &product_tags,
     )?;
+
+    let redb_end = Instant::now();
+    let red_time = redb_end - redb_start;
+    let sled_start = Instant::now();
     test_sled_database_operations(
         &users,
         &products,
@@ -5159,6 +5140,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &tags,
         &product_tags,
     )?;
+    test_sled_batch_operations(&users)?;
+    let sled_end = Instant::now();
+    let sled_time = sled_end - sled_start;
+    println!("###\n\n\nSLED DURATION: {:?}\n\n\n", sled_time);
+    println!("###\n\n\nREDB DURATION: {:?}\n\n\n", red_time);
 
     // Test Definition enum operations
     test_definition_enum_operations()?;
