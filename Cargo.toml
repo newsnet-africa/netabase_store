@@ -20,3 +20,9 @@ log = "0.4.29"
 serde = { version = "1.0", features = ["derive"] }
 rand = "0.8"
 env_logger = "0.11.8"
+
+[[bench]]
+name = "bench_throughput"
+path = "benches/bench_throughput.rs"
+harness = false # We're doing manual timing, not using criterion or similar.
+
