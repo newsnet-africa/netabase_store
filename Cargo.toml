@@ -1,28 +1,19 @@
-[package]
-name = "netabase_store"
+[workspace]
+members = [
+    "netabase_store",
+    "netabase_macros",
+]
+resolver = "2"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
+authors = ["Netabase Contributors"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/yourusername/netabase_store"
 
-[dependencies]
-derive_more = { version = "2.1.0", features = ["try_into", "from"] }
-ouroboros = "0.18.5"
-redb = "3.1.0"
-strum = { version = "0.27.2", features = ["derive", "strum_macros"] }
-thiserror = "2.0.17"
-blake3 = "1.3"
-bincode = "2.0"
-hex = "0.4"
-libp2p = { version = "0.56.0", features = ["kad"] }
-sled = "0.34.7"
-log = "0.4.29"
-
-[dev-dependencies]
-serde = { version = "1.0", features = ["derive"] }
-rand = "0.8"
-env_logger = "0.11.8"
-
-[[bench]]
-name = "bench_throughput"
-path = "benches/bench_throughput.rs"
-harness = false # We're doing manual timing, not using criterion or similar.
-
+[workspace.dependencies]
+# Shared dependencies across workspace members
+syn = { version = "2.0", features = ["full", "extra-traits"] }
+quote = "1.0"
+proc-macro2 = "1.0"

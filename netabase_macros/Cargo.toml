@@ -1,0 +1,23 @@
+[package]
+name = "netabase_macros"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { workspace = true, features = ["visit"] }
+quote = { workspace = true }
+proc-macro2 = { workspace = true }
+darling = "0.20"  # Simplifies attribute parsing
+
+[dev-dependencies]
+# For testing macro expansions
+netabase_store = { path = "../netabase_store" }
+bincode = "2.0"
+strum = { version = "0.27.2", features = ["derive"] }
+strum_macros = "0.27.2"
+redb = "3.1.0"
+sled = "0.34.7"
+blake3 = "1.3"
