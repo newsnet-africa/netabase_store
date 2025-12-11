@@ -146,4 +146,4 @@ pub use backend::{
 };
 
 // Re-export applications
-pub use applications::ecommerce_app::{EcommerceApplication, ecommerce_def};
+pub use applications::ecommerce_app::*;

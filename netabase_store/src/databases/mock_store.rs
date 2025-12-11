@@ -24,14 +24,14 @@ impl MockStore {
     
     /// Store a key-value pair
     pub fn put(&self, key: &str, value: &str) -> NetabaseResult<()> {
-        let mut data = self.data.lock().map_err(|_| NetabaseError::Generic("Lock error".to_string()))?;
+        let mut data = self.data.lock().map_err(|_| NetabaseError::StoreNotLoaded("Lock error".to_string()))?;
         data.insert(key.to_string(), value.to_string());
         Ok(())
     }
     
     /// Retrieve a value by key
     pub fn get(&self, key: &str) -> NetabaseResult<Option<String>> {
-        let data = self.data.lock().map_err(|_| NetabaseError::Generic("Lock error".to_string()))?;
+        let data = self.data.lock().map_err(|_| NetabaseError::StoreNotLoaded("Lock error".to_string()))?;
         Ok(data.get(key).cloned())
     }
     
@@ -42,11 +42,19 @@ impl MockStore {
 }
 
 /// Placeholder RedbStore type for compatibility
-pub type RedbStore = MockStore;
+/// Uses PhantomData to handle the generic parameter
+pub struct RedbStore<D> {
+    store: MockStore,
+    _marker: std::marker::PhantomData<D>,
+}
 
-impl RedbStore {
+impl<D> RedbStore<D> {
     /// Create a new in-memory RedbStore (mock implementation)
-    pub fn new_in_memory() -> Result<Self, String> {
-        MockStore::new_in_memory().map_err(|e| format!("Failed to create store: {}", e))
+    pub fn new_redb_in_memory() -> Result<Self, String> {
+        let store = MockStore::new_in_memory().map_err(|e| format!("Failed to create store: {}", e))?;
+        Ok(RedbStore {
+            store,
+            _marker: std::marker::PhantomData,
+        })
     }
 }
