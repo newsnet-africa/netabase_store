@@ -20,6 +20,7 @@ use crate::parse::metadata::ModuleMetadata;
 /// Generate the keys enum that holds all primary key types
 pub fn generate_keys_enum(module: &ModuleMetadata) -> TokenStream {
     let keys_name = &module.keys_name;
+    let discriminants_name = format_ident!("{}Discriminants", keys_name);
     
     // Generate variants for each model's primary key
     let variants: Vec<_> = module.models.iter().map(|model| {
@@ -42,7 +43,9 @@ pub fn generate_keys_enum(module: &ModuleMetadata) -> TokenStream {
     }).collect();
     
     quote! {
-        #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode)]
+        #[derive(Debug, Clone, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode, strum::EnumDiscriminants)]
+        #[strum_discriminants(derive(Hash, strum::EnumIter, bincode::Encode, bincode::Decode))]
+        #[strum_discriminants(name(#discriminants_name))]
         pub enum #keys_name {
             #(#variants,)*
             #(#nested_variants,)*

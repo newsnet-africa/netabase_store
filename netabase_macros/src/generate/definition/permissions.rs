@@ -35,7 +35,7 @@ pub fn generate_permissions_enum(module: &ModuleMetadata) -> TokenStream {
     
     quote! {
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, strum::EnumDiscriminants, bincode::Encode, bincode::Decode)]
-        #[strum_discriminants(derive(strum::EnumIter, Hash, bincode::Encode, bincode::Decode))]
+        #[strum_discriminants(derive(strum::EnumIter, Hash, strum::AsRefStr, bincode::Encode, bincode::Decode))]
         #[strum_discriminants(name(#discriminants_name))]
         pub enum #permissions_name {
             /// Full access to this definition and all children
@@ -47,6 +47,9 @@ pub fn generate_permissions_enum(module: &ModuleMetadata) -> TokenStream {
             /// Access delegated to a nested definition
             #(#nested_variants,)*
         }
+
+        // Implement DiscriminantName for the generated discriminant enum
+        impl netabase_store::traits::definition::DiscriminantName for #discriminants_name {}
 
         impl netabase_store::traits::permission::PermissionEnumTrait for #permissions_name {
             fn permission_level(&self) -> netabase_store::traits::permission::PermissionLevel {
@@ -64,8 +67,7 @@ pub fn generate_permissions_enum(module: &ModuleMetadata) -> TokenStream {
                 R: strum::IntoDiscriminant,
                 R::Discriminant: strum::IntoEnumIterator + std::hash::Hash + Eq + std::fmt::Debug + Clone,
             {
-                // TODO: Implement precise discriminant checking when we can verify R == #definition_name
-                // For now, assume if we have permission, it grants access to contents
+                // TODO: Implement precise discriminant checking
                 true
             }
         }

@@ -67,7 +67,7 @@ pub fn generate_complete_definition(module: &ModuleMetadata) -> syn::Result<Toke
         #definition_enum
         #keys_enum
         #associated_types_enum
-        // #permissions_enum
+        #permissions_enum
 
         // Definition-level trait implementations
         #definition_trait

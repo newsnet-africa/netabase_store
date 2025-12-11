@@ -1273,16 +1273,10 @@ dependencies = [
 name = "netabase_macros"
 version = "0.1.0"
 dependencies = [
- "bincode",
- "blake3",
  "darling",
  "netabase_store",
  "proc-macro2",
  "quote",
- "redb",
- "sled",
- "strum",
- "strum_macros",
  "syn 2.0.111",
 ]
 
