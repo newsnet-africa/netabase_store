@@ -2,6 +2,9 @@
 //!
 //! This module generates code at the definition level - structures that
 //! encompass all models in a definition.
+//! 
+//! Phase 8 Enhancement: Now includes hierarchical permissions for nested
+//! definitions with tree-like permission management and enum-based type safety.
 
 pub mod definition_enum;
 pub mod keys_enum;

@@ -121,7 +121,17 @@ impl ModelVisitor {
         field_meta.is_primary_key = field_attrs.primary_key;
         field_meta.is_secondary_key = field_attrs.secondary_key;
         field_meta.is_relation = field_attrs.relation;
-        field_meta.cross_definition_link = field_attrs.cross_definition_link;
+        
+        // Convert Path to CrossDefinitionLink if present
+        if let Some(path) = field_attrs.cross_definition_link {
+            use crate::parse::metadata::{CrossDefinitionLink, RelationshipType, PermissionLevel};
+            field_meta.cross_definition_link = Some(CrossDefinitionLink {
+                target_path: path,
+                target_model: None, // Could be parsed from path if needed
+                required_permission: PermissionLevel::Read, // Default permission
+                relationship_type: RelationshipType::ManyToOne, // Default relationship
+            });
+        }
 
         Ok(field_meta)
     }

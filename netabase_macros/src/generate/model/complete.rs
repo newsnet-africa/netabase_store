@@ -44,6 +44,9 @@ pub fn generate_complete_model(
     
     // Generate subscription keys (returns empty if none)
     let subscription_keys = generate_subscription_keys(model);
+    
+    // Generate cross-definition link wrappers (Phase 8)
+    let cross_definition_links = generate_cross_definition_links_for_model(model, definition_name)?;
 
     // Generate NetabaseModelTrait implementation
     let model_trait = generate_model_trait(model, definition_name)?;
@@ -55,10 +58,31 @@ pub fn generate_complete_model(
         #secondary_keys
         #relational_keys
         #subscription_keys
+        
+        // Cross-definition links (Phase 8)
+        #cross_definition_links
 
         // Trait implementation
         #model_trait
     })
+}
+
+/// Generate cross-definition links specifically for one model
+fn generate_cross_definition_links_for_model(
+    model: &ModelMetadata, 
+    definition_name: &Ident
+) -> syn::Result<TokenStream> {
+    // Check if this model has any cross-definition links
+    let has_cross_links = model.fields.iter()
+        .any(|field| field.cross_definition_link.is_some());
+    
+    if !has_cross_links {
+        return Ok(TokenStream::new());
+    }
+    
+    // Import the function from the cross_definition_links module
+    use crate::generate::model::cross_definition_links::generate_model_cross_definition_links;
+    generate_model_cross_definition_links(model, definition_name)
 }
 
 #[cfg(test)]

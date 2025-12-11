@@ -134,6 +134,7 @@ pub mod backend;
 pub mod error;
 pub mod traits;
 pub mod databases;
+pub mod applications;
 
 // Re-export commonly used types
 pub use error::{NetabaseError, NetabaseResult};
@@ -143,3 +144,6 @@ pub use backend::{
     BackendKey, BackendValue, BackendStore, BackendReadTransaction, BackendWriteTransaction,
     BackendError, BackendTable, BackendReadableTable, BackendWritableTable,
 };
+
+// Re-export applications
+pub use applications::ecommerce_app::{EcommerceApplication, ecommerce_def};

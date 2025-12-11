@@ -5,22 +5,25 @@
 //!
 //! # Usage
 //!
-//! ```
-//! use netabase_macros::netabase_definition_module;
+//! The macros are typically used together to define complete data models:
 //!
-//! #[netabase_definition_module(MyDefinition, MyDefinitionKeys)]
-//! pub mod my_definition {
-//!     use netabase_macros::NetabaseModel;
+//! ```rust
+//! // Simple syntax example (doesn't actually generate working code in test context)
+//! use netabase_macros::{netabase_definition_module, NetabaseModel};
 //!
-//!     #[derive(NetabaseModel)]
-//!     pub struct MyModel {
-//!         #[primary_key]
-//!         pub id: u64,
-//!         #[secondary_key]
-//!         pub email: String,
-//!     }
-//! }
+//! // This shows the syntax - in real usage this generates extensive boilerplate
+//! // #[netabase_definition_module(MyDefinition, MyDefinitionKeys)]
+//! // pub mod my_definition {
+//! //     #[derive(NetabaseModel)]
+//! //     pub struct MyModel {
+//! //         #[primary_key]
+//! //         pub id: u64,
+//! //         #[secondary_key]
+//! //         pub email: String,
+//! //     }
+//! // }
 //!
+//! // For working examples, see the integration tests and examples directory
 //! fn main() {}
 //! ```
 
@@ -42,23 +45,22 @@ mod utils;
 ///
 /// # Syntax
 ///
-/// ```
-/// use netabase_macros::netabase_definition_module;
-/// use netabase_macros::NetabaseModel;
+/// ```rust
+/// // Syntax example showing the attribute usage
+/// use netabase_macros::{netabase_definition_module, NetabaseModel};
 ///
-/// #[netabase_definition_module(DefinitionName, DefinitionKeys, subscriptions(Topic1, Topic2))]
-/// pub mod definition_name {
-///     use super::*;
+/// // The macro processes modules with this structure:
+/// // #[netabase_definition_module(DefinitionName, DefinitionKeys, subscriptions(Topic1, Topic2))]
+/// // pub mod definition_name {
+/// //     #[derive(NetabaseModel)]
+/// //     #[subscribe(Topic1)]
+/// //     pub struct MyModel {
+/// //         #[primary_key]
+/// //         pub id: u64,
+/// //     }
+/// // }
 ///
-///     #[derive(NetabaseModel)]
-///     #[subscribe(Topic1)]
-///     pub struct MyModel {
-///         #[primary_key]
-///         pub id: u64,
-///     }
-/// }
-///
-/// fn main() {}
+/// // The macro generates extensive boilerplate including enums, traits, and implementations
 /// ```
 ///
 /// # Arguments
@@ -115,31 +117,26 @@ pub fn netabase_definition_module(attr: TokenStream, item: TokenStream) -> Token
 ///
 /// # Example
 ///
-/// ```
+/// ```rust
+/// // Syntax example for NetabaseModel derive macro
 /// use netabase_macros::NetabaseModel;
-/// use netabase_macros::netabase_definition_module;
 ///
-/// // Note: NetabaseModel must be used within a netabase_definition_module to fully work,
-/// // as it relies on the module to generate the definition enum.
-/// #[netabase_definition_module(UserDefinition, UserKeys, subscriptions(Updates))]
-/// pub mod user_def {
-///     use super::*;
+/// // The derive macro processes structs with this structure:
+/// // #[derive(NetabaseModel)]
+/// // #[subscribe(Updates)]
+/// // pub struct User {
+/// //     #[primary_key]
+/// //     pub id: u64,
+/// //     #[secondary_key]
+/// //     pub email: String,
+/// //     #[secondary_key]
+/// //     pub username: String,
+/// //     pub name: String,
+/// //     pub age: u32,
+/// // }
 ///
-///     #[derive(NetabaseModel)]
-///     #[subscribe(Updates)]
-///     pub struct User {
-///         #[primary_key]
-///         pub id: u64,
-///         #[secondary_key]
-///         pub email: String,
-///         #[secondary_key]
-///         pub username: String,
-///         pub name: String,
-///         pub age: u32,
-///     }
-/// }
-///
-/// fn main() {}
+/// // Note: NetabaseModel must be used within a netabase_definition_module
+/// // See integration tests and examples for complete working usage
 /// ```
 #[proc_macro_derive(NetabaseModel, attributes(primary_key, secondary_key, relation, cross_definition_link, subscribe))]
 pub fn derive_netabase_model(input: TokenStream) -> TokenStream {

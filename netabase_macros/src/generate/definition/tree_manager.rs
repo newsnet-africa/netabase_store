@@ -11,13 +11,16 @@
 //! - Getting relational tree names for a specific model
 //! - Getting subscription tree names for a specific model
 //! - Getting all tree names for the entire definition
+//! 
+//! Phase 8 Enhancement: Added permission checking methods for hierarchical
+//! access control and cross-definition relationship management.
 //!
 //! This enables generic code that works across any definition.
 
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use crate::parse::metadata::ModuleMetadata;
+use crate::parse::metadata::{ModuleMetadata, PermissionLevel};
 
 /// Generate TreeManager trait implementation for a definition
 ///
@@ -47,6 +50,9 @@ pub fn generate_tree_manager(module: &ModuleMetadata) -> TokenStream {
 
     quote! {
         /// TreeManager trait for accessing tree names by model discriminant
+        /// 
+        /// Phase 8 Enhancement: Now includes permission checking methods for
+        /// hierarchical access control and cross-definition relationship management.
         pub trait TreeManager {
             /// Get the main tree name for a model
             fn get_main_tree_name(discriminant: &#discriminants) -> Option<&'static str>;
@@ -68,6 +74,12 @@ pub fn generate_tree_manager(module: &ModuleMetadata) -> TokenStream {
 
             /// Get all tree names for the entire definition (all models)
             fn get_all_definition_tree_names() -> Vec<&'static str>;
+            
+            /// Get permission level required to access a specific model (Phase 8)
+            fn get_access_permission_required(discriminant: &#discriminants) -> PermissionLevel;
+            
+            /// Check if cross-definition access is allowed for a model (Phase 8)
+            fn allows_cross_definition_access(discriminant: &#discriminants) -> bool;
         }
 
         impl TreeManager for #definition_name {
@@ -78,6 +90,20 @@ pub fn generate_tree_manager(module: &ModuleMetadata) -> TokenStream {
             #subscription_trees_method
             #all_model_trees_method
             #all_definition_trees_method
+            
+            /// Get permission level required to access a specific model
+            fn get_access_permission_required(discriminant: &#discriminants) -> PermissionLevel {
+                match discriminant {
+                    // All models in this definition require at least Read permission
+                    _ => PermissionLevel::Read,
+                }
+            }
+            
+            /// Check if cross-definition access is allowed for a model
+            fn allows_cross_definition_access(discriminant: &#discriminants) -> bool {
+                // TODO: Implement based on model's cross-definition fields
+                false
+            }
         }
     }
 }

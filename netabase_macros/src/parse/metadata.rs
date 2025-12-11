@@ -6,6 +6,46 @@
 
 use syn::{Ident, Type, Visibility, Path};
 
+/// Permission granted to a child module by its parent
+#[derive(Debug, Clone)]
+pub struct ChildPermissionGrant {
+    /// Name of the child module
+    pub child_name: Ident,
+    /// Permission level granted by parent
+    pub permission_level: PermissionLevel,
+    /// Whether this child can access sibling modules
+    pub cross_sibling_access: bool,
+}
+
+/// Permission levels in the hierarchy
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PermissionLevel {
+    /// No access
+    None,
+    /// Read-only access
+    Read,
+    /// Write-only access
+    Write,
+    /// Full read-write access
+    ReadWrite,
+    /// Full access including permission management
+    Admin,
+}
+
+impl PermissionLevel {
+    pub fn can_read(&self) -> bool {
+        matches!(self, PermissionLevel::Read | PermissionLevel::ReadWrite | PermissionLevel::Admin)
+    }
+
+    pub fn can_write(&self) -> bool {
+        matches!(self, PermissionLevel::Write | PermissionLevel::ReadWrite | PermissionLevel::Admin)
+    }
+
+    pub fn can_manage_permissions(&self) -> bool {
+        matches!(self, PermissionLevel::Admin)
+    }
+}
+
 /// Complete metadata for a netabase definition module
 #[derive(Debug, Clone)]
 pub struct ModuleMetadata {
@@ -26,6 +66,12 @@ pub struct ModuleMetadata {
 
     /// Nested definition modules (for hierarchical definitions)
     pub nested_modules: Vec<ModuleMetadata>,
+
+    /// Permission hierarchy - defines which child modules this parent can access
+    pub child_permissions: Vec<ChildPermissionGrant>,
+
+    /// Parent module (None if this is root level)
+    pub parent_module: Option<Box<ModuleMetadata>>,
 }
 
 impl ModuleMetadata {
@@ -38,6 +84,8 @@ impl ModuleMetadata {
             available_subscriptions: Vec::new(),
             models: Vec::new(),
             nested_modules: Vec::new(),
+            child_permissions: Vec::new(),
+            parent_module: None,
         }
     }
 
@@ -53,14 +101,66 @@ impl ModuleMetadata {
         self.models.push(model);
     }
 
-    /// Add a nested module
+    /// Add a nested module with permission settings
     pub fn add_nested_module(&mut self, module: ModuleMetadata) {
         self.nested_modules.push(module);
+    }
+
+    /// Set the parent module reference (for upward navigation)
+    pub fn set_parent(&mut self, parent: ModuleMetadata) {
+        self.parent_module = Some(Box::new(parent));
+    }
+
+    /// Add a child permission grant
+    pub fn add_child_permission(&mut self, grant: ChildPermissionGrant) {
+        self.child_permissions.push(grant);
     }
 
     /// Check if a subscription topic is available
     pub fn has_subscription(&self, topic: &Ident) -> bool {
         self.available_subscriptions.iter().any(|t| t == topic)
+    }
+
+    /// Get permission level for a specific child module
+    pub fn get_child_permission(&self, child_name: &Ident) -> PermissionLevel {
+        self.child_permissions
+            .iter()
+            .find(|grant| grant.child_name == *child_name)
+            .map(|grant| grant.permission_level)
+            .unwrap_or(PermissionLevel::Read) // Default to read-only
+    }
+
+    /// Check if this module is a root-level module (no parent)
+    pub fn is_root(&self) -> bool {
+        self.parent_module.is_none()
+    }
+
+    /// Get all child module names for permission enumeration
+    pub fn child_module_names(&self) -> Vec<&Ident> {
+        self.nested_modules.iter().map(|m| &m.definition_name).collect()
+    }
+
+    /// Get the full hierarchical path (from root to this module)
+    pub fn hierarchical_path(&self) -> Vec<String> {
+        let mut path = Vec::new();
+        if let Some(ref parent) = self.parent_module {
+            path.extend(parent.hierarchical_path());
+        }
+        path.push(self.definition_name.to_string());
+        path
+    }
+
+    /// Check if this module can access a sibling module
+    pub fn can_access_sibling(&self, sibling_name: &Ident) -> bool {
+        // Check if parent grants cross-sibling access
+        if let Some(ref parent) = self.parent_module {
+            return parent.child_permissions
+                .iter()
+                .find(|grant| grant.child_name == self.definition_name)
+                .map(|grant| grant.cross_sibling_access)
+                .unwrap_or(false);
+        }
+        false
     }
 }
 
@@ -118,6 +218,16 @@ impl ModelMetadata {
         self.fields.iter().filter(|f| f.is_relation).collect()
     }
 
+    /// Get all cross-definition relational fields
+    pub fn cross_definition_fields(&self) -> Vec<&FieldMetadata> {
+        self.fields.iter().filter(|f| f.is_cross_definition()).collect()
+    }
+
+    /// Get all local relational fields (not cross-definition)
+    pub fn local_relational_fields(&self) -> Vec<&FieldMetadata> {
+        self.fields.iter().filter(|f| f.is_relation && !f.is_cross_definition()).collect()
+    }
+
     /// Get all regular (non-key) fields
     pub fn regular_fields(&self) -> Vec<&FieldMetadata> {
         self.fields.iter()
@@ -133,6 +243,19 @@ impl ModelMetadata {
     /// Check if this model has any relations
     pub fn has_relations(&self) -> bool {
         self.fields.iter().any(|f| f.is_relation)
+    }
+
+    /// Check if this model has any cross-definition relations
+    pub fn has_cross_definition_relations(&self) -> bool {
+        self.fields.iter().any(|f| f.is_cross_definition())
+    }
+
+    /// Get required permission levels for all cross-definition fields
+    pub fn required_cross_permissions(&self) -> Vec<PermissionLevel> {
+        self.cross_definition_fields()
+            .iter()
+            .map(|f| f.required_permission())
+            .collect()
     }
 }
 
@@ -158,7 +281,33 @@ pub struct FieldMetadata {
     pub is_relation: bool,
 
     /// Path to cross-definition model (if using #[cross_definition_link])
-    pub cross_definition_link: Option<Path>,
+    pub cross_definition_link: Option<CrossDefinitionLink>,
+}
+
+/// Cross-definition relationship information
+#[derive(Debug, Clone)]
+pub struct CrossDefinitionLink {
+    /// Path to the target definition (e.g., "inner::InnerDefinition")
+    pub target_path: Path,
+    /// Target model name within that definition
+    pub target_model: Option<Ident>,
+    /// Permission level required to access this link
+    pub required_permission: PermissionLevel,
+    /// Whether this is a many-to-one or one-to-many relationship
+    pub relationship_type: RelationshipType,
+}
+
+/// Type of cross-definition relationship
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RelationshipType {
+    /// One-to-one relationship
+    OneToOne,
+    /// One-to-many relationship (this model has many of the target)
+    OneToMany,
+    /// Many-to-one relationship (many of this model belong to one target)
+    ManyToOne,
+    /// Many-to-many relationship
+    ManyToMany,
 }
 
 impl FieldMetadata {
@@ -180,12 +329,28 @@ impl FieldMetadata {
         self.is_primary_key || self.is_secondary_key || self.is_relation
     }
 
+    /// Check if this field is a cross-definition relation
+    pub fn is_cross_definition(&self) -> bool {
+        self.cross_definition_link.is_some()
+    }
+
+    /// Get the required permission level for accessing this field
+    pub fn required_permission(&self) -> PermissionLevel {
+        if let Some(ref link) = self.cross_definition_link {
+            link.required_permission
+        } else {
+            PermissionLevel::Read // Default for local fields
+        }
+    }
+
     /// Get a human-readable description of the field type
     pub fn field_type_description(&self) -> &'static str {
         if self.is_primary_key {
             "primary key"
         } else if self.is_secondary_key {
             "secondary key"
+        } else if self.is_relation && self.is_cross_definition() {
+            "cross-definition relation"
         } else if self.is_relation {
             "relation"
         } else {

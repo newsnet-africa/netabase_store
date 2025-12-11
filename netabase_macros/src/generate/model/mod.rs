@@ -22,6 +22,7 @@ pub mod relational_keys;
 pub mod subscription_keys;
 pub mod model_trait;
 pub mod complete;
+pub mod cross_definition_links;
 
 // Re-exports
 pub use primary_key::*;
@@ -30,3 +31,4 @@ pub use relational_keys::*;
 pub use subscription_keys::*;
 pub use model_trait::*;
 pub use complete::*;
+pub use cross_definition_links::*;

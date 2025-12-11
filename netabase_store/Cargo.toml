@@ -18,6 +18,10 @@ log = "0.4.29"
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.8"
 chrono = { version = "0.4", features = ["serde"] }
+tokio = { version = "1.0", features = ["full"] }
+
+# Macro dependencies
+netabase_macros = { path = "../netabase_macros" }
 
 [dev-dependencies]
 rand = "0.8"

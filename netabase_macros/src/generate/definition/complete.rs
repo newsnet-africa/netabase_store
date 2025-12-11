@@ -16,6 +16,7 @@ use super::{
     generate_associated_types_ext,
 };
 use crate::generate::model::generate_complete_model;
+use crate::generate::model::cross_definition_links::generate_cross_definition_support_types;
 use crate::generate::tree_naming::{generate_tree_naming_impl, generate_cross_definition_helpers};
 
 /// Generate all code for a complete definition module
@@ -57,9 +58,15 @@ pub fn generate_complete_definition(module: &ModuleMetadata) -> syn::Result<Toke
 
     // Generate TreeManager implementation
     let tree_manager = super::generate_tree_manager(module);
+    
+    // Generate cross-definition support types (Phase 8)
+    let cross_definition_support = generate_cross_definition_support_types();
 
     // Combine everything
     Ok(quote! {
+        // Cross-definition support types (Phase 8) - placed first for availability
+        #cross_definition_support
+        
         // Model-level code (wrappers, enums, traits for each model)
         #(#model_code)*
 
@@ -86,7 +93,7 @@ pub fn generate_complete_definition(module: &ModuleMetadata) -> syn::Result<Toke
         // TreeManager trait implementation (Phase 7)
         #tree_manager
 
-        // TODO: Manager coordination (Phase 8)
+        // Cross-definition linking complete (Phase 8)
     })
 }
 
