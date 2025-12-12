@@ -125,12 +125,22 @@ pub enum NetabaseError {
     #[error("{0}")]
     Other(String),
 
+    /// Configuration error (e.g., invalid TOML schema)
+    #[error("Configuration error: {0}")]
+    Configuration(String),
+
     /// Definition store is not loaded
     ///
     /// This error occurs when attempting to access a definition store that
     /// has not been loaded yet. The store needs to be loaded before use.
     #[error("Definition store not loaded: {0}")]
     StoreNotLoaded(String),
+
+    /// Tree not found
+    ///
+    /// This error occurs when attempting to access a tree (table) that doesn't exist.
+    #[error("Tree not found")]
+    TreeNotFound,
 
     /// Permission denied
     ///

@@ -1,0 +1,57 @@
+[definition]
+name = "Product"
+version = "1"
+
+[model]
+fields = [
+    { name = "id", type = "u64" },
+    { name = "sku", type = "String" },
+    { name = "name", type = "String" },
+    { name = "category", type = "String" },
+    { name = "description", type = "String" },
+    { name = "price", type = "f64" },
+    { name = "stock_quantity", type = "u32" },
+    { name = "created_at", type = "String" },
+]
+
+[keys]
+[keys.primary]
+field = "id"
+key_type = "ProductId"
+
+[[keys.secondary]]
+name = "Sku"
+field = "sku"
+unique = true
+
+[[keys.secondary]]
+name = "Name"
+field = "name"
+unique = false
+
+[[keys.secondary]]
+name = "Category"
+field = "category"
+unique = false
+
+[[keys.relational]]
+name = "CreatedBy"
+target_definition = "User"
+target_model = "User"
+target_key_type = "UserId"
+
+[[subscriptions]]
+name = "ProductEvents"
+description = "Product lifecycle events"
+
+[[subscriptions]]
+name = "Inventory"
+description = "Stock and inventory events"
+
+[permissions]
+can_reference_from = ["Order", "Review"]
+can_reference_to = ["User"]
+
+[metadata]
+generated_at = "2024-12-11T00:00:00Z"
+schema_hash = "blake3:product_schema_v1"

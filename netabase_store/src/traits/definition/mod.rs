@@ -1,6 +1,7 @@
-use crate::traits::store::tree_manager::TreeManager;
 use std::fmt::Debug;
 use strum::{IntoDiscriminant, IntoEnumIterator};
+
+use crate::traits::store::tree_manager::TreeManager;
 
 pub mod key;
 
@@ -12,7 +13,37 @@ pub trait DiscriminantName: AsRef<str> {
     }
 }
 
-pub trait NetabaseDefinitionTrait: IntoDiscriminant + TreeManager<Self> + Sized
+/// Wrapper struct for tree names to provide strong typing and consistency
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TreeName<T>(pub T);
+
+impl<T> TreeName<T> {
+    pub fn new(inner: T) -> Self {
+        Self(inner)
+    }
+
+    pub fn inner(&self) -> &T {
+        &self.0
+    }
+
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
+
+impl<T: DiscriminantName> DiscriminantName for TreeName<T> {
+    fn name(&self) -> &str {
+        self.0.name()
+    }
+}
+
+impl<T: DiscriminantName> AsRef<str> for TreeName<T> {
+    fn as_ref(&self) -> &str {
+        self.0.name()
+    }
+}
+
+pub trait NetabaseDefinition: IntoDiscriminant + TreeManager<Self> + Sized
 where
     <Self as IntoDiscriminant>::Discriminant:
         IntoEnumIterator + std::hash::Hash + Eq + Debug + DiscriminantName + Clone,
@@ -20,9 +51,6 @@ where
         IntoEnumIterator + std::hash::Hash + Eq + Debug + Clone,
 {
     type Keys: IntoDiscriminant;
-    /// Unified enum that wraps all model-associated types under one generic type
-    /// This eliminates the need for opaque Vec<u8> and String types
-    type ModelAssociatedTypes: Clone + Debug + Send + ModelAssociatedTypesExt<Self> + crate::databases::redb_store::RedbModelAssociatedTypesExt<Self>;
 
     /// The permission enum type for this definition
     ///
@@ -37,66 +65,16 @@ where
     ///
     /// # Example
     /// ```ignore
-    /// impl NetabaseDefinitionTrait for RestaurantDefinitions {
+    /// impl NetabaseDefinition for RestaurantDefinitions {
     ///     // ... other associated types ...
     ///     type Permissions = RestaurantPermissions;  // or NoPermissions for no checks
     /// }
     /// ```
     type Permissions: crate::traits::permission::PermissionEnumTrait;
-}
 
-/// Extension trait for ModelAssociatedTypes to provide type conversion methods
-pub trait ModelAssociatedTypesExt<D>
-where
-    D: NetabaseDefinitionTrait + crate::traits::store::tree_manager::TreeManager<D>,
-    <D as IntoDiscriminant>::Discriminant:
-        IntoEnumIterator + std::hash::Hash + Eq + Debug + DiscriminantName + Clone,
-{
-    /// Wrap a primary key of any model into the unified type
-    fn from_primary_key<M: crate::traits::model::NetabaseModelTrait<D>>(key: M::PrimaryKey) -> Self;
-    
-    /// Wrap a model instance into the unified type
-    fn from_model<M: crate::traits::model::NetabaseModelTrait<D>>(model: M) -> Self;
-    
-    /// Wrap a secondary key into the unified type
-    fn from_secondary_key<M: crate::traits::model::NetabaseModelTrait<D>>(
-        key: <<M::Keys as crate::traits::model::key::NetabaseModelKeyTrait<D, M>>::SecondaryEnum as IntoDiscriminant>::Discriminant
-    ) -> Self;
-    
-    /// Wrap a relational key discriminant into the unified type
-    fn from_relational_key_discriminant<M: crate::traits::model::NetabaseModelTrait<D>>(
-        key: <<M::Keys as crate::traits::model::key::NetabaseModelKeyTrait<D, M>>::RelationalEnum as IntoDiscriminant>::Discriminant
-    ) -> Self;
-    
-    /// Wrap a secondary key data into the unified type
-    fn from_secondary_key_data<M: crate::traits::model::NetabaseModelTrait<D>>(
-        key: <M::Keys as crate::traits::model::key::NetabaseModelKeyTrait<D, M>>::SecondaryEnum
-    ) -> Self;
-    
-    /// Wrap a relational key data into the unified type
-    fn from_relational_key_data<M: crate::traits::model::NetabaseModelTrait<D>>(
-        key: <M::Keys as crate::traits::model::key::NetabaseModelKeyTrait<D, M>>::RelationalEnum
-    ) -> Self;
+    fn name(&self) -> String;
 
-    /// Wrap a subscription key discriminant into the unified type
-    fn from_subscription_key_discriminant<M: crate::traits::model::NetabaseModelTrait<D>>(
-        key: <<M as crate::traits::model::NetabaseModelTrait<D>>::SubscriptionEnum as IntoDiscriminant>::Discriminant
-    ) -> Self;
-}
-
-pub trait NetabaseDefinition: NetabaseDefinitionTrait + TreeManager<Self> + Sized
-where
-    <Self as IntoDiscriminant>::Discriminant:
-        IntoEnumIterator + std::hash::Hash + Eq + Debug + DiscriminantName + Clone,
-    <Self::Permissions as IntoDiscriminant>::Discriminant:
-        IntoEnumIterator + std::hash::Hash + Eq + Debug + Clone,
-{
-}
-
-impl<T: NetabaseDefinitionTrait + TreeManager<T>> NetabaseDefinition for T where
-    <T as IntoDiscriminant>::Discriminant:
-        IntoEnumIterator + std::hash::Hash + Eq + Debug + DiscriminantName + Clone,
-    <T::Permissions as IntoDiscriminant>::Discriminant:
-        IntoEnumIterator + std::hash::Hash + Eq + Debug + Clone
-{
+    fn get_tree_name(discriminant: &<Self as IntoDiscriminant>::Discriminant) -> Option<String> {
+        Some(discriminant.name().to_string())
+    }
 }

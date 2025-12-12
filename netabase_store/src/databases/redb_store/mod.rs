@@ -21,7 +21,7 @@ pub mod manager;
 pub mod transaction;
 pub mod traits;
 
-pub use traits::{RedbModelAssociatedTypesExt, RedbNetabaseModelTrait};
+pub use traits::RedbNetabaseModelTrait;
 pub use backend::RedbBackendStore;
 pub use manager::RedbDefinitionManager;
 

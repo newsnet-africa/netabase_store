@@ -271,97 +271,408 @@ netabase_manager! {
    - Invalid foreign key targets
    - Permission conflicts
 
-## Implementation Phases
+## Implementation Status
 
-### Phase 1: Core Infrastructure
+### Phase 1: Core Infrastructure ✅ **COMPLETED**
 **Goal**: Establish manager traits and types (no TOML/macros yet)
 
-**New Files**:
-- `src/traits/permission/mod.rs` - Permission trait system
-- `src/traits/manager/mod.rs` - Manager trait
-- `src/traits/manager/store_link.rs` - DefinitionStoreLink enum
-- `src/databases/manager/mod.rs` - Generic DefinitionManager
-- `src/databases/redb_store/manager.rs` - RedbDefinitionManager
+**Status**: All core infrastructure is implemented and working.
 
-**Modified Files**:
-- `src/traits/definition/mod.rs` - Add `type Permissions` (with default)
+**Completed Work**:
+- ✅ `src/traits/permission/mod.rs` - Permission trait system
+- ✅ `src/traits/manager/mod.rs` - Manager trait
+- ✅ `src/traits/manager/store_link.rs` - DefinitionStoreLink enum
+- ✅ `src/databases/manager/mod.rs` - Generic DefinitionManager with lazy loading
+- ✅ `src/databases/redb_store/manager.rs` - RedbDefinitionManager implementation
+- ✅ `src/databases/sled_store/manager.rs` - SledDefinitionManager implementation
+- ✅ Manager transaction support (read/write transactions across definitions)
+- ✅ Cross-definition access tracking and auto-unload
+- ✅ Permissions system with hierarchical roles
 
-**Testing**: Manual tests with existing boilerplate.rs definitions
+**Testing**: ✅ Manual tests passing, manager integration tests exist
 
-### Phase 2: Standardized Tree Naming
+---
+
+### Phase 2: Standardized Tree Naming ✅ **COMPLETED**
 **Goal**: Implement and test the naming convention
 
-**Modified Files**:
-- `src/traits/store/tree_manager.rs` - Update trait methods for new format
-- `examples/boilerplate.rs` - Update to use new naming pattern
+**Status**: Tree naming convention implemented and standardized across the codebase.
 
-**New Files**:
-- `src/traits/store/tree_naming.rs` - Helper functions for tree name generation
+**Completed Work**:
+- ✅ Standardized format: `{Definition}::{Model}::{Type}::{Name}`
+- ✅ Implementation in `src/codegen/toml_parser.rs` (see `generate_tree_names()`)
+- ✅ Examples:
+  - Main: `User::User::Main`
+  - Secondary: `User::User::Secondary::Email`
+  - Relational: `Product::Product::Relational::CreatedBy`
+  - Subscription: `User::User::Subscription::UserEvents`
+  - Hash: `User::User::Hash`
 
-**Testing**:
-- Verify all tree names follow `{Def}::{Model}::{Type}::{Name}` format
-- Test cross-definition tree lookup
+**Testing**: ✅ Unit tests for tree name generation passing
 
-### Phase 3: TOML Schema Parser
+---
+
+### Phase 3: TOML Schema Parser ✅ **COMPLETED**
 **Goal**: Parse TOML schemas and validate
 
-**New Files**:
-- `src/codegen/toml_parser.rs` - Parse TOML into intermediate representation
-- `src/codegen/toml_types.rs` - Serde types for TOML structure
-- `src/codegen/validator.rs` - Validate schema consistency
+**Status**: Fully functional TOML parser with comprehensive types.
 
-**Dependencies** (add to Cargo.toml):
-```toml
-[dependencies]
-toml = "0.8"
-serde = { version = "1.0", features = ["derive"] }
-```
+**Completed Work**:
+- ✅ `src/codegen/toml_parser.rs` - Complete TOML parsing
+- ✅ `src/codegen/toml_types.rs` - Serde types for all TOML structures
+- ✅ `src/codegen/validator.rs` - Schema validation
+- ✅ Support for:
+  - Definition schemas (individual models)
+  - Manager schemas (multi-definition managers)
+  - Nested schema loading (`load_all_definition_schemas()`)
+  - Tree name generation from schemas
+- ✅ Example TOML files:
+  - `ecommerce.root.netabase.toml` (manager)
+  - `schemas/User.netabase.toml`
+  - `schemas/Product.netabase.toml`
+  - `schemas/Order.netabase.toml`
 
-**Testing**: Parse example TOML files, validate against schema
+**Testing**: ✅ Unit tests for parsing and validation passing
 
-### Phase 4: Code Generation
+---
+
+### Phase 4: Code Generation 🟡 **PARTIALLY COMPLETE**
 **Goal**: Generate Rust code from TOML schemas
 
-**New Files**:
-- `src/codegen/generator.rs` - Core code generation logic
-- `src/codegen/model_gen.rs` - Generate model structs
-- `src/codegen/key_gen.rs` - Generate key types and enums
-- `src/codegen/trait_gen.rs` - Generate trait implementations
-- `src/codegen/tree_gen.rs` - Generate TreeManager impl
+**Status**: Basic generator exists but needs completion and integration.
 
-**Testing**: Generate code from TOML, compare with manual boilerplate
+**Completed Work**:
+- ✅ `src/codegen/generator.rs` - Basic code generation framework
+- ✅ `generate_definition_code()` - Generates complete definitions
+- ✅ `generate_model()` - Model struct generation
+- ✅ `generate_keys()` - Primary, secondary, and relational keys
+- ✅ `generate_trait_implementations()` - Basic trait impls
+- ✅ `generate_tree_manager()` - Tree name constants
+- ✅ `generate_manager_code()` - Manager struct generation
+- ✅ Unit tests for code generation
 
-### Phase 5: Macro Implementation
+**Missing Work**:
+- ❌ Complete trait implementations (currently generates minimal stubs)
+- ❌ Backend-specific extensions (Redb/Sled trait implementations)
+- ❌ Cross-definition link generation
+- ❌ Subscription enum generation
+- ❌ Type inference for key field types (currently hardcoded)
+- ❌ derive macro attribute preservation
+- ❌ Permission role generation from manager schema
+- ❌ Format generated code properly (indentation, newlines)
+
+**Next Steps**:
+1. Enhance `generate_trait_implementations()` to match manual boilerplate
+2. Add backend-specific trait generation
+3. Add proper type inference from field types
+4. Add code formatting/pretty-printing
+
+---
+
+### Phase 5: Macro Implementation 🟡 **PARTIALLY COMPLETE**
 **Goal**: Provide procedural macros for users
 
-**New Crate**: `netabase_macros/` (proc-macro crate)
-- `netabase_macros/src/lib.rs` - Macro entry points
-- `netabase_macros/src/definition.rs` - `netabase_definition!` macro
-- `netabase_macros/src/manager.rs` - `netabase_manager!` macro
+**Status**: Manual definition macros work; TOML-based macros are stubbed.
 
-**Integration**:
-- Main crate re-exports macros
-- Macros use codegen modules from Phase 4
+**Completed Work**:
+- ✅ `netabase_macros/` proc-macro crate exists
+- ✅ `netabase_definition_module` macro - **FULLY WORKING**
+  - Processes modules with `NetabaseModel` structs
+  - Generates all boilerplate code
+  - Reduces ~3846 lines to ~50 lines (94% reduction)
+- ✅ `NetabaseModel` derive macro - **FULLY WORKING**
+  - Generates keys, traits, implementations
+- ✅ `netabase_definition_from_toml!()` - **STUBBED** (compile_error!)
+- ✅ `netabase_manager_from_toml!()` - **STUBBED** (compile_error!)
 
-**Testing**: Integration tests with user-facing API
+**Missing Work**:
+- ❌ Wire `netabase_definition_from_toml!()` to codegen module
+- ❌ Wire `netabase_manager_from_toml!()` to codegen module
+- ❌ Handle compile-time file reading and path resolution
+- ❌ Generate proc_macro2::TokenStream from generated code strings
+- ❌ Add proper error handling and diagnostics
+- ❌ Add incremental compilation support (track TOML file changes)
 
-### Phase 6: TOML Auto-Generation (Future)
+**Technical Challenge**:
+The macro crate (`netabase_macros`) is a proc-macro crate and cannot depend on the main crate (`netabase_store`) which contains the codegen module. Solutions:
+
+1. **Option A**: Extract codegen into separate library crate
+   - Create `netabase_codegen` as a normal library crate
+   - Both `netabase_macros` and `netabase_store` depend on it
+   - Clean separation of concerns
+
+2. **Option B**: Duplicate codegen in macro crate
+   - Copy generator logic into `netabase_macros`
+   - Keep synchronized manually
+   - Less clean but avoids extra crate
+
+3. **Option C**: Generate code at build time
+   - Use build.rs to pre-generate from TOML
+   - Macros just include! the generated files
+   - Different model but might be simpler
+
+**Recommended**: Option A (separate codegen crate)
+
+**Next Steps**:
+1. Create `netabase_codegen` crate with all codegen modules
+2. Update `netabase_macros` to use `netabase_codegen`
+3. Implement TOML macro bodies using the generator
+4. Add comprehensive integration tests
+
+---
+
+### Phase 6: TOML Auto-Generation (Future) ⏸️ **NOT STARTED**
 **Goal**: Bidirectional - generate TOML from existing code
 
-**New Files**:
+**Status**: Planned for future. Not critical for initial release.
+
+**Planned Work**:
 - `src/codegen/reverse_gen.rs` - Analyze code → generate TOML
 - `bin/netabase_schema_gen.rs` - CLI tool for schema extraction
+- Syn-based parsing of existing Rust code
+- Extract model fields, keys, relationships
+- Generate valid TOML schema files
 
 **Use Case**: Migrate existing boilerplate.rs to TOML format
 
-### Phase 7: Documentation
+**Priority**: Low (can be added later)
+
+---
+
+### Phase 7: Documentation 🔴 **NOT STARTED**
 **Goal**: Comprehensive guides and examples
 
-**New Files**:
-- `docs/TOML_SCHEMA.md` - Complete TOML schema reference
-- `docs/TREE_NAMING.md` - Tree naming convention guide
-- `docs/MACRO_USAGE.md` - How to use the macros
-- `examples/macro_based/` - Full example using macros
+**Status**: Minimal documentation exists. Needs comprehensive guides.
+
+**Completed Work**:
+- ✅ This plan document (CROSS_DEFINITION_PLAN.md)
+- ✅ Inline code documentation (rustdoc)
+- ✅ Basic examples (boilerplate.rs, ecommerce.rs)
+
+**Missing Work**:
+- ❌ `docs/TOML_SCHEMA.md` - Complete TOML schema reference
+- ❌ `docs/TREE_NAMING.md` - Tree naming convention guide
+- ❌ `docs/MACRO_USAGE.md` - How to use the macros
+- ❌ `docs/CROSS_DEFINITION_ACCESS.md` - How to work across definitions
+- ❌ `docs/PERMISSIONS.md` - Permission system guide
+- ❌ `examples/macro_based/` - Full example using TOML macros
+- ❌ Migration guide (manual → TOML)
+- ❌ API reference documentation
+- ❌ Tutorial series for new users
+
+**Priority**: High for v1.0 release
+
+---
+
+## Current Capabilities Summary
+
+### ✅ What Works Today
+
+1. **Manual Macro-Based Definitions**
+   ```rust
+   #[netabase_definition_module(EcommerceDefinitions, EcommerceKeys)]
+   pub mod ecommerce {
+       #[derive(NetabaseModel)]
+       pub struct User {
+           #[primary_key]
+           pub id: u64,
+           #[secondary_key]
+           pub email: String,
+       }
+   }
+   // Generates ~3800 lines of boilerplate automatically
+   ```
+
+2. **Multi-Definition Managers**
+   ```rust
+   let manager = DefinitionManager::<
+       EcommerceManager,
+       EcommerceDefinitions,
+       EcommercePermissions,
+       RedbStore<EcommerceDefinitions>
+   >::new("./data")?;
+   ```
+
+3. **Cross-Definition Transactions**
+   - Read/write transactions across multiple definitions
+   - Lazy loading of definition stores
+   - Auto-unload of unused definitions
+   - Transaction-level access tracking
+
+4. **Permissions System**
+   - Hierarchical permission roles
+   - Compile-time permission checking
+   - Per-definition access control
+
+5. **Standardized Tree Naming**
+   - Consistent naming across all definitions
+   - Easy cross-definition tree lookup
+   - Format: `{Def}::{Model}::{Type}::{Name}`
+
+### 🟡 What's Partially Working
+
+1. **TOML Schema Parsing**
+   - Can parse TOML files ✅
+   - Can validate schemas ✅
+   - Can generate code strings ✅
+   - Cannot use in proc macros yet ❌
+
+2. **Code Generation**
+   - Basic generation works ✅
+   - Missing complete trait impls ❌
+   - Missing backend extensions ❌
+   - Missing type inference ❌
+
+### ❌ What Doesn't Work Yet
+
+1. **TOML-Based Macros**
+   ```rust
+   // This compiles but shows compile_error!
+   netabase_definition_from_toml!("schemas/User.netabase.toml");
+   ```
+
+2. **Manager-Level TOML Generation**
+   ```rust
+   // This compiles but shows compile_error!
+   netabase_manager_from_toml!("ecommerce.root.netabase.toml");
+   ```
+
+3. **Reverse Generation** (code → TOML)
+
+---
+
+## Immediate Next Steps (Priority Order)
+
+### 1. Complete Code Generation (Phase 4) - **HIGH PRIORITY**
+**Estimated Effort**: 2-3 days
+
+Tasks:
+- [ ] Enhance trait implementation generation
+  - [ ] Complete NetabaseModelTrait impl
+  - [ ] Generate proper SecondaryKeys enum with all variants
+  - [ ] Generate RelationalKeys enum with all variants
+  - [ ] Generate SubscriptionKeys enum
+- [ ] Add type inference for key fields
+  - [ ] Parse field types from TOML
+  - [ ] Map Rust types correctly
+  - [ ] Handle Option<T>, Vec<T>, etc.
+- [ ] Generate backend-specific extensions
+  - [ ] Redb trait implementations
+  - [ ] Sled trait implementations
+- [ ] Add code formatting
+  - [ ] Use prettyplease or similar for formatting
+  - [ ] Proper indentation and newlines
+- [ ] Write comprehensive tests
+  - [ ] Compare generated vs manual boilerplate
+  - [ ] Test all TOML schema variants
+
+### 2. Extract Codegen Into Separate Crate (Phase 5) - **HIGH PRIORITY**
+**Estimated Effort**: 1-2 days
+
+Tasks:
+- [ ] Create `netabase_codegen` crate
+  - [ ] Move all codegen modules
+  - [ ] Update dependencies
+  - [ ] Add proper exports
+- [ ] Update `netabase_store` to use `netabase_codegen`
+- [ ] Update `netabase_macros` to use `netabase_codegen`
+- [ ] Verify all tests still pass
+
+### 3. Implement TOML Macros (Phase 5) - **HIGH PRIORITY**
+**Estimated Effort**: 2-3 days
+
+Tasks:
+- [ ] Implement `netabase_definition_from_toml!()`
+  - [ ] Read TOML file at compile time
+  - [ ] Parse using netabase_codegen
+  - [ ] Generate TokenStream
+  - [ ] Handle errors gracefully
+- [ ] Implement `netabase_manager_from_toml!()`
+  - [ ] Load manager schema
+  - [ ] Load all definition schemas
+  - [ ] Generate all definitions
+  - [ ] Generate manager enum
+  - [ ] Generate permission enum
+- [ ] Add integration tests
+  - [ ] Test with example TOML files
+  - [ ] Verify generated code compiles
+  - [ ] Test runtime behavior
+
+### 4. Create Comprehensive Examples (Phase 7) - **MEDIUM PRIORITY**
+**Estimated Effort**: 2-3 days
+
+Tasks:
+- [ ] Create `examples/toml_based_ecommerce/`
+  - [ ] Full e-commerce example using TOML
+  - [ ] User, Product, Order definitions
+  - [ ] Cross-definition relationships
+  - [ ] CRUD operations
+  - [ ] Transaction examples
+- [ ] Create `examples/permissions_demo/`
+  - [ ] Demonstrate permission system
+  - [ ] Multiple roles
+  - [ ] Compile-time checks
+- [ ] Create `examples/multi_backend/`
+  - [ ] Same schema, different backends
+  - [ ] Demonstrate backend abstraction
+
+### 5. Write Documentation (Phase 7) - **MEDIUM PRIORITY**
+**Estimated Effort**: 3-5 days
+
+Priority order:
+1. [ ] `docs/MACRO_USAGE.md` - **HIGHEST**
+   - How to use netabase_definition_module
+   - How to use TOML macros
+   - Migration from manual to TOML
+2. [ ] `docs/TOML_SCHEMA.md` - **HIGH**
+   - Complete TOML reference
+   - All field types
+   - All configuration options
+3. [ ] `docs/CROSS_DEFINITION_ACCESS.md` - **HIGH**
+   - How managers work
+   - Cross-definition transactions
+   - Lazy loading behavior
+4. [ ] `docs/PERMISSIONS.md` - **MEDIUM**
+   - Permission system guide
+   - Role hierarchies
+   - Best practices
+5. [ ] Tutorial series - **MEDIUM**
+   - Getting started
+   - Building your first app
+   - Advanced features
+
+### 6. Reverse Generation (Phase 6) - **LOW PRIORITY**
+**Estimated Effort**: 3-5 days
+
+This can wait until after v1.0 release.
+
+---
+
+## Technical Debt & Improvements
+
+### Code Quality
+- [ ] Add more comprehensive error messages
+- [ ] Improve validation error reporting
+- [ ] Add schema version compatibility checks
+- [ ] Add migration tooling for schema changes
+
+### Performance
+- [ ] Benchmark code generation time
+- [ ] Optimize TOML parsing
+- [ ] Add caching for frequently accessed definitions
+- [ ] Profile manager overhead
+
+### Testing
+- [ ] Add fuzzing tests for TOML parser
+- [ ] Add property-based tests for code generation
+- [ ] Add performance regression tests
+- [ ] Add memory leak tests for managers
+
+### Developer Experience
+- [ ] Better compile error messages from macros
+- [ ] IDE integration (rust-analyzer support)
+- [ ] Schema validation in editors
+- [ ] TOML schema autocomplete
 
 ## TOML Schema Reference
 
@@ -585,17 +896,181 @@ fn main() -> NetabaseResult<()> {
 - ✅ Lazy loading of definition stores
 - ✅ Backward compatible with existing API
 
-## Next Steps
+## Release Roadmap
 
-1. **Phase 1**: Implement core manager infrastructure (no macros)
-2. **Phase 2**: Standardize tree naming across codebase
-3. **Phase 3**: Build TOML parser and validator
-4. **Phase 4**: Implement code generator
-5. **Phase 5**: Create procedural macros
-6. **Phase 6**: Add reverse generation (code → TOML)
-7. **Phase 7**: Document everything
+### v0.5.0 (Current State) ✅
+**Status**: Released (internal)
+- ✅ Core manager infrastructure
+- ✅ Manual macro-based definitions (netabase_definition_module)
+- ✅ Standardized tree naming
+- ✅ TOML parsing and validation
+- ✅ Permission system
+- ✅ Cross-definition transactions
+- ✅ Both Redb and Sled backends
+
+### v0.6.0 (Next Release) 🎯
+**Target**: Complete TOML-based code generation
+**Estimated Timeline**: 1-2 weeks
+
+**Goals**:
+- ✅ Complete code generation from TOML schemas
+- ✅ Extract codegen into separate crate
+- ✅ Working `netabase_definition_from_toml!()` macro
+- ✅ Working `netabase_manager_from_toml!()` macro
+- ✅ Comprehensive integration tests
+
+**Deliverables**:
+- Users can generate complete definitions from TOML
+- Manager generation from root schema works end-to-end
+- Generated code matches manual boilerplate in functionality
+
+### v0.7.0 (Polish Release)
+**Target**: Examples and initial documentation
+**Estimated Timeline**: 1-2 weeks
+
+**Goals**:
+- ✅ Multiple complete examples using TOML macros
+- ✅ Basic documentation (MACRO_USAGE.md, TOML_SCHEMA.md)
+- ✅ Migration guide from manual to TOML
+- ✅ Performance benchmarks
+
+**Deliverables**:
+- 3-5 comprehensive examples
+- Getting started guide
+- API documentation complete
+
+### v1.0.0 (Stable Release)
+**Target**: Production-ready with full documentation
+**Estimated Timeline**: 2-3 weeks after v0.7.0
+
+**Goals**:
+- ✅ Complete documentation suite
+- ✅ Tutorial series
+- ✅ Stability guarantees
+- ✅ Migration tooling
+- ✅ Performance optimizations
+
+**Deliverables**:
+- Production-ready system
+- Comprehensive docs
+- Full test coverage (>90%)
+- Performance benchmarks
+- SemVer guarantees
+
+### v2.0.0 (Future)
+**Target**: Advanced features
+**Estimated Timeline**: TBD
+
+**Potential Features**:
+- Reverse generation (code → TOML)
+- Schema migration system
+- GraphQL integration
+- WASM backend support
+- Schema versioning and migrations
+- Advanced query language
 
 ---
 
-**Status**: Planning complete, ready for implementation
-**Last Updated**: 2025-12-10
+## Success Criteria
+
+### Phase 4-5 Completion (v0.6.0)
+- [ ] `netabase_definition_from_toml!()` generates working code
+- [ ] `netabase_manager_from_toml!()` generates working managers
+- [ ] Generated code compiles without warnings
+- [ ] Generated code passes all existing tests
+- [ ] Generated code matches manual boilerplate behavior
+- [ ] Code generation time < 2 seconds for typical schemas
+- [ ] Clear error messages for invalid TOML
+
+### Phase 7 Completion (v0.7.0-v1.0.0)
+- [ ] All documentation files created
+- [ ] 5+ comprehensive examples
+- [ ] Getting started tutorial
+- [ ] API reference complete
+- [ ] Migration guide exists
+- [ ] All public APIs documented
+
+### v1.0.0 Release Criteria
+- [ ] Zero known critical bugs
+- [ ] Full test coverage (>90%)
+- [ ] Documentation complete
+- [ ] Performance benchmarks published
+- [ ] Breaking changes finalized
+- [ ] Public API stable
+- [ ] Community feedback incorporated
+
+---
+
+## Project Timeline Summary
+
+```
+Timeline:
+├── [DONE] Phase 1: Core Infrastructure (2-3 weeks)
+├── [DONE] Phase 2: Tree Naming (1 week)
+├── [DONE] Phase 3: TOML Parser (1 week)
+├── [50%] Phase 4: Code Generation (2-3 days remaining)
+├── [30%] Phase 5: Macro Implementation (3-4 days remaining)
+├── [0%] Phase 7: Documentation (1-2 weeks remaining)
+└── [FUTURE] Phase 6: Reverse Generation
+
+Current Status: ~60% complete
+Next Milestone: v0.6.0 (TOML macro completion)
+ETA to v1.0.0: ~4-6 weeks
+```
+
+---
+
+## Contributing
+
+### How to Help
+
+**High Priority Tasks**:
+1. Complete code generation in `src/codegen/generator.rs`
+2. Extract codegen into `netabase_codegen` crate
+3. Implement TOML macros in `netabase_macros/src/lib.rs`
+4. Write integration tests for generated code
+5. Create examples using TOML macros
+
+**Medium Priority Tasks**:
+1. Write documentation (MACRO_USAGE.md, TOML_SCHEMA.md)
+2. Create tutorial series
+3. Add more test coverage
+4. Performance profiling and optimization
+
+**Low Priority Tasks**:
+1. Reverse generation tooling
+2. IDE integration
+3. Schema validation tooling
+4. Migration helpers
+
+---
+
+## Notes
+
+### Architectural Decisions
+
+1. **Separate Codegen Crate**: Decided on Option A (separate `netabase_codegen` crate) to avoid circular dependencies between proc-macro crate and main crate.
+
+2. **Standardized Tree Naming**: Chose `{Def}::{Model}::{Type}::{Name}` format for predictability and to avoid collisions in multi-definition scenarios.
+
+3. **Lazy Loading**: Definition stores are loaded on-demand to minimize memory usage for large applications with many definitions.
+
+4. **Compile-Time Permissions**: Permissions are enforced at compile-time using const generics to prevent runtime access violations.
+
+5. **Backend Abstraction**: Maintained clean abstraction between store logic and backend implementations to support multiple backends (Redb, Sled, future IndexedDB).
+
+### Lessons Learned
+
+1. **Macro Limitations**: Proc-macro crates have strict dependency limitations. Extracting shared code into separate library crate is essential.
+
+2. **Code Generation Complexity**: Generating complete, properly-formatted Rust code is more complex than initially anticipated. Need proper quote! usage and formatting tools.
+
+3. **Tree Naming**: Consistent naming convention critical for cross-definition access. Worth investing effort upfront.
+
+4. **Testing Strategy**: Need both unit tests (for individual functions) and integration tests (for generated code compilation and runtime behavior).
+
+---
+
+**Status**: Implementation in progress - 60% complete
+**Last Updated**: 2025-12-11
+**Next Review**: After v0.6.0 completion

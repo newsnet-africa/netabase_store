@@ -56,7 +56,10 @@ where
     ///
     /// This should return true if the permission includes read access
     /// to the definition containing model M.
-    fn has_read(&self, definition_discriminant: &<D as strum::IntoDiscriminant>::Discriminant) -> bool;
+    fn has_read(
+        &self,
+        definition_discriminant: &<D as strum::IntoDiscriminant>::Discriminant,
+    ) -> bool;
 }
 
 /// Helper trait for checking if a permission grants write access at compile time
@@ -77,7 +80,10 @@ where
     ///
     /// This should return true if the permission includes write access
     /// to the definition containing model M.
-    fn has_write(&self, definition_discriminant: &<D as strum::IntoDiscriminant>::Discriminant) -> bool;
+    fn has_write(
+        &self,
+        definition_discriminant: &<D as strum::IntoDiscriminant>::Discriminant,
+    ) -> bool;
 }
 
 /// Helper function for runtime permission checking
@@ -114,16 +120,25 @@ where
     match (grant.level, write_access) {
         (PermissionLevel::ReadWrite, _) => Ok(()),
         (PermissionLevel::Read, false) => Ok(()),
-        (PermissionLevel::Read, true) => Err(crate::error::NetabaseError::PermissionDenied(
-            format!("Permission is read-only, cannot write to definition: {:?}", discriminant)
-        )),
-        (PermissionLevel::Write, false) => Err(crate::error::NetabaseError::PermissionDenied(
-            format!("Permission is write-only, cannot read from definition: {:?}", discriminant)
-        )),
+        (PermissionLevel::Read, true) => {
+            Err(crate::error::NetabaseError::PermissionDenied(format!(
+                "Permission is read-only, cannot write to definition: {:?}",
+                discriminant
+            )))
+        }
+        (PermissionLevel::Write, false) => {
+            Err(crate::error::NetabaseError::PermissionDenied(format!(
+                "Permission is write-only, cannot read from definition: {:?}",
+                discriminant
+            )))
+        }
         (PermissionLevel::Write, true) => Ok(()),
-        (PermissionLevel::None, _) => Err(crate::error::NetabaseError::PermissionDenied(
-            format!("No permission to access definition: {:?}", discriminant)
-        )),
+        (PermissionLevel::None, _) => Err(crate::error::NetabaseError::PermissionDenied(format!(
+            "No permission to access definition: {:?}",
+            discriminant
+        ))),
+        (PermissionLevel::Admin, true) => todo!(),
+        (PermissionLevel::Admin, false) => todo!(),
     }
 }
 

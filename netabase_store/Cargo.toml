@@ -22,13 +22,65 @@ tokio = { version = "1.0", features = ["full"] }
 
 # Macro dependencies
 netabase_macros = { path = "../netabase_macros" }
+paste = "1.0.15"
 
 [dev-dependencies]
 rand = "0.8"
 env_logger = "0.11.8"
 tempfile = "3.0"
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.0"
+test-log = "0.2"
+tokio-test = "0.4"
+futures = "0.3"
+assert_matches = "1.5"
+serial_test = "3.0"
+uuid = { version = "1.0", features = ["v4"] }
+serde_json = "1.0"
+
+# Broken examples - commented out until macro infrastructure is complete
+# [[example]]
+# name = "simple_ecommerce"
+# path = "../examples/simple_ecommerce.rs"
+
+# [[example]]
+# name = "ecommerce"
+# path = "../examples/ecommerce.rs"
+
+[[example]]
+name = "boilerplate"
+path = "./examples/boilerplate.rs"
+
+# Working examples that compile and run
+[[example]]
+name = "working_ecommerce"
+path = "../examples/working_ecommerce.rs"
+
+[[example]]
+name = "working_blog_platform"
+path = "../examples/working_blog_platform.rs"
 
 [[bench]]
 name = "bench_throughput"
 path = "benches/bench_throughput.rs"
-harness = false # We're doing manual timing, not using criterion or similar.
+harness = false
+
+[[bench]]
+name = "bench_comprehensive"
+path = "benches/bench_comprehensive.rs"
+harness = false
+
+[[bench]]
+name = "bench_memory"
+path = "benches/bench_memory.rs"
+harness = false
+
+[[bench]]
+name = "bench_concurrency"
+path = "benches/bench_concurrency.rs"
+harness = false
+
+[[bench]]
+name = "performance"
+path = "benches/performance.rs"
+harness = false

@@ -1,7 +1,7 @@
-use crate::traits::{definition::{NetabaseDefinition, NetabaseDefinitionTrait, DiscriminantName}, model::NetabaseModelTrait};
+use crate::traits::{definition::{NetabaseDefinition, DiscriminantName}, model::NetabaseModelTrait};
 use std::fmt::Debug;
 
-pub trait NetabaseDefinitionKeyTrait<D: NetabaseDefinitionTrait>
+pub trait NetabaseDefinitionKeyTrait<D: NetabaseDefinition>
 where
     <D as strum::IntoDiscriminant>::Discriminant: strum::IntoEnumIterator + std::hash::Hash + Eq + Debug + DiscriminantName + Clone,
 {

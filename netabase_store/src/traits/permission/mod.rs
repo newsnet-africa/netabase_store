@@ -18,22 +18,24 @@ pub enum PermissionLevel {
     Write,
     /// Both read and write access
     ReadWrite,
+    /// Full access including permission management
+    Admin,
 }
 
 impl PermissionLevel {
     /// Check if this permission level allows reading
     pub fn can_read(&self) -> bool {
-        matches!(self, PermissionLevel::Read | PermissionLevel::ReadWrite)
+        matches!(self, PermissionLevel::Read | PermissionLevel::ReadWrite | PermissionLevel::Admin)
     }
 
     /// Check if this permission level allows writing
     pub fn can_write(&self) -> bool {
-        matches!(self, PermissionLevel::Write | PermissionLevel::ReadWrite)
+        matches!(self, PermissionLevel::Write | PermissionLevel::ReadWrite | PermissionLevel::Admin)
     }
 
     /// Check if this permission level allows both reading and writing
     pub fn can_read_write(&self) -> bool {
-        matches!(self, PermissionLevel::ReadWrite)
+        matches!(self, PermissionLevel::ReadWrite | PermissionLevel::Admin)
     }
 }
 

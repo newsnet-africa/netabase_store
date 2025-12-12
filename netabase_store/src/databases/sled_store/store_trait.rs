@@ -13,7 +13,7 @@ use crate::{
     error::NetabaseResult,
     traits::{
         definition::{DiscriminantName, NetabaseDefinition},
-        model::{NetabaseModelTrait, key::NetabaseModelKeyTrait},
+        model::{NetabaseModelTrait, ModelTypeContainer, key::NetabaseModelKeyTrait},
     },
 };
 use std::fmt::Debug;
@@ -48,40 +48,24 @@ where
     fn get_one<M>(&self, key: M::PrimaryKey) -> NetabaseResult<Option<M>>
     where
         M: NetabaseModelTrait<D> + SledNetabaseModelTrait<D>,
-        M: bincode::Encode + bincode::Decode<()> + 'static,
-        M::PrimaryKey: bincode::Encode + bincode::Decode<()> + 'static,
     {
-        self.read(|txn| txn.get::<M>(key))
+        self.read(|txn: &SledReadTransaction<'_, D>| txn.get::<M>(key))
     }
 
     /// Put a single model (convenience method)
     fn put_one<M>(&self, model: M) -> NetabaseResult<()>
     where
-        M: NetabaseModelTrait<D> + SledNetabaseModelTrait<D> + Clone + Send,
-        M: bincode::Encode + bincode::Decode<()> + 'static,
-        M::PrimaryKey: bincode::Encode + bincode::Decode<()> + Send + Clone + 'static,
-        <M::Keys as NetabaseModelKeyTrait<D, M>>::SecondaryEnum:
-            IntoDiscriminant + Clone + bincode::Encode,
-        <M::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum:
-            IntoDiscriminant + Clone + bincode::Encode,
-        M::Hash: Into<[u8; 32]>,
+        M: NetabaseModelTrait<D> + SledNetabaseModelTrait<D>,
     {
-        self.write(|txn| txn.put(model))
+        self.write(|txn: &mut SledWriteTransaction<D>| txn.put(model))
     }
 
     /// Put multiple models in a single transaction (batch operation)
     fn put_many<M>(&self, models: Vec<M>) -> NetabaseResult<()>
     where
-        M: NetabaseModelTrait<D> + SledNetabaseModelTrait<D> + Clone + Send,
-        M: bincode::Encode + bincode::Decode<()> + 'static,
-        M::PrimaryKey: bincode::Encode + bincode::Decode<()> + Send + Clone + 'static,
-        <M::Keys as NetabaseModelKeyTrait<D, M>>::SecondaryEnum:
-            IntoDiscriminant + Clone + bincode::Encode,
-        <M::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum:
-            IntoDiscriminant + Clone + bincode::Encode,
-        M::Hash: Into<[u8; 32]>,
+        M: NetabaseModelTrait<D> + SledNetabaseModelTrait<D>,
     {
-        self.write(|txn| {
+        self.write(|txn: &mut SledWriteTransaction<D>| {
             for model in models {
                 txn.put(model)?;
             }
@@ -93,10 +77,8 @@ where
     fn get_many<M>(&self, keys: Vec<M::PrimaryKey>) -> NetabaseResult<Vec<Option<M>>>
     where
         M: NetabaseModelTrait<D> + SledNetabaseModelTrait<D>,
-        M: bincode::Encode + bincode::Decode<()> + 'static,
-        M::PrimaryKey: bincode::Encode + bincode::Decode<()> + 'static,
     {
-        self.read(|txn| {
+        self.read(|txn: &SledReadTransaction<'_, D>| {
             let mut results = Vec::with_capacity(keys.len());
             for key in keys {
                 results.push(txn.get::<M>(key)?);
@@ -108,14 +90,8 @@ where
     /// Delete a model by its primary key (convenience method)
     fn delete_one<M>(&self, key: M::PrimaryKey) -> NetabaseResult<()>
     where
-        M: NetabaseModelTrait<D> + SledNetabaseModelTrait<D> + Clone + Send,
-        M: bincode::Encode + bincode::Decode<()> + 'static,
-        M::PrimaryKey: bincode::Encode + bincode::Decode<()> + Send + Clone + 'static,
-        <M::Keys as NetabaseModelKeyTrait<D, M>>::SecondaryEnum:
-            IntoDiscriminant + Clone + bincode::Encode,
-        <M::Keys as NetabaseModelKeyTrait<D, M>>::RelationalEnum:
-            IntoDiscriminant + Clone + bincode::Encode,
+        M: NetabaseModelTrait<D> + SledNetabaseModelTrait<D>,
     {
-        self.write(|txn| txn.delete::<M>(key))
+        self.write(|txn: &mut SledWriteTransaction<D>| txn.delete::<M>(key))
     }
 }

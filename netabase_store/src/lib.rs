@@ -1,4 +1,5 @@
 #![feature(associated_type_defaults)]
+#![feature(generic_const_items)]
 //!
 //! # Netabase Store
 //!
@@ -130,20 +131,32 @@
 //! All database operations return `NetabaseResult<T>` which is an alias for
 //! `Result<T, NetabaseError>`. See [`error`] module for error types.
 
-pub mod backend;
-pub mod error;
-pub mod traits;
-pub mod databases;
 pub mod applications;
+pub mod backend;
+pub mod codegen;
+pub mod databases;
+pub mod error;
+pub mod prelude;
+pub mod traits;
 
 // Re-export commonly used types
 pub use error::{NetabaseError, NetabaseResult};
 
 // Backend abstraction re-exports
 pub use backend::{
-    BackendKey, BackendValue, BackendStore, BackendReadTransaction, BackendWriteTransaction,
-    BackendError, BackendTable, BackendReadableTable, BackendWritableTable,
+    BackendError, BackendKey, BackendReadTransaction, BackendReadableTable, BackendStore,
+    BackendTable, BackendValue, BackendWritableTable, BackendWriteTransaction,
 };
 
 // Re-export applications
 pub use applications::ecommerce_app::*;
+use strum::AsRefStr;
+
+#[derive(AsRefStr)]
+pub enum TreeType {
+    Main,
+    Secondary,
+    Relational,
+    Subscription,
+    Hash,
+}

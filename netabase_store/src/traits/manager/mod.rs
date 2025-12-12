@@ -1,5 +1,5 @@
 use crate::error::NetabaseResult;
-use crate::traits::definition::{DiscriminantName, NetabaseDefinition, NetabaseDefinitionTrait};
+use crate::traits::definition::{DiscriminantName, NetabaseDefinition};
 use crate::traits::permission::PermissionEnumTrait;
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
@@ -178,10 +178,10 @@ pub trait ManagedDefinition: NetabaseDefinition
 where
     <Self as IntoDiscriminant>::Discriminant:
         IntoEnumIterator + std::hash::Hash + Eq + Debug + DiscriminantName + Clone,
-    <<Self as NetabaseDefinitionTrait>::Permissions as IntoDiscriminant>::Discriminant:
+    <<Self as NetabaseDefinition>::Permissions as IntoDiscriminant>::Discriminant:
         IntoEnumIterator + std::hash::Hash + Eq + Debug + Clone,
 {
-    // No additional associated types - uses Permissions from NetabaseDefinitionTrait
+    // No additional associated types - uses Permissions from NetabaseDefinition
 }
 
 // Note: ManagedDefinition must be implemented manually for each definition type.

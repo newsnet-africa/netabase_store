@@ -1,0 +1,36 @@
+[manager]
+name = "EcommerceManager"
+version = "1"
+root_path = "./data"
+
+[[definitions]]
+name = "User"
+schema_file = "schemas/User.netabase.toml"
+
+[[definitions]]
+name = "Product"
+schema_file = "schemas/Product.netabase.toml"
+
+[[definitions]]
+name = "Order"
+schema_file = "schemas/Order.netabase.toml"
+
+[[permissions.roles]]
+name = "Admin"
+level = "ReadWrite"
+definitions = ["*"]
+
+[[permissions.roles]]
+name = "Manager"
+read = ["User", "Product", "Order"]
+write = ["Product", "Order"]
+
+[[permissions.roles]]
+name = "Customer"
+read = ["Product"]
+write = []
+
+[[permissions.roles]]
+name = "Support"
+read = ["User", "Order"]
+write = ["Order"]

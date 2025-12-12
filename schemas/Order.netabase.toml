@@ -1,0 +1,56 @@
+[definition]
+name = "Order"
+version = "1"
+
+[model]
+fields = [
+    { name = "id", type = "u64" },
+    { name = "order_number", type = "String" },
+    { name = "status", type = "String" },
+    { name = "total_amount", type = "f64" },
+    { name = "shipping_address", type = "String" },
+    { name = "billing_address", type = "String" },
+    { name = "created_at", type = "String" },
+    { name = "updated_at", type = "String" },
+]
+
+[keys]
+[keys.primary]
+field = "id"
+key_type = "OrderId"
+
+[[keys.secondary]]
+name = "OrderNumber"
+field = "order_number"
+unique = true
+
+[[keys.secondary]]
+name = "Status"
+field = "status"
+unique = false
+
+[[keys.relational]]
+name = "Customer"
+target_definition = "User"
+target_model = "User"
+target_key_type = "UserId"
+
+[[subscriptions]]
+name = "OrderEvents"
+description = "Order lifecycle events"
+
+[[subscriptions]]
+name = "Payments"
+description = "Payment-related events"
+
+[[subscriptions]]
+name = "Shipping"
+description = "Shipping and fulfillment events"
+
+[permissions]
+can_reference_from = []
+can_reference_to = ["User", "Product"]
+
+[metadata]
+generated_at = "2024-12-11T00:00:00Z"
+schema_hash = "blake3:order_schema_v1"

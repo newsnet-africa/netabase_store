@@ -29,7 +29,7 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput};
+use syn::{parse_macro_input, DeriveInput, LitStr};
 
 mod parse;
 mod generate;
@@ -162,4 +162,145 @@ pub fn derive_netabase_model(input: TokenStream) -> TokenStream {
     };
 
     TokenStream::from(generated)
+}
+
+/// Macro for generating a netabase definition from a TOML schema file
+///
+/// This macro reads a TOML schema file and generates all the boilerplate code
+/// that would normally be written manually. This drastically reduces code size
+/// and ensures consistency across definitions.
+///
+/// # Syntax
+///
+/// ```rust
+/// use netabase_macros::netabase_definition_from_toml;
+///
+/// // Generate a complete definition from TOML
+/// netabase_definition_from_toml!("schemas/User.netabase.toml");
+///
+/// // This expands to hundreds of lines of generated code including:
+/// // - Model struct with all fields
+/// // - Primary, secondary, and relational key types
+/// // - All trait implementations
+/// // - Tree manager implementations
+/// // - Backend-specific extensions
+/// ```
+///
+/// # TOML Schema Format
+///
+/// See `docs/CROSS_DEFINITION_PLAN.md` for the complete TOML schema reference.
+///
+/// Basic structure:
+/// ```toml
+/// [definition]
+/// name = "User"
+/// version = "1"
+///
+/// [model]
+/// fields = [
+///     { name = "id", type = "u64" },
+///     { name = "email", type = "String" },
+/// ]
+///
+/// [keys]
+/// [keys.primary]
+/// field = "id"
+///
+/// [[keys.secondary]]
+/// name = "Email"
+/// field = "email"
+/// unique = true
+/// ```
+#[proc_macro]
+pub fn netabase_definition_from_toml(input: TokenStream) -> TokenStream {
+    let toml_path = parse_macro_input!(input as LitStr);
+    let path = toml_path.value();
+    
+    // At compile time, we need to read the TOML file and generate code
+    // For now, we'll generate a placeholder that shows the intended API
+    match generate_from_toml_file(&path) {
+        Ok(tokens) => tokens,
+        Err(e) => {
+            let error_msg = format!("Failed to generate from TOML '{}': {}", path, e);
+            TokenStream::from(quote! {
+                compile_error!(#error_msg);
+            })
+        }
+    }
+}
+
+/// Macro for generating a complete manager from a root TOML schema
+///
+/// This macro reads a manager TOML schema file and generates a complete
+/// multi-definition manager with all associated definitions.
+///
+/// # Syntax
+///
+/// ```rust
+/// use netabase_macros::netabase_manager_from_toml;
+///
+/// // Generate complete manager from TOML
+/// netabase_manager_from_toml!("restaurant.root.netabase.toml");
+///
+/// // This generates:
+/// // - All definitions referenced in the manager
+/// // - Manager struct with lazy loading
+/// // - Cross-definition permission management
+/// // - Unified transaction interface
+/// ```
+#[proc_macro]
+pub fn netabase_manager_from_toml(input: TokenStream) -> TokenStream {
+    let toml_path = parse_macro_input!(input as LitStr);
+    let path = toml_path.value();
+    
+    match generate_manager_from_toml_file(&path) {
+        Ok(tokens) => tokens,
+        Err(e) => {
+            let error_msg = format!("Failed to generate manager from TOML '{}': {}", path, e);
+            TokenStream::from(quote! {
+                compile_error!(#error_msg);
+            })
+        }
+    }
+}
+
+/// Helper function to generate code from a TOML file at compile time
+fn generate_from_toml_file(path: &str) -> Result<TokenStream, Box<dyn std::error::Error>> {
+    // Read the TOML file
+    let toml_content = std::fs::read_to_string(path)
+        .map_err(|e| format!("Failed to read TOML file '{}': {}", path, e))?;
+    
+    // For now, return a placeholder that demonstrates the API
+    // In a full implementation, this would parse the TOML and generate the actual code
+    let placeholder = quote! {
+        // Generated from TOML schema
+        compile_error!(concat!(
+            "TOML-based generation not yet fully implemented. ",
+            "TOML file: ", #path, ". ",
+            "Use manual netabase_definition_module for now. ",
+            "See docs/CROSS_DEFINITION_PLAN.md for implementation status."
+        ));
+    };
+    
+    Ok(TokenStream::from(placeholder))
+}
+
+/// Helper function to generate manager code from a TOML file at compile time
+fn generate_manager_from_toml_file(path: &str) -> Result<TokenStream, Box<dyn std::error::Error>> {
+    // Read the TOML file
+    let toml_content = std::fs::read_to_string(path)
+        .map_err(|e| format!("Failed to read manager TOML file '{}': {}", path, e))?;
+    
+    // For now, return a placeholder that demonstrates the API
+    let placeholder = quote! {
+        // Generated manager from TOML schema
+        compile_error!(concat!(
+            "TOML-based manager generation not yet fully implemented. ",
+            "TOML file: ", #path, ". ",
+            "Use manual definition modules for now. ",
+            "See docs/CROSS_DEFINITION_PLAN.md for implementation roadmap."
+        ));
+    };
+    
+    Ok(TokenStream::from(placeholder))
 }

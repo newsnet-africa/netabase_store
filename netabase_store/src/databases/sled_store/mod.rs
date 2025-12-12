@@ -52,7 +52,7 @@ pub mod traits;
 pub mod store_trait;
 
 pub use transaction::{SledReadTransaction, SledWriteTransaction};
-pub use traits::{SledModelAssociatedTypesExt, SledNetabaseModelTrait};
+pub use traits::SledNetabaseModelTrait;
 pub use store_trait::SledStoreTrait;
 pub use manager::SledDefinitionManager;
 
@@ -65,7 +65,7 @@ pub use manager::SledDefinitionManager;
 /// This function uses bincode's standard configuration for consistent
 /// serialization across the codebase.
 #[inline]
-pub(crate) fn serialize_key<K: bincode::Encode>(key: &K) -> NetabaseResult<Vec<u8>> {
+pub(crate) fn serialize_key<K: bincode::Encode>(key: K) -> NetabaseResult<Vec<u8>> {
     bincode::encode_to_vec(key, bincode::config::standard())
         .map_err(|e| e.into())
 }
@@ -86,7 +86,7 @@ pub(crate) fn deserialize_key<K: bincode::Decode<()>>(bytes: &[u8]) -> NetabaseR
 /// This function uses bincode's standard configuration for consistent
 /// serialization across the codebase.
 #[inline]
-pub(crate) fn serialize_value<V: bincode::Encode>(value: &V) -> NetabaseResult<Vec<u8>> {
+pub(crate) fn serialize_value<V: bincode::Encode>(value: V) -> NetabaseResult<Vec<u8>> {
     bincode::encode_to_vec(value, bincode::config::standard())
         .map_err(|e| e.into())
 }
