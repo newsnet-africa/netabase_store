@@ -1,9 +1,8 @@
 use crate::traits::registery::definition::NetabaseDefinition;
 use crate::traits::registery::models::StoreKey;
 use crate::traits::registery::models::keys::NetabaseModelKeys;
-pub use crate::traits::registery::models::keys::primary::NetabaseModelPrimaryKey;
 use crate::traits::registery::models::model::NetabaseModelMarker;
-pub trait NetabaseModelSecondaryKey<
+pub trait NetabaseModelRelationalKey<
     'a,
     D: NetabaseDefinition,
     M: NetabaseModelMarker,
