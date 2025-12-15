@@ -1,24 +1,24 @@
 use redb::ReadableDatabase;
 
 use crate::{
-    databases::redb::{RedbStorePermissions, NetabasePermissions},
-    relational::{RelationalLink, CrossDefinitionPermissions},
+    databases::redb::{NetabasePermissions, RedbStorePermissions},
+    relational::{CrossDefinitionPermissions, RelationalLink, GlobalDefinitionEnum},
     traits::{
         database::transaction::redb_transaction::{
-            NBRedbTransactionBase, NBRedbReadTransaction, NBRedbWriteTransaction, NBRedbTransaction,
-            ModelOpenTables, TablePermission, TableType, ReadWriteTableType,
+            ModelOpenTables, NBRedbReadTransaction, NBRedbTransaction, NBRedbTransactionBase,
+            NBRedbWriteTransaction, ReadWriteTableType, TablePermission, TableType,
         },
         registery::{
             definition::NetabaseDefinition,
             models::{
                 keys::NetabaseModelKeys,
-                model::{NetabaseModel, RedbNetbaseModel, RedbModelTableDefinitions},
+                model::{NetabaseModel, RedbModelTableDefinitions, RedbNetbaseModel},
             },
         },
     },
 };
 
-pub struct RedbTransactionInner<D: NetabaseDefinition> 
+pub struct RedbTransactionInner<D: NetabaseDefinition>
 where
     <D as strum::IntoDiscriminant>::Discriminant: 'static,
 {
@@ -31,7 +31,7 @@ pub enum RedbTransactionType {
     Write(redb::WriteTransaction),
 }
 
-pub type RedbTransaction<D: NetabaseDefinition> = RedbTransactionInner<D>;
+pub type RedbTransaction<D> = RedbTransactionInner<D>;
 
 impl<'db, D: NetabaseDefinition> NBRedbTransactionBase<'db, D> for RedbTransaction<D>
 where
@@ -45,7 +45,10 @@ where
         Ok(())
     }
 
-    fn new_with_permissions(db: RedbStorePermissions, permissions: NetabasePermissions<D>) -> crate::errors::NetabaseResult<Self> {
+    fn new_with_permissions(
+        db: RedbStorePermissions,
+        permissions: NetabasePermissions<D>,
+    ) -> crate::errors::NetabaseResult<Self> {
         let transaction = match db {
             RedbStorePermissions::ReadOnly(read_only_database) => {
                 let read_txn = read_only_database
@@ -88,7 +91,7 @@ where
     {
         // Check permissions first
         <Self as NBRedbTransactionBase<D>>::check_permissions(self)?;
-        
+
         match &self.transaction {
             RedbTransactionType::Read(read_txn) => {
                 // For read transactions, open read-only tables
@@ -97,18 +100,32 @@ where
                     TablePermission::ReadOnly(TableType::Table(table))
                 };
 
-                let secondary_tables: Result<Vec<_>, crate::errors::NetabaseError> = definitions.secondary.into_iter()
-                    .map(|(table_def, name)| -> Result<_, crate::errors::NetabaseError> {
-                        let table = read_txn.open_multimap_table(table_def)?;
-                        Ok((TablePermission::ReadOnly(TableType::MultimapTable(table)), name))
-                    })
+                let secondary_tables: Result<Vec<_>, crate::errors::NetabaseError> = definitions
+                    .secondary
+                    .into_iter()
+                    .map(
+                        |(table_def, name)| -> Result<_, crate::errors::NetabaseError> {
+                            let table = read_txn.open_multimap_table(table_def)?;
+                            Ok((
+                                TablePermission::ReadOnly(TableType::MultimapTable(table)),
+                                name,
+                            ))
+                        },
+                    )
                     .collect();
 
-                let relational_tables: Result<Vec<_>, crate::errors::NetabaseError> = definitions.relational.into_iter()
-                    .map(|(table_def, name)| -> Result<_, crate::errors::NetabaseError> {
-                        let table = read_txn.open_multimap_table(table_def)?;
-                        Ok((TablePermission::ReadOnly(TableType::MultimapTable(table)), name))
-                    })
+                let relational_tables: Result<Vec<_>, crate::errors::NetabaseError> = definitions
+                    .relational
+                    .into_iter()
+                    .map(
+                        |(table_def, name)| -> Result<_, crate::errors::NetabaseError> {
+                            let table = read_txn.open_multimap_table(table_def)?;
+                            Ok((
+                                TablePermission::ReadOnly(TableType::MultimapTable(table)),
+                                name,
+                            ))
+                        },
+                    )
                     .collect();
 
                 Ok(ModelOpenTables {
@@ -129,18 +146,36 @@ where
                     TablePermission::ReadWrite(ReadWriteTableType::Table(table))
                 };
 
-                let secondary_tables: Result<Vec<_>, crate::errors::NetabaseError> = definitions.secondary.into_iter()
-                    .map(|(table_def, name)| -> Result<_, crate::errors::NetabaseError> {
-                        let table = write_txn.open_multimap_table(table_def)?;
-                        Ok((TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)), name))
-                    })
+                let secondary_tables: Result<Vec<_>, crate::errors::NetabaseError> = definitions
+                    .secondary
+                    .into_iter()
+                    .map(
+                        |(table_def, name)| -> Result<_, crate::errors::NetabaseError> {
+                            let table = write_txn.open_multimap_table(table_def)?;
+                            Ok((
+                                TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(
+                                    table,
+                                )),
+                                name,
+                            ))
+                        },
+                    )
                     .collect();
 
-                let relational_tables: Result<Vec<_>, crate::errors::NetabaseError> = definitions.relational.into_iter()
-                    .map(|(table_def, name)| -> Result<_, crate::errors::NetabaseError> {
-                        let table = write_txn.open_multimap_table(table_def)?;
-                        Ok((TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)), name))
-                    })
+                let relational_tables: Result<Vec<_>, crate::errors::NetabaseError> = definitions
+                    .relational
+                    .into_iter()
+                    .map(
+                        |(table_def, name)| -> Result<_, crate::errors::NetabaseError> {
+                            let table = write_txn.open_multimap_table(table_def)?;
+                            Ok((
+                                TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(
+                                    table,
+                                )),
+                                name,
+                            ))
+                        },
+                    )
                     .collect();
 
                 Ok(ModelOpenTables {
@@ -159,9 +194,7 @@ where
     {
         match &self.transaction {
             RedbTransactionType::Read(read_txn) => f(read_txn),
-            RedbTransactionType::Write(_) => {
-                return Err(crate::errors::NetabaseError::Permission)
-            }
+            RedbTransactionType::Write(_) => return Err(crate::errors::NetabaseError::Permission),
         }
     }
 
@@ -216,14 +249,14 @@ where
         // Open model tables and perform read within limited scope
         let definitions = M::table_definitions();
         let tables = self.open_model_tables_impl(definitions)?;
-        
+
         // Use limited scope for table operations
         match &tables.main {
             TablePermission::ReadOnly(TableType::Table(_table)) => {
                 // Perform read operation
                 todo!("Implement read operation using opened table")
             }
-            TablePermission::ReadWrite(ReadWriteTableType::Table(table)) => {
+            TablePermission::ReadWrite(ReadWriteTableType::Table(_table)) => {
                 // Perform read operation on write table
                 todo!("Implement read operation using opened write table")
             }
@@ -249,7 +282,7 @@ where
         // Open model tables and perform filtered read within limited scope
         let definitions = M::table_definitions();
         let _tables = self.open_model_tables_impl(definitions)?;
-        
+
         // Iterate through all entries and apply predicate
         todo!("Implement read_if operation using opened tables")
     }
@@ -272,7 +305,7 @@ where
         // Open model tables and perform range read within limited scope
         let definitions = M::table_definitions();
         let _tables = self.open_model_tables_impl(definitions)?;
-        
+
         // Use range iterator on the table
         todo!("Implement read_range operation using opened tables")
     }
@@ -301,24 +334,27 @@ where
         'static, <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key, <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key, <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key, <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: 'static, <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: 'static, <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static
     {
         // Check write permissions first
-        if !self.permissions.can_perform_operation(&crate::databases::redb::ModelOperationPermission::Create) {
+        if !self
+            .permissions
+            .can_perform_operation(&crate::databases::redb::ModelOperationPermission::Create)
+        {
             return Err(crate::errors::NetabaseError::Permission);
         }
 
         // Open model tables and perform create within limited scope
         let definitions = M::table_definitions();
         let tables = self.open_model_tables_impl(definitions)?;
-        
+
         // Get the primary key for this model
-        let primary_key = model.get_primary_key();
-        
+        let _primary_key = model.get_primary_key();
+
         // Insert into main table using limited scope
         match &tables.main {
             TablePermission::ReadWrite(ReadWriteTableType::Table(_table)) => {
                 // TODO: Implement proper table insertion with correct Borrow traits
                 // This requires ensuring all key types implement the required Borrow<T::SelfType<'_>> traits
                 // table.insert(primary_key.clone(), model.clone())?;
-                
+
                 // For now, return success to allow compilation and focus on the architecture
                 todo!("Implement table insertion with proper Borrow trait support");
             }
@@ -341,16 +377,19 @@ where
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static,
     {
         // Check update permissions first
-        if !self.permissions.can_perform_operation(&crate::databases::redb::ModelOperationPermission::Update) {
+        if !self
+            .permissions
+            .can_perform_operation(&crate::databases::redb::ModelOperationPermission::Update)
+        {
             return Err(crate::errors::NetabaseError::Permission);
         }
 
         // Open model tables and perform update within limited scope
         let definitions = M::table_definitions();
         let tables = self.open_model_tables_impl(definitions)?;
-        
-        let primary_key = model.get_primary_key();
-        
+
+        let _primary_key = model.get_primary_key();
+
         // Update main table
         match &tables.main {
             TablePermission::ReadWrite(ReadWriteTableType::Table(_table)) => {
@@ -377,14 +416,17 @@ where
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static,
     {
         // Check delete permissions first
-        if !self.permissions.can_perform_operation(&crate::databases::redb::ModelOperationPermission::Delete) {
+        if !self
+            .permissions
+            .can_perform_operation(&crate::databases::redb::ModelOperationPermission::Delete)
+        {
             return Err(crate::errors::NetabaseError::Permission);
         }
 
         // Open model tables and perform delete within limited scope
         let definitions = M::table_definitions();
         let _tables = self.open_model_tables_impl(definitions)?;
-        
+
         // Convert key to primary key (simplified - in practice this would be more complex)
         // For now, we'll need a way to extract the primary key from M::Keys
         todo!("Delete operation needs key extraction logic")
@@ -405,24 +447,27 @@ where
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static,
     {
         // Use a single table opening for all models (efficient batch operation)
-        if !self.permissions.can_perform_operation(&crate::databases::redb::ModelOperationPermission::Create) {
+        if !self
+            .permissions
+            .can_perform_operation(&crate::databases::redb::ModelOperationPermission::Create)
+        {
             return Err(crate::errors::NetabaseError::Permission);
         }
 
         // Open tables once for all models to be more efficient
         let definitions = M::table_definitions();
         let tables = self.open_model_tables_impl(definitions)?;
-        
+
         match &tables.main {
             TablePermission::ReadWrite(ReadWriteTableType::Table(_table)) => {
                 for _model in models {
                     // TODO: Implement bulk create with proper Borrow traits
                     // let primary_key = model.get_primary_key();
                     // table.insert(&primary_key, &model)?;
-                    
+
                     // TODO: Insert secondary and relational keys
                 }
-                
+
                 // For now, return success to allow compilation
                 todo!("Implement bulk create with proper Borrow trait support")
             }
@@ -529,7 +574,7 @@ where
     }
 }
 
-impl<'db, D: NetabaseDefinition> NBRedbTransaction<'db, D> for RedbTransaction<D>
+impl<'db, D: NetabaseDefinition + GlobalDefinitionEnum> NBRedbTransaction<'db, D> for RedbTransaction<D>
 where
     <D as strum::IntoDiscriminant>::Discriminant: 'static,
 {
@@ -552,54 +597,39 @@ where
         self.open_model_tables_impl(definitions)
     }
 
-    fn load_related<OD, OM, FK>(
+    fn load_related<OM>(
         &self,
-        link: RelationalLink<OD, OM, FK>,
-        cross_permissions: CrossDefinitionPermissions<D, OD>,
-    ) -> crate::errors::NetabaseResult<RelationalLink<OD, OM, FK>>
+        link: RelationalLink<OM>,
+        _cross_permissions: CrossDefinitionPermissions<D>,
+    ) -> crate::errors::NetabaseResult<RelationalLink<OM>>
     where
-        OD: NetabaseDefinition,
-        OM: NetabaseModel<OD>,
-        FK: Clone + Send + Sync + PartialEq + 'static,
-        <OD as strum::IntoDiscriminant>::Discriminant: 'static,
-        for<'a> <<<OM as NetabaseModel<OD>>::Keys as NetabaseModelKeys<OD, OM>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-        for<'a> <<<OM as NetabaseModel<OD>>::Keys as NetabaseModelKeys<OD, OM>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
+        OM: GlobalDefinitionEnum,
     {
         // TODO: Implement proper cross-definition loading
         // For now, return the link as-is
         Ok(link)
     }
 
-    fn save_related<OD, OM, FK>(
+    fn save_related<OM>(
         &self,
-        link: RelationalLink<OD, OM, FK>,
-        cross_permissions: CrossDefinitionPermissions<D, OD>,
-    ) -> crate::errors::NetabaseResult<RelationalLink<OD, OM, FK>>
+        link: RelationalLink<OM>,
+        _cross_permissions: CrossDefinitionPermissions<D>,
+    ) -> crate::errors::NetabaseResult<RelationalLink<OM>>
     where
-        OD: NetabaseDefinition,
-        OM: NetabaseModel<OD>,
-        FK: Clone + Send + Sync + PartialEq + 'static,
-        <OD as strum::IntoDiscriminant>::Discriminant: 'static,
-        for<'a> <<<OM as NetabaseModel<OD>>::Keys as NetabaseModelKeys<OD, OM>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-        for<'a> <<<OM as NetabaseModel<OD>>::Keys as NetabaseModelKeys<OD, OM>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
+        OM: GlobalDefinitionEnum,
     {
         // TODO: Implement proper cross-definition saving
         // For now, return the link as-is
         Ok(link)
     }
 
-    fn delete_related<OD, OM, FK>(
+    fn delete_related<OM>(
         &self,
-        link: RelationalLink<OD, OM, FK>,
-        cross_permissions: CrossDefinitionPermissions<D, OD>,
+        _link: RelationalLink<OM>,
+        _cross_permissions: CrossDefinitionPermissions<D>,
     ) -> crate::errors::NetabaseResult<()>
     where
-        OD: NetabaseDefinition,
-        OM: NetabaseModel<OD>,
-        FK: Clone + Send + Sync + PartialEq + 'static,
-        <OD as strum::IntoDiscriminant>::Discriminant: 'static,
-        for<'a> <<<OM as NetabaseModel<OD>>::Keys as NetabaseModelKeys<OD, OM>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-        for<'a> <<<OM as NetabaseModel<OD>>::Keys as NetabaseModelKeys<OD, OM>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
+        OM: GlobalDefinitionEnum,
     {
         // TODO: Implement proper cross-definition deletion
         // For now, just return success

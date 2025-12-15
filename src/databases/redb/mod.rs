@@ -37,11 +37,11 @@ where
         can_create_tables: bool,
         can_drop_tables: bool,
         can_alter_schema: bool,
-        tables: Vec<D::ModelTableDefinition>,
+        tables: Vec<D::ModelTableDefinition<'static>>,
     },
     Model {
         operations: Vec<ModelOperationPermission>,
-        table: D::ModelTableDefinition,
+        table: D::ModelTableDefinition<'static>,
     },
 }
 
@@ -101,14 +101,14 @@ where
         }
     }
 
-    pub fn model_read_only(table: D::ModelTableDefinition) -> Self {
+    pub fn model_read_only(table: D::ModelTableDefinition<'static>) -> Self {
         Self::Model {
             operations: vec![ModelOperationPermission::Read],
             table,
         }
     }
 
-    pub fn model_read_write(table: D::ModelTableDefinition) -> Self {
+    pub fn model_read_write(table: D::ModelTableDefinition<'static>) -> Self {
         Self::Model {
             operations: vec![
                 ModelOperationPermission::Read,
@@ -120,7 +120,7 @@ where
         }
     }
 
-    pub fn model_admin(table: D::ModelTableDefinition) -> Self {
+    pub fn model_admin(table: D::ModelTableDefinition<'static>) -> Self {
         Self::Model {
             operations: vec![ModelOperationPermission::All],
             table,

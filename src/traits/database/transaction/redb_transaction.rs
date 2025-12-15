@@ -3,7 +3,7 @@ use strum::IntoDiscriminant;
 use crate::{
     databases::redb::{RedbStorePermissions, NetabasePermissions}, 
     errors::{NetabaseResult},
-    relational::{RelationalLink, RelationalLinkError, CrossDefinitionPermissions},
+    relational::{RelationalLink, CrossDefinitionPermissions, GlobalDefinitionEnum},
     traits::registery::{
         definition::NetabaseDefinition,
         models::{
@@ -221,7 +221,7 @@ where
 }
 
 /// Combined trait for full transaction functionality with permission checking
-pub trait NBRedbTransaction<'db, D: NetabaseDefinition>: NBRedbWriteTransaction<'db, D>
+pub trait NBRedbTransaction<'db, D: NetabaseDefinition + GlobalDefinitionEnum>: NBRedbWriteTransaction<'db, D>
 where
     <D as strum::IntoDiscriminant>::Discriminant: 'static,
 {
@@ -251,46 +251,34 @@ where
         M: 'static;
 
     /// Load a related model from another definition
-    fn load_related<OD, OM, FK>(
+    fn load_related<OM>(
         &self,
-        link: RelationalLink<OD, OM, FK>,
-        cross_permissions: CrossDefinitionPermissions<D, OD>,
-    ) -> NetabaseResult<RelationalLink<OD, OM, FK>>
+        link: RelationalLink<OM>,
+        cross_permissions: CrossDefinitionPermissions<D>,
+    ) -> NetabaseResult<RelationalLink<OM>>
     where
-        OD: NetabaseDefinition,
-        OM: NetabaseModel<OD>,
-        FK: Clone + Send + Sync + PartialEq + 'static,
-        <OD as strum::IntoDiscriminant>::Discriminant: 'static,
-        for<'a> <<<OM as NetabaseModel<OD>>::Keys as NetabaseModelKeys<OD, OM>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-        for<'a> <<<OM as NetabaseModel<OD>>::Keys as NetabaseModelKeys<OD, OM>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static;
+        OM: GlobalDefinitionEnum,
+        <OM as strum::IntoDiscriminant>::Discriminant: 'static;
 
     /// Save a related model to another definition
-    fn save_related<OD, OM, FK>(
+    fn save_related<OM>(
         &self,
-        link: RelationalLink<OD, OM, FK>,
-        cross_permissions: CrossDefinitionPermissions<D, OD>,
-    ) -> NetabaseResult<RelationalLink<OD, OM, FK>>
+        link: RelationalLink<OM>,
+        cross_permissions: CrossDefinitionPermissions<D>,
+    ) -> NetabaseResult<RelationalLink<OM>>
     where
-        OD: NetabaseDefinition,
-        OM: NetabaseModel<OD>,
-        FK: Clone + Send + Sync + PartialEq + 'static,
-        <OD as strum::IntoDiscriminant>::Discriminant: 'static,
-        for<'a> <<<OM as NetabaseModel<OD>>::Keys as NetabaseModelKeys<OD, OM>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-        for<'a> <<<OM as NetabaseModel<OD>>::Keys as NetabaseModelKeys<OD, OM>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static;
+        OM: GlobalDefinitionEnum,
+        <OM as strum::IntoDiscriminant>::Discriminant: 'static;
 
     /// Delete a related model from another definition
-    fn delete_related<OD, OM, FK>(
+    fn delete_related<OM>(
         &self,
-        link: RelationalLink<OD, OM, FK>,
-        cross_permissions: CrossDefinitionPermissions<D, OD>,
+        link: RelationalLink<OM>,
+        cross_permissions: CrossDefinitionPermissions<D>,
     ) -> NetabaseResult<()>
     where
-        OD: NetabaseDefinition,
-        OM: NetabaseModel<OD>,
-        FK: Clone + Send + Sync + PartialEq + 'static,
-        <OD as strum::IntoDiscriminant>::Discriminant: 'static,
-        for<'a> <<<OM as NetabaseModel<OD>>::Keys as NetabaseModelKeys<OD, OM>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-        for<'a> <<<OM as NetabaseModel<OD>>::Keys as NetabaseModelKeys<OD, OM>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static;
+        OM: GlobalDefinitionEnum,
+        <OM as strum::IntoDiscriminant>::Discriminant: 'static;
 }
 
 pub struct ModelOpenTables<'txn, 'db, D: NetabaseDefinition, M: RedbNetbaseModel<'db, D> + redb::Key> 
@@ -367,7 +355,7 @@ where
     ),
 }
 
-impl<'txn, 'db, D: NetabaseDefinition, M: RedbNetbaseModel<'db, D> + redb::Key> ModelOpenTables<'txn, 'db, D, M> 
+impl<'txn, 'db, D: NetabaseDefinition + GlobalDefinitionEnum, M: RedbNetbaseModel<'db, D> + redb::Key> ModelOpenTables<'txn, 'db, D, M> 
 where
     D::Discriminant: 'static,
     <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key + 'static,

@@ -3,10 +3,10 @@ use strum::IntoDiscriminant;
 
 use crate::{
     traits::registery::{
-        definition::NetabaseDefinition,
+        definition::{NetabaseDefinition, NetabaseDefinitionKeys},
         models::{StoreKey, StoreValue, StoreValueMarker, keys::NetabaseModelKeys},
     },
-    relational::{RelationalLink, RelationalLinkError},
+    relational::{RelationalLink, RelationalLinkError, GlobalDefinitionEnum},
 };
 
 pub trait NetabaseModelMarker: StoreValueMarker {}
@@ -37,20 +37,17 @@ where
     ) -> Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Relational<'a>>;
 
     /// Get all relational links from this model
-    fn get_relational_links(&self) -> Vec<Box<dyn std::any::Any>> {
+    fn get_relational_links(&self) -> Vec<NetabaseDefinitionKeys<D>> {
         Vec::new() // Default implementation returns empty
     }
     
     /// Update a relational link by type (default implementation does nothing)
-    fn update_relational_link<OD: NetabaseDefinition, M: NetabaseModel<OD>, FK>(
+    fn update_relational_link<M: GlobalDefinitionEnum>(
         &mut self, 
-        _link: RelationalLink<OD, M, FK>
+        _link: RelationalLink<M>
     ) -> Result<(), RelationalLinkError> 
-    where
-        FK: Clone + Send + Sync + PartialEq + 'static,
-        <OD as strum::IntoDiscriminant>::Discriminant: 'static,
-        for<'a> <<<M as NetabaseModel<OD>>::Keys as NetabaseModelKeys<OD, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-        for<'a> <<<M as NetabaseModel<OD>>::Keys as NetabaseModelKeys<OD, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
+    where 
+        <M as strum::IntoDiscriminant>::Discriminant: 'static, 
     {
         Ok(()) // Default implementation does nothing
     }

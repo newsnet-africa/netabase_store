@@ -8,11 +8,11 @@ use crate::{
             model::NetabaseModel,
         },
     },
-    relational::{RelationalLink, CrossDefinitionPermissions, RelationalLinkError},
+    relational::{RelationalLink, CrossDefinitionPermissions, GlobalDefinitionEnum},
 };
 use strum::IntoDiscriminant;
 
-pub trait NBTransaction<'db, D: NetabaseDefinition>
+pub trait NBTransaction<'db, D: NetabaseDefinition + GlobalDefinitionEnum>
 where
     <D as strum::IntoDiscriminant>::Discriminant: 'static,
 {
@@ -142,48 +142,38 @@ where
         for<'a> <<M::Keys as NetabaseModelKeys<OD, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
             'static;
 
-    fn hydrate_relation<OD, M, FK>(&self, link: RelationalLink<OD, M, FK>) -> NetabaseResult<RelationalLink<OD, M, FK>>
+    fn hydrate_relation<M>(&self, link: RelationalLink<M>) -> NetabaseResult<RelationalLink<M>>
     where
-        OD: NetabaseDefinition,
-        M: NetabaseModel<OD>,
-        FK: Clone + Send + Sync + PartialEq + 'static,
-        <OD as strum::IntoDiscriminant>::Discriminant: 'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<OD, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<OD, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static;
+        M: GlobalDefinitionEnum,
+        <M as strum::IntoDiscriminant>::Discriminant: 'static,
+    ;
 
     fn can_access_definition<OD>(&self) -> bool
     where
         OD: NetabaseDefinition,
         <OD as strum::IntoDiscriminant>::Discriminant: 'static;
 
-    fn get_cross_permissions<OD>(&self) -> Option<CrossDefinitionPermissions<D, OD>>
+    fn get_cross_permissions<OD>(&self) -> Option<CrossDefinitionPermissions<D>>
     where
-        OD: NetabaseDefinition,
+        OD: NetabaseDefinition + GlobalDefinitionEnum,
         <OD as strum::IntoDiscriminant>::Discriminant: 'static;
 
-    fn create_with_relations<M>(&self, model: M, relations: Vec<Box<dyn std::any::Any>>) -> NetabaseResult<()>
+    fn create_with_relations<M>(&self, model: M, relations: Vec<RelationalLink<M>>) -> NetabaseResult<()>
     where
-        M: NetabaseModel<D>,
+        M: NetabaseModel<D> + GlobalDefinitionEnum,
+        <M as strum::IntoDiscriminant>::Discriminant: 'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
             'static;
 
-    fn update_relations<M, OD, RM, FK>(&self, model_key: M::Keys, relation_updates: Vec<RelationalLink<OD, RM, FK>>) -> NetabaseResult<()>
+    fn update_relations<M, RM>(&self, model_key: M::Keys, relation_updates: Vec<RelationalLink<RM>>) -> NetabaseResult<()>
     where
         M: NetabaseModel<D>,
-        OD: NetabaseDefinition,
-        RM: NetabaseModel<OD>,
-        FK: Clone + Send + Sync + PartialEq + 'static,
-        <OD as strum::IntoDiscriminant>::Discriminant: 'static,
+        RM: GlobalDefinitionEnum,
+        <RM as strum::IntoDiscriminant>::Discriminant: 'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<RM::Keys as NetabaseModelKeys<OD, RM>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<RM::Keys as NetabaseModelKeys<OD, RM>>::Relational<'a> as IntoDiscriminant>::Discriminant:
             'static;
 }
