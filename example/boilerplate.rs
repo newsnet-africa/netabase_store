@@ -1,18 +1,16 @@
+use netabase_store::databases::redb::transaction::ModelOpenTables;
 use netabase_store::traits::registery::{
-    definition::{NetabaseDefinition, NetabaseDefinitionTreeNames},
+    definition::{NetabaseDefinition, NetabaseDefinitionKeys, NetabaseDefinitionTreeNames},
     models::{
-        StoreKey, StoreValue, StoreKeyMarker, StoreValueMarker,
+        StoreKey, StoreKeyMarker, StoreValue, StoreValueMarker,
         keys::{
             NetabaseModelKeys, NetabaseModelPrimaryKey, NetabaseModelRelationalKey,
             NetabaseModelSecondaryKey,
         },
-        model::{
-            DiscriminantTableName, ModelTreeNames, NetabaseModel, NetabaseModelMarker,
-            RedbNetbaseModel, RedbModelTableDefinitions,
-        },
+        model::{NetabaseModel, NetabaseModelMarker, RedbModelTableDefinitions, RedbNetbaseModel},
+        treenames::{DiscriminantTableName, ModelTreeNames},
     },
 };
-use netabase_store::traits::database::transaction::redb_transaction::ModelOpenTables;
 
 use bincode::{Decode, Encode};
 use redb::{Key, Value};
@@ -79,7 +77,7 @@ pub enum UserRelationalKeys {
     Partner(UserPartner),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum UserKeys {
     Primary(UserID),
     Secondary(UserSecondaryKeys),
@@ -138,7 +136,7 @@ pub enum PostRelationalKeys {
     Author(UserID),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum PostKeys {
     Primary(PostID),
     Secondary(PostSecondaryKeys),
@@ -147,8 +145,7 @@ pub enum PostKeys {
 
 // --- Definition ---
 
-#[derive(Clone)]
-#[derive(EnumDiscriminants)]
+#[derive(Clone, EnumDiscriminants, Debug)]
 #[strum_discriminants(name(DefinitionDiscriminants))]
 #[strum_discriminants(derive(AsRefStr))]
 pub enum Definition {
@@ -156,11 +153,25 @@ pub enum Definition {
     Post(Post),
 }
 
-pub struct DefinitionTreeNames;
-impl NetabaseDefinitionTreeNames for DefinitionTreeNames {}
+#[derive(Clone, Debug)]
+pub enum DefinitionTreeNames {
+    User(ModelTreeNames<'static, Definition, User>),
+    Post(ModelTreeNames<'static, Definition, Post>),
+}
+
+impl NetabaseDefinitionTreeNames<Definition> for DefinitionTreeNames {}
+
+#[derive(Clone, Debug)]
+pub enum DefinitionKeys {
+    User(UserKeys),
+    Post(PostKeys),
+}
+
+impl NetabaseDefinitionKeys<Definition> for DefinitionKeys {}
 
 impl NetabaseDefinition for Definition {
     type TreeNames = DefinitionTreeNames;
+    type DefKeys = DefinitionKeys;
     type ModelTableDefinition<'db> = RedbModelTableDefinitions<'db, User, Self>; // Using User as a representative model
 }
 
@@ -168,6 +179,27 @@ impl NetabaseDefinition for Definition {
 
 impl NetabaseModel<Definition> for User {
     type Keys = UserKeys;
+
+    // We can directly reference the static tree names for the definition enum if we wanted,
+    // but for now we follow the pattern of creating them here or in the RedbNetbaseModel impl.
+    // However, NetabaseModel requires TREE_NAMES as associated constant.
+    const TREE_NAMES: ModelTreeNames<'static, Definition, Self> = ModelTreeNames {
+        main: DiscriminantTableName::new(DefinitionDiscriminants::User, "User:User:Primary:Main"),
+        secondary: &[
+            DiscriminantTableName::new(
+                UserSecondaryKeysDiscriminants::Name,
+                "Definition:User:Secondary:Name",
+            ),
+            DiscriminantTableName::new(
+                UserSecondaryKeysDiscriminants::Age,
+                "Definition:User:Secondary:Age",
+            ),
+        ],
+        relational: &[DiscriminantTableName::new(
+            UserRelationalKeysDiscriminants::Partner,
+            "Definition:User:Relational:Partner",
+        )],
+    };
 
     fn get_primary_key<'a>(&'a self) -> UserID {
         self.id.clone()
@@ -219,6 +251,21 @@ impl<'a> NetabaseModelRelationalKey<'a, Definition, User, UserKeys> for UserRela
 
 impl NetabaseModel<Definition> for Post {
     type Keys = PostKeys;
+
+    const TREE_NAMES: ModelTreeNames<'static, Definition, Self> = ModelTreeNames {
+        main: DiscriminantTableName::new(
+            DefinitionDiscriminants::Post,
+            "Definition:Post:Primary:Main",
+        ),
+        secondary: &[DiscriminantTableName::new(
+            PostSecondaryKeysDiscriminants::Title,
+            "Definition:Post:Secondary:Title",
+        )],
+        relational: &[DiscriminantTableName::new(
+            PostRelationalKeysDiscriminants::Author,
+            "Definition:Post:Relational:Author",
+        )],
+    };
 
     fn get_primary_key<'a>(&'a self) -> PostID {
         self.id.clone()
@@ -371,45 +418,12 @@ impl_redb_value_key_for_owned!(Post);
 impl_redb_value_key_for_owned!(PostSecondaryKeys);
 impl_redb_value_key_for_owned!(PostRelationalKeys);
 
-// RedbNetbaseModel impls - using constant table names with slices
+// RedbNetbaseModel impls - only needs type def as TREE_NAMES is in NetabaseModel
 impl<'db> RedbNetbaseModel<'db, Definition> for User {
-    const TREE_NAMES: ModelTreeNames<'db, Definition, Self> = ModelTreeNames {
-        main: DiscriminantTableName::new(DefinitionDiscriminants::User, "User:User:Primary:Main"),
-        secondary: &[
-            DiscriminantTableName::new(
-                UserSecondaryKeysDiscriminants::Name,
-                "Defintion:User:Secondary:Name",
-            ),
-            DiscriminantTableName::new(
-                UserSecondaryKeysDiscriminants::Age,
-                "Defintion:User:Secondary:Age",
-            ),
-        ],
-        relational: &[DiscriminantTableName::new(
-            UserRelationalKeysDiscriminants::Partner,
-            "Definition:User:Relational:Partner",
-        )],
-    };
-
     type RedbTables = ModelOpenTables<'db, 'db, Definition, Self>;
 }
 
 impl<'db> RedbNetbaseModel<'db, Definition> for Post {
-    const TREE_NAMES: ModelTreeNames<'db, Definition, Self> = ModelTreeNames {
-        main: DiscriminantTableName::new(
-            DefinitionDiscriminants::Post,
-            "Definition:Post:Primary:Main",
-        ),
-        secondary: &[DiscriminantTableName::new(
-            PostSecondaryKeysDiscriminants::Title,
-            "Definition:Post:Secondary:Title",
-        )],
-        relational: &[DiscriminantTableName::new(
-            PostRelationalKeysDiscriminants::Author,
-            "Definition:Post:Relational:Author",
-        )],
-    };
-
     type RedbTables = ModelOpenTables<'db, 'db, Definition, Self>;
 }
 
@@ -477,6 +491,11 @@ fn main() {
     for rel in Post::TREE_NAMES.relational {
         println!("  - {} -> {}", rel.discriminant.as_ref(), rel.table_name);
     }
+
+    // Demonstrate usage of the new DefinitionTreeNames and DefinitionKeys enums
+    // (In a real app these would be populated or used for lookups)
+    let _tree_names_enum = DefinitionTreeNames::User(User::TREE_NAMES);
+    let _keys_enum = DefinitionKeys::User(UserKeys::Primary(user_id));
 
     println!("Type system test completed successfully!");
 }

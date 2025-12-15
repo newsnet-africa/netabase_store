@@ -14,7 +14,7 @@ pub mod secondary;
 pub trait NetabaseModelKeys<D: NetabaseDefinition, M: NetabaseModelMarker<D>>:
     std::marker::Sized
 where
-    D::Discriminant: 'static,
+    D::Discriminant: 'static + std::fmt::Debug,
     for<'a> Self::Primary<'a>: redb::Key,
     for<'a> Self::Secondary<'a>: redb::Key,
     for<'a> Self::Relational<'a>: redb::Key,

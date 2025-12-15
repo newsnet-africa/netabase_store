@@ -5,7 +5,7 @@ use crate::traits::registery::definition::NetabaseDefinition;
 
 pub struct RedbStore<D: NetabaseDefinition>
 where
-    <D as strum::IntoDiscriminant>::Discriminant: 'static,
+    <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug + std::fmt::Debug,
 {
     tree_names: D::TreeNames,
     db: RedbStorePermissions,
@@ -30,7 +30,7 @@ pub enum TablePermissionLevel {
 #[derive(Debug, Clone)]
 pub enum NetabasePermissions<D: NetabaseDefinition> 
 where
-    <D as strum::IntoDiscriminant>::Discriminant: 'static,
+    <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug + std::fmt::Debug,
 {
     Database {
         level: TablePermissionLevel,
@@ -54,7 +54,7 @@ pub enum RedbStorePermissions {
 
 impl<D: NetabaseDefinition> Default for NetabasePermissions<D>
 where
-    <D as strum::IntoDiscriminant>::Discriminant: 'static,
+    <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug + std::fmt::Debug,
 {
     fn default() -> Self {
         Self::Database {
@@ -69,7 +69,7 @@ where
 
 impl<D: NetabaseDefinition> NetabasePermissions<D>
 where
-    <D as strum::IntoDiscriminant>::Discriminant: 'static,
+    <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug + std::fmt::Debug,
 {
     pub fn database_read_only() -> Self {
         Self::Database {

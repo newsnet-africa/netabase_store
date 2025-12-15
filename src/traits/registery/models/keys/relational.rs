@@ -13,7 +13,7 @@ pub trait NetabaseModelRelationalKey<
     K: NetabaseModelKeys<D, M>,   // Source keys
 >: StoreKeyMarker<D> + Clone
 where
-    D::Discriminant: 'static,
+    D::Discriminant: 'static + std::fmt::Debug,
 {
 }
 
@@ -30,8 +30,8 @@ pub trait NetabaseModelRelationalKeyForeign<
     FK: NetabaseModelKeys<FD, FM>, // Foreign keys
 >: NetabaseModelRelationalKey<'a, D, M, K>
 where
-    D::Discriminant: 'static,
-    FD::Discriminant: 'static,
+    D::Discriminant: 'static + std::fmt::Debug,
+    FD::Discriminant: 'static + std::fmt::Debug,
     FK::Secondary<'a>: StoreKeyMarker<FD>,
     FK::Relational<'a>: StoreKeyMarker<FD>,
 {

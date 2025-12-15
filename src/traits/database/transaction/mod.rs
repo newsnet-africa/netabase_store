@@ -1,4 +1,3 @@
-pub mod redb_transaction;
 use crate::{
     errors::NetabaseResult,
     traits::registery::{
@@ -14,7 +13,7 @@ use strum::IntoDiscriminant;
 
 pub trait NBTransaction<'db, D: NetabaseDefinition + GlobalDefinitionEnum>
 where
-    <D as strum::IntoDiscriminant>::Discriminant: 'static,
+    <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
 {
     type ReadTransaction;
     type WriteTransaction;
@@ -136,7 +135,7 @@ where
     where
         OD: NetabaseDefinition,
         M: NetabaseModel<OD>,
-        <OD as strum::IntoDiscriminant>::Discriminant: 'static,
+        <OD as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         for<'a> <<M::Keys as NetabaseModelKeys<OD, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<OD, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
@@ -145,23 +144,23 @@ where
     fn hydrate_relation<M>(&self, link: RelationalLink<M>) -> NetabaseResult<RelationalLink<M>>
     where
         M: GlobalDefinitionEnum,
-        <M as strum::IntoDiscriminant>::Discriminant: 'static,
+        <M as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     ;
 
     fn can_access_definition<OD>(&self) -> bool
     where
         OD: NetabaseDefinition,
-        <OD as strum::IntoDiscriminant>::Discriminant: 'static;
+        <OD as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug;
 
     fn get_cross_permissions<OD>(&self) -> Option<CrossDefinitionPermissions<D>>
     where
         OD: NetabaseDefinition + GlobalDefinitionEnum,
-        <OD as strum::IntoDiscriminant>::Discriminant: 'static;
+        <OD as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug;
 
     fn create_with_relations<M>(&self, model: M, relations: Vec<RelationalLink<M>>) -> NetabaseResult<()>
     where
         M: NetabaseModel<D> + GlobalDefinitionEnum,
-        <M as strum::IntoDiscriminant>::Discriminant: 'static,
+        <M as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
@@ -171,7 +170,7 @@ where
     where
         M: NetabaseModel<D>,
         RM: GlobalDefinitionEnum,
-        <RM as strum::IntoDiscriminant>::Discriminant: 'static,
+        <RM as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:

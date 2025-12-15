@@ -1,20 +1,20 @@
-use crate::traits::registery::{
-    definition::NetabaseDefinition, 
-};
+use crate::traits::registery::definition::NetabaseDefinition;
 
 /// Trait for types that can be converted to/from a global definition enum
 pub trait IntoGlobalDefinition {
     type GlobalEnum: Clone + PartialEq + Eq + std::hash::Hash + std::fmt::Debug;
-    
+
     fn into_global(self) -> Self::GlobalEnum;
-    fn from_global(global: Self::GlobalEnum) -> Option<Self> where Self: Sized;
+    fn from_global(global: Self::GlobalEnum) -> Option<Self>
+    where
+        Self: Sized;
 }
 
 /// Trait for managing global definition collections
 pub trait GlobalDefinitionCollection {
     type DefinitionType;
     type GlobalEnum;
-    
+
     fn add_definition(&mut self, def: Self::DefinitionType);
     fn get_definition(&self, global: &Self::GlobalEnum) -> Option<&Self::DefinitionType>;
     fn remove_definition(&mut self, global: &Self::GlobalEnum) -> Option<Self::DefinitionType>;
@@ -22,16 +22,18 @@ pub trait GlobalDefinitionCollection {
 
 /// Trait that enables any definition to be part of a global enum system
 /// This should be implemented by macro for all NetabaseDefinition types
-pub trait GlobalDefinitionEnum: NetabaseDefinition 
+pub trait GlobalDefinitionEnum: NetabaseDefinition
 where
-    <Self as strum::IntoDiscriminant>::Discriminant: 'static,
+    <Self as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
 {
     type GlobalDefinition: Clone + PartialEq + Eq + std::hash::Hash + std::fmt::Debug;
     type GlobalKeys: Clone + PartialEq + Eq + std::hash::Hash + std::fmt::Debug;
-    
+
     fn into_global_definition(self) -> Self::GlobalDefinition;
-    fn from_global_definition(global: Self::GlobalDefinition) -> Option<Self> where Self: Sized;
-    
+    fn from_global_definition(global: Self::GlobalDefinition) -> Option<Self>
+    where
+        Self: Sized;
+
     fn discriminant_into_global(discriminant: Self::Discriminant) -> Self::GlobalKeys;
     fn discriminant_from_global(global: Self::GlobalKeys) -> Option<Self::Discriminant>;
 }
@@ -39,8 +41,9 @@ where
 /// A relational link to a foreign key in another definition
 /// Uses generics instead of global enums for type safety
 #[derive(Debug, Clone)]
-pub struct RelationalLink<D: GlobalDefinitionEnum> 
+pub struct RelationalLink<D: GlobalDefinitionEnum>
 where
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
     <D as strum::IntoDiscriminant>::Discriminant: 'static,
 {
     /// The foreign key pointing to another definition
@@ -51,8 +54,9 @@ where
 
 /// The type of relation - either a pointer or hydrated data
 #[derive(Debug, Clone)]
-pub enum RelationType<D: GlobalDefinitionEnum> 
+pub enum RelationType<D: GlobalDefinitionEnum>
 where
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
     <D as strum::IntoDiscriminant>::Discriminant: 'static,
 {
     /// Just the key pointer to the foreign data
@@ -62,9 +66,9 @@ where
 }
 
 // Manual PartialEq implementation to avoid derive issues with lifetime bounds
-impl<D: GlobalDefinitionEnum> PartialEq for RelationalLink<D> 
+impl<D: GlobalDefinitionEnum> PartialEq for RelationalLink<D>
 where
-    <D as strum::IntoDiscriminant>::Discriminant: 'static,
+    <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
 {
     fn eq(&self, other: &Self) -> bool {
         // For now, just compare discriminants of foreign keys
@@ -73,9 +77,9 @@ where
     }
 }
 
-impl<D: GlobalDefinitionEnum> PartialEq for RelationType<D> 
+impl<D: GlobalDefinitionEnum> PartialEq for RelationType<D>
 where
-    <D as strum::IntoDiscriminant>::Discriminant: 'static,
+    <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
 {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -90,9 +94,9 @@ where
     }
 }
 
-impl<D: GlobalDefinitionEnum> RelationalLink<D> 
+impl<D: GlobalDefinitionEnum> RelationalLink<D>
 where
-    <D as strum::IntoDiscriminant>::Discriminant: 'static,
+    <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
 {
     /// Create a new pointer relation with just the foreign key
     pub fn new_pointer(key: D::GlobalKeys) -> Self {
@@ -151,13 +155,13 @@ where
 pub enum RelationalLinkError {
     #[error("Key mismatch: the provided model's primary key doesn't match the stored foreign key")]
     KeyMismatch,
-    
+
     #[error("Permission denied: insufficient permissions to access related definition")]
     PermissionDenied,
-    
+
     #[error("Not found: the related model could not be found")]
     NotFound,
-    
+
     #[error("Cross-definition access error")]
     CrossDefinitionError,
 }
@@ -165,8 +169,9 @@ pub enum RelationalLinkError {
 /// Cross-definition permissions for relational access
 /// Uses strongly typed table definitions instead of strings
 #[derive(Debug, Clone)]
-pub struct CrossDefinitionPermissions<D: GlobalDefinitionEnum> 
+pub struct CrossDefinitionPermissions<D: GlobalDefinitionEnum>
 where
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
     <D as strum::IntoDiscriminant>::Discriminant: 'static,
 {
     /// List of accessible table definitions (strongly typed)
@@ -179,13 +184,17 @@ where
     pub hydration_allowed: bool,
 }
 
-impl<D: GlobalDefinitionEnum> CrossDefinitionPermissions<D> {
+impl<D: GlobalDefinitionEnum> CrossDefinitionPermissions<D>
+where
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: 'static,
+{
     /// Create new cross-definition permissions
     pub fn new(
         accessible_tables: Vec<D::GlobalKeys>,
-        read_allowed: bool, 
-        write_allowed: bool, 
-        hydration_allowed: bool
+        read_allowed: bool,
+        write_allowed: bool,
+        hydration_allowed: bool,
     ) -> Self {
         Self {
             accessible_tables,
@@ -206,9 +215,9 @@ impl<D: GlobalDefinitionEnum> CrossDefinitionPermissions<D> {
     }
 
     /// Create no permissions
-    pub fn no_access() -> Self 
-    where 
-        <D as strum::IntoDiscriminant>::Discriminant: 'static,
+    pub fn no_access() -> Self
+    where
+        <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     {
         Self::new(Vec::new(), false, false, false)
     }

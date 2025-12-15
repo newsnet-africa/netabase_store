@@ -14,7 +14,7 @@ pub trait NetabaseModelPrimaryKey<
     + StoreKeyMarker<D>
     + Clone
 where
-    D::Discriminant: 'static,
+    D::Discriminant: 'static + std::fmt::Debug,
     K::Secondary<'a>: StoreKeyMarker<D>,
     K::Relational<'a>: StoreKeyMarker<D>,
 {

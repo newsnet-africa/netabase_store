@@ -10,7 +10,7 @@ pub trait NetabaseModelSecondaryKey<
     K: NetabaseModelKeys<D, M>,
 >: StoreKeyMarker<D> + Clone
 where
-    D::Discriminant: 'static,
+    D::Discriminant: 'static + std::fmt::Debug,
     K::Relational<'a>: StoreKeyMarker<D>,
 {
     type PrimaryKey: NetabaseModelPrimaryKey<'a, D, M, K>;

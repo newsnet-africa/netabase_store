@@ -1,26 +1,25 @@
 use redb::ReadableDatabase;
+use strum::IntoDiscriminant;
 
 use crate::{
-    databases::redb::{NetabasePermissions, RedbStorePermissions},
+    databases::redb::{NetabasePermissions, RedbStorePermissions, ModelOperationPermission},
     relational::{CrossDefinitionPermissions, RelationalLink, GlobalDefinitionEnum},
     traits::{
-        database::transaction::redb_transaction::{
-            ModelOpenTables, NBRedbReadTransaction, NBRedbTransaction, NBRedbTransactionBase,
-            NBRedbWriteTransaction, ReadWriteTableType, TablePermission, TableType,
-        },
+        database::transaction::NBTransaction,
         registery::{
             definition::NetabaseDefinition,
             models::{
                 keys::NetabaseModelKeys,
-                model::{NetabaseModel, RedbModelTableDefinitions, RedbNetbaseModel},
+                model::{NetabaseModel, redb_model::{RedbModelTableDefinitions, RedbNetbaseModel}},
             },
         },
     },
+    errors::{NetabaseResult, NetabaseError},
 };
 
 pub struct RedbTransactionInner<D: NetabaseDefinition>
 where
-    <D as strum::IntoDiscriminant>::Discriminant: 'static,
+    <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
 {
     transaction: RedbTransactionType,
     permissions: NetabasePermissions<D>,
@@ -33,64 +32,135 @@ pub enum RedbTransactionType {
 
 pub type RedbTransaction<D> = RedbTransactionInner<D>;
 
-impl<'db, D: NetabaseDefinition> NBRedbTransactionBase<'db, D> for RedbTransaction<D>
+// --- Copied types from redb_transaction.rs ---
+
+pub struct ModelOpenTables<'txn, 'db, D: NetabaseDefinition, M: RedbNetbaseModel<'db, D> + redb::Key> 
 where
-    <D as strum::IntoDiscriminant>::Discriminant: 'static,
+    D::Discriminant: 'static + std::fmt::Debug,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key + 'static,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key + 'static,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key + 'static,
+    for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    M: 'static,
 {
-    type ReadTransaction = redb::ReadTransaction;
-    type WriteTransaction = redb::WriteTransaction;
+    pub main: TablePermission<'txn, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>, M>,
 
-    fn check_permissions(&self) -> crate::errors::NetabaseResult<()> {
-        // Permission checking logic here - for now just return Ok
-        Ok(())
-    }
+    pub secondary: Vec<(
+        TablePermission<'txn, <M::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>>,
+        &'db str,
+    )>,
 
-    fn new_with_permissions(
+    pub relational: Vec<(
+        TablePermission<'txn, <M::Keys as NetabaseModelKeys<D, M>>::Relational<'db>, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>>,
+        &'db str,
+    )>,
+}
+
+pub enum TableType<K, V>
+where
+    K: redb::Key + 'static,
+    V: redb::Value + redb::Key + 'static,
+{
+    Table(redb::ReadOnlyTable<K, V>),
+    MultimapTable(redb::ReadOnlyMultimapTable<K, V>),
+}
+
+pub enum ReadWriteTableType<'txn, K, V>
+where
+    K: redb::Key + 'static,
+    V: redb::Value + redb::Key + 'static,
+{
+    Table(redb::Table<'txn, K, V>),
+    MultimapTable(redb::MultimapTable<'txn, K, V>),
+}
+
+pub enum TablePermission<'txn, K, V>
+where
+    K: redb::Key + 'static,
+    V: redb::Value + redb::Key + 'static,
+{
+    ReadOnly(TableType<K, V>),
+    ReadWrite(ReadWriteTableType<'txn, K, V>),
+}
+
+pub enum ModelTableType<'txn, 'db, D: NetabaseDefinition, M: RedbNetbaseModel<'db, D>>
+where
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key + 'static,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key + 'static,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key + 'static,
+    for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    D::Discriminant: 'static + std::fmt::Debug,
+{
+    Main(TablePermission<'txn, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>, M>),
+    Secondary(
+        Vec<(
+            TablePermission<'txn, <M::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>>,
+            &'db str,
+        )>
+    ),
+    Relational(
+        Vec<(
+            TablePermission<'txn, <M::Keys as NetabaseModelKeys<D, M>>::Relational<'db>, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>>,
+            &'db str,
+        )>
+    ),
+}
+
+
+impl<D: NetabaseDefinition> RedbTransaction<D>
+where
+    <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+{
+    pub fn new(
         db: RedbStorePermissions,
         permissions: NetabasePermissions<D>,
-    ) -> crate::errors::NetabaseResult<Self> {
+    ) -> NetabaseResult<Self> {
         let transaction = match db {
             RedbStorePermissions::ReadOnly(read_only_database) => {
                 let read_txn = read_only_database
                     .begin_read()
-                    .map_err(|e| crate::errors::NetabaseError::RedbTransactionError(e))?;
+                    .map_err(|e| NetabaseError::RedbTransactionError(e))?;
                 RedbTransactionType::Read(read_txn)
             }
             RedbStorePermissions::ReadWrite(database) => {
                 let write_txn = database
                     .begin_write()
-                    .map_err(|e| crate::errors::NetabaseError::RedbTransactionError(e))?;
+                    .map_err(|e| NetabaseError::RedbTransactionError(e))?;
                 RedbTransactionType::Write(write_txn)
             }
         };
 
-        Ok(RedbTransactionInner {
+        let txn = RedbTransactionInner {
             transaction,
             permissions,
-        })
+        };
+        txn.check_permissions()?;
+        Ok(txn)
     }
-}
 
-impl<D: NetabaseDefinition> RedbTransaction<D>
-where
-    <D as strum::IntoDiscriminant>::Discriminant: 'static,
-{
+    fn check_permissions(&self) -> NetabaseResult<()> {
+        // Permission checking logic here - for now just return Ok
+        Ok(())
+    }
+
     /// Open tables for a specific model with proper permission checking (concrete implementation)
-    pub fn open_model_tables_impl<'txn, 'db, M>(
+    pub fn open_model_tables<'txn, 'db, M>(
         &'txn self,
         definitions: RedbModelTableDefinitions<'db, M, D>,
-    ) -> crate::errors::NetabaseResult<ModelOpenTables<'txn, 'db, D, M>>
+    ) -> NetabaseResult<ModelOpenTables<'txn, 'db, D, M>>
     where
         M: RedbNetbaseModel<'db, D> + redb::Key + 'static,
-        D::Discriminant: 'static,
+        D::Discriminant: 'static + std::fmt::Debug,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key + 'static,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key + 'static,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key + 'static,
-        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     {
         // Check permissions first
-        <Self as NBRedbTransactionBase<D>>::check_permissions(self)?;
+        self.check_permissions()?;
 
         match &self.transaction {
             RedbTransactionType::Read(read_txn) => {
@@ -100,11 +170,11 @@ where
                     TablePermission::ReadOnly(TableType::Table(table))
                 };
 
-                let secondary_tables: Result<Vec<_>, crate::errors::NetabaseError> = definitions
+                let secondary_tables: Result<Vec<_>, NetabaseError> = definitions
                     .secondary
                     .into_iter()
                     .map(
-                        |(table_def, name)| -> Result<_, crate::errors::NetabaseError> {
+                        |(table_def, name)| -> Result<_, NetabaseError> {
                             let table = read_txn.open_multimap_table(table_def)?;
                             Ok((
                                 TablePermission::ReadOnly(TableType::MultimapTable(table)),
@@ -114,11 +184,11 @@ where
                     )
                     .collect();
 
-                let relational_tables: Result<Vec<_>, crate::errors::NetabaseError> = definitions
+                let relational_tables: Result<Vec<_>, NetabaseError> = definitions
                     .relational
                     .into_iter()
                     .map(
-                        |(table_def, name)| -> Result<_, crate::errors::NetabaseError> {
+                        |(table_def, name)| -> Result<_, NetabaseError> {
                             let table = read_txn.open_multimap_table(table_def)?;
                             Ok((
                                 TablePermission::ReadOnly(TableType::MultimapTable(table)),
@@ -137,7 +207,7 @@ where
             RedbTransactionType::Write(write_txn) => {
                 // Check if we have write permissions
                 if !self.permissions.can_write() {
-                    return Err(crate::errors::NetabaseError::Permission);
+                    return Err(NetabaseError::Permission);
                 }
 
                 // For write transactions, open read-write tables
@@ -146,11 +216,11 @@ where
                     TablePermission::ReadWrite(ReadWriteTableType::Table(table))
                 };
 
-                let secondary_tables: Result<Vec<_>, crate::errors::NetabaseError> = definitions
+                let secondary_tables: Result<Vec<_>, NetabaseError> = definitions
                     .secondary
                     .into_iter()
                     .map(
-                        |(table_def, name)| -> Result<_, crate::errors::NetabaseError> {
+                        |(table_def, name)| -> Result<_, NetabaseError> {
                             let table = write_txn.open_multimap_table(table_def)?;
                             Ok((
                                 TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(
@@ -162,11 +232,11 @@ where
                     )
                     .collect();
 
-                let relational_tables: Result<Vec<_>, crate::errors::NetabaseError> = definitions
+                let relational_tables: Result<Vec<_>, NetabaseError> = definitions
                     .relational
                     .into_iter()
                     .map(
-                        |(table_def, name)| -> Result<_, crate::errors::NetabaseError> {
+                        |(table_def, name)| -> Result<_, NetabaseError> {
                             let table = write_txn.open_multimap_table(table_def)?;
                             Ok((
                                 TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(
@@ -188,33 +258,33 @@ where
     }
 
     /// Execute a function with the raw read transaction (limited scope)
-    pub fn with_read_transaction<F, R>(&self, f: F) -> crate::errors::NetabaseResult<R>
+    pub fn with_read_transaction<F, R>(&self, f: F) -> NetabaseResult<R>
     where
-        F: FnOnce(&redb::ReadTransaction) -> crate::errors::NetabaseResult<R>,
+        F: FnOnce(&redb::ReadTransaction) -> NetabaseResult<R>,
     {
         match &self.transaction {
             RedbTransactionType::Read(read_txn) => f(read_txn),
-            RedbTransactionType::Write(_) => return Err(crate::errors::NetabaseError::Permission),
+            RedbTransactionType::Write(_) => return Err(NetabaseError::Permission),
         }
     }
 
     /// Execute a function with the raw write transaction (limited scope)
-    pub fn with_write_transaction<F, R>(&self, f: F) -> crate::errors::NetabaseResult<R>
+    pub fn with_write_transaction<F, R>(&self, f: F) -> NetabaseResult<R>
     where
-        F: FnOnce(&redb::WriteTransaction) -> crate::errors::NetabaseResult<R>,
+        F: FnOnce(&redb::WriteTransaction) -> NetabaseResult<R>,
     {
         if !self.permissions.can_write() {
-            return Err(crate::errors::NetabaseError::Permission);
+            return Err(NetabaseError::Permission);
         }
 
         match &self.transaction {
             RedbTransactionType::Write(write_txn) => f(write_txn),
-            RedbTransactionType::Read(_) => Err(crate::errors::NetabaseError::Permission),
+            RedbTransactionType::Read(_) => Err(NetabaseError::Permission),
         }
     }
 
     /// Commit the transaction if it's a write transaction
-    pub fn commit(self) -> crate::errors::NetabaseResult<()> {
+    pub fn commit(self) -> NetabaseResult<()> {
         match self.transaction {
             RedbTransactionType::Write(write_txn) => {
                 write_txn.commit()?;
@@ -226,413 +296,268 @@ where
             }
         }
     }
-}
 
-impl<'db, D: NetabaseDefinition> NBRedbReadTransaction<'db, D> for RedbTransaction<D>
-where
-    <D as strum::IntoDiscriminant>::Discriminant: 'static,
-{
-    fn read<M>(&self, _key: M::Keys) -> crate::errors::NetabaseResult<M>
-    where
-        M: NetabaseModel<D> + RedbNetbaseModel<'db, D>,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static,
-    {
-        // Open model tables and perform read within limited scope
-        let definitions = M::table_definitions();
-        let tables = self.open_model_tables_impl(definitions)?;
+    // --- Inherent methods for Redb models ---
 
-        // Use limited scope for table operations
-        match &tables.main {
-            TablePermission::ReadOnly(TableType::Table(_table)) => {
-                // Perform read operation
-                todo!("Implement read operation using opened table")
-            }
-            TablePermission::ReadWrite(ReadWriteTableType::Table(_table)) => {
-                // Perform read operation on write table
-                todo!("Implement read operation using opened write table")
-            }
-            _ => unreachable!("Main table should always be a Table, not MultimapTable"),
-        }
-    }
-
-    fn read_if<M, F>(&self, _predicate: F) -> crate::errors::NetabaseResult<Vec<M>>
-    where
-        M: NetabaseModel<D> + RedbNetbaseModel<'db, D>,
-        F: Fn(&M) -> bool,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static,
-    {
-        // Open model tables and perform filtered read within limited scope
-        let definitions = M::table_definitions();
-        let _tables = self.open_model_tables_impl(definitions)?;
-
-        // Iterate through all entries and apply predicate
-        todo!("Implement read_if operation using opened tables")
-    }
-
-    fn read_range<M, K>(&self, _range: std::ops::Range<K>) -> crate::errors::NetabaseResult<Vec<M>>
-    where
-        M: NetabaseModel<D> + RedbNetbaseModel<'db, D>,
-        K: Into<M::Keys>,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static,
-    {
-        // Open model tables and perform range read within limited scope
-        let definitions = M::table_definitions();
-        let _tables = self.open_model_tables_impl(definitions)?;
-
-        // Use range iterator on the table
-        todo!("Implement read_range operation using opened tables")
-    }
-
-    fn read_fn<F, R>(&self, f: F) -> crate::errors::NetabaseResult<R>
-    where
-        F: FnOnce(&Self::ReadTransaction) -> crate::errors::NetabaseResult<R>,
-    {
-        self.with_read_transaction(f)
-    }
-}
-
-impl<'db, D: NetabaseDefinition> NBRedbWriteTransaction<'db, D> for RedbTransaction<D>
-where
-    <D as strum::IntoDiscriminant>::Discriminant: 'static,
-{
-    fn create<M>(&self, model: M) -> crate::errors::NetabaseResult<()>
+    pub fn create_redb<'db, M>(&self, _model: M) -> NetabaseResult<()>
     where
         M: NetabaseModel<D> + RedbNetbaseModel<'db, D> + Clone,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: Clone,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: Clone,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: Clone,
-        for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<D, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant:
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant:
             'static,
-        for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<D, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant:
-        'static, <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key, <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key, <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key, <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: 'static, <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: 'static, <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static,
     {
-        // Check write permissions first
-        if !self
-            .permissions
-            .can_perform_operation(&crate::databases::redb::ModelOperationPermission::Create)
-        {
-            return Err(crate::errors::NetabaseError::Permission);
+        if !self.permissions.can_perform_operation(&ModelOperationPermission::Create) {
+            return Err(NetabaseError::Permission);
         }
 
-        // Open model tables and perform create within limited scope
         let definitions = M::table_definitions();
-        let tables = self.open_model_tables_impl(definitions)?;
+        let tables = self.open_model_tables(definitions)?;
 
-        // Get the primary key for this model
-        let _primary_key = model.get_primary_key();
-
-        // Insert into main table using limited scope
         match &tables.main {
             TablePermission::ReadWrite(ReadWriteTableType::Table(_table)) => {
-                // TODO: Implement proper table insertion with correct Borrow traits
-                // This requires ensuring all key types implement the required Borrow<T::SelfType<'_>> traits
-                // table.insert(primary_key.clone(), model.clone())?;
-
-                // For now, return success to allow compilation and focus on the architecture
+                // TODO: Implement proper table insertion
                 todo!("Implement table insertion with proper Borrow trait support");
             }
-            _ => Err(crate::errors::NetabaseError::Permission),
+            _ => Err(NetabaseError::Permission),
         }
     }
 
-    fn update<M>(&self, model: M) -> crate::errors::NetabaseResult<()>
+    // ... Other methods (update, delete, read) would follow similar pattern ...
+}
+
+impl<'db, D: NetabaseDefinition + GlobalDefinitionEnum> NBTransaction<'db, D> for RedbTransaction<D>
+where
+    <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+{
+    type ReadTransaction = redb::ReadTransaction;
+    type WriteTransaction = redb::WriteTransaction;
+
+    fn create<M>(&self, _model: M) -> NetabaseResult<()>
     where
-        M: NetabaseModel<D> + RedbNetbaseModel<'db, D>,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant:
+        M: NetabaseModel<D>,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static
     {
-        // Check update permissions first
-        if !self
-            .permissions
-            .can_perform_operation(&crate::databases::redb::ModelOperationPermission::Update)
-        {
-            return Err(crate::errors::NetabaseError::Permission);
-        }
-
-        // Open model tables and perform update within limited scope
-        let definitions = M::table_definitions();
-        let tables = self.open_model_tables_impl(definitions)?;
-
-        let _primary_key = model.get_primary_key();
-
-        // Update main table
-        match &tables.main {
-            TablePermission::ReadWrite(ReadWriteTableType::Table(_table)) => {
-                // TODO: Implement update with proper Borrow traits
-                // table.insert(&primary_key, &model)?; // insert acts as upsert
-                todo!("Implement update operation with proper Borrow trait support")
-            }
-            _ => Err(crate::errors::NetabaseError::Permission),
-        }
+         // This is where the issue is. We can't call self.create_redb(model) because M doesn't implement RedbNetbaseModel.
+         // But we can implement it as todo!() for now as requested.
+         todo!("NBTransaction::create: Requires M to be RedbNetbaseModel. This trait bound mismatch is expected.")
     }
 
-    fn delete<M>(&self, _key: M::Keys) -> crate::errors::NetabaseResult<()>
+    fn read<M>(&self, _key: M::Keys) -> NetabaseResult<M>
     where
-        M: NetabaseModel<D> + RedbNetbaseModel<'db, D>,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant:
+        M: NetabaseModel<D>,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static
     {
-        // Check delete permissions first
-        if !self
-            .permissions
-            .can_perform_operation(&crate::databases::redb::ModelOperationPermission::Delete)
-        {
-            return Err(crate::errors::NetabaseError::Permission);
-        }
-
-        // Open model tables and perform delete within limited scope
-        let definitions = M::table_definitions();
-        let _tables = self.open_model_tables_impl(definitions)?;
-
-        // Convert key to primary key (simplified - in practice this would be more complex)
-        // For now, we'll need a way to extract the primary key from M::Keys
-        todo!("Delete operation needs key extraction logic")
+        todo!("NBTransaction::read")
     }
 
-    fn create_many<M>(&self, models: Vec<M>) -> crate::errors::NetabaseResult<()>
+    fn update<M>(&self, _model: M) -> NetabaseResult<()>
     where
-        M: NetabaseModel<D> + RedbNetbaseModel<'db, D>,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant:
+        M: NetabaseModel<D>,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static
     {
-        // Use a single table opening for all models (efficient batch operation)
-        if !self
-            .permissions
-            .can_perform_operation(&crate::databases::redb::ModelOperationPermission::Create)
-        {
-            return Err(crate::errors::NetabaseError::Permission);
-        }
-
-        // Open tables once for all models to be more efficient
-        let definitions = M::table_definitions();
-        let tables = self.open_model_tables_impl(definitions)?;
-
-        match &tables.main {
-            TablePermission::ReadWrite(ReadWriteTableType::Table(_table)) => {
-                for _model in models {
-                    // TODO: Implement bulk create with proper Borrow traits
-                    // let primary_key = model.get_primary_key();
-                    // table.insert(&primary_key, &model)?;
-
-                    // TODO: Insert secondary and relational keys
-                }
-
-                // For now, return success to allow compilation
-                todo!("Implement bulk create with proper Borrow trait support")
-            }
-            _ => Err(crate::errors::NetabaseError::Permission),
-        }
+        todo!("NBTransaction::update")
     }
 
-    fn update_range<M, K, F>(&self, _range: std::ops::Range<K>, _updater: F) -> crate::errors::NetabaseResult<()>
+    fn delete<M>(&self, _key: M::Keys) -> NetabaseResult<()>
     where
-        M: NetabaseModel<D> + RedbNetbaseModel<'db, D>,
+        M: NetabaseModel<D>,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static
+    {
+        todo!("NBTransaction::delete")
+    }
+
+    fn create_many<M>(&self, _models: Vec<M>) -> NetabaseResult<()>
+    where
+        M: NetabaseModel<D>,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static
+    {
+        todo!("NBTransaction::create_many")
+    }
+
+    fn read_if<M, F>(&self, _predicate: F) -> NetabaseResult<Vec<M>>
+    where
+        M: NetabaseModel<D>,
+        F: Fn(&M) -> bool,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static
+    {
+        todo!("NBTransaction::read_if")
+    }
+
+    fn read_range<M, K>(&self, _range: std::ops::Range<K>) -> NetabaseResult<Vec<M>>
+    where
+        M: NetabaseModel<D>,
+        K: Into<M::Keys>,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static
+    {
+        todo!("NBTransaction::read_range")
+    }
+
+    fn update_range<M, K, F>(&self, _range: std::ops::Range<K>, _updater: F) -> NetabaseResult<()>
+    where
+        M: NetabaseModel<D>,
         K: Into<M::Keys>,
         F: Fn(&mut M),
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant:
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static
     {
-        todo!("Implement update_range operation")
+        todo!("NBTransaction::update_range")
     }
 
-    fn update_if<M, P, U>(&self, _predicate: P, _updater: U) -> crate::errors::NetabaseResult<()>
+    fn update_if<M, P, U>(&self, _predicate: P, _updater: U) -> NetabaseResult<()>
     where
-        M: NetabaseModel<D> + RedbNetbaseModel<'db, D>,
+        M: NetabaseModel<D>,
         P: Fn(&M) -> bool,
         U: Fn(&mut M),
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant:
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static
     {
-        todo!("Implement update_if operation")
+        todo!("NBTransaction::update_if")
     }
 
-    fn delete_many<M>(&self, _keys: Vec<M::Keys>) -> crate::errors::NetabaseResult<()>
+    fn delete_many<M>(&self, _keys: Vec<M::Keys>) -> NetabaseResult<()>
     where
-        M: NetabaseModel<D> + RedbNetbaseModel<'db, D>,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant:
+        M: NetabaseModel<D>,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static
     {
-        todo!("Implement delete_many operation")
+        todo!("NBTransaction::delete_many")
     }
 
-    fn delete_if<M, F>(&self, _predicate: F) -> crate::errors::NetabaseResult<()>
+    fn delete_if<M, F>(&self, _predicate: F) -> NetabaseResult<()>
     where
-        M: NetabaseModel<D> + RedbNetbaseModel<'db, D>,
+        M: NetabaseModel<D>,
         F: Fn(&M) -> bool,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant:
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static
     {
-        todo!("Implement delete_if operation")
+        todo!("NBTransaction::delete_if")
     }
 
-    fn delete_range<M, K>(&self, _range: std::ops::Range<K>) -> crate::errors::NetabaseResult<()>
+    fn delete_range<M, K>(&self, _range: std::ops::Range<K>) -> NetabaseResult<()>
     where
-        M: NetabaseModel<D> + RedbNetbaseModel<'db, D>,
+        M: NetabaseModel<D>,
         K: Into<M::Keys>,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant:
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static
     {
-        todo!("Implement delete_range operation")
+        todo!("NBTransaction::delete_range")
     }
 
-    fn write<F, R>(&self, f: F) -> crate::errors::NetabaseResult<R>
+    fn write<F, R>(&self, f: F) -> NetabaseResult<R>
     where
-        F: FnOnce(&Self::WriteTransaction) -> crate::errors::NetabaseResult<R>,
+        F: FnOnce(&Self::WriteTransaction) -> NetabaseResult<R>
     {
         self.with_write_transaction(f)
     }
-}
 
-impl<'db, D: NetabaseDefinition + GlobalDefinitionEnum> NBRedbTransaction<'db, D> for RedbTransaction<D>
-where
-    <D as strum::IntoDiscriminant>::Discriminant: 'static,
-{
-    /// Open model tables with proper permission checking
-    fn open_model_tables<'txn, M>(
-        &'txn self,
-        definitions: RedbModelTableDefinitions<'db, M, D>,
-    ) -> crate::errors::NetabaseResult<ModelOpenTables<'txn, 'db, D, M>>
+    fn read_fn<F, R>(&self, f: F) -> NetabaseResult<R>
     where
-        M: RedbNetbaseModel<'db, D> + redb::Key + 'static,
-        D::Discriminant: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key + 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key + 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key + 'static,
-        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-        M: 'static,
+        F: FnOnce(&Self::ReadTransaction) -> NetabaseResult<R>
     {
-        // Delegate to the concrete implementation method
-        self.open_model_tables_impl(definitions)
+        self.with_read_transaction(f)
     }
 
-    fn load_related<OM>(
-        &self,
-        link: RelationalLink<OM>,
-        _cross_permissions: CrossDefinitionPermissions<D>,
-    ) -> crate::errors::NetabaseResult<RelationalLink<OM>>
+    fn read_related<OD, M>(&self, _key: M::Keys) -> NetabaseResult<Option<M>>
     where
-        OM: GlobalDefinitionEnum,
+        OD: NetabaseDefinition,
+        M: NetabaseModel<OD>,
+        <OD as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        for<'a> <<M::Keys as NetabaseModelKeys<OD, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<OD, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static
     {
-        // TODO: Implement proper cross-definition loading
-        // For now, return the link as-is
-        Ok(link)
+        todo!("NBTransaction::read_related")
     }
 
-    fn save_related<OM>(
-        &self,
-        link: RelationalLink<OM>,
-        _cross_permissions: CrossDefinitionPermissions<D>,
-    ) -> crate::errors::NetabaseResult<RelationalLink<OM>>
+    fn hydrate_relation<M>(&self, _link: RelationalLink<M>) -> NetabaseResult<RelationalLink<M>>
     where
-        OM: GlobalDefinitionEnum,
+        M: GlobalDefinitionEnum,
+        <M as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     {
-        // TODO: Implement proper cross-definition saving
-        // For now, return the link as-is
-        Ok(link)
+        todo!("NBTransaction::hydrate_relation")
     }
 
-    fn delete_related<OM>(
-        &self,
-        _link: RelationalLink<OM>,
-        _cross_permissions: CrossDefinitionPermissions<D>,
-    ) -> crate::errors::NetabaseResult<()>
+    fn can_access_definition<OD>(&self) -> bool
     where
-        OM: GlobalDefinitionEnum,
+        OD: NetabaseDefinition,
+        <OD as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug
     {
-        // TODO: Implement proper cross-definition deletion
-        // For now, just return success
-        Ok(())
+        // Simple implementation
+        true 
+    }
+
+    fn get_cross_permissions<OD>(&self) -> Option<CrossDefinitionPermissions<D>>
+    where
+        OD: NetabaseDefinition + GlobalDefinitionEnum,
+        <OD as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug
+    {
+        None
+    }
+
+    fn create_with_relations<M>(&self, _model: M, _relations: Vec<RelationalLink<M>>) -> NetabaseResult<()>
+    where
+        M: NetabaseModel<D> + GlobalDefinitionEnum,
+        <M as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static
+    {
+        todo!("NBTransaction::create_with_relations")
+    }
+
+    fn update_relations<M, RM>(&self, _model_key: M::Keys, _relation_updates: Vec<RelationalLink<RM>>) -> NetabaseResult<()>
+    where
+        M: NetabaseModel<D>,
+        RM: GlobalDefinitionEnum,
+        <RM as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static
+    {
+        todo!("NBTransaction::update_relations")
     }
 }
