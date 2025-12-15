@@ -2,13 +2,13 @@ use redb::{MultimapTableDefinition, TableDefinition};
 use strum::IntoDiscriminant;
 
 use crate::traits::registery::{
-    definition::NetabaseDefinition,
+    definition::redb_definition::RedbDefinition,
     models::keys::NetabaseModelKeys,
 };
 use super::NetabaseModel;
 
 #[derive(Clone)]
-pub struct RedbModelTableDefinitions<'db, M: RedbNetbaseModel<'db, D>, D: NetabaseDefinition>
+pub struct RedbModelTableDefinitions<'db, M: RedbNetbaseModel<'db, D>, D: RedbDefinition>
 where
     D::Discriminant: 'static + std::fmt::Debug,
     <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key + 'static,
@@ -33,7 +33,7 @@ where
     )>,
 }
 
-pub trait RedbNetbaseModel<'db, D: NetabaseDefinition>: NetabaseModel<D> + redb::Value + redb::Key
+pub trait RedbNetbaseModel<'db, D: RedbDefinition>: NetabaseModel<D> + redb::Value + redb::Key
 where
     D::Discriminant: 'static + std::fmt::Debug,
     <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>:
@@ -103,7 +103,7 @@ where
     }
 }
 
-pub struct ModelOpenTables<'a, D: NetabaseDefinition, M: NetabaseModel<D>> 
+pub struct ModelOpenTables<'a, D: RedbDefinition, M: NetabaseModel<D>> 
 where
     D::Discriminant: 'static + std::fmt::Debug,
     for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,

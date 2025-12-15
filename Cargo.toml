@@ -10,9 +10,6 @@ serde = { version = "1.0", features = ["derive"] }
 bincode = "2.0.1"
 thiserror = "2.0.17"
 
-[[bin]]
-name = "assess"
-path = "src/bin/assess.rs"
 
 [[example]]
 name = "boilerplate"

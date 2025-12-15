@@ -7,7 +7,6 @@ where
 {
     type TreeNames: NetabaseDefinitionTreeNames<Self>;
     type DefKeys: NetabaseDefinitionKeys<Self>;
-    type ModelTableDefinition<'db>: Clone + Send + Sync;
 }
 
 /// Trait for an enum that encapsulates the tree names for all models in a definition

@@ -1,6 +1,6 @@
 use netabase_store::databases::redb::transaction::ModelOpenTables;
 use netabase_store::traits::registery::{
-    definition::{NetabaseDefinition, NetabaseDefinitionKeys, NetabaseDefinitionTreeNames},
+    definition::{NetabaseDefinition, NetabaseDefinitionKeys, NetabaseDefinitionTreeNames, redb_definition::RedbDefinition},
     models::{
         StoreKey, StoreKeyMarker, StoreValue, StoreValueMarker,
         keys::{
@@ -172,6 +172,9 @@ impl NetabaseDefinitionKeys<Definition> for DefinitionKeys {}
 impl NetabaseDefinition for Definition {
     type TreeNames = DefinitionTreeNames;
     type DefKeys = DefinitionKeys;
+}
+
+impl RedbDefinition for Definition {
     type ModelTableDefinition<'db> = RedbModelTableDefinitions<'db, User, Self>; // Using User as a representative model
 }
 
@@ -180,9 +183,6 @@ impl NetabaseDefinition for Definition {
 impl NetabaseModel<Definition> for User {
     type Keys = UserKeys;
 
-    // We can directly reference the static tree names for the definition enum if we wanted,
-    // but for now we follow the pattern of creating them here or in the RedbNetbaseModel impl.
-    // However, NetabaseModel requires TREE_NAMES as associated constant.
     const TREE_NAMES: ModelTreeNames<'static, Definition, Self> = ModelTreeNames {
         main: DiscriminantTableName::new(DefinitionDiscriminants::User, "User:User:Primary:Main"),
         secondary: &[

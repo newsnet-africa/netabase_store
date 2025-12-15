@@ -2,12 +2,12 @@ use redb::ReadableDatabase;
 use strum::IntoDiscriminant;
 
 use crate::{
-    databases::redb::{NetabasePermissions, RedbStorePermissions, ModelOperationPermission},
+    databases::redb::{RedbPermissions, RedbStorePermissions, ModelOperationPermission},
     relational::{CrossDefinitionPermissions, RelationalLink, GlobalDefinitionEnum},
     traits::{
         database::transaction::NBTransaction,
         registery::{
-            definition::NetabaseDefinition,
+            definition::{NetabaseDefinition, redb_definition::RedbDefinition},
             models::{
                 keys::NetabaseModelKeys,
                 model::{NetabaseModel, redb_model::{RedbModelTableDefinitions, RedbNetbaseModel}},
@@ -17,13 +17,12 @@ use crate::{
     errors::{NetabaseResult, NetabaseError},
 };
 
-pub struct RedbTransactionInner<D: NetabaseDefinition>
+pub struct RedbTransactionInner<D: RedbDefinition>
 where
     <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
 {
-    transaction: RedbTransactionType,
-    permissions: NetabasePermissions<D>,
-}
+            transaction: RedbTransactionType,
+            permissions: RedbPermissions<D>,}
 
 pub enum RedbTransactionType {
     Read(redb::ReadTransaction),
@@ -34,7 +33,7 @@ pub type RedbTransaction<D> = RedbTransactionInner<D>;
 
 // --- Copied types from redb_transaction.rs ---
 
-pub struct ModelOpenTables<'txn, 'db, D: NetabaseDefinition, M: RedbNetbaseModel<'db, D> + redb::Key> 
+pub struct ModelOpenTables<'txn, 'db, D: RedbDefinition, M: RedbNetbaseModel<'db, D> + redb::Key> 
 where
     D::Discriminant: 'static + std::fmt::Debug,
     <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key + 'static,
@@ -84,7 +83,7 @@ where
     ReadWrite(ReadWriteTableType<'txn, K, V>),
 }
 
-pub enum ModelTableType<'txn, 'db, D: NetabaseDefinition, M: RedbNetbaseModel<'db, D>>
+pub enum ModelTableType<'txn, 'db, D: RedbDefinition, M: RedbNetbaseModel<'db, D>>
 where
     <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key + 'static,
     <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key + 'static,
@@ -109,13 +108,13 @@ where
 }
 
 
-impl<D: NetabaseDefinition> RedbTransaction<D>
+impl<D: RedbDefinition> RedbTransaction<D>
 where
     <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
 {
     pub fn new(
         db: RedbStorePermissions,
-        permissions: NetabasePermissions<D>,
+        permissions: RedbPermissions<D>,
     ) -> NetabaseResult<Self> {
         let transaction = match db {
             RedbStorePermissions::ReadOnly(read_only_database) => {
@@ -335,7 +334,7 @@ where
     // ... Other methods (update, delete, read) would follow similar pattern ...
 }
 
-impl<'db, D: NetabaseDefinition + GlobalDefinitionEnum> NBTransaction<'db, D> for RedbTransaction<D>
+impl<'db, D: RedbDefinition + GlobalDefinitionEnum> NBTransaction<'db, D> for RedbTransaction<D>
 where
     <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
 {
