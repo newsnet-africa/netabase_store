@@ -1,6 +1,10 @@
+use netabase_store::databases::redb::RedbStore;
 use netabase_store::databases::redb::transaction::ModelOpenTables;
 use netabase_store::traits::registery::{
-    definition::{NetabaseDefinition, NetabaseDefinitionKeys, NetabaseDefinitionTreeNames, redb_definition::RedbDefinition},
+    definition::{
+        NetabaseDefinition, NetabaseDefinitionKeys, NetabaseDefinitionTreeNames,
+        redb_definition::RedbDefinition,
+    },
     models::{
         StoreKey, StoreKeyMarker, StoreValue, StoreValueMarker,
         keys::{
