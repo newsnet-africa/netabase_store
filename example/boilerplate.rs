@@ -1,17 +1,18 @@
 use netabase_store::traits::registery::{
     definition::{NetabaseDefinition, NetabaseDefinitionTreeNames},
     models::{
-        StoreKey, StoreValue, StoreValueMarker,
+        StoreKey, StoreValue, StoreKeyMarker, StoreValueMarker,
         keys::{
             NetabaseModelKeys, NetabaseModelPrimaryKey, NetabaseModelRelationalKey,
             NetabaseModelSecondaryKey,
         },
         model::{
             DiscriminantTableName, ModelTreeNames, NetabaseModel, NetabaseModelMarker,
-            RedbNetbaseModel,
+            RedbNetbaseModel, RedbModelTableDefinitions,
         },
     },
 };
+use netabase_store::traits::database::transaction::redb_transaction::ModelOpenTables;
 
 use bincode::{Decode, Encode};
 use redb::{Key, Value};
@@ -21,7 +22,7 @@ use strum::{AsRefStr, EnumDiscriminants};
 
 // --- User Model ---
 
-#[derive(Debug, Encode, Decode, Serialize, Deserialize)]
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize)]
 pub struct User {
     id: UserID,
     name: String,
@@ -78,6 +79,7 @@ pub enum UserRelationalKeys {
     Partner(UserPartner),
 }
 
+#[derive(Clone)]
 pub enum UserKeys {
     Primary(UserID),
     Secondary(UserSecondaryKeys),
@@ -86,7 +88,7 @@ pub enum UserKeys {
 
 // --- Post Model ---
 
-#[derive(Debug, Encode, Decode, Serialize, Deserialize)]
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize)]
 pub struct Post {
     id: PostID,
     title: String,
@@ -136,6 +138,7 @@ pub enum PostRelationalKeys {
     Author(UserID),
 }
 
+#[derive(Clone)]
 pub enum PostKeys {
     Primary(PostID),
     Secondary(PostSecondaryKeys),
@@ -144,6 +147,7 @@ pub enum PostKeys {
 
 // --- Definition ---
 
+#[derive(Clone)]
 #[derive(EnumDiscriminants)]
 #[strum_discriminants(name(DefinitionDiscriminants))]
 #[strum_discriminants(derive(AsRefStr))]
@@ -157,6 +161,7 @@ impl NetabaseDefinitionTreeNames for DefinitionTreeNames {}
 
 impl NetabaseDefinition for Definition {
     type TreeNames = DefinitionTreeNames;
+    type ModelTableDefinition<'db> = RedbModelTableDefinitions<'db, User, Self>; // Using User as a representative model
 }
 
 // --- User Implementation ---
@@ -182,19 +187,21 @@ impl NetabaseModel<Definition> for User {
     }
 }
 
-impl StoreValueMarker for User {}
-impl StoreValueMarker for UserID {}
+impl StoreValueMarker<Definition> for User {}
+impl StoreValueMarker<Definition> for UserID {}
 
-impl StoreValue<Definition, UserID> for User {}
+impl StoreKeyMarker<Definition> for UserID {}
 impl StoreKey<Definition, User> for UserID {}
+impl StoreValue<Definition, UserID> for User {}
 
+impl StoreKeyMarker<Definition> for UserSecondaryKeys {}
+impl StoreKeyMarker<Definition> for UserRelationalKeys {}
 impl StoreKey<Definition, UserID> for UserSecondaryKeys {}
 impl StoreKey<Definition, UserID> for UserRelationalKeys {}
-
 impl StoreValue<Definition, UserSecondaryKeys> for UserID {}
 impl StoreValue<Definition, UserRelationalKeys> for UserID {}
 
-impl NetabaseModelMarker for User {}
+impl NetabaseModelMarker<Definition> for User {}
 
 impl NetabaseModelKeys<Definition, User> for UserKeys {
     type Primary<'a> = UserID;
@@ -203,7 +210,9 @@ impl NetabaseModelKeys<Definition, User> for UserKeys {
 }
 
 impl<'a> NetabaseModelPrimaryKey<'a, Definition, User, UserKeys> for UserID {}
-impl<'a> NetabaseModelSecondaryKey<'a, Definition, User, UserKeys> for UserSecondaryKeys {}
+impl<'a> NetabaseModelSecondaryKey<'a, Definition, User, UserKeys> for UserSecondaryKeys {
+    type PrimaryKey = UserID;
+}
 impl<'a> NetabaseModelRelationalKey<'a, Definition, User, UserKeys> for UserRelationalKeys {}
 
 // --- Post Implementation ---
@@ -224,19 +233,21 @@ impl NetabaseModel<Definition> for Post {
     }
 }
 
-impl StoreValueMarker for Post {}
-impl StoreValueMarker for PostID {}
+impl StoreValueMarker<Definition> for Post {}
+impl StoreValueMarker<Definition> for PostID {}
 
-impl StoreValue<Definition, PostID> for Post {}
+impl StoreKeyMarker<Definition> for PostID {}
 impl StoreKey<Definition, Post> for PostID {}
+impl StoreValue<Definition, PostID> for Post {}
 
+impl StoreKeyMarker<Definition> for PostSecondaryKeys {}
+impl StoreKeyMarker<Definition> for PostRelationalKeys {}
 impl StoreKey<Definition, PostID> for PostSecondaryKeys {}
 impl StoreKey<Definition, PostID> for PostRelationalKeys {}
-
 impl StoreValue<Definition, PostSecondaryKeys> for PostID {}
 impl StoreValue<Definition, PostRelationalKeys> for PostID {}
 
-impl NetabaseModelMarker for Post {}
+impl NetabaseModelMarker<Definition> for Post {}
 
 impl NetabaseModelKeys<Definition, Post> for PostKeys {
     type Primary<'a> = PostID;
@@ -245,7 +256,9 @@ impl NetabaseModelKeys<Definition, Post> for PostKeys {
 }
 
 impl<'a> NetabaseModelPrimaryKey<'a, Definition, Post, PostKeys> for PostID {}
-impl<'a> NetabaseModelSecondaryKey<'a, Definition, Post, PostKeys> for PostSecondaryKeys {}
+impl<'a> NetabaseModelSecondaryKey<'a, Definition, Post, PostKeys> for PostSecondaryKeys {
+    type PrimaryKey = PostID;
+}
 impl<'a> NetabaseModelRelationalKey<'a, Definition, Post, PostKeys> for PostRelationalKeys {}
 
 // --- Helpers ---
@@ -377,6 +390,8 @@ impl<'db> RedbNetbaseModel<'db, Definition> for User {
             "Definition:User:Relational:Partner",
         )],
     };
+
+    type RedbTables = ModelOpenTables<'db, 'db, Definition, Self>;
 }
 
 impl<'db> RedbNetbaseModel<'db, Definition> for Post {
@@ -394,6 +409,8 @@ impl<'db> RedbNetbaseModel<'db, Definition> for Post {
             "Definition:Post:Relational:Author",
         )],
     };
+
+    type RedbTables = ModelOpenTables<'db, 'db, Definition, Self>;
 }
 
 fn main() {

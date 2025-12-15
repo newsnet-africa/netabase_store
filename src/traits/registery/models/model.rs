@@ -4,21 +4,24 @@ use strum::IntoDiscriminant;
 use crate::{
     traits::registery::{
         definition::{NetabaseDefinition, NetabaseDefinitionKeys},
-        models::{StoreKey, StoreValue, StoreValueMarker, keys::NetabaseModelKeys},
+        models::{StoreKeyMarker, StoreValue, StoreValueMarker, keys::NetabaseModelKeys},
     },
     relational::{RelationalLink, RelationalLinkError, GlobalDefinitionEnum},
 };
 
-pub trait NetabaseModelMarker: StoreValueMarker {}
+pub trait NetabaseModelMarker<D: NetabaseDefinition>: StoreValueMarker<D> 
+where 
+    D::Discriminant: 'static,
+{}
 
 pub trait NetabaseModel<D: NetabaseDefinition>:
-    NetabaseModelMarker
+    NetabaseModelMarker<D>
     + Sized
     + for<'a> StoreValue<D, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'a>>
 where
     D::Discriminant: 'static,
     for<'a> <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Primary<'a>:
-        StoreKey<D, Self>,
+        StoreKeyMarker<D>,
     for<'a> <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary<'a>:
         IntoDiscriminant,
     for<'a> <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational<'a>:
@@ -63,6 +66,7 @@ where
     }
 }
 
+#[derive(Clone)]
 pub struct RedbModelTableDefinitions<'db, M: RedbNetbaseModel<'db, D>, D: NetabaseDefinition>
 where
     D::Discriminant: 'static,

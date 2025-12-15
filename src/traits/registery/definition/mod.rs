@@ -6,7 +6,7 @@ where
     Self::Discriminant: 'static,
 {
     type TreeNames: NetabaseDefinitionTreeNames;
-    type ModelTableDefinition<'db>: Clone + Send + Sync + 'static;
+    type ModelTableDefinition<'db>: Clone + Send + Sync;
 }
 
 pub trait NetabaseDefinitionTreeNames {}

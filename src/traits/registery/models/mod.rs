@@ -4,14 +4,23 @@ pub mod keys;
 pub mod model;
 pub mod treenames;
 
-pub trait StoreValueMarker {}
-
-pub trait StoreKey<D: NetabaseDefinition, V: StoreValueMarker + ?Sized> 
+// Marker traits to avoid cyclical dependencies
+pub trait StoreKeyMarker<D: NetabaseDefinition> 
 where
     D::Discriminant: 'static,
 {}
 
-pub trait StoreValue<D: NetabaseDefinition, K: StoreKey<D, Self>>: StoreValueMarker 
+pub trait StoreValueMarker<D: NetabaseDefinition> 
+where
+    D::Discriminant: 'static,
+{}
+
+pub trait StoreKey<D: NetabaseDefinition, V: StoreValueMarker<D> + ?Sized>: StoreKeyMarker<D>
+where
+    D::Discriminant: 'static,
+{}
+
+pub trait StoreValue<D: NetabaseDefinition, K: StoreKeyMarker<D>>: StoreValueMarker<D> 
 where
     D::Discriminant: 'static,
 {}
