@@ -63,27 +63,157 @@ macro_rules! impl_redb_value_key_for_owned {
 
 // --- User Model ---
 
-#[derive(Debug, Clone, Encode, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct User<'a> {
+#[derive(Debug, Clone, Encode, Serialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct User {
     pub id: UserID,
     pub name: String,
     pub age: u8,
-    pub partner: RelationalLink<'a, Definition<'a>, Definition<'a>, User<'a>>,
-    pub category: RelationalLink<'a, Definition<'a>, DefinitionTwo, Category>,
+    pub partner: RelationalLink<'static, Definition, Definition, User>,
+    pub category: RelationalLink<'static, Definition, DefinitionTwo, Category>,
     pub subscriptions: Vec<DefinitionSubscriptions>,
 }
 
-impl<'de, C> BorrowDecode<'de, C> for User<'de> {
-    fn borrow_decode<D: bincode::de::BorrowDecoder<'de, Context = C>>(
+// Manual impl for Deserialize to handle 'static lifetimes
+impl<'de> serde::Deserialize<'de> for User {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        #[serde(field_identifier, rename_all = "snake_case")]
+        enum Field {
+            Id,
+            Name,
+            Age,
+            Partner,
+            Category,
+            Subscriptions,
+        }
+
+        struct UserVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for UserVisitor {
+            type Value = User;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("struct User")
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<User, V::Error>
+            where
+                V: serde::de::MapAccess<'de>,
+            {
+                let mut id = None;
+                let mut name = None;
+                let mut age = None;
+                let mut partner = None;
+                let mut category = None;
+                let mut subscriptions = None;
+
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::Id => {
+                            if id.is_some() {
+                                return Err(serde::de::Error::duplicate_field("id"));
+                            }
+                            id = Some(map.next_value()?);
+                        }
+                        Field::Name => {
+                            if name.is_some() {
+                                return Err(serde::de::Error::duplicate_field("name"));
+                            }
+                            name = Some(map.next_value()?);
+                        }
+                        Field::Age => {
+                            if age.is_some() {
+                                return Err(serde::de::Error::duplicate_field("age"));
+                            }
+                            age = Some(map.next_value()?);
+                        }
+                        Field::Partner => {
+                            if partner.is_some() {
+                                return Err(serde::de::Error::duplicate_field("partner"));
+                            }
+                            // Deserialize ignoring lifetime
+                            let link: RelationalLink<'_, Definition, Definition, User> = map.next_value()?;
+                            partner = Some(unsafe { std::mem::transmute(link) });
+                        }
+                        Field::Category => {
+                            if category.is_some() {
+                                return Err(serde::de::Error::duplicate_field("category"));
+                            }
+                            // Deserialize ignoring lifetime
+                            let link: RelationalLink<'_, Definition, DefinitionTwo, Category> = map.next_value()?;
+                            category = Some(unsafe { std::mem::transmute(link) });
+                        }
+                        Field::Subscriptions => {
+                            if subscriptions.is_some() {
+                                return Err(serde::de::Error::duplicate_field("subscriptions"));
+                            }
+                            subscriptions = Some(map.next_value()?);
+                        }
+                    }
+                }
+
+                let id = id.ok_or_else(|| serde::de::Error::missing_field("id"))?;
+                let name = name.ok_or_else(|| serde::de::Error::missing_field("name"))?;
+                let age = age.ok_or_else(|| serde::de::Error::missing_field("age"))?;
+                let partner = partner.ok_or_else(|| serde::de::Error::missing_field("partner"))?;
+                let category = category.ok_or_else(|| serde::de::Error::missing_field("category"))?;
+                let subscriptions = subscriptions.ok_or_else(|| serde::de::Error::missing_field("subscriptions"))?;
+
+                Ok(User {
+                    id,
+                    name,
+                    age,
+                    partner,
+                    category,
+                    subscriptions,
+                })
+            }
+        }
+
+        const FIELDS: &[&str] = &["id", "name", "age", "partner", "category", "subscriptions"];
+        deserializer.deserialize_struct("User", FIELDS, UserVisitor)
+    }
+}
+
+impl Decode<()> for User {
+    fn decode<D: bincode::de::Decoder<Context = ()>>(
         decoder: &mut D,
     ) -> Result<Self, bincode::error::DecodeError> {
         let id: UserID = UserID::decode(decoder)?;
         let name: String = String::decode(decoder)?;
         let age: u8 = u8::decode(decoder)?;
-        let partner: RelationalLink<'de, Definition, Definition, User<'de>> =
-            RelationalLink::<'de, Definition, Definition, User<'de>>::borrow_decode(decoder)?;
-        let category: RelationalLink<'de, Definition, DefinitionTwo, Category> =
-            RelationalLink::<'de, Definition, DefinitionTwo, Category>::decode(decoder)?;
+        let partner: RelationalLink<'static, Definition, Definition, User> =
+            RelationalLink::<'static, Definition, Definition, User>::decode(decoder)?;
+        let category: RelationalLink<'static, Definition, DefinitionTwo, Category> =
+            RelationalLink::<'static, Definition, DefinitionTwo, Category>::decode(decoder)?;
+        let subscriptions: Vec<DefinitionSubscriptions> =
+            Vec::<DefinitionSubscriptions>::decode(decoder)?;
+
+        Ok(Self {
+            id,
+            name,
+            age,
+            partner,
+            category,
+            subscriptions,
+        })
+    }
+}
+
+impl<'de> BorrowDecode<'de, ()> for User {
+    fn borrow_decode<D: bincode::de::BorrowDecoder<'de, Context = ()>>(
+        decoder: &mut D,
+    ) -> Result<Self, bincode::error::DecodeError> {
+        let id: UserID = UserID::decode(decoder)?;
+        let name: String = String::decode(decoder)?;
+        let age: u8 = u8::decode(decoder)?;
+        let partner: RelationalLink<'static, Definition, Definition, User> =
+            RelationalLink::<'static, Definition, Definition, User>::decode(decoder)?;
+        let category: RelationalLink<'static, Definition, DefinitionTwo, Category> =
+            RelationalLink::<'static, Definition, DefinitionTwo, Category>::decode(decoder)?;
         let subscriptions: Vec<DefinitionSubscriptions> =
             Vec::<DefinitionSubscriptions>::decode(decoder)?;
 
@@ -119,7 +249,7 @@ pub enum UserSubscriptions {
     Topic2(DefinitionSubscriptions),
 }
 
-impl<'a> NetabaseModelSubscriptionKey<Definition<'a>, User<'a>, UserKeys> for UserSubscriptions {}
+impl NetabaseModelSubscriptionKey<Definition, User, UserKeys> for UserSubscriptions {}
 
 #[derive(
     Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Encode, Decode, Serialize, Deserialize, Hash,
@@ -195,10 +325,12 @@ pub enum UserKeys {
 
 // --- User Implementation ---
 
-impl<'a> NetabaseModel<Definition<'a>> for User<'a> {
+use netabase_store::traits::permissions::{ModelPermissions, AccessLevel, CrossAccessLevel};
+
+impl NetabaseModel<Definition> for User {
     type Keys = UserKeys;
 
-    const TREE_NAMES: ModelTreeNames<'static, Definition<'a>, Self> = ModelTreeNames {
+    const TREE_NAMES: ModelTreeNames<'static, Definition, Self> = ModelTreeNames {
         main: DiscriminantTableName::new(DefinitionDiscriminants::User, "User:User:Primary:Main"),
         secondary: &[
             DiscriminantTableName::new(
@@ -230,6 +362,33 @@ impl<'a> NetabaseModel<Definition<'a>> for User<'a> {
                 "Definition:Subscription:Topic2",
             ),
         ]),
+    };
+
+    const PERMISSIONS: ModelPermissions<'static, Definition> = ModelPermissions {
+        // Outbound: Which models User can access
+        outbound: &[
+            // User can read/hydrate partner (another User)
+            (
+                DefinitionDiscriminants::User,
+                AccessLevel::new(true, false, false, false, true), // read + hydrate only
+            ),
+            // User can read posts
+            (
+                DefinitionDiscriminants::Post,
+                AccessLevel::READ_ONLY,
+            ),
+        ],
+
+        // Inbound: Which models can access User
+        inbound: &[
+            (DefinitionDiscriminants::Post, AccessLevel::READ_ONLY),  // Post->author
+            (DefinitionDiscriminants::User, AccessLevel::READ_ONLY),   // User->partner
+        ],
+
+        // Cross-definition access
+        cross_definition: &[
+            (crate::boilerplate_lib::GlobalKeys::Def2Category, CrossAccessLevel::READ),  // User->category
+        ],
     };
 
     fn get_primary_key<'b>(&'b self) -> UserID {
@@ -264,55 +423,55 @@ impl<'a> NetabaseModel<Definition<'a>> for User<'a> {
     }
 }
 
-impl<'a> StoreValueMarker<Definition<'a>> for User<'a> {}
-impl<'a> StoreValueMarker<Definition<'a>> for UserID {}
+impl StoreValueMarker<Definition> for User {}
+impl StoreValueMarker<Definition> for UserID {}
 
-impl<'a> StoreKeyMarker<Definition<'a>> for UserID {}
-impl<'a> StoreKey<Definition<'a>, User<'a>> for UserID {}
-impl<'a> StoreValue<Definition<'a>, UserID> for User<'a> {}
+impl StoreKeyMarker<Definition> for UserID {}
+impl StoreKey<Definition, User> for UserID {}
+impl StoreValue<Definition, UserID> for User {}
 
-impl<'a> StoreKeyMarker<Definition<'a>> for UserSecondaryKeys {}
-impl<'a> StoreKeyMarker<Definition<'a>> for UserRelationalKeys {}
-impl<'a> StoreKeyMarker<Definition<'a>> for UserSubscriptions {}
+impl StoreKeyMarker<Definition> for UserSecondaryKeys {}
+impl StoreKeyMarker<Definition> for UserRelationalKeys {}
+impl StoreKeyMarker<Definition> for UserSubscriptions {}
 
-impl<'a> StoreKey<Definition<'a>, UserID> for UserSecondaryKeys {}
-impl<'a> StoreKey<Definition<'a>, UserID> for UserRelationalKeys {}
-impl<'a> StoreKey<Definition<'a>, UserID> for UserSubscriptions {}
+impl StoreKey<Definition, UserID> for UserSecondaryKeys {}
+impl StoreKey<Definition, UserID> for UserRelationalKeys {}
+impl StoreKey<Definition, UserID> for UserSubscriptions {}
 
-impl<'a> StoreValue<Definition<'a>, UserSecondaryKeys> for UserID {}
-impl<'a> StoreValue<Definition<'a>, UserRelationalKeys> for UserID {}
-impl<'a> StoreValue<Definition<'a>, UserSubscriptions> for UserID {}
+impl StoreValue<Definition, UserSecondaryKeys> for UserID {}
+impl StoreValue<Definition, UserRelationalKeys> for UserID {}
+impl StoreValue<Definition, UserSubscriptions> for UserID {}
 
-impl<'a> NetabaseModelMarker<Definition<'a>> for User<'a> {}
+impl NetabaseModelMarker<Definition> for User {}
 
-impl<'a> NetabaseModelKeys<Definition<'a>, User<'a>> for UserKeys {
-    type Primary<'b> = UserID;
-    type Secondary<'b> = UserSecondaryKeys;
-    type Relational<'b> = UserRelationalKeys;
-    type Subscription<'b> = UserSubscriptions;
+impl NetabaseModelKeys<Definition, User> for UserKeys {
+    type Primary<'a> = UserID;
+    type Secondary<'a> = UserSecondaryKeys;
+    type Relational<'a> = UserRelationalKeys;
+    type Subscription<'a> = UserSubscriptions;
 }
 
-impl<'a, 'b> NetabaseModelPrimaryKey<'b, Definition<'a>, User<'a>, UserKeys> for UserID {}
-impl<'a, 'b> NetabaseModelSecondaryKey<'b, Definition<'a>, User<'a>, UserKeys>
+impl<'a> NetabaseModelPrimaryKey<'a, Definition, User, UserKeys> for UserID {}
+impl<'a> NetabaseModelSecondaryKey<'a, Definition, User, UserKeys>
     for UserSecondaryKeys
 {
     type PrimaryKey = UserID;
 }
-impl<'a, 'b> NetabaseModelRelationalKey<'b, Definition<'a>, User<'a>, UserKeys>
+impl<'a> NetabaseModelRelationalKey<'a, Definition, User, UserKeys>
     for UserRelationalKeys
 {
 }
 
 // Manual impl for User
-impl Value for User<'static> {
-    type SelfType<'a> = User<'a>;
+impl Value for User {
+    type SelfType<'a> = Self;
     type AsBytes<'a> = Cow<'a, [u8]>;
 
     fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
     where
         Self: 'a,
     {
-        bincode::borrow_decode_from_slice(data, bincode::config::standard())
+        bincode::decode_from_slice(data, bincode::config::standard())
             .unwrap()
             .0
     }
@@ -332,7 +491,39 @@ impl Value for User<'static> {
     }
 }
 
-impl Key for User<'static> {
+impl Key for User {
+    fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+        data1.cmp(data2)
+    }
+}
+
+impl Value for UserID {
+    type SelfType<'a> = Self;
+    type AsBytes<'a> = Cow<'a, [u8]>;
+
+    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+    where
+        Self: 'a,
+    {
+        UserID(String::from_utf8(data.to_vec()).unwrap())
+    }
+
+    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+    where
+        Self: 'a,
+    {
+        Cow::Owned(value.0.as_bytes().to_vec())
+    }
+
+    fn fixed_width() -> Option<usize> {
+        None
+    }
+    fn type_name() -> redb::TypeName {
+        redb::TypeName::new(std::any::type_name::<Self>())
+    }
+}
+
+impl Key for UserID {
     fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
         data1.cmp(data2)
     }
@@ -344,6 +535,6 @@ impl_redb_value_key_for_owned!(UserSubscriptions);
 impl_redb_value_key_for_owned!(UserCategory);
 
 // RedbNetbaseModel impls - only needs type def as TREE_NAMES is in NetabaseModel
-impl<'db> RedbNetbaseModel<'db, Definition<'db>> for User<'static> {
-    type RedbTables = ModelOpenTables<'db, 'db, Definition<'db>, Self>;
+impl<'db> RedbNetbaseModel<'db, Definition> for User {
+    type RedbTables = ModelOpenTables<'db, 'db, Definition, Self>;
 }

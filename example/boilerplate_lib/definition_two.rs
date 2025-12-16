@@ -18,9 +18,35 @@ pub enum DefinitionTwo {
     Category(Category),
 }
 
+use netabase_store::traits::registery::definition::subscription::{
+    DefinitionSubscriptionRegistry, SubscriptionEntry,
+};
+use netabase_store::traits::permissions::{
+    DefinitionPermissions, ModelAccessLevel,
+    definition::CrossDefinitionAccess,
+};
+use crate::boilerplate_lib::GlobalDefinitionKeys;
+
 impl NetabaseDefinition for DefinitionTwo {
     type TreeNames = DefinitionTwoTreeNames;
     type DefKeys = DefinitionTwoKeys;
+
+    const SUBSCRIPTION_REGISTRY: DefinitionSubscriptionRegistry<'static, Self> =
+        DefinitionSubscriptionRegistry::new(&[
+            SubscriptionEntry {
+                topic: "General",
+                subscribers: &[DefinitionTwoDiscriminants::Category],
+            },
+        ]);
+
+    const PERMISSIONS: DefinitionPermissions<'static, Self> = DefinitionPermissions {
+        model_access: &[
+            (DefinitionTwoDiscriminants::Category, ModelAccessLevel::ReadWrite),
+        ],
+        cross_definition_access: &[
+            // DefinitionTwo doesn't access other definitions
+        ],
+    };
 }
 
 #[derive(Clone, Debug)]

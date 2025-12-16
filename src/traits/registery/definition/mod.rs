@@ -1,18 +1,21 @@
 pub mod redb_definition;
-use strum::IntoDiscriminant;
+pub mod subscription;
 
-pub trait NetabaseDefinition: IntoDiscriminant + Sized
+use strum::IntoDiscriminant;
+use subscription::DefinitionSubscriptionRegistry;
+
+pub trait NetabaseDefinition: IntoDiscriminant + Sized + crate::relational::GlobalDefinitionEnum
 where
     Self::Discriminant: 'static + std::fmt::Debug,
 {
     type TreeNames: NetabaseDefinitionTreeNames<Self>;
     type DefKeys: NetabaseDefinitionKeys<Self>;
 
-    // Definition-level permissions specifying per-model access control
-    // Note: This requires the definition to also implement GlobalDefinitionEnum (RedbDefinition already requires this)
-    // const PERMISSIONS: crate::traits::permissions::DefinitionPermissions<'static, Self>;
-    // TODO: Uncomment when implementing in concrete definitions
-    // Currently commented to avoid requiring GlobalDefinitionEnum bound which would create a cycle
+    /// Subscription registry mapping topics to models
+    const SUBSCRIPTION_REGISTRY: DefinitionSubscriptionRegistry<'static, Self>;
+
+    /// Definition-level permissions specifying per-model access control
+    const PERMISSIONS: crate::traits::permissions::DefinitionPermissions<'static, Self>;
 }
 
 /// Trait for an enum that encapsulates the tree names for all models in a definition

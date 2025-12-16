@@ -20,21 +20,106 @@ use strum::{AsRefStr, EnumDiscriminants};
 
 // --- Post Model ---
 
-#[derive(Debug, Clone, Encode, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Post<'a> {
+#[derive(Debug, Clone, Encode, Serialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Post {
     pub id: PostID,
     pub title: String,
-    pub author: RelationalLink<'a, Definition<'a>, Definition<'a>, User<'a>>,
+    pub author: RelationalLink<'static, Definition, Definition, User>,
 }
 
-impl<'a, Context> BorrowDecode<'a, Context> for Post<'a> {
-    fn borrow_decode<D: bincode::de::BorrowDecoder<'a, Context = Context>>(
+// Manual impl for Deserialize to handle 'static lifetimes
+impl<'de> serde::Deserialize<'de> for Post {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        #[serde(field_identifier, rename_all = "snake_case")]
+        enum Field {
+            Id,
+            Title,
+            Author,
+        }
+
+        struct PostVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for PostVisitor {
+            type Value = Post;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("struct Post")
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<Post, V::Error>
+            where
+                V: serde::de::MapAccess<'de>,
+            {
+                let mut id = None;
+                let mut title = None;
+                let mut author = None;
+
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::Id => {
+                            if id.is_some() {
+                                return Err(serde::de::Error::duplicate_field("id"));
+                            }
+                            id = Some(map.next_value()?);
+                        }
+                        Field::Title => {
+                            if title.is_some() {
+                                return Err(serde::de::Error::duplicate_field("title"));
+                            }
+                            title = Some(map.next_value()?);
+                        }
+                        Field::Author => {
+                            if author.is_some() {
+                                return Err(serde::de::Error::duplicate_field("author"));
+                            }
+                            // Deserialize ignoring lifetime - safe because RelationalLink deserializes to Dehydrated/Owned
+                            let link: RelationalLink<'_, Definition, Definition, User> = map.next_value()?;
+                            author = Some(unsafe { std::mem::transmute(link) });
+                        }
+                    }
+                }
+
+                let id = id.ok_or_else(|| serde::de::Error::missing_field("id"))?;
+                let title = title.ok_or_else(|| serde::de::Error::missing_field("title"))?;
+                let author = author.ok_or_else(|| serde::de::Error::missing_field("author"))?;
+
+                Ok(Post {
+                    id,
+                    title,
+                    author,
+                })
+            }
+        }
+
+        const FIELDS: &[&str] = &["id", "title", "author"];
+        deserializer.deserialize_struct("Post", FIELDS, PostVisitor)
+    }
+}
+
+impl Decode<()> for Post {
+    fn decode<D: bincode::de::Decoder<Context = ()>>(
         decoder: &mut D,
     ) -> Result<Self, bincode::error::DecodeError> {
         let id: PostID = PostID::decode(decoder)?;
         let title: String = String::decode(decoder)?;
-        let author: RelationalLink<'a, Definition<'a>, Definition<'a>, User<'a>> =
-            RelationalLink::<'a, Definition<'a>, Definition<'a>, User<'a>>::borrow_decode(decoder)?;
+        let author: RelationalLink<'static, Definition, Definition, User> =
+            RelationalLink::<'static, Definition, Definition, User>::decode(decoder)?;
+        Ok(Self { id, title, author })
+    }
+}
+
+impl<'a> BorrowDecode<'a, ()> for Post {
+    fn borrow_decode<D: bincode::de::BorrowDecoder<'a, Context = ()>>(
+        decoder: &mut D,
+    ) -> Result<Self, bincode::error::DecodeError> {
+        let id: PostID = PostID::decode(decoder)?;
+        let title: String = String::decode(decoder)?;
+        let author: RelationalLink<'static, Definition, Definition, User> =
+            RelationalLink::<'static, Definition, Definition, User>::decode(decoder)?;
         Ok(Self { id, title, author })
     }
 }
@@ -60,7 +145,7 @@ pub enum PostSubscriptions {
     Topic4(DefinitionSubscriptions),
 }
 
-impl<'a> NetabaseModelSubscriptionKey<Definition<'a>, Post<'a>, PostKeys> for PostSubscriptions {}
+impl NetabaseModelSubscriptionKey<Definition, Post, PostKeys> for PostSubscriptions {}
 
 #[derive(
     Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Encode, Decode, Serialize, Deserialize, Hash,
@@ -121,10 +206,12 @@ pub enum PostKeys {
 
 // --- Post Implementation ---
 
-impl<'a> NetabaseModel<Definition<'a>> for Post<'a> {
+use netabase_store::traits::permissions::{ModelPermissions, AccessLevel, CrossAccessLevel};
+
+impl NetabaseModel<Definition> for Post {
     type Keys = PostKeys;
 
-    const TREE_NAMES: ModelTreeNames<'static, Definition<'a>, Self> = ModelTreeNames {
+    const TREE_NAMES: ModelTreeNames<'static, Definition, Self> = ModelTreeNames {
         main: DiscriminantTableName::new(
             DefinitionDiscriminants::Post,
             "Definition:Post:Primary:Main",
@@ -149,21 +236,36 @@ impl<'a> NetabaseModel<Definition<'a>> for Post<'a> {
         ]),
     };
 
-    fn get_primary_key<'a>(&'a self) -> PostID {
+    const PERMISSIONS: ModelPermissions<'static, Definition> = ModelPermissions {
+        // Outbound: Which models Post can access
+        outbound: &[
+            (crate::boilerplate_lib::DefinitionDiscriminants::User, AccessLevel::READ_ONLY),  // Post->author
+        ],
+
+        // Inbound: Which models can access Post
+        inbound: &[
+            (crate::boilerplate_lib::DefinitionDiscriminants::User, AccessLevel::READ_ONLY),  // User can read posts
+        ],
+
+        // Cross-definition access
+        cross_definition: &[],  // No cross-definition relations
+    };
+
+    fn get_primary_key(&self) -> PostID {
         self.id.clone()
     }
 
-    fn get_secondary_keys<'a>(&'a self) -> Vec<PostSecondaryKeys> {
+    fn get_secondary_keys(&self) -> Vec<PostSecondaryKeys> {
         vec![PostSecondaryKeys::Title(PostTitle(self.title.clone()))]
     }
 
-    fn get_relational_keys<'a>(&'a self) -> Vec<PostRelationalKeys> {
+    fn get_relational_keys(&self) -> Vec<PostRelationalKeys> {
         vec![PostRelationalKeys::Author(
             self.author.get_primary_key().clone(),
         )]
     }
 
-    fn get_subscription_keys<'a>(&'a self) -> Vec<PostSubscriptions> {
+    fn get_subscription_keys(&self) -> Vec<PostSubscriptions> {
         // Example: Post doesn't subscribe to anything for now
         vec![]
     }
@@ -275,7 +377,41 @@ impl Key for PostID {
     }
 }
 
-impl_redb_value_key_for_owned!(Post);
+// Manual implementations for Post with lifetime
+impl Value for Post {
+    type SelfType<'a> = Self;
+    type AsBytes<'a> = Cow<'a, [u8]>;
+
+    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+    where
+        Self: 'a,
+    {
+        bincode::decode_from_slice(data, bincode::config::standard())
+            .unwrap()
+            .0
+    }
+
+    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+    where
+        Self: 'a,
+    {
+        Cow::Owned(bincode::encode_to_vec(value, bincode::config::standard()).unwrap())
+    }
+
+    fn fixed_width() -> Option<usize> {
+        None
+    }
+    fn type_name() -> redb::TypeName {
+        redb::TypeName::new(std::any::type_name::<Self>())
+    }
+}
+
+impl Key for Post {
+    fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+        data1.cmp(data2)
+    }
+}
+
 impl_redb_value_key_for_owned!(PostSecondaryKeys);
 impl_redb_value_key_for_owned!(PostRelationalKeys);
 impl_redb_value_key_for_owned!(PostSubscriptions);

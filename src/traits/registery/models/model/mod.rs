@@ -16,12 +16,13 @@ where
     D::Discriminant: 'static, <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug
 {}
 
-pub trait NetabaseModel<D: NetabaseDefinition >:
+pub trait NetabaseModel<D: NetabaseDefinition>:
     NetabaseModelMarker<D>
     + Sized
     + for<'a> StoreValue<D, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'a>>
 where
     D::Discriminant: 'static + std::fmt::Debug,
+    D: GlobalDefinitionEnum,
     for<'a> <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Primary<'a>:
         StoreKeyMarker<D>,
     for<'a> <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary<'a>:
@@ -37,7 +38,10 @@ where
      <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'static>: 'static
 {
     type Keys: NetabaseModelKeys<D, Self>;
-    const TREE_NAMES: ModelTreeNames<'static, D, Self> ;
+    const TREE_NAMES: ModelTreeNames<'static, D, Self>;
+
+    /// Model-level permissions (outbound, inbound, cross-definition)
+    const PERMISSIONS: crate::traits::permissions::ModelPermissions<'static, D>;
 
 
     fn get_primary_key<'a>(&'a self) -> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'a>;

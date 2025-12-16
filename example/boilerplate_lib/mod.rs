@@ -29,18 +29,25 @@ pub use definition_two::*;
 // --- Global Enums ---
 
 #[derive(
-    Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Encode, 
+    Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Encode,
 )]
-pub enum GlobalDefinition<'a> {
-    Def1(Definition<'a>),
+pub enum GlobalDefinition {
+    Def1(Definition),
     Def2(DefinitionTwo),
 }
 
-impl BorrowDecode for GlobalDefinition {
-    fn borrow_decode<D: bincode::de::BorrowDecoder<'de, Context = Context>>(
+// Manual Decode impl for GlobalDefinition
+impl Decode<()> for GlobalDefinition {
+    fn decode<D: bincode::de::Decoder<Context = ()>>(
         decoder: &mut D,
     ) -> Result<Self, bincode::error::DecodeError> {
-        if let Ok(def1) = Definition::borrow
+        use bincode::Decode;
+        let variant = u32::decode(decoder)?;
+        match variant {
+            0 => Ok(GlobalDefinition::Def1(Definition::decode(decoder)?)),
+            1 => Ok(GlobalDefinition::Def2(DefinitionTwo::decode(decoder)?)),
+            _ => Err(bincode::error::DecodeError::Other("Invalid GlobalDefinition variant")),
+        }
     }
 }
 
@@ -78,13 +85,27 @@ pub enum GlobalKeys {
 )]
 #[strum_discriminants(name(DefinitionDiscriminants))]
 #[strum_discriminants(derive(AsRefStr))]
-pub enum Definition<'a> {
-    User(User<'a>),
-    Post(Post<'a>),
+pub enum Definition {
+    User(User),
+    Post(Post),
 }
 
-impl<'de, Context> BorrowDecode<'de, Context> for Definition<'de> {
-    fn borrow_decode<D: bincode::de::BorrowDecoder<'de, Context = Context>>(
+impl Decode<()> for Definition {
+    fn decode<D: bincode::de::Decoder<Context = ()>>(
+        decoder: &mut D,
+    ) -> Result<Self, bincode::error::DecodeError> {
+        if let Ok(user) = User::decode(decoder) {
+            return Ok(Self::User(user))
+        } else if let Ok(post) = Post::decode(decoder) {
+            return  Ok(Self::Post(post))
+        } else {
+            return  Err(bincode::error::DecodeError::Other("Failed to decode"));
+        }
+    }
+}
+
+impl<'de> BorrowDecode<'de, ()> for Definition {
+    fn borrow_decode<D: bincode::de::BorrowDecoder<'de, Context = ()>>(
         decoder: &mut D,
     ) -> Result<Self, bincode::error::DecodeError> {
         if let Ok(user) = User::borrow_decode(decoder) {
@@ -175,16 +196,53 @@ impl GlobalDefinitionEnum for DefinitionTwo {
     }
 }
 
+use netabase_store::traits::registery::definition::subscription::{
+    DefinitionSubscriptionRegistry, SubscriptionEntry,
+};
+use netabase_store::traits::permissions::{
+    DefinitionPermissions, ModelAccessLevel,
+    definition::CrossDefinitionAccess,
+};
+
 impl NetabaseDefinition for Definition {
     type TreeNames = DefinitionTreeNames;
-
     type DefKeys = DefinitionKeys;
+
+    const SUBSCRIPTION_REGISTRY: DefinitionSubscriptionRegistry<'static, Self> =
+        DefinitionSubscriptionRegistry::new(&[
+            SubscriptionEntry {
+                topic: "Topic1",
+                subscribers: &[DefinitionDiscriminants::User],
+            },
+            SubscriptionEntry {
+                topic: "Topic2",
+                subscribers: &[DefinitionDiscriminants::User],
+            },
+            SubscriptionEntry {
+                topic: "Topic3",
+                subscribers: &[DefinitionDiscriminants::Post],
+            },
+            SubscriptionEntry {
+                topic: "Topic4",
+                subscribers: &[DefinitionDiscriminants::Post],
+            },
+        ]);
+
+    const PERMISSIONS: DefinitionPermissions<'static, Self> = DefinitionPermissions {
+        model_access: &[
+            (DefinitionDiscriminants::User, ModelAccessLevel::ReadWrite),
+            (DefinitionDiscriminants::Post, ModelAccessLevel::ReadWrite),
+        ],
+        cross_definition_access: &[
+            (GlobalDefinitionKeys::Def2, CrossDefinitionAccess::READ_ONLY),
+        ],
+    };
 }
 
 #[derive(Clone, Debug)]
 pub enum DefinitionTreeNames {
-    User(ModelTreeNames<'static, Definition, User<'static>>),
-    Post(ModelTreeNames<'static, Definition, Post<'static>>),
+    User(ModelTreeNames<'static, Definition, User>),
+    Post(ModelTreeNames<'static, Definition, Post>),
 }
 
 impl NetabaseDefinitionTreeNames<Definition> for DefinitionTreeNames {}
