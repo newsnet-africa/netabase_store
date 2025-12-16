@@ -122,9 +122,10 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut tables = txn
                             .prepare_model::<User>()
                             .expect("Failed to prepare model");
-                        for user in users {
+                        for user in &users {
                             let user = black_box(user);
-                            user.create_entry(&mut tables).expect("Failed to create user");
+                            user.create_entry(&mut tables)
+                                .expect("Failed to create user");
                         }
                     }
                     txn.commit().expect("Failed to commit");
@@ -166,11 +167,12 @@ fn bench_crud_operations(c: &mut Criterion) {
                         for user in users {
                             let user = black_box(user);
                             let user_id = &user.id;
-                            
+
                             // Insert Main
-                            main_table.insert(user_id, &user)
+                            main_table
+                                .insert(user_id, &user)
                                 .expect("Failed to insert main");
-                            
+
                             // Insert Secondary
                             sec_name
                                 .insert(
@@ -181,7 +183,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                             sec_age
                                 .insert(&UserSecondaryKeys::Age(UserAge(user.age)), user_id)
                                 .expect("Failed to insert sec age");
-                            
+
                             // Insert Relational
                             rel_partner
                                 .insert(
@@ -322,7 +324,8 @@ fn bench_crud_operations(c: &mut Criterion) {
                     {
                         let main_table = txn.open_table(MAIN).expect("Failed to open main");
                         for user in &users {
-                            black_box(main_table.get(black_box(&user.id))).expect("Failed to get user");
+                            black_box(main_table.get(black_box(&user.id)))
+                                .expect("Failed to get user");
                         }
                     }
                 },
@@ -367,7 +370,8 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut tables = txn
                             .prepare_model::<User>()
                             .expect("Failed to prepare model");
-                        for user in users { // users is moved here
+                        for user in users {
+                            // users is moved here
                             let user = black_box(user);
                             User::delete_entry(&user.id, &mut tables)
                                 .expect("Failed to delete user");
@@ -458,7 +462,8 @@ fn bench_crud_operations(c: &mut Criterion) {
                             .open_multimap_table(REL_CATEGORY)
                             .expect("Failed to open rel category");
 
-                        for user in users { // users is moved here
+                        for user in users {
+                            // users is moved here
                             let user_id = &user.id;
                             let stored_user = black_box(main_table.get(user_id))
                                 .expect("Failed to get user")
@@ -474,21 +479,24 @@ fn bench_crud_operations(c: &mut Criterion) {
                                 )
                                 .unwrap();
                             sec_age
-                                .remove(&UserSecondaryKeys::Age(UserAge(black_box(stored_user.age))), user_id)
+                                .remove(
+                                    &UserSecondaryKeys::Age(UserAge(black_box(stored_user.age))),
+                                    user_id,
+                                )
                                 .unwrap();
                             rel_partner
                                 .remove(
-                                    &UserRelationalKeys::Partner(UserPartner(
-                                        black_box(stored_user.partner.get_primary_key().clone()),
-                                    )),
+                                    &UserRelationalKeys::Partner(UserPartner(black_box(
+                                        stored_user.partner.get_primary_key().clone(),
+                                    ))),
                                     user_id,
                                 )
                                 .unwrap();
                             rel_category
                                 .remove(
-                                    &UserRelationalKeys::Category(UserCategory(
-                                        black_box(stored_user.category.get_primary_key().clone()),
-                                    )),
+                                    &UserRelationalKeys::Category(UserCategory(black_box(
+                                        stored_user.category.get_primary_key().clone(),
+                                    ))),
                                     user_id,
                                 )
                                 .unwrap();

@@ -15,78 +15,78 @@ use crate::{
 use super::tables::{ModelOpenTables, TablePermission, ReadWriteTableType, TableType};
 
 /// Trait to handle automatic insertion/update of models into their respective tables
-pub trait RedbModelCrud<'db, 'data, D>: RedbNetbaseModel<'data, D>
+pub trait RedbModelCrud<'db,  D>: RedbNetbaseModel<'db, D>
 where
     D: RedbDefinition + Clone,
     <D as IntoDiscriminant>::Discriminant: std::fmt::Debug + 'static,
-    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Primary<'data>: redb::Key + 'static,
-    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary<'data>: redb::Key + 'static,
-    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational<'data>: redb::Key + 'static,
-    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'data>: redb::Key + 'static,
+    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>: redb::Key + 'static,
+    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary<'db>: redb::Key + 'static,
+    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational<'db>: redb::Key + 'static,
+    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'db>: redb::Key + 'static,
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     // Add missing static bound
-    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'data>: 'static,
+    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'db>: 'static,
     Self: 'static
 {
     fn create_entry<'txn>(
-        &'data self,
-        tables: &mut ModelOpenTables<'txn, 'data, D, Self>
+        &'db self,
+        tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()>;
 
     fn read_entry<'txn>(
-        key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'data>,
-        tables: &ModelOpenTables<'txn, 'data, D, Self>
+        key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>,
+        tables: &ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<Option<Self>>;
 
     fn update_entry<'txn>(
-        &'data self,
-        tables: &mut ModelOpenTables<'txn, 'data, D, Self>
+        &'db self,
+        tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()>;
 
     fn delete_entry<'txn>(
-        key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'data>,
-        tables: &mut ModelOpenTables<'txn, 'data, D, Self>
+        key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>,
+        tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()>;
 }
 
-impl<'db, 'data, D, M> RedbModelCrud<'db, 'data, D> for M
+impl<'db, D, M> RedbModelCrud<'db, D> for M
 where
     D: RedbDefinition + Clone,
-    M: RedbNetbaseModel<'data, D> + Clone,
+    M: RedbNetbaseModel<'db, D> + Clone,
     D::Discriminant: 'static + std::fmt::Debug,
     <D as IntoDiscriminant>::Discriminant: std::fmt::Debug,
-    M: std::borrow::Borrow<<M as redb::Value>::SelfType<'data>>,
+    M: std::borrow::Borrow<<M as redb::Value>::SelfType<'db>>,
     for<'a> M: redb::Value<SelfType<'a> = M>,
-    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'data>: redb::Key + Clone + 'static,
-    for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'data>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'data> as redb::Value>::SelfType<'a>>,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key + Clone + 'static,
+    for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db> as redb::Value>::SelfType<'a>>,
     
-    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'data>: redb::Key + Clone + 'static + PartialEq,
-    for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'data>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'data> as redb::Value>::SelfType<'a>>,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key + Clone + 'static + PartialEq,
+    for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db> as redb::Value>::SelfType<'a>>,
     // Add Into bound to allow bridging lifetimes
-    for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'a>: Into<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'data>>,
+    for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'a>: Into<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>>,
     
-    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'data>: redb::Key + Clone + 'static + PartialEq,
-    for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'data>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'data> as redb::Value>::SelfType<'a>>,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key + Clone + 'static + PartialEq,
+    for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db> as redb::Value>::SelfType<'a>>,
     // Add Into bound to allow bridging lifetimes
-    for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a>: Into<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'data>>,
+    for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a>: Into<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>>,
     
-    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'data>: redb::Key + Clone + 'static + PartialEq,
-    for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'data>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'data> as redb::Value>::SelfType<'a>>,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: redb::Key + Clone + 'static + PartialEq,
+    for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db> as redb::Value>::SelfType<'a>>,
     // Add Into bound to allow bridging lifetimes
-    for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a>: Into<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'data>>,
+    for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a>: Into<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>>,
 
     for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'data>: 'static,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: 'static,
     M: 'static,
-    for<'a> &'a <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'data>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'data> as redb::Value>::SelfType<'a>>
+    for<'a> &'a <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db> as redb::Value>::SelfType<'a>>
 {
     fn create_entry<'txn>(
-        &'data self,
-        tables: &mut ModelOpenTables<'txn, 'data, D, Self>
+        &'db self,
+        tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()> 
     {
         // 1. Insert into Main Table
@@ -106,7 +106,7 @@ where
                      // key is Secondary<'local> (from self via get_secondary_keys)
                      // self is 'data, so key is Secondary<'data>
                      // so key.into() works trivially
-                     let k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'data> = key.into();
+                     let k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db> = key.into();
                      table.insert(k.borrow(), self.get_primary_key().borrow())
                          .map_err(|e| NetabaseError::RedbError(e.into()))?;
                  }
@@ -125,7 +125,7 @@ where
         for ((table_perm, _name), key) in tables.relational.iter_mut().zip(relational_keys.into_iter()) {
              match table_perm {
                  TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
-                     let k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'data> = key.into();
+                     let k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db> = key.into();
                      table.insert(k.borrow(), self.get_primary_key().borrow())
                          .map_err(|e| NetabaseError::RedbError(e.into()))?;
                  }
@@ -138,7 +138,7 @@ where
         for ((table_perm, _name), key) in tables.subscription.iter_mut().zip(subscription_keys.into_iter()) {
              match table_perm {
                  TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
-                     let k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'data> = key.into();
+                     let k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db> = key.into();
                      table.insert(k.borrow(), self.get_primary_key().borrow())
                          .map_err(|e| NetabaseError::RedbError(e.into()))?;
                  }
@@ -150,8 +150,8 @@ where
     }
 
     fn read_entry<'txn>(
-        key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'data>,
-        tables: &ModelOpenTables<'txn, 'data, D, Self>
+        key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>,
+        tables: &ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<Option<Self>>
     {
         match &tables.main {
@@ -168,8 +168,8 @@ where
     }
 
     fn update_entry<'txn>(
-        &'data self,
-        tables: &mut ModelOpenTables<'txn, 'data, D, Self>
+        &'db self,
+        tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()>
     {
         // 1. Get the old model
@@ -198,8 +198,8 @@ where
                 match table_perm {
                     TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
                         // Convert keys to 'data lifetime to satisfy Borrow bound and PartialEq
-                        let old_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'data> = old_key.into();
-                        let new_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'data> = new_key.into();
+                        let old_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db> = old_key.into();
+                        let new_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db> = new_key.into();
                         
                         if old_k != new_k {
                             table.remove(old_k.borrow(), primary_key.borrow())
@@ -225,8 +225,8 @@ where
             {
                 match table_perm {
                     TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
-                        let old_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'data> = old_key.into();
-                        let new_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'data> = new_key.into();
+                        let old_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db> = old_key.into();
+                        let new_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db> = new_key.into();
 
                         if old_k != new_k {
                             table.remove(old_k.borrow(), primary_key.borrow())
@@ -249,8 +249,8 @@ where
             {
                 match table_perm {
                     TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
-                        let old_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'data> = old_key.into();
-                        let new_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'data> = new_key.into();
+                        let old_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db> = old_key.into();
+                        let new_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db> = new_key.into();
 
                         if old_k != new_k {
                             table.remove(old_k.borrow(), primary_key.borrow())
@@ -270,8 +270,8 @@ where
     }
 
     fn delete_entry<'txn>(
-        key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'data>,
-        tables: &mut ModelOpenTables<'txn, 'data, D, Self>
+        key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>,
+        tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()>
     {
         let model = Self::read_entry(key, tables)?;
@@ -291,7 +291,7 @@ where
             for ((table_perm, _name), secondary_key) in tables.secondary.iter_mut().zip(secondary_keys.into_iter()) {
                 match table_perm {
                     TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
-                        let k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'data> = secondary_key.into();
+                        let k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db> = secondary_key.into();
                         table.remove(k.borrow(), key.borrow())
                             .map_err(|e| NetabaseError::RedbError(e.into()))?;
                     }
@@ -307,7 +307,7 @@ where
             for ((table_perm, _name), relational_key) in tables.relational.iter_mut().zip(relational_keys.into_iter()) {
                 match table_perm {
                     TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
-                        let k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'data> = relational_key.into();
+                        let k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db> = relational_key.into();
                         table.remove(k.borrow(), key.borrow())
                             .map_err(|e| NetabaseError::RedbError(e.into()))?;
                     }
@@ -320,7 +320,7 @@ where
             for ((table_perm, _name), subscription_key) in tables.subscription.iter_mut().zip(subscription_keys.into_iter()) {
                 match table_perm {
                     TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
-                        let k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'data> = subscription_key.into();
+                        let k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db> = subscription_key.into();
                         table.remove(k.borrow(), key.borrow())
                             .map_err(|e| NetabaseError::RedbError(e.into()))?;
                     }

@@ -1,12 +1,13 @@
-use redb::{TableError, CommitError};
 use crate::{
-    databases::redb::{RedbPermissions},
+    databases::redb::RedbPermissions,
+    errors::{NetabaseError, NetabaseResult},
     traits::registery::definition::redb_definition::RedbDefinition,
-    errors::{NetabaseResult, NetabaseError},
 };
+use redb::{CommitError, TableError};
+use std::marker::PhantomData;
 
 /// Wrapper around redb::ReadTransaction that enforces permissions
-pub struct NetabaseRedbReadTransaction<D: RedbDefinition>
+pub struct NetabaseRedbReadTransaction<'txn, D: RedbDefinition>
 where
     <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     D: Clone,
@@ -14,15 +15,20 @@ where
     pub inner: redb::ReadTransaction,
     #[allow(dead_code)] // permissions might be used in future or other methods
     permissions: RedbPermissions<D>,
+    _marker: PhantomData<&'txn ()>,
 }
 
-impl<D: RedbDefinition> NetabaseRedbReadTransaction<D>
+impl<'txn, D: RedbDefinition> NetabaseRedbReadTransaction<'txn, D>
 where
     <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     D: Clone,
 {
     pub fn new(inner: redb::ReadTransaction, permissions: RedbPermissions<D>) -> Self {
-        Self { inner, permissions }
+        Self {
+            inner,
+            permissions,
+            _marker: PhantomData,
+        }
     }
 
     pub fn open_table<K: redb::Key, V: redb::Value>(
@@ -45,7 +51,7 @@ where
 }
 
 /// Wrapper around redb::WriteTransaction that enforces permissions
-pub struct NetabaseRedbWriteTransaction<D: RedbDefinition>
+pub struct NetabaseRedbWriteTransaction<'db, D: RedbDefinition>
 where
     <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     D: Clone,
@@ -53,15 +59,20 @@ where
     pub inner: redb::WriteTransaction,
     #[allow(dead_code)]
     permissions: RedbPermissions<D>,
+    _marker: PhantomData<&'db ()>,
 }
 
-impl<D: RedbDefinition> NetabaseRedbWriteTransaction<D>
+impl<'db, D: RedbDefinition> NetabaseRedbWriteTransaction<'db, D>
 where
     <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     D: Clone,
 {
     pub fn new(inner: redb::WriteTransaction, permissions: RedbPermissions<D>) -> Self {
-        Self { inner, permissions }
+        Self {
+            inner,
+            permissions,
+            _marker: PhantomData,
+        }
     }
 
     pub fn open_table<'a, K: redb::Key, V: redb::Value>(

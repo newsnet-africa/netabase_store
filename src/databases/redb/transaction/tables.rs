@@ -11,6 +11,7 @@ use crate::{
 
 pub struct ModelOpenTables<'txn, 'db, D: RedbDefinition, M: RedbNetbaseModel<'db, D> + redb::Key> 
 where
+    'db: 'txn,
     D::Discriminant: 'static + std::fmt::Debug,
     D: Clone,
     <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key + 'static,
