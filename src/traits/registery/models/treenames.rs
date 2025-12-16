@@ -1,8 +1,8 @@
-use strum::IntoDiscriminant;
 use crate::traits::registery::{
     definition::NetabaseDefinition,
     models::{keys::NetabaseModelKeys, model::NetabaseModel},
 };
+use strum::IntoDiscriminant;
 
 /// A tuple that stores a discriminant alongside its formatted table name
 /// Format: "{Definition}:{Model}:{KeyType}:{TableName}" in PascalCase
@@ -30,8 +30,10 @@ where
     for<'b> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'b>: IntoDiscriminant,
     for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
 {
     pub main: DiscriminantTableName<D::Discriminant>,
     pub secondary: &'a [DiscriminantTableName<<<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant>],
     pub relational: &'a [DiscriminantTableName<<<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant>],
+    pub subscription: Option<&'a [DiscriminantTableName<<<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant>]>,
 }

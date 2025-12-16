@@ -31,6 +31,19 @@ pub enum NetabaseError {
     #[error("Redb Set Durability Error: {0}")]
     RedbSetDurabilityError(#[from] redb::SetDurabilityError),
 
+    #[error("Permission denied: model {source_model} cannot {operation} on {target_model}")]
+    PermissionDenied {
+        source_model: String,  // formatted from discriminant
+        target_model: String,  // formatted from discriminant
+        operation: &'static str,
+    },
+
+    #[error("Cross-definition access denied: {source_def} -> {target_def}")]
+    CrossDefinitionAccessDenied {
+        source_def: String,  // formatted from GlobalKeys
+        target_def: String,  // formatted from GlobalKeys
+    },
+
     #[error("Required Permissions not found")]
     Permission,
 

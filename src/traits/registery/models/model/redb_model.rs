@@ -2,7 +2,7 @@ use redb::{MultimapTableDefinition, TableDefinition};
 use strum::IntoDiscriminant;
 
 use crate::traits::registery::{
-    definition::redb_definition::RedbDefinition,
+    definition::{NetabaseDefinition, redb_definition::RedbDefinition},
     models::keys::NetabaseModelKeys,
 };
 use super::NetabaseModel;
@@ -17,7 +17,9 @@ where
         redb::Key + 'static,
     for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    M: 'db + 'static,
+    for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: redb::Key + 'static,
+    M: 'db + 'static
 {
     pub main: TableDefinition<'db, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>, M>,
     pub main_name: &'db str,
@@ -31,6 +33,11 @@ where
         MultimapTableDefinition<'db, <M::Keys as NetabaseModelKeys<D, M>>::Relational<'db>, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>>,
         &'db str
     )>,
+
+    pub subscription: Vec<(
+        MultimapTableDefinition<'db, <M::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>>,
+        &'db str
+    )>,
 }
 
 pub trait RedbNetbaseModel<'db, D: RedbDefinition>: NetabaseModel<D> + redb::Value + redb::Key
@@ -42,9 +49,12 @@ where
         redb::Key + 'static,
     <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational<'db>:
         redb::Key + 'static,
+    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'db>:
+        redb::Key + 'static,
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    Self: 'db + 'static,
+    for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    Self: 'db + 'static
 {
     type RedbTables;
 
@@ -73,12 +83,24 @@ where
                 (table_def, disc_table.table_name)
             })
             .collect();
+
+        // Create subscription tables from the stored names
+        let subscription = match Self::TREE_NAMES.subscription {
+             Some(subs) => subs.iter()
+                .map(|disc_table| {
+                    let table_def = MultimapTableDefinition::new(disc_table.table_name);
+                    (table_def, disc_table.table_name)
+                })
+                .collect(),
+             None => Vec::new(),
+        };
         
         RedbModelTableDefinitions {
             main,
             main_name,
             secondary,
             relational,
+            subscription,
         }
     }
 
@@ -107,9 +129,11 @@ pub struct ModelOpenTables<'a, D: RedbDefinition, M: NetabaseModel<D>>
 where
     D::Discriminant: 'static + std::fmt::Debug,
     for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug, 
+    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
 {
     pub main: crate::traits::registery::models::treenames::DiscriminantTableName<D::Discriminant>,
     pub secondary: &'a [crate::traits::registery::models::treenames::DiscriminantTableName<<<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant>],
     pub relational: &'a [crate::traits::registery::models::treenames::DiscriminantTableName<<<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant>],
+    pub subscription: Option<&'a [crate::traits::registery::models::treenames::DiscriminantTableName<<<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant>]>,
 }

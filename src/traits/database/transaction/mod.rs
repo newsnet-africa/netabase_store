@@ -1,17 +1,14 @@
 use crate::{
     errors::NetabaseResult,
+    relational::{CrossDefinitionPermissions, GlobalDefinitionEnum, RelationalLink},
     traits::registery::{
         definition::NetabaseDefinition,
-        models::{
-            keys::NetabaseModelKeys,
-            model::NetabaseModel,
-        },
+        models::{keys::NetabaseModelKeys, model::NetabaseModel},
     },
-    relational::{RelationalLink, CrossDefinitionPermissions, GlobalDefinitionEnum},
 };
 use strum::IntoDiscriminant;
 
-pub trait NBTransaction<'db, D: NetabaseDefinition + GlobalDefinitionEnum>
+pub trait NBTransaction<'db, D: NetabaseDefinition>
 where
     <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
 {
@@ -24,7 +21,10 @@ where
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static;
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static;
 
     fn read<M>(&self, key: M::Keys) -> NetabaseResult<M>
     where
@@ -32,6 +32,8 @@ where
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
             'static;
 
     fn update<M>(&self, model: M) -> NetabaseResult<()>
@@ -40,7 +42,10 @@ where
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static;
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static;
 
     fn delete<M>(&self, key: M::Keys) -> NetabaseResult<()>
     where
@@ -48,6 +53,8 @@ where
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
             'static;
 
     fn create_many<M>(&self, models: Vec<M>) -> NetabaseResult<()>
@@ -56,7 +63,10 @@ where
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static;
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static;
 
     fn read_if<M, F>(&self, predicate: F) -> NetabaseResult<Vec<M>>
     where
@@ -65,7 +75,10 @@ where
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static;
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static;
 
     fn read_range<M, K>(&self, range: std::ops::Range<K>) -> NetabaseResult<Vec<M>>
     where
@@ -74,7 +87,10 @@ where
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static;
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static;
 
     fn update_range<M, K, F>(&self, range: std::ops::Range<K>, updater: F) -> NetabaseResult<()>
     where
@@ -84,7 +100,10 @@ where
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static;
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static;
 
     fn update_if<M, P, U>(&self, predicate: P, updater: U) -> NetabaseResult<()>
     where
@@ -94,7 +113,10 @@ where
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static;
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static;
 
     fn delete_many<M>(&self, keys: Vec<M::Keys>) -> NetabaseResult<()>
     where
@@ -102,6 +124,8 @@ where
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
             'static;
 
     fn delete_if<M, F>(&self, predicate: F) -> NetabaseResult<()>
@@ -111,7 +135,10 @@ where
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static;
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static;
 
     fn delete_range<M, K>(&self, range: std::ops::Range<K>) -> NetabaseResult<()>
     where
@@ -120,7 +147,10 @@ where
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static;
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static;
 
     fn write<F, R>(&self, f: F) -> NetabaseResult<R>
     where
@@ -139,40 +169,19 @@ where
         for<'a> <<M::Keys as NetabaseModelKeys<OD, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<OD, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<OD, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
             'static;
-
-    fn hydrate_relation<M>(&self, link: RelationalLink<M>) -> NetabaseResult<RelationalLink<M>>
-    where
-        M: GlobalDefinitionEnum,
-        <M as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    ;
 
     fn can_access_definition<OD>(&self) -> bool
     where
         OD: NetabaseDefinition,
         <OD as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug;
 
+    /*
     fn get_cross_permissions<OD>(&self) -> Option<CrossDefinitionPermissions<D>>
     where
         OD: NetabaseDefinition + GlobalDefinitionEnum,
         <OD as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug;
-
-    fn create_with_relations<M>(&self, model: M, relations: Vec<RelationalLink<M>>) -> NetabaseResult<()>
-    where
-        M: NetabaseModel<D> + GlobalDefinitionEnum,
-        <M as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static;
-
-    fn update_relations<M, RM>(&self, model_key: M::Keys, relation_updates: Vec<RelationalLink<RM>>) -> NetabaseResult<()>
-    where
-        M: NetabaseModel<D>,
-        RM: GlobalDefinitionEnum,
-        <RM as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static;
+    */
 }

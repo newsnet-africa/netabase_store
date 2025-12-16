@@ -1,133 +1,84 @@
-#[derive(Debug, Clone, PartialEq)]
-pub enum ModelOperationPermission {
-    Read,
-    Create,
-    Update,
-    Delete,
-    All,
-}
+use crate::traits::permissions::{AccessType, NetabasePermissionTicket};
+use crate::traits::registery::definition::NetabaseDefinition;
+use crate::traits::registery::models::model::NetabaseModel;
+use crate::traits::registery::models::keys::NetabaseModelKeys;
+use strum::IntoDiscriminant;
+use std::collections::HashMap;
+use std::marker::PhantomData;
 
+/// Represents the global permission object passed to the transaction.
+/// It acts as the "Ticket" held by the user/requestor.
 #[derive(Debug, Clone)]
-pub enum TablePermissionLevel {
-    ReadOnly,
-    ReadWrite,
-    Admin,
+pub struct NetabasePermissions<D: NetabaseDefinition> 
+where
+    <D as IntoDiscriminant>::Discriminant: std::fmt::Debug + 'static
+{
+    /// Map of Model Name -> Allowed AccessType
+    /// In a real implementation, this would be a more complex tree structure
+    /// or the "generated enum" list described by the user.
+    allowed_models: HashMap<String, Vec<AccessType>>,
+    _marker: PhantomData<D>,
 }
 
-#[derive(Debug, Clone)]
-pub enum NetabasePermissions {
-    Database {
-        level: TablePermissionLevel,
-        can_create_tables: bool,
-        can_drop_tables: bool,
-        can_alter_schema: bool,
-    },
-    Model {
-        operations: Vec<ModelOperationPermission>,
-    },
-}
-
-impl Default for NetabasePermissions {
+impl<D: NetabaseDefinition> Default for NetabasePermissions<D> 
+where
+    <D as IntoDiscriminant>::Discriminant: std::fmt::Debug + 'static
+{
     fn default() -> Self {
-        Self::Database {
-            level: TablePermissionLevel::ReadOnly,
-            can_create_tables: false,
-            can_drop_tables: false,
-            can_alter_schema: false,
+        Self {
+            allowed_models: HashMap::new(),
+            _marker: PhantomData,
         }
     }
 }
 
-impl NetabasePermissions {
-    pub fn database_read_only() -> Self {
-        Self::Database {
-            level: TablePermissionLevel::ReadOnly,
-            can_create_tables: false,
-            can_drop_tables: false,
-            can_alter_schema: false,
-        }
+impl<D: NetabaseDefinition> NetabasePermissions<D> 
+where
+    <D as IntoDiscriminant>::Discriminant: std::fmt::Debug + 'static
+{
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    pub fn database_read_write() -> Self {
-        Self::Database {
-            level: TablePermissionLevel::ReadWrite,
-            can_create_tables: false,
-            can_drop_tables: false,
-            can_alter_schema: false,
-        }
+    pub fn allow_all() -> Self {
+        Self::default()
     }
 
-    pub fn database_admin() -> Self {
-        Self::Database {
-            level: TablePermissionLevel::Admin,
-            can_create_tables: true,
-            can_drop_tables: true,
-            can_alter_schema: true,
-        }
+    /// Grant permission to a specific model (by string name for now, as we don't have the specific Model types generic here easily)
+    pub fn grant_permission(&mut self, model_name: &str, access: AccessType) {
+        self.allowed_models.entry(model_name.to_string())
+            .or_default()
+            .push(access);
     }
 
-    pub fn model_read_only() -> Self {
-        Self::Model {
-            operations: vec![ModelOperationPermission::Read],
-        }
-    }
-
-    pub fn model_read_write() -> Self {
-        Self::Model {
-            operations: vec![
-                ModelOperationPermission::Read,
-                ModelOperationPermission::Create,
-                ModelOperationPermission::Update,
-                ModelOperationPermission::Delete,
-            ],
-        }
-    }
-
-    pub fn model_admin() -> Self {
-        Self::Model {
-            operations: vec![ModelOperationPermission::All],
-        }
-    }
-
-    pub fn can_perform_operation(&self, operation: &ModelOperationPermission) -> bool {
-        match self {
-            Self::Database { level, .. } => {
-                match level {
-                    TablePermissionLevel::ReadOnly => {
-                        matches!(operation, ModelOperationPermission::Read)
-                    },
-                    TablePermissionLevel::ReadWrite => {
-                        !matches!(operation, ModelOperationPermission::All)
-                    },
-                    TablePermissionLevel::Admin => true,
-                }
-            },
-            Self::Model { operations } => {
-                operations.contains(operation) 
-                    || operations.contains(&ModelOperationPermission::All)
-            }
-        }
-    }
-
-    pub fn can_read(&self) -> bool {
-        self.can_perform_operation(&ModelOperationPermission::Read)
-    }
-
-    pub fn can_write(&self) -> bool {
-        match self {
-            Self::Database { level, .. } => {
-                !matches!(level, TablePermissionLevel::ReadOnly)
-            },
-            Self::Model { operations } => {
-                operations.iter().any(|op| {
-                    matches!(op, 
-                        ModelOperationPermission::Create | 
-                        ModelOperationPermission::Update | 
-                        ModelOperationPermission::Delete |
-                        ModelOperationPermission::All
-                    )
-                })
-            }
+    /// Check if a specific operation is allowed for a specific model name
+    pub fn check(&self, model_name: &str, access: AccessType) -> bool {
+        if let Some(perms) = self.allowed_models.get(model_name) {
+            perms.contains(&access) 
+                || (access == AccessType::Read && perms.contains(&AccessType::Update)) // Example hierarchy
+                || (access == AccessType::Read && perms.contains(&AccessType::Create))
+        } else {
+            false
         }
     }
 }
+
+impl<D: NetabaseDefinition + crate::relational::GlobalDefinitionEnum> NetabasePermissionTicket<D> for NetabasePermissions<D>
+where
+    <D as IntoDiscriminant>::Discriminant: std::fmt::Debug + 'static
+{
+    fn allows_access_to<M>(&self, access: AccessType) -> bool
+    where
+        M: NetabaseModel<D>,
+        <D as IntoDiscriminant>::Discriminant: 'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static, 
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static
+    {
+        let model_name = M::TREE_NAMES.main.table_name; // This is a &'static str
+        self.check(model_name, access)
+    }
+}
+
+pub type RedbPermissions<D> = NetabasePermissions<D>;

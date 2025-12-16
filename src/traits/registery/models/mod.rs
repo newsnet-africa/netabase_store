@@ -1,16 +1,18 @@
 use crate::traits::registery::definition::NetabaseDefinition;
+use serde::{Serialize, Deserialize};
+use bincode::{Encode, Decode, BorrowDecode};
 
 pub mod keys;
 pub mod model;
 pub mod treenames;
 
 // Marker traits to avoid cyclical dependencies
-pub trait StoreKeyMarker<D: NetabaseDefinition> 
+pub trait StoreKeyMarker<D: NetabaseDefinition>: Serialize + for<'de> Deserialize<'de> + Encode + Decode<()> + for<'de> BorrowDecode<'de, ()> + Eq + std::hash::Hash + PartialOrd + Ord
 where
     D::Discriminant: 'static + std::fmt::Debug,
 {}
 
-pub trait StoreValueMarker<D: NetabaseDefinition> 
+pub trait StoreValueMarker<D: NetabaseDefinition>: Serialize + for<'de> Deserialize<'de> + Encode + Decode<()> + for<'de> BorrowDecode<'de, ()> + Eq + std::hash::Hash + PartialOrd + Ord
 where
     D::Discriminant: 'static + std::fmt::Debug,
 {}
