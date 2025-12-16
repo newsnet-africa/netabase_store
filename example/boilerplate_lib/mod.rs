@@ -9,6 +9,7 @@
 
 // Basic imports needed for early type definitions
 use bincode::{BorrowDecode, Decode, Encode};
+use derive_more::{From, TryInto};
 use netabase_store::databases::redb::transaction::ModelOpenTables;
 use netabase_store::traits::permissions::{AccessLevel, CrossAccessLevel, ModelPermissions};
 use netabase_store::traits::registery::models::{
@@ -160,6 +161,8 @@ use netabase_store::traits::registery::models::model::RedbModelTableDefinitions;
     Decode,
     PartialOrd,
     Ord,
+    TryInto,
+    From,
 )]
 #[strum_discriminants(name(DefinitionTwoDiscriminants))]
 #[strum_discriminants(derive(AsRefStr))]
@@ -391,6 +394,8 @@ pub enum GlobalKeys {
     Encode,
     PartialOrd,
     Ord,
+    TryInto,
+    From,
 )]
 #[strum_discriminants(name(DefinitionDiscriminants))]
 #[strum_discriminants(derive(AsRefStr))]

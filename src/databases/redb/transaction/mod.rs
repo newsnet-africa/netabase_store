@@ -406,179 +406,70 @@ where
     type ReadTransaction = NetabaseRedbReadTransaction<'db, D>;
     type WriteTransaction = NetabaseRedbWriteTransaction<'db, D>;
 
-    fn create<M>(&self, _model: M) -> NetabaseResult<()>
-    where
-        M: NetabaseModel<D>,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static,
-    {
-        todo!(
-            "NBTransaction::create: Requires M to be RedbNetbaseModel. This trait bound mismatch is expected."
-        )
+    fn create(&self, definition: &D) -> NetabaseResult<()> {
+        todo!("NBTransaction::create - convert D to specific model M, call create_redb")
     }
 
-    fn read<M>(&self, _key: M::Keys) -> NetabaseResult<M>
-    where
-        M: NetabaseModel<D>,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-    {
-        todo!("NBTransaction::read")
+    fn read(&self, key: &D::DefKeys) -> NetabaseResult<Option<D>> {
+        todo!("NBTransaction::read - extract primary key from DefKeys, call read_redb, convert back to D")
     }
 
-    fn update<M>(&self, _model: M) -> NetabaseResult<()>
-    where
-        M: NetabaseModel<D>,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static,
-    {
-        todo!("NBTransaction::update")
+    fn update(&self, definition: &D) -> NetabaseResult<()> {
+        todo!("NBTransaction::update - convert D to specific model M, call update_redb")
     }
 
-    fn delete<M>(&self, _key: M::Keys) -> NetabaseResult<()>
-    where
-        M: NetabaseModel<D>,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-    {
-        todo!("NBTransaction::delete")
+    fn delete(&self, key: &D::DefKeys) -> NetabaseResult<()> {
+        todo!("NBTransaction::delete - extract primary key from DefKeys, call delete_redb")
     }
 
-    fn create_many<M>(&self, _models: Vec<M>) -> NetabaseResult<()>
-    where
-        M: NetabaseModel<D>,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static,
-    {
-        todo!("NBTransaction::create_many")
+    fn create_many(&self, definitions: &[D]) -> NetabaseResult<()> {
+        for definition in definitions {
+            self.create(definition)?;
+        }
+        Ok(())
     }
 
-    fn read_if<M, F>(&self, _predicate: F) -> NetabaseResult<Vec<M>>
+    fn read_if<F>(&self, _predicate: F) -> NetabaseResult<Vec<D>>
     where
-        M: NetabaseModel<D>,
-        F: Fn(&M) -> bool,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static,
+        F: Fn(&D) -> bool,
     {
         todo!("NBTransaction::read_if")
     }
 
-    fn read_range<M, K>(&self, _range: std::ops::Range<K>) -> NetabaseResult<Vec<M>>
-    where
-        M: NetabaseModel<D>,
-        K: Into<M::Keys>,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static,
-    {
+    fn read_range(&self, _range: std::ops::Range<D::DefKeys>) -> NetabaseResult<Vec<D>> {
         todo!("NBTransaction::read_range")
     }
 
-    fn update_range<M, K, F>(&self, _range: std::ops::Range<K>, _updater: F) -> NetabaseResult<()>
+    fn update_range<F>(&self, _range: std::ops::Range<D::DefKeys>, _updater: F) -> NetabaseResult<()>
     where
-        M: NetabaseModel<D>,
-        K: Into<M::Keys>,
-        F: Fn(&mut M),
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static,
+        F: Fn(&mut D),
     {
         todo!("NBTransaction::update_range")
     }
 
-    fn update_if<M, P, U>(&self, _predicate: P, _updater: U) -> NetabaseResult<()>
+    fn update_if<P, U>(&self, _predicate: P, _updater: U) -> NetabaseResult<()>
     where
-        M: NetabaseModel<D>,
-        P: Fn(&M) -> bool,
-        U: Fn(&mut M),
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static,
+        P: Fn(&D) -> bool,
+        U: Fn(&mut D),
     {
         todo!("NBTransaction::update_if")
     }
 
-    fn delete_many<M>(&self, _keys: Vec<M::Keys>) -> NetabaseResult<()>
-    where
-        M: NetabaseModel<D>,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-    {
-        todo!("NBTransaction::delete_many")
+    fn delete_many(&self, keys: &[D::DefKeys]) -> NetabaseResult<()> {
+        for key in keys {
+            self.delete(key)?;
+        }
+        Ok(())
     }
 
-    fn delete_if<M, F>(&self, _predicate: F) -> NetabaseResult<()>
+    fn delete_if<F>(&self, _predicate: F) -> NetabaseResult<()>
     where
-        M: NetabaseModel<D>,
-        F: Fn(&M) -> bool,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static,
+        F: Fn(&D) -> bool,
     {
         todo!("NBTransaction::delete_if")
     }
 
-    fn delete_range<M, K>(&self, _range: std::ops::Range<K>) -> NetabaseResult<()>
-    where
-        M: NetabaseModel<D>,
-        K: Into<M::Keys>,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static,
-    {
+    fn delete_range(&self, _range: std::ops::Range<D::DefKeys>) -> NetabaseResult<()> {
         todo!("NBTransaction::delete_range")
     }
 
@@ -598,21 +489,14 @@ where
     {
         match &self.transaction {
             RedbTransactionType::Read(read_txn) => f(read_txn),
-            RedbTransactionType::Write(_) => Err(NetabaseError::Permission), // This case should ideally not happen for a Read fn
+            RedbTransactionType::Write(_) => Err(NetabaseError::Permission),
         }
     }
 
-    fn read_related<OD, M>(&self, _key: M::Keys) -> NetabaseResult<Option<M>>
+    fn read_related<OD>(&self, _key: &OD::DefKeys) -> NetabaseResult<Option<OD>>
     where
         OD: NetabaseDefinition,
-        M: NetabaseModel<OD>,
         <OD as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-        for<'a> <<M::Keys as NetabaseModelKeys<OD, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<OD, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
-            'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<OD, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant:
-            'static,
     {
         todo!("NBTransaction::read_related")
     }
@@ -622,17 +506,6 @@ where
         OD: NetabaseDefinition,
         <OD as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     {
-        // Simple implementation
         true
     }
-
-    /*
-    fn get_cross_permissions<OD>(&self) -> Option<CrossDefinitionPermissions<D>>
-    where
-        OD: NetabaseDefinition + GlobalDefinitionEnum,
-        <OD as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug
-    {
-        None
-    }
-    */
 }

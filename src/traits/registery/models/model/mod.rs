@@ -19,6 +19,8 @@ where
 pub trait NetabaseModel<D: NetabaseDefinition>:
     NetabaseModelMarker<D>
     + Sized
+    + Into<D>
+    + TryFrom<D>
     + for<'a> StoreValue<D, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'a>>
 where
     D::Discriminant: 'static + std::fmt::Debug,
