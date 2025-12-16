@@ -30,7 +30,7 @@ where
     )>,
     
     pub relational: Vec<(
-        MultimapTableDefinition<'db, <M::Keys as NetabaseModelKeys<D, M>>::Relational<'db>, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>>,
+        MultimapTableDefinition<'db, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>, <M::Keys as NetabaseModelKeys<D, M>>::Relational<'db>>,
         &'db str
     )>,
 
@@ -118,7 +118,7 @@ where
     }
 
     fn relational_definitions() -> Vec<(
-        MultimapTableDefinition<'db, <Self::Keys as NetabaseModelKeys<D, Self>>::Relational<'db>, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>>,
+        MultimapTableDefinition<'db, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>, <Self::Keys as NetabaseModelKeys<D, Self>>::Relational<'db>>,
         &'db str
     )> {
         Self::table_definitions().relational

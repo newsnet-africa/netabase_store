@@ -1,4 +1,3 @@
-use crate::relational::GlobalDefinitionEnum;
 use crate::traits::registery::definition::NetabaseDefinition;
 use strum::IntoDiscriminant;
 

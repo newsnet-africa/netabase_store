@@ -1,6 +1,6 @@
 use crate::{
     errors::NetabaseResult,
-    relational::{CrossDefinitionPermissions, GlobalDefinitionEnum, RelationalLink},
+    relational::RelationalLink,
     traits::registery::{
         definition::NetabaseDefinition,
         models::{keys::NetabaseModelKeys, model::NetabaseModel},

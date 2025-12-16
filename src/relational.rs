@@ -483,6 +483,20 @@ where
 
     // TODO: Add hydrate() method after Phase 3-4
     // This method will load the model from the database with conditional permission checks
+    //
+    // Implementation notes for relational table queries:
+    // - Relational tables store: PrimaryKey -> [ForeignKeys]
+    // - To hydrate a relation from source model's primary key:
+    //   1. Query relational table using source model's primary key as the lookup key
+    //   2. Retrieve list of foreign keys (the values in the multimap)
+    //   3. Use each foreign key to fetch the related model from its main table
+    //   4. Create Borrowed/Hydrated RelationalLink with the retrieved model
+    //
+    // Example: For User with partner relation:
+    //   - Table: "Definition:User:Relational:Partner" stores UserID (pk) -> [UserID (partner)]
+    //   - Query: table.get(user.id) returns iterator of partner UserIDs
+    //   - For each partner ID, query User main table to get the Partner model
+    //
     // Signature: pub fn hydrate<Trans>(self, transaction: &Trans, conditionally: bool) -> NetabaseResult<Self>
 }
 

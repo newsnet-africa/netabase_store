@@ -115,18 +115,16 @@ where
         }
 
         // 3. Insert into Relational Tables
-        // TODO: Add permission checks before inserting relational keys
-        // For each relational key, we should:
-        // 1. Determine the target model discriminant from the relational key
-        // 2. Check Self::PERMISSIONS.can_access_model(target_discriminant, AccessType::Create)
-        // 3. Return PermissionDenied error if not allowed
-        // This requires a mapping from relational key discriminants to target model discriminants
+        // Store as: PrimaryKey -> RelationalKey (swapped from previous implementation)
+        // This allows looking up related foreign keys from a model's primary key
         let relational_keys = self.get_relational_keys();
+        let primary_key = self.get_primary_key();
         for ((table_perm, _name), key) in tables.relational.iter_mut().zip(relational_keys.into_iter()) {
              match table_perm {
                  TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
                      let k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db> = key.into();
-                     table.insert(k.borrow(), self.get_primary_key().borrow())
+                     // Swapped: primary_key is now the key, relational key is the value
+                     table.insert(primary_key.borrow(), k.borrow())
                          .map_err(|e| NetabaseError::RedbError(e.into()))?;
                  }
                  _ => return Err(NetabaseError::Permission),
@@ -213,9 +211,7 @@ where
             }
 
             // 4. Update Relational Tables
-            // TODO: Add permission checks before updating relational keys
-            // Should check permissions for both removing old relations and creating new ones
-            // Similar to create_entry, requires mapping relational key discriminants to target models
+            // Store as: PrimaryKey -> RelationalKey (swapped from previous implementation)
             let old_relational = old_model.get_relational_keys();
             let new_relational = self.get_relational_keys();
 
@@ -229,9 +225,10 @@ where
                         let new_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db> = new_key.into();
 
                         if old_k != new_k {
-                            table.remove(old_k.borrow(), primary_key.borrow())
+                            // Swapped: primary_key is the key, relational key is the value
+                            table.remove(primary_key.borrow(), old_k.borrow())
                                 .map_err(|e| NetabaseError::RedbError(e.into()))?;
-                            table.insert(new_k.borrow(), primary_key.borrow())
+                            table.insert(primary_key.borrow(), new_k.borrow())
                                 .map_err(|e| NetabaseError::RedbError(e.into()))?;
                         }
                     }
@@ -300,15 +297,14 @@ where
             }
 
             // 4. Remove from Relational Tables
-            // TODO: Add permission checks before deleting relational keys
-            // Should verify model has permission to modify relations with target models
-            // Requires mapping relational key discriminants to target model discriminants
+            // Store as: PrimaryKey -> RelationalKey (swapped from previous implementation)
             let relational_keys = model.get_relational_keys();
             for ((table_perm, _name), relational_key) in tables.relational.iter_mut().zip(relational_keys.into_iter()) {
                 match table_perm {
                     TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
                         let k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db> = relational_key.into();
-                        table.remove(k.borrow(), key.borrow())
+                        // Swapped: key (primary) is the table key, relational key is the value
+                        table.remove(key.borrow(), k.borrow())
                             .map_err(|e| NetabaseError::RedbError(e.into()))?;
                     }
                     _ => return Err(NetabaseError::Permission),

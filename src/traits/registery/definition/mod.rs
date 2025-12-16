@@ -4,11 +4,17 @@ pub mod subscription;
 use strum::IntoDiscriminant;
 use subscription::DefinitionSubscriptionRegistry;
 
-pub trait NetabaseDefinition: IntoDiscriminant + Sized + crate::relational::GlobalDefinitionEnum
+use crate::traits::registery::models::{
+    keys::NetabaseModelKeys,
+    model::NetabaseModel,
+    treenames::{DiscriminantTableName, ModelTreeNames},
+};
+
+pub trait NetabaseDefinition: IntoDiscriminant + Sized
 where
     Self::Discriminant: 'static + std::fmt::Debug,
 {
-    type TreeNames: NetabaseDefinitionTreeNames<Self>;
+    type TreeNames: NetabaseDefinitionTreeNames<Self> + 'static;
     type DefKeys: NetabaseDefinitionKeys<Self>;
 
     /// Subscription registry mapping topics to models
@@ -23,9 +29,25 @@ where
 pub trait NetabaseDefinitionTreeNames<D: NetabaseDefinition>: Sized + Clone
 where
     <D as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    Self: TryInto<DiscriminantTableName<D>>,
 {
     // Methods to access specific tree names based on the definition's discriminant
-    // fn get_tree_names(discriminant: D::Discriminant) -> ...
+    fn get_tree_names(discriminant: D::Discriminant) -> Vec<Self>;
+
+    fn get_model_tree<M: NetabaseModel<D>>(&self) -> Option<M>
+    where
+        for<'a> Self: From<ModelTreeNames<'a, Self, M>>,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'a>:
+            IntoDiscriminant,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a>:
+            IntoDiscriminant,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a>:
+            IntoDiscriminant,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static
+    ;
 }
 
 /// Trait for an enum that encapsulates the keys for all models in a definition

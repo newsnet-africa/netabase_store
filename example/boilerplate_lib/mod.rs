@@ -194,9 +194,8 @@ impl NetabaseModel<DefinitionTwo> for Category {
     };
 
     const PERMISSIONS: ModelPermissions<'static, DefinitionTwo> = ModelPermissions {
+        // Outbound: no outbound relations for Category
         outbound: &[],
-        inbound: &[],
-        cross_definition: &[],
     };
 
     fn get_primary_key<'a>(&'a self) -> CategoryID {
@@ -511,7 +510,7 @@ impl GlobalDefinitionEnum for DefinitionTwo {
 }
 
 use netabase_store::traits::permissions::{
-    DefinitionPermissions, ModelAccessLevel, definition::CrossDefinitionAccess,
+    DefinitionPermissions, ModelAccessLevel,
 };
 use netabase_store::traits::registery::definition::subscription::{
     DefinitionSubscriptionRegistry, SubscriptionEntry,
@@ -546,11 +545,10 @@ impl NetabaseDefinition for Definition {
             (DefinitionDiscriminants::User, ModelAccessLevel::ReadWrite),
             (DefinitionDiscriminants::Post, ModelAccessLevel::ReadWrite),
         ],
-        cross_definition_access: &[(GlobalDefinitionKeys::Def2, CrossDefinitionAccess::READ_ONLY)],
     };
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum DefinitionTreeNames {
     User(ModelTreeNames<'static, Definition, User>),
     Post(ModelTreeNames<'static, Definition, Post>),
@@ -615,13 +613,10 @@ impl NetabaseDefinition for DefinitionTwo {
             DefinitionTwoDiscriminants::Category,
             ModelAccessLevel::ReadWrite,
         )],
-        cross_definition_access: &[
-            // DefinitionTwo doesn't access other definitions
-        ],
     };
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum DefinitionTwoTreeNames {
     Category(ModelTreeNames<'static, DefinitionTwo, Category>),
 }

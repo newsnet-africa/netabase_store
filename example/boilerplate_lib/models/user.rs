@@ -1,6 +1,7 @@
+use crate::Post;
 use crate::{
     Category, CategoryID, Definition, DefinitionDiscriminants, DefinitionSubscriptions,
-    DefinitionTwo, GlobalKeys,
+    DefinitionTreeNames, DefinitionTwo,
 };
 use netabase_store::databases::redb::transaction::ModelOpenTables;
 use netabase_store::relational::RelationalLink;
@@ -365,7 +366,7 @@ pub enum UserKeys {
 
 // --- User Implementation ---
 
-use netabase_store::traits::permissions::{AccessLevel, CrossAccessLevel, ModelPermissions};
+use netabase_store::traits::permissions::{AccessLevel, ModelPermissions};
 
 impl NetabaseModel<Definition> for User {
     type Keys = UserKeys;
@@ -405,26 +406,19 @@ impl NetabaseModel<Definition> for User {
     };
 
     const PERMISSIONS: ModelPermissions<'static, Definition> = ModelPermissions {
-        // Outbound: Which models User can access
+        // Outbound: Which models User can access within the same definition
+        // Now using DefinitionTreeNames instead of DefinitionDiscriminants
         outbound: &[
             // User can read/hydrate partner (another User)
             (
-                DefinitionDiscriminants::User,
+                DefinitionTreeNames::User(User::TREE_NAMES),
                 AccessLevel::new(true, false, false, false, true), // read + hydrate only
             ),
             // User can read posts
-            (DefinitionDiscriminants::Post, AccessLevel::READ_ONLY),
-        ],
-
-        // Inbound: Which models can access User
-        inbound: &[
-            (DefinitionDiscriminants::Post, AccessLevel::READ_ONLY), // Post->author
-            (DefinitionDiscriminants::User, AccessLevel::READ_ONLY), // User->partner
-        ],
-
-        // Cross-definition access
-        cross_definition: &[
-            (GlobalKeys::Def2Category, CrossAccessLevel::READ), // User->category
+            (
+                DefinitionTreeNames::Post(Post::TREE_NAMES),
+                AccessLevel::READ_ONLY,
+            ),
         ],
     };
 

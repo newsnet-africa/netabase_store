@@ -3,18 +3,20 @@ pub use redb_model::*;
 
 use strum::IntoDiscriminant;
 
-use crate::{
-    traits::registery::{
-        definition::NetabaseDefinition,
-        models::{StoreKeyMarker, StoreValue, StoreValueMarker, keys::NetabaseModelKeys, treenames::ModelTreeNames},
+use crate::traits::registery::{
+    definition::NetabaseDefinition,
+    models::{
+        StoreKeyMarker, StoreValue, StoreValueMarker, keys::NetabaseModelKeys,
+        treenames::ModelTreeNames,
     },
-    relational::GlobalDefinitionEnum,
 };
 
-pub trait NetabaseModelMarker<D: NetabaseDefinition>: StoreValueMarker<D> 
-where 
-    D::Discriminant: 'static, <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug
-{}
+pub trait NetabaseModelMarker<D: NetabaseDefinition>: StoreValueMarker<D>
+where
+    D::Discriminant: 'static,
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+{
+}
 
 pub trait NetabaseModel<D: NetabaseDefinition>:
     NetabaseModelMarker<D>
@@ -24,7 +26,6 @@ pub trait NetabaseModel<D: NetabaseDefinition>:
     + for<'a> StoreValue<D, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'a>>
 where
     D::Discriminant: 'static + std::fmt::Debug,
-    D: GlobalDefinitionEnum,
     for<'a> <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Primary<'a>:
         StoreKeyMarker<D>,
     for<'a> <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary<'a>:
@@ -36,14 +37,15 @@ where
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-
      <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'static>: 'static
 {
     type Keys: NetabaseModelKeys<D, Self>;
     const TREE_NAMES: ModelTreeNames<'static, D, Self>;
 
-    /// Model-level permissions (outbound, inbound, cross-definition)
-    const PERMISSIONS: crate::traits::permissions::ModelPermissions<'static, D>;
+    /// Model-level permissions (outbound only, same-definition access)
+    const PERMISSIONS: crate::traits::permissions::ModelPermissions<'static, D>
+    where D: 'static,
+    ;
 
 
     fn get_primary_key<'a>(&'a self) -> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'a>;

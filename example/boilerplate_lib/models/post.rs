@@ -1,5 +1,5 @@
 use super::user::{User, UserID};
-use crate::{Definition, DefinitionDiscriminants, DefinitionSubscriptions};
+use crate::{Definition, DefinitionDiscriminants, DefinitionSubscriptions, DefinitionTreeNames};
 use netabase_store::databases::redb::transaction::ModelOpenTables;
 use netabase_store::relational::RelationalLink;
 use netabase_store::traits::registery::models::{
@@ -77,7 +77,8 @@ impl<'de> serde::Deserialize<'de> for Post {
                                 return Err(serde::de::Error::duplicate_field("author"));
                             }
                             // Deserialize ignoring lifetime - safe because RelationalLink deserializes to Dehydrated/Owned
-                            let link: RelationalLink<'_, Definition, Definition, User> = map.next_value()?;
+                            let link: RelationalLink<'_, Definition, Definition, User> =
+                                map.next_value()?;
                             author = Some(unsafe { std::mem::transmute(link) });
                         }
                     }
@@ -87,11 +88,7 @@ impl<'de> serde::Deserialize<'de> for Post {
                 let title = title.ok_or_else(|| serde::de::Error::missing_field("title"))?;
                 let author = author.ok_or_else(|| serde::de::Error::missing_field("author"))?;
 
-                Ok(Post {
-                    id,
-                    title,
-                    author,
-                })
+                Ok(Post { id, title, author })
             }
         }
 
@@ -206,7 +203,7 @@ pub enum PostKeys {
 
 // --- Post Implementation ---
 
-use netabase_store::traits::permissions::{ModelPermissions, AccessLevel, CrossAccessLevel};
+use netabase_store::traits::permissions::{AccessLevel, ModelPermissions};
 
 impl NetabaseModel<Definition> for Post {
     type Keys = PostKeys;
@@ -237,18 +234,11 @@ impl NetabaseModel<Definition> for Post {
     };
 
     const PERMISSIONS: ModelPermissions<'static, Definition> = ModelPermissions {
-        // Outbound: Which models Post can access
+        // Outbound: Which models Post can access within the same definition
+        // Now using DefinitionTreeNames instead of DefinitionDiscriminants
         outbound: &[
-            (DefinitionDiscriminants::User, AccessLevel::READ_ONLY),  // Post->author
+            (User::TREE_NAMES.main, AccessLevel::READ_ONLY), // Post->author
         ],
-
-        // Inbound: Which models can access Post
-        inbound: &[
-            (DefinitionDiscriminants::User, AccessLevel::READ_ONLY),  // User can read posts
-        ],
-
-        // Cross-definition access
-        cross_definition: &[],  // No cross-definition relations
     };
 
     fn get_primary_key(&self) -> PostID {

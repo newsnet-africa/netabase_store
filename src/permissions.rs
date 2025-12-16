@@ -63,7 +63,7 @@ where
     }
 }
 
-impl<D: NetabaseDefinition + crate::relational::GlobalDefinitionEnum> NetabasePermissionTicket<D> for NetabasePermissions<D>
+impl<D: NetabaseDefinition> NetabasePermissionTicket<D> for NetabasePermissions<D>
 where
     <D as IntoDiscriminant>::Discriminant: std::fmt::Debug + 'static
 {
@@ -72,7 +72,7 @@ where
         M: NetabaseModel<D>,
         <D as IntoDiscriminant>::Discriminant: 'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static,
-        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static, 
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static
     {

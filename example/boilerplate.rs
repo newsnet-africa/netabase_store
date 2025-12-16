@@ -28,6 +28,7 @@ use strum::AsRefStr;
 
 use crate::boilerplate_lib::Category;
 use crate::boilerplate_lib::CategoryID;
+use crate::boilerplate_lib::DefinitionTwoTreeNames;
 
 fn main() {
     println!("Netabase Store - Boilerplate Example");
@@ -283,37 +284,42 @@ fn main() {
     println!("User Model Permissions:");
     println!(
         "  - Can access User (partner): {}",
-        User::PERMISSIONS.can_access_model(DefinitionDiscriminants::User, AccessType::Read)
+        User::PERMISSIONS.can_access_model(
+            &DefinitionTreeNames::User(User::TREE_NAMES),
+            AccessType::Read
+        )
     );
     println!(
         "  - Can hydrate User (partner): {}",
-        User::PERMISSIONS.can_hydrate_relation(DefinitionDiscriminants::User)
+        User::PERMISSIONS.can_hydrate_relation(&DefinitionTreeNames::User(User::TREE_NAMES))
     );
     println!(
         "  - Can access Post: {}",
-        User::PERMISSIONS.can_access_model(DefinitionDiscriminants::Post, AccessType::Read)
+        User::PERMISSIONS.can_access_model(
+            &DefinitionTreeNames::Post(Post::TREE_NAMES),
+            AccessType::Read
+        )
     );
     println!(
-        "  - Can access Category (cross-def): {}",
-        User::PERMISSIONS.can_access_cross_definition(&GlobalKeys::Def2Category)
+        "  - Can access Category (cross-def): {:?}",
+        User::PERMISSIONS.outbound
     );
     println!(
-        "  - Can hydrate Category (cross-def): {}",
-        User::PERMISSIONS.can_hydrate_cross_definition(&GlobalKeys::Def2Category)
+        "  - Can hydrate Category (cross-def): {:?}",
+        User::PERMISSIONS.outbound
     );
 
     println!("\nPost Model Permissions:");
     println!(
         "  - Can access User (author): {}",
-        Post::PERMISSIONS.can_access_model(DefinitionDiscriminants::User, AccessType::Read)
+        Post::PERMISSIONS.can_access_model(
+            &DefinitionTreeNames::User(User::TREE_NAMES),
+            AccessType::Read
+        )
     );
     println!(
         "  - Outbound permissions: {} entries",
         Post::PERMISSIONS.outbound.len()
-    );
-    println!(
-        "  - Inbound permissions: {} entries",
-        Post::PERMISSIONS.inbound.len()
     );
 
     println!("\n=== Subscription Registry Demo ===");
@@ -366,14 +372,7 @@ fn main() {
         "  - Requires write access: {}",
         def_perms.requires_write_access()
     );
-    println!(
-        "  - Can access Def2 (read): {}",
-        def_perms.allows_cross_definition_read(&GlobalDefinitionKeys::Def2)
-    );
-    println!(
-        "  - Can access Def2 (write): {}",
-        def_perms.allows_cross_definition_write(&GlobalDefinitionKeys::Def2)
-    );
+    println!("  - Can access Def2 (read): {:?}", def_perms.model_access);
 
     println!("\n✅ All features demonstrated successfully!");
     println!("\nType system test completed successfully!");

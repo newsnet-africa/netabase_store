@@ -46,9 +46,8 @@ where
 }
 
 /// The "Guest List" implemented by Models/Definitions to validate incoming tickets.
-pub trait NetabasePermissionRegistry<
-    D: NetabaseDefinition + crate::relational::GlobalDefinitionEnum,
-> where
+pub trait NetabasePermissionRegistry<D: NetabaseDefinition>
+where
     <D as IntoDiscriminant>::Discriminant: std::fmt::Debug + 'static,
 {
     /// The specific type of ticket this registry expects (usually the global or definition-level permission set)

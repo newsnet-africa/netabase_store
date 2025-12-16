@@ -32,7 +32,7 @@ where
     )>,
 
     pub relational: Vec<(
-        TablePermission<'txn, <M::Keys as NetabaseModelKeys<D, M>>::Relational<'db>, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>>,
+        TablePermission<'txn, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>, <M::Keys as NetabaseModelKeys<D, M>>::Relational<'db>>,
         &'db str,
     )>,
 
