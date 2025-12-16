@@ -12,20 +12,22 @@ mod boilerplate_lib;
 use boilerplate_lib::Definition;
 use boilerplate_lib::DefinitionDiscriminants;
 use boilerplate_lib::DefinitionKeys;
-use boilerplate_lib::DefinitionTreeNames;
 use boilerplate_lib::DefinitionSubscriptions;
+use boilerplate_lib::DefinitionTreeNames;
 use boilerplate_lib::DefinitionTwo;
 use boilerplate_lib::DefinitionTwoDiscriminants;
 use boilerplate_lib::GlobalDefinitionKeys;
 use boilerplate_lib::GlobalKeys;
-use boilerplate_lib::models::user::{User, UserID, UserKeys};
 use boilerplate_lib::models::post::{Post, PostID};
-use boilerplate_lib::models::category::{Category, CategoryID};
-use netabase_store::traits::registery::models::model::NetabaseModel;
-use netabase_store::traits::registery::definition::NetabaseDefinition;
+use boilerplate_lib::models::user::{User, UserID, UserKeys};
 use netabase_store::relational::RelationalLink;
 use netabase_store::traits::permissions::AccessType;
+use netabase_store::traits::registery::definition::NetabaseDefinition;
+use netabase_store::traits::registery::models::model::NetabaseModel;
 use strum::AsRefStr;
+
+use crate::boilerplate_lib::Category;
+use crate::boilerplate_lib::CategoryID;
 
 fn main() {
     println!("Netabase Store - Boilerplate Example");
@@ -75,17 +77,26 @@ fn main() {
     // Test secondary keys
     println!("User secondary keys: {:?}", user.get_secondary_keys());
     println!("Post secondary keys: {:?}", post.get_secondary_keys());
-    println!("Category secondary keys: {:?}", category.get_secondary_keys());
+    println!(
+        "Category secondary keys: {:?}",
+        category.get_secondary_keys()
+    );
 
     // Test relational keys
     println!("User relational keys: {:?}", user.get_relational_keys());
     println!("Post relational keys: {:?}", post.get_relational_keys());
-    println!("Category relational keys: {:?}", category.get_relational_keys());
-    
+    println!(
+        "Category relational keys: {:?}",
+        category.get_relational_keys()
+    );
+
     // Test subscription keys
     println!("User subscription keys: {:?}", user.get_subscription_keys());
     println!("Post subscription keys: {:?}", post.get_subscription_keys());
-    println!("Category subscription keys: {:?}", category.get_subscription_keys());
+    println!(
+        "Category subscription keys: {:?}",
+        category.get_subscription_keys()
+    );
 
     // Test discriminants
     println!(
@@ -134,7 +145,10 @@ fn main() {
         }
     }
 
-    println!("Category main table: {}", Category::TREE_NAMES.main.table_name);
+    println!(
+        "Category main table: {}",
+        Category::TREE_NAMES.main.table_name
+    );
     println!("Category secondary tables:");
     for sec in Category::TREE_NAMES.secondary {
         println!("  - {} -> {}", sec.discriminant.as_ref(), sec.table_name);
@@ -158,7 +172,8 @@ fn main() {
     println!("\n=== RelationalLink Variants Demo ===");
 
     // 1. Dehydrated - No lifetime constraints
-    let dehydrated = RelationalLink::<Definition, Definition, User>::new_dehydrated(user_id.clone());
+    let dehydrated =
+        RelationalLink::<Definition, Definition, User>::new_dehydrated(user_id.clone());
     println!("1. Dehydrated link:");
     println!("  - is_hydrated: {}", dehydrated.is_hydrated());
     println!("  - is_owned: {}", dehydrated.is_owned());
@@ -187,26 +202,37 @@ fn main() {
     println!("  - model age: {:?}", owned.get_model().map(|u| u.age));
 
     // 3. Hydrated - Requires 'data lifetime
-    let hydrated = RelationalLink::<Definition, Definition, User>::new_hydrated(user_id.clone(), &user);
+    let hydrated =
+        RelationalLink::<Definition, Definition, User>::new_hydrated(user_id.clone(), &user);
     println!("\n3. Hydrated link:");
     println!("  - is_hydrated: {}", hydrated.is_hydrated());
     println!("  - is_owned: {}", hydrated.is_owned());
     println!("  - is_borrowed: {}", hydrated.is_borrowed());
-    println!("  - model name: {:?}", hydrated.get_model().map(|u| &u.name));
+    println!(
+        "  - model name: {:?}",
+        hydrated.get_model().map(|u| &u.name)
+    );
 
     // 4. Borrowed (simulated - in real usage from AccessGuard)
-    let borrowed = RelationalLink::<Definition, Definition, User>::new_borrowed(user_id.clone(), &user);
+    let borrowed =
+        RelationalLink::<Definition, Definition, User>::new_borrowed(user_id.clone(), &user);
     println!("\n4. Borrowed link:");
     println!("  - is_hydrated: {}", borrowed.is_hydrated());
     println!("  - is_owned: {}", borrowed.is_owned());
     println!("  - is_borrowed: {}", borrowed.is_borrowed());
-    println!("  - model name: {:?}", borrowed.as_borrowed().map(|u| &u.name));
+    println!(
+        "  - model name: {:?}",
+        borrowed.as_borrowed().map(|u| &u.name)
+    );
 
     // 5. Demonstrate conversions
     println!("\n5. Conversions:");
     let dehydrated_from_borrowed = borrowed.clone().dehydrate();
     println!("  - Dehydrated from borrowed:");
-    println!("    - is_dehydrated: {}", dehydrated_from_borrowed.is_dehydrated());
+    println!(
+        "    - is_dehydrated: {}",
+        dehydrated_from_borrowed.is_dehydrated()
+    );
 
     // Extract owned model
     let extracted = owned.into_owned();
@@ -216,7 +242,8 @@ fn main() {
 
     // Demonstrate ordering: Dehydrated < Owned < Hydrated < Borrowed
     println!("\n6. Variant ordering (Dehydrated < Owned < Hydrated < Borrowed):");
-    let test_dehydrated = RelationalLink::<Definition, Definition, User>::new_dehydrated(UserID("test".to_string()));
+    let test_dehydrated =
+        RelationalLink::<Definition, Definition, User>::new_dehydrated(UserID("test".to_string()));
     let test_owned_user = User {
         id: UserID("test".to_string()),
         name: "Test".to_string(),
@@ -237,8 +264,14 @@ fn main() {
         category: RelationalLink::new_dehydrated(category_id.clone()),
         subscriptions: vec![],
     };
-    let test_hydrated = RelationalLink::<Definition, Definition, User>::new_hydrated(UserID("test".to_string()), &test_user);
-    let test_borrowed = RelationalLink::<Definition, Definition, User>::new_borrowed(UserID("test".to_string()), &test_user);
+    let test_hydrated = RelationalLink::<Definition, Definition, User>::new_hydrated(
+        UserID("test".to_string()),
+        &test_user,
+    );
+    let test_borrowed = RelationalLink::<Definition, Definition, User>::new_borrowed(
+        UserID("test".to_string()),
+        &test_user,
+    );
 
     println!("  - Dehydrated < Owned: {}", test_dehydrated < test_owned);
     println!("  - Owned < Hydrated: {}", test_owned < test_hydrated);
@@ -248,49 +281,99 @@ fn main() {
     use netabase_store::traits::permissions::AccessType;
 
     println!("User Model Permissions:");
-    println!("  - Can access User (partner): {}",
-        User::PERMISSIONS.can_access_model(DefinitionDiscriminants::User, AccessType::Read));
-    println!("  - Can hydrate User (partner): {}",
-        User::PERMISSIONS.can_hydrate_relation(DefinitionDiscriminants::User));
-    println!("  - Can access Post: {}",
-        User::PERMISSIONS.can_access_model(DefinitionDiscriminants::Post, AccessType::Read));
-    println!("  - Can access Category (cross-def): {}",
-        User::PERMISSIONS.can_access_cross_definition(&GlobalKeys::Def2Category));
-    println!("  - Can hydrate Category (cross-def): {}",
-        User::PERMISSIONS.can_hydrate_cross_definition(&GlobalKeys::Def2Category));
+    println!(
+        "  - Can access User (partner): {}",
+        User::PERMISSIONS.can_access_model(DefinitionDiscriminants::User, AccessType::Read)
+    );
+    println!(
+        "  - Can hydrate User (partner): {}",
+        User::PERMISSIONS.can_hydrate_relation(DefinitionDiscriminants::User)
+    );
+    println!(
+        "  - Can access Post: {}",
+        User::PERMISSIONS.can_access_model(DefinitionDiscriminants::Post, AccessType::Read)
+    );
+    println!(
+        "  - Can access Category (cross-def): {}",
+        User::PERMISSIONS.can_access_cross_definition(&GlobalKeys::Def2Category)
+    );
+    println!(
+        "  - Can hydrate Category (cross-def): {}",
+        User::PERMISSIONS.can_hydrate_cross_definition(&GlobalKeys::Def2Category)
+    );
 
     println!("\nPost Model Permissions:");
-    println!("  - Can access User (author): {}",
-        Post::PERMISSIONS.can_access_model(DefinitionDiscriminants::User, AccessType::Read));
-    println!("  - Outbound permissions: {} entries", Post::PERMISSIONS.outbound.len());
-    println!("  - Inbound permissions: {} entries", Post::PERMISSIONS.inbound.len());
+    println!(
+        "  - Can access User (author): {}",
+        Post::PERMISSIONS.can_access_model(DefinitionDiscriminants::User, AccessType::Read)
+    );
+    println!(
+        "  - Outbound permissions: {} entries",
+        Post::PERMISSIONS.outbound.len()
+    );
+    println!(
+        "  - Inbound permissions: {} entries",
+        Post::PERMISSIONS.inbound.len()
+    );
 
     println!("\n=== Subscription Registry Demo ===");
     let reg = &<Definition as NetabaseDefinition>::SUBSCRIPTION_REGISTRY;
     println!("Definition subscription registry:");
-    println!("  - Topic1 subscribers: {:?}", reg.get_subscribers("Topic1"));
-    println!("  - Topic3 subscribers: {:?}", reg.get_subscribers("Topic3"));
-    println!("  - User subscribes to: {:?}", reg.get_model_topics(DefinitionDiscriminants::User));
-    println!("  - Post subscribes to: {:?}", reg.get_model_topics(DefinitionDiscriminants::Post));
-    println!("  - Does User subscribe to Topic1? {}", reg.model_subscribes_to("Topic1", DefinitionDiscriminants::User));
-    println!("  - Does Post subscribe to Topic1? {}", reg.model_subscribes_to("Topic1", DefinitionDiscriminants::Post));
+    println!(
+        "  - Topic1 subscribers: {:?}",
+        reg.get_subscribers("Topic1")
+    );
+    println!(
+        "  - Topic3 subscribers: {:?}",
+        reg.get_subscribers("Topic3")
+    );
+    println!(
+        "  - User subscribes to: {:?}",
+        reg.get_model_topics(DefinitionDiscriminants::User)
+    );
+    println!(
+        "  - Post subscribes to: {:?}",
+        reg.get_model_topics(DefinitionDiscriminants::Post)
+    );
+    println!(
+        "  - Does User subscribe to Topic1? {}",
+        reg.model_subscribes_to("Topic1", DefinitionDiscriminants::User)
+    );
+    println!(
+        "  - Does Post subscribe to Topic1? {}",
+        reg.model_subscribes_to("Topic1", DefinitionDiscriminants::Post)
+    );
 
     let reg2 = &<DefinitionTwo as NetabaseDefinition>::SUBSCRIPTION_REGISTRY;
     println!("\nDefinitionTwo subscription registry:");
-    println!("  - General subscribers: {:?}", reg2.get_subscribers("General"));
+    println!(
+        "  - General subscribers: {:?}",
+        reg2.get_subscribers("General")
+    );
 
     println!("\n=== Definition Permissions Demo ===");
     let def_perms = &<Definition as NetabaseDefinition>::PERMISSIONS;
     println!("Definition-level permissions:");
-    println!("  - User access level: {:?}",
-        def_perms.get_model_access(DefinitionDiscriminants::User));
-    println!("  - Post access level: {:?}",
-        def_perms.get_model_access(DefinitionDiscriminants::Post));
-    println!("  - Requires write access: {}", def_perms.requires_write_access());
-    println!("  - Can access Def2 (read): {}",
-        def_perms.allows_cross_definition_read(&GlobalDefinitionKeys::Def2));
-    println!("  - Can access Def2 (write): {}",
-        def_perms.allows_cross_definition_write(&GlobalDefinitionKeys::Def2));
+    println!(
+        "  - User access level: {:?}",
+        def_perms.get_model_access(DefinitionDiscriminants::User)
+    );
+    println!(
+        "  - Post access level: {:?}",
+        def_perms.get_model_access(DefinitionDiscriminants::Post)
+    );
+    println!(
+        "  - Requires write access: {}",
+        def_perms.requires_write_access()
+    );
+    println!(
+        "  - Can access Def2 (read): {}",
+        def_perms.allows_cross_definition_read(&GlobalDefinitionKeys::Def2)
+    );
+    println!(
+        "  - Can access Def2 (write): {}",
+        def_perms.allows_cross_definition_write(&GlobalDefinitionKeys::Def2)
+    );
 
     println!("\n✅ All features demonstrated successfully!");
     println!("\nType system test completed successfully!");

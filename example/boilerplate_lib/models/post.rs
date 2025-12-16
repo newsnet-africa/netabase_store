@@ -1,5 +1,5 @@
-use crate::boilerplate_lib::models::user::{User, UserID};
-use crate::boilerplate_lib::{Definition, DefinitionDiscriminants, DefinitionSubscriptions};
+use super::user::{User, UserID};
+use crate::{Definition, DefinitionDiscriminants, DefinitionSubscriptions};
 use netabase_store::databases::redb::transaction::ModelOpenTables;
 use netabase_store::relational::RelationalLink;
 use netabase_store::traits::registery::models::{
@@ -239,12 +239,12 @@ impl NetabaseModel<Definition> for Post {
     const PERMISSIONS: ModelPermissions<'static, Definition> = ModelPermissions {
         // Outbound: Which models Post can access
         outbound: &[
-            (crate::boilerplate_lib::DefinitionDiscriminants::User, AccessLevel::READ_ONLY),  // Post->author
+            (DefinitionDiscriminants::User, AccessLevel::READ_ONLY),  // Post->author
         ],
 
         // Inbound: Which models can access Post
         inbound: &[
-            (crate::boilerplate_lib::DefinitionDiscriminants::User, AccessLevel::READ_ONLY),  // User can read posts
+            (DefinitionDiscriminants::User, AccessLevel::READ_ONLY),  // User can read posts
         ],
 
         // Cross-definition access

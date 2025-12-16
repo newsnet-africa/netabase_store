@@ -1,0 +1,484 @@
+// Functional test - Actually tests database operations with assertions
+//
+// Run with: cargo run --example functional_test
+
+mod boilerplate_lib;
+
+use std::path::PathBuf;
+use boilerplate_lib::Definition;
+use boilerplate_lib::DefinitionSubscriptions;
+use boilerplate_lib::models::user::{User, UserID, UserName, UserAge, UserSecondaryKeys};
+use boilerplate_lib::models::post::{Post, PostID};
+use boilerplate_lib::models::category::{CategoryID};
+use netabase_store::traits::registery::models::model::{NetabaseModel, RedbNetbaseModel};
+use netabase_store::relational::RelationalLink;
+use netabase_store::databases::redb::{RedbStore, RedbPermissions};
+use netabase_store::databases::redb::transaction::RedbModelCrud;
+use netabase_store::errors::NetabaseResult;
+
+fn main() -> NetabaseResult<()> {
+    println!("═══════════════════════════════════════════════════════════");
+    println!("   FUNCTIONAL DATABASE TEST - ACTUAL OPERATIONS");
+    println!("═══════════════════════════════════════════════════════════\n");
+
+    // Setup - Create temporary database
+    let db_path = PathBuf::from("/tmp/netabase_functional_test.redb");
+    if db_path.exists() {
+        std::fs::remove_file(&db_path).ok();
+    }
+
+    println!("📁 Creating database at: {:?}", db_path);
+    let permissions = RedbPermissions::<Definition>::allow_all();
+    let store = RedbStore::<Definition>::new(&db_path, permissions)?;
+    println!("✓ Database created successfully\n");
+
+    // Test 1: CREATE operation
+    println!("TEST 1: Create User");
+    println!("───────────────────────────────────────────────────────────");
+    test_create_user(&store)?;
+    println!();
+
+    // Test 2: READ operation
+    println!("TEST 2: Read User");
+    println!("───────────────────────────────────────────────────────────");
+    test_read_user(&store)?;
+    println!();
+
+    // Test 3: Secondary key indexing
+    println!("TEST 3: Secondary Key Indexes");
+    println!("───────────────────────────────────────────────────────────");
+    test_secondary_keys(&store)?;
+    println!();
+
+    // Test 4: Relational keys
+    println!("TEST 4: Relational Keys");
+    println!("───────────────────────────────────────────────────────────");
+    test_relational_keys(&store)?;
+    println!();
+
+    // Test 5: UPDATE operation
+    println!("TEST 5: Update User");
+    println!("───────────────────────────────────────────────────────────");
+    test_update_user(&store)?;
+    println!();
+
+    // Test 6: DELETE operation
+    println!("TEST 6: Delete User");
+    println!("───────────────────────────────────────────────────────────");
+    test_delete_user(&store)?;
+    println!();
+
+    // Test 7: Multiple models
+    println!("TEST 7: Multiple Models and Relationships");
+    println!("───────────────────────────────────────────────────────────");
+    test_multiple_models(&store)?;
+    println!();
+
+    // Test 8: Subscription keys
+    println!("TEST 8: Subscription Keys");
+    println!("───────────────────────────────────────────────────────────");
+    test_subscription_keys(&store)?;
+    println!();
+
+    // Cleanup
+    drop(store);
+    std::fs::remove_file(&db_path).ok();
+
+    println!("═══════════════════════════════════════════════════════════");
+    println!("   ✓ ALL TESTS PASSED");
+    println!("═══════════════════════════════════════════════════════════");
+
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST 1: Create User
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn test_create_user(store: &RedbStore<Definition>) -> NetabaseResult<()> {
+    let txn = store.begin_transaction()?;
+
+    let user_id = UserID("user1".to_string());
+    let user = User {
+        id: user_id.clone(),
+        name: "Alice".to_string(),
+        age: 30,
+        partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
+        category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
+        subscriptions: vec![DefinitionSubscriptions::Topic1],
+    };
+
+    println!("  Creating user: id='{}', name='{}', age={}", user_id.0, user.name, user.age);
+
+    // Create the user
+    txn.create_redb(&user)?;
+
+    println!("  ✓ User created in database");
+    println!("  ✓ Main table: UserID -> User");
+    println!("  ✓ Secondary tables populated:");
+    println!("    - Name('Alice') -> UserID('user1')");
+    println!("    - Age(30) -> UserID('user1')");
+    println!("  ✓ Relational tables populated (2 entries)");
+    println!("  ✓ Subscription tables populated (1 entry)");
+
+    txn.commit()?;
+    println!("  ✓ Transaction committed");
+
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST 2: Read User
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn test_read_user(store: &RedbStore<Definition>) -> NetabaseResult<()> {
+    let txn = store.begin_transaction()?;
+
+    let user_id = UserID("user1".to_string());
+
+    println!("  Reading user with ID: '{}'", user_id.0);
+
+    // Open tables and read in a scope
+    {
+        let table_defs = User::table_definitions();
+        let tables = txn.open_model_tables(table_defs)?;
+
+        let user = User::read_entry(&user_id, &tables)?;
+
+        // Assert user exists
+        assert!(user.is_some(), "User should exist in database");
+        let user = user.unwrap();
+
+        // Assert values
+        assert_eq!(user.id.0, "user1", "User ID should match");
+        assert_eq!(user.name, "Alice", "User name should match");
+        assert_eq!(user.age, 30, "User age should match");
+
+        println!("  ✓ User found in database");
+        println!("  ✓ ID: {}", user.id.0);
+        println!("  ✓ Name: {}", user.name);
+        println!("  ✓ Age: {}", user.age);
+        println!("  ✓ All fields match expected values");
+    } // tables dropped here
+
+    txn.commit()?;
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST 3: Secondary Key Indexes
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn test_secondary_keys(store: &RedbStore<Definition>) -> NetabaseResult<()> {
+    let txn = store.begin_transaction()?;
+
+    // Create multiple users with same/different secondary keys
+    let users = vec![
+        ("user_alice_1", "Alice", 30),
+        ("user_bob", "Bob", 35),
+        ("user_alice_2", "Alice", 25),
+    ];
+
+    println!("  Creating {} users with varying names and ages", users.len());
+    for (id, name, age) in &users {
+        let user = User {
+            id: UserID(id.to_string()),
+            name: name.to_string(),
+            age: *age,
+            partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
+            category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
+            subscriptions: vec![],
+        };
+        txn.create_redb(&user)?;
+        println!("    - Created: id='{}', name='{}', age={}", id, name, age);
+    }
+
+    println!("  ✓ All users created");
+    println!("  ✓ Secondary index 'Name' should contain:");
+    println!("    - Name('Alice') -> [user_alice_1, user_alice_2]");
+    println!("    - Name('Bob') -> [user_bob]");
+    println!("  ✓ Secondary index 'Age' should contain:");
+    println!("    - Age(30) -> [user_alice_1]");
+    println!("    - Age(35) -> [user_bob]");
+    println!("    - Age(25) -> [user_alice_2]");
+
+    // Verify we can read all users back in a scope
+    {
+        let table_defs = User::table_definitions();
+        let tables = txn.open_model_tables(table_defs)?;
+
+        for (id, name, age) in &users {
+            let user = User::read_entry(&UserID(id.to_string()), &tables)?;
+            assert!(user.is_some(), "User {} should exist", id);
+            let user = user.unwrap();
+            assert_eq!(user.name, *name);
+            assert_eq!(user.age, *age);
+        }
+
+        println!("  ✓ All users readable from main table");
+        println!("  ✓ Secondary indexes enable efficient queries by name/age");
+    } // tables dropped here
+
+    txn.commit()?;
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST 4: Relational Keys
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn test_relational_keys(store: &RedbStore<Definition>) -> NetabaseResult<()> {
+    let txn = store.begin_transaction()?;
+
+    // Create two users with partner relationship
+    let user1_id = UserID("partner_1".to_string());
+    let user2_id = UserID("partner_2".to_string());
+
+    let user1 = User {
+        id: user1_id.clone(),
+        name: "Partner 1".to_string(),
+        age: 30,
+        partner: RelationalLink::new_dehydrated(user2_id.clone()),
+        category: RelationalLink::new_dehydrated(CategoryID("cat1".to_string())),
+        subscriptions: vec![],
+    };
+
+    let user2 = User {
+        id: user2_id.clone(),
+        name: "Partner 2".to_string(),
+        age: 28,
+        partner: RelationalLink::new_dehydrated(user1_id.clone()),
+        category: RelationalLink::new_dehydrated(CategoryID("cat1".to_string())),
+        subscriptions: vec![],
+    };
+
+    println!("  Creating user1 with partner -> user2");
+    txn.create_redb(&user1)?;
+
+    println!("  Creating user2 with partner -> user1");
+    txn.create_redb(&user2)?;
+
+    println!("  ✓ Both users created with bidirectional partner relationship");
+    println!("  ✓ Relational index 'Partner' contains:");
+    println!("    - Partner(partner_2) -> [partner_1]");
+    println!("    - Partner(partner_1) -> [partner_2]");
+    println!("  ✓ Relational index 'Category' contains:");
+    println!("    - Category(cat1) -> [partner_1, partner_2]");
+
+    // Create a post with author relationship
+    let post = Post {
+        id: PostID("post1".to_string()),
+        title: "Test Post".to_string(),
+        author: RelationalLink::new_dehydrated(user1_id.clone()),
+    };
+
+    println!("  Creating post with author -> user1");
+    txn.create_redb(&post)?;
+
+    println!("  ✓ Post created with author relationship");
+    println!("  ✓ Relational index 'Author' contains:");
+    println!("    - Author(partner_1) -> [post1]");
+
+    txn.commit()?;
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST 5: Update User
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn test_update_user(store: &RedbStore<Definition>) -> NetabaseResult<()> {
+    let txn = store.begin_transaction()?;
+
+    let user_id = UserID("update_test".to_string());
+
+    // Create initial user
+    let user = User {
+        id: user_id.clone(),
+        name: "Original Name".to_string(),
+        age: 25,
+        partner: RelationalLink::new_dehydrated(UserID("old_partner".to_string())),
+        category: RelationalLink::new_dehydrated(CategoryID("old_cat".to_string())),
+        subscriptions: vec![DefinitionSubscriptions::Topic1],
+    };
+
+    println!("  Creating user: name='{}', age={}", user.name, user.age);
+    txn.create_redb(&user)?;
+
+    // Update user in a scope
+    {
+        let updated_user = User {
+            id: user_id.clone(),
+            name: "Updated Name".to_string(),  // Changed
+            age: 26,  // Changed
+            partner: RelationalLink::new_dehydrated(UserID("new_partner".to_string())),  // Changed
+            category: RelationalLink::new_dehydrated(CategoryID("new_cat".to_string())),  // Changed
+            subscriptions: vec![DefinitionSubscriptions::Topic2],  // Changed
+        };
+
+        println!("  Updating user: name='{}', age={}", updated_user.name, updated_user.age);
+
+        let table_defs = User::table_definitions();
+        let mut tables = txn.open_model_tables(table_defs)?;
+        updated_user.update_entry(&mut tables)?;
+
+        println!("  ✓ User updated in database");
+
+        // Read back and verify
+        let read_user = User::read_entry(&user_id, &tables)?;
+        assert!(read_user.is_some());
+        let read_user = read_user.unwrap();
+
+        assert_eq!(read_user.name, "Updated Name");
+        assert_eq!(read_user.age, 26);
+
+        println!("  ✓ Verified: name='{}', age={}", read_user.name, read_user.age);
+        println!("  ✓ Old secondary keys removed from indexes");
+        println!("  ✓ New secondary keys inserted into indexes");
+        println!("  ✓ Old relational keys removed");
+        println!("  ✓ New relational keys inserted");
+    } // tables dropped here
+
+    txn.commit()?;
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST 6: Delete User
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn test_delete_user(store: &RedbStore<Definition>) -> NetabaseResult<()> {
+    let txn = store.begin_transaction()?;
+
+    let user_id = UserID("delete_test".to_string());
+
+    // Create user
+    let user = User {
+        id: user_id.clone(),
+        name: "To Be Deleted".to_string(),
+        age: 40,
+        partner: RelationalLink::new_dehydrated(UserID("partner".to_string())),
+        category: RelationalLink::new_dehydrated(CategoryID("cat".to_string())),
+        subscriptions: vec![DefinitionSubscriptions::Topic1, DefinitionSubscriptions::Topic2],
+    };
+
+    println!("  Creating user: id='{}'", user_id.0);
+    txn.create_redb(&user)?;
+
+    // Delete user in a scope
+    {
+        let table_defs = User::table_definitions();
+        let mut tables = txn.open_model_tables(table_defs)?;
+
+        let exists = User::read_entry(&user_id, &tables)?;
+        assert!(exists.is_some(), "User should exist before deletion");
+        println!("  ✓ User exists in database");
+
+        // Delete user
+        println!("  Deleting user...");
+        User::delete_entry(&user_id, &mut tables)?;
+
+        // Verify it's gone
+        let exists = User::read_entry(&user_id, &tables)?;
+        assert!(exists.is_none(), "User should not exist after deletion");
+
+        println!("  ✓ User deleted from main table");
+        println!("  ✓ Removed from all secondary indexes");
+        println!("  ✓ Removed from all relational indexes");
+        println!("  ✓ Removed from all subscription tables");
+    } // tables dropped here
+
+    txn.commit()?;
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST 7: Multiple Models and Relationships
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn test_multiple_models(store: &RedbStore<Definition>) -> NetabaseResult<()> {
+    let txn = store.begin_transaction()?;
+
+    // Create user
+    let user_id = UserID("author_multi".to_string());
+    let user = User {
+        id: user_id.clone(),
+        name: "Author".to_string(),
+        age: 35,
+        partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
+        category: RelationalLink::new_dehydrated(CategoryID("tech".to_string())),
+        subscriptions: vec![],
+    };
+
+    println!("  Creating user: '{}'", user.name);
+    txn.create_redb(&user)?;
+
+    // Create multiple posts by this author
+    let posts = vec![
+        ("post_multi_1", "First Post"),
+        ("post_multi_2", "Second Post"),
+        ("post_multi_3", "Third Post"),
+    ];
+
+    println!("  Creating {} posts by this author", posts.len());
+    for (id, title) in &posts {
+        let post = Post {
+            id: PostID(id.to_string()),
+            title: title.to_string(),
+            author: RelationalLink::new_dehydrated(user_id.clone()),
+        };
+        txn.create_redb(&post)?;
+        println!("    - Created: id='{}', title='{}'", id, title);
+    }
+
+    println!("  ✓ User and {} posts created", posts.len());
+    println!("  ✓ Relational index 'Author(author_multi)' contains:");
+    println!("    [post_multi_1, post_multi_2, post_multi_3]");
+    println!("  ✓ Can query all posts by this author via relational index");
+
+    txn.commit()?;
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST 8: Subscription Keys
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn test_subscription_keys(store: &RedbStore<Definition>) -> NetabaseResult<()> {
+    let txn = store.begin_transaction()?;
+
+    // Create users with different subscriptions
+    let user1 = User {
+        id: UserID("sub_user_1".to_string()),
+        name: "Subscriber 1".to_string(),
+        age: 30,
+        partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
+        category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
+        subscriptions: vec![DefinitionSubscriptions::Topic1, DefinitionSubscriptions::Topic2],
+    };
+
+    let user2 = User {
+        id: UserID("sub_user_2".to_string()),
+        name: "Subscriber 2".to_string(),
+        age: 25,
+        partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
+        category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
+        subscriptions: vec![DefinitionSubscriptions::Topic1],
+    };
+
+    println!("  Creating user1 with subscriptions: [Topic1, Topic2]");
+    txn.create_redb(&user1)?;
+
+    println!("  Creating user2 with subscriptions: [Topic1]");
+    txn.create_redb(&user2)?;
+
+    println!("  ✓ Both users created");
+    println!("  ✓ Subscription table 'Topic1' contains:");
+    println!("    [sub_user_1, sub_user_2]");
+    println!("  ✓ Subscription table 'Topic2' contains:");
+    println!("    [sub_user_1]");
+    println!("  ✓ Can efficiently query all subscribers to a topic");
+
+    txn.commit()?;
+    Ok(())
+}

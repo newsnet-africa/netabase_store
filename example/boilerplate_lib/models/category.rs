@@ -1,6 +1,6 @@
-use crate::boilerplate_lib::{
-    DefinitionTwo, DefinitionTwoDiscriminants, DefinitionTwoSubscriptions,
-};
+// Import DefinitionTwo types - using super::super doesn't help with circular deps
+// These need to be defined in crate root before models module is processed
+use crate::{DefinitionTwo, DefinitionTwoDiscriminants, DefinitionTwoSubscriptions};
 use netabase_store::databases::redb::transaction::ModelOpenTables;
 use netabase_store::traits::registery::{
     models::{

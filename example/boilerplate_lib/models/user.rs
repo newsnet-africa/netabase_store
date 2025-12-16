@@ -1,6 +1,6 @@
-use crate::boilerplate_lib::models::category::{Category, CategoryID};
-use crate::boilerplate_lib::{
-    Definition, DefinitionDiscriminants, DefinitionSubscriptions, DefinitionTwo,
+use crate::{
+    Category, CategoryID, Definition, DefinitionDiscriminants, DefinitionSubscriptions,
+    DefinitionTwo, GlobalKeys,
 };
 use netabase_store::databases::redb::transaction::ModelOpenTables;
 use netabase_store::relational::RelationalLink;
@@ -13,8 +13,10 @@ use netabase_store::traits::registery::models::{
     model::{NetabaseModel, NetabaseModelMarker, RedbNetbaseModel},
     treenames::{DiscriminantTableName, ModelTreeNames},
 };
+use std::fmt::Display;
 
 use bincode::{BorrowDecode, Decode, Encode};
+use derive_more::Display;
 use redb::{Key, Value};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -71,6 +73,40 @@ pub struct User {
     pub partner: RelationalLink<'static, Definition, Definition, User>,
     pub category: RelationalLink<'static, Definition, DefinitionTwo, Category>,
     pub subscriptions: Vec<DefinitionSubscriptions>,
+}
+
+use std::fmt;
+
+impl fmt::Display for User {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Extract simple fields
+        let id = format!("{:?}", self.id); // requires Display on UserID
+        let name = &self.name;
+        let age = self.age;
+
+        // For RelationalLink, show either "none" or the referenced id if available.
+        let partner = &self.partner.clone().dehydrate();
+        let category = &self.category.clone().dehydrate();
+
+        // Subscriptions as comma-separated list
+        let subs: Vec<String> = self
+            .subscriptions
+            .iter()
+            .map(|s| match s {
+                DefinitionSubscriptions::Topic1 => "Topic1".to_string(),
+                DefinitionSubscriptions::Topic2 => "Topic2".to_string(),
+                DefinitionSubscriptions::Topic3 => "Topic3".to_string(),
+                DefinitionSubscriptions::Topic4 => "Topic4".to_string(),
+            })
+            .collect();
+        let subs = subs.join(", ");
+
+        write!(
+            f,
+            "User {{ id: {}, name: \"{}\", age: {}, partner: {:?}, category: {:?}, subscriptions: [{}] }}",
+            id, name, age, partner, category, subs
+        )
+    }
 }
 
 // Manual impl for Deserialize to handle 'static lifetimes
@@ -135,7 +171,8 @@ impl<'de> serde::Deserialize<'de> for User {
                                 return Err(serde::de::Error::duplicate_field("partner"));
                             }
                             // Deserialize ignoring lifetime
-                            let link: RelationalLink<'_, Definition, Definition, User> = map.next_value()?;
+                            let link: RelationalLink<'_, Definition, Definition, User> =
+                                map.next_value()?;
                             partner = Some(unsafe { std::mem::transmute(link) });
                         }
                         Field::Category => {
@@ -143,7 +180,8 @@ impl<'de> serde::Deserialize<'de> for User {
                                 return Err(serde::de::Error::duplicate_field("category"));
                             }
                             // Deserialize ignoring lifetime
-                            let link: RelationalLink<'_, Definition, DefinitionTwo, Category> = map.next_value()?;
+                            let link: RelationalLink<'_, Definition, DefinitionTwo, Category> =
+                                map.next_value()?;
                             category = Some(unsafe { std::mem::transmute(link) });
                         }
                         Field::Subscriptions => {
@@ -159,8 +197,10 @@ impl<'de> serde::Deserialize<'de> for User {
                 let name = name.ok_or_else(|| serde::de::Error::missing_field("name"))?;
                 let age = age.ok_or_else(|| serde::de::Error::missing_field("age"))?;
                 let partner = partner.ok_or_else(|| serde::de::Error::missing_field("partner"))?;
-                let category = category.ok_or_else(|| serde::de::Error::missing_field("category"))?;
-                let subscriptions = subscriptions.ok_or_else(|| serde::de::Error::missing_field("subscriptions"))?;
+                let category =
+                    category.ok_or_else(|| serde::de::Error::missing_field("category"))?;
+                let subscriptions = subscriptions
+                    .ok_or_else(|| serde::de::Error::missing_field("subscriptions"))?;
 
                 Ok(User {
                     id,
@@ -325,7 +365,7 @@ pub enum UserKeys {
 
 // --- User Implementation ---
 
-use netabase_store::traits::permissions::{ModelPermissions, AccessLevel, CrossAccessLevel};
+use netabase_store::traits::permissions::{AccessLevel, CrossAccessLevel, ModelPermissions};
 
 impl NetabaseModel<Definition> for User {
     type Keys = UserKeys;
@@ -373,21 +413,18 @@ impl NetabaseModel<Definition> for User {
                 AccessLevel::new(true, false, false, false, true), // read + hydrate only
             ),
             // User can read posts
-            (
-                DefinitionDiscriminants::Post,
-                AccessLevel::READ_ONLY,
-            ),
+            (DefinitionDiscriminants::Post, AccessLevel::READ_ONLY),
         ],
 
         // Inbound: Which models can access User
         inbound: &[
-            (DefinitionDiscriminants::Post, AccessLevel::READ_ONLY),  // Post->author
-            (DefinitionDiscriminants::User, AccessLevel::READ_ONLY),   // User->partner
+            (DefinitionDiscriminants::Post, AccessLevel::READ_ONLY), // Post->author
+            (DefinitionDiscriminants::User, AccessLevel::READ_ONLY), // User->partner
         ],
 
         // Cross-definition access
         cross_definition: &[
-            (crate::boilerplate_lib::GlobalKeys::Def2Category, CrossAccessLevel::READ),  // User->category
+            (GlobalKeys::Def2Category, CrossAccessLevel::READ), // User->category
         ],
     };
 
@@ -452,15 +489,10 @@ impl NetabaseModelKeys<Definition, User> for UserKeys {
 }
 
 impl<'a> NetabaseModelPrimaryKey<'a, Definition, User, UserKeys> for UserID {}
-impl<'a> NetabaseModelSecondaryKey<'a, Definition, User, UserKeys>
-    for UserSecondaryKeys
-{
+impl<'a> NetabaseModelSecondaryKey<'a, Definition, User, UserKeys> for UserSecondaryKeys {
     type PrimaryKey = UserID;
 }
-impl<'a> NetabaseModelRelationalKey<'a, Definition, User, UserKeys>
-    for UserRelationalKeys
-{
-}
+impl<'a> NetabaseModelRelationalKey<'a, Definition, User, UserKeys> for UserRelationalKeys {}
 
 // Manual impl for User
 impl Value for User {

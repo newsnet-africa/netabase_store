@@ -125,7 +125,7 @@ where
     }
 }
 
-pub struct ModelOpenTables<'a, D: RedbDefinition, M: NetabaseModel<D>> 
+pub struct ModelTableNames<'a, D: RedbDefinition, M: NetabaseModel<D>> 
 where
     D::Discriminant: 'static + std::fmt::Debug,
     for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
