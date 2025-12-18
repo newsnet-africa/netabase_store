@@ -77,9 +77,9 @@ impl<'de> serde::Deserialize<'de> for Post {
                                 return Err(serde::de::Error::duplicate_field("author"));
                             }
                             // Deserialize ignoring lifetime - safe because RelationalLink deserializes to Dehydrated/Owned
-                            let link: RelationalLink<'_, Definition, Definition, User> =
+                            let link: RelationalLink<'static, Definition, Definition, User> =
                                 map.next_value()?;
-                            author = Some(unsafe { std::mem::transmute(link) });
+                            author = Some(link);
                         }
                     }
                 }
@@ -144,6 +144,27 @@ pub enum PostSubscriptions {
 
 impl NetabaseModelSubscriptionKey<Definition, Post, PostKeys> for PostSubscriptions {}
 
+impl From<DefinitionSubscriptions> for PostSubscriptions {
+    fn from(value: DefinitionSubscriptions) -> Self {
+        match value {
+            DefinitionSubscriptions::Topic3 => PostSubscriptions::Topic3(value),
+            DefinitionSubscriptions::Topic4 => PostSubscriptions::Topic4(value),
+            _ => panic!("Unsupported subscription topic for Post model"),
+        }
+    }
+}
+
+impl TryInto<DefinitionSubscriptions> for PostSubscriptions {
+    type Error = ();
+
+    fn try_into(self) -> Result<DefinitionSubscriptions, Self::Error> {
+        match self {
+            PostSubscriptions::Topic3(def_sub) => Ok(def_sub),
+            PostSubscriptions::Topic4(def_sub) => Ok(def_sub),
+        }
+    }
+}
+
 #[derive(
     Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Encode, Decode, Serialize, Deserialize, Hash,
 )]
@@ -203,8 +224,6 @@ pub enum PostKeys {
 
 // --- Post Implementation ---
 
-use netabase_store::traits::permissions::{AccessLevel, ModelPermissions};
-
 impl NetabaseModel<Definition> for Post {
     type Keys = PostKeys;
 
@@ -231,14 +250,6 @@ impl NetabaseModel<Definition> for Post {
                 "Definition:Subscription:Topic4",
             ),
         ]),
-    };
-
-    const PERMISSIONS: ModelPermissions<'static, Definition> = ModelPermissions {
-        // Outbound: Which models Post can access within the same definition
-        // Now using DefinitionTreeNames instead of DefinitionDiscriminants
-        outbound: &[
-            (User::TREE_NAMES.main, AccessLevel::READ_ONLY), // Post->author
-        ],
     };
 
     fn get_primary_key(&self) -> PostID {
@@ -409,4 +420,5 @@ impl_redb_value_key_for_owned!(PostSubscriptions);
 // RedbNetbaseModel impls - only needs type def as TREE_NAMES is in NetabaseModel
 impl<'db> RedbNetbaseModel<'db, Definition> for Post {
     type RedbTables = ModelOpenTables<'db, 'db, Definition, Self>;
+    type TableV = Post;
 }

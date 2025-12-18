@@ -7,7 +7,8 @@ pub trait NetabaseModelSubscriptionKey<
     D: NetabaseDefinition,
     M: NetabaseModelMarker<D>,
     K: NetabaseModelKeys<D, M>,
-> where
+>: From<D::SubscriptionKeys> + TryInto<D::SubscriptionKeys>
+where
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
     <D as strum::IntoDiscriminant>::Discriminant: 'static,
 {

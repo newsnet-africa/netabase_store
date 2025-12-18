@@ -6,11 +6,9 @@ use redb::{ReadableDatabase, TransactionError};
 use strum::IntoDiscriminant;
 
 use crate::{
-    databases::redb::{RedbPermissions, RedbStorePermissions},
     errors::{NetabaseError, NetabaseResult},
     traits::{
         database::transaction::NBTransaction,
-        permissions::{AccessLevel, ModelPermissions},
         registery::{
             definition::{NetabaseDefinition, redb_definition::RedbDefinition},
             models::{
@@ -34,8 +32,6 @@ where
     D: Clone,
 {
     transaction: RedbTransactionType<'txn, D>,
-    #[allow(dead_code)]
-    permissions: RedbPermissions<D>,
 }
 
 pub enum RedbTransactionType<'txn, D: RedbDefinition>
@@ -54,32 +50,13 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     D: Clone,
 {
-    pub fn new(db: &RedbStorePermissions, permissions: RedbPermissions<D>) -> NetabaseResult<Self> {
-        let transaction = match db {
-            RedbStorePermissions::ReadOnly(read_only_database) => {
-                let read_txn = read_only_database
-                    .begin_read()
-                    .map_err(|e: TransactionError| NetabaseError::RedbTransactionError(e.into()))?;
-                RedbTransactionType::Read(NetabaseRedbReadTransaction::new(
-                    read_txn,
-                    permissions.clone(),
-                ))
-            }
-            RedbStorePermissions::ReadWrite(database) => {
-                let write_txn = database
-                    .begin_write()
-                    .map_err(|e: TransactionError| NetabaseError::RedbTransactionError(e.into()))?;
-                RedbTransactionType::Write(NetabaseRedbWriteTransaction::new(
-                    write_txn,
-                    permissions.clone(),
-                ))
-            }
-        };
+    pub fn new(db: &redb::Database) -> NetabaseResult<Self> {
+        let write_txn = db
+            .begin_write()
+            .map_err(|e: TransactionError| NetabaseError::RedbTransactionError(e.into()))?;
+        let transaction = RedbTransactionType::Write(NetabaseRedbWriteTransaction::new(write_txn));
 
-        Ok(RedbTransactionInner {
-            transaction,
-            permissions,
-        })
+        Ok(RedbTransactionInner { transaction })
     }
 
     /// Prepare model tables for batch operations.
@@ -88,9 +65,10 @@ where
     pub fn prepare_model<'txn, M>(&'txn self) -> NetabaseResult<ModelOpenTables<'txn, 'db, D, M>>
     where
         'db: 'txn,
-        M: RedbNetbaseModel<'db, D> + redb::Key + 'static,
+        M: RedbNetbaseModel<'db, D> + redb::Key,
         D::Discriminant: 'static + std::fmt::Debug,
         D: Clone + 'static,
+        D::SubscriptionKeys: redb::Key + 'static,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key + 'static,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key + 'static,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key + 'static,
@@ -99,25 +77,21 @@ where
         for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: 'static,
     {
-        self.open_model_tables(M::PERMISSIONS, M::table_definitions())
+        self.open_model_tables(M::table_definitions())
     }
 
-    /// Open tables for a specific model with proper permission checking (concrete implementation)
+    /// Open tables for a specific model (concrete implementation)
     ///
-    /// TODO: Implement full relational permission filtering
-    /// Currently opens all relational tables defined in M::TREE_NAMES.
-    /// Future enhancement: Filter relational tables based on M::PERMISSIONS to only open
-    /// tables for which the model has access permissions. This requires mapping from
-    /// relational key discriminants to target model discriminants.
+    /// Opens all tables defined in M::TREE_NAMES for the given model.
     pub fn open_model_tables<'txn, 'data, M>(
         &'txn self,
-        permission: ModelPermissions<'data, D>,
         definitions: RedbModelTableDefinitions<'data, M, D>,
     ) -> NetabaseResult<ModelOpenTables<'txn, 'data, D, M>>
     where
-        M: RedbNetbaseModel<'data, D> + redb::Key + 'static,
+        M: RedbNetbaseModel<'data, D> + redb::Key,
         D::Discriminant: 'static + std::fmt::Debug,
         D: Clone,
+        D::SubscriptionKeys: redb::Key + 'static,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'data>: redb::Key + 'static,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'data>: redb::Key + 'static,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'data>: redb::Key + 'static,
@@ -126,7 +100,6 @@ where
         for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'data>: 'static,
     {
-        // Access model permissions for future permission-based filtering
         let _table_definitions = definitions; // Keep for future use
 
         // Use static table names from M::TREE_NAMES
@@ -220,13 +193,6 @@ where
                 let relational_tables: Result<Vec<_>, NetabaseError> = M::TREE_NAMES
                     .relational
                     .iter()
-                    // keep only tables we are allowed to create
-                    .filter(|disc_table| {
-                        !permission
-                            .outbound
-                            .iter()
-                            .any(|(n, a)| n.try_into() == Ok(disc_table) && a.create)
-                    })
                     .map(|disc_table| {
                         let def = redb::MultimapTableDefinition::new(disc_table.table_name);
 
@@ -277,7 +243,7 @@ where
     {
         match &self.transaction {
             RedbTransactionType::Read(read_txn) => f(&read_txn.inner),
-            RedbTransactionType::Write(_) => return Err(NetabaseError::Permission),
+            RedbTransactionType::Write(_) => return Err(NetabaseError::Other),
         }
     }
 
@@ -288,7 +254,7 @@ where
     {
         match &self.transaction {
             RedbTransactionType::Write(write_txn) => f(&write_txn.inner),
-            RedbTransactionType::Read(_) => Err(NetabaseError::Permission),
+            RedbTransactionType::Read(_) => Err(NetabaseError::Other),
         }
     }
 
@@ -306,7 +272,8 @@ where
 
     pub fn create_redb<'data: 'db, M>(&'db self, model: &'data M) -> NetabaseResult<()>
     where
-        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone + std::borrow::Borrow<<M as redb::Value>::SelfType<'db>> + redb::Value<SelfType<'db> = M>,
+        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
+        M::TableV: redb::Value<SelfType<'db> = M>,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: Clone,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: Clone,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: Clone,
@@ -323,17 +290,19 @@ where
     // Add Subscription bounds
         for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: 'static,
-        D: 'static
+        D: 'static,
+        D::SubscriptionKeys: redb::Key + 'static,
     {
         let definitions = M::table_definitions();
-        let mut tables = self.open_model_tables(M::PERMISSIONS, definitions)?;
+        let mut tables = self.open_model_tables(definitions)?;
 
         model.create_entry(&mut tables)
     }
 
     pub fn read_redb<'data: 'db, M>(&'db self, key: &'data <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>) -> NetabaseResult<Option<M>>
     where
-        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone + std::borrow::Borrow<<M as redb::Value>::SelfType<'db>> + redb::Value<SelfType<'db> = M>,
+        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
+        M::TableV: redb::Value<SelfType<'db> = M>,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: Clone,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: Clone,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: Clone,
@@ -349,17 +318,19 @@ where
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static, <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db> as redb::Value>::SelfType<'db>>,
         for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: 'static,
-        D: 'static
+        D: 'static,
+        D::SubscriptionKeys: redb::Key + 'static,
     {
         let definitions = M::table_definitions();
-        let tables = self.open_model_tables(M::PERMISSIONS, definitions)?;
+        let tables = self.open_model_tables(definitions)?;
 
         M::read_entry(key, &tables)
     }
 
     pub fn update_redb<'data: 'db, M>(&'db self, model: &'data M) -> NetabaseResult<()>
     where
-        M: RedbModelCrud<'db,  D> + RedbNetbaseModel<'db, D> + Clone + std::borrow::Borrow<<M as redb::Value>::SelfType<'db>> + redb::Value<SelfType<'db> = M>,
+        M: RedbModelCrud<'db,  D> + RedbNetbaseModel<'db, D> + Clone,
+        M::TableV: redb::Value<SelfType<'db> = M>,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: Clone,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: Clone,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: Clone,
@@ -375,17 +346,19 @@ where
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static, <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db> as redb::Value>::SelfType<'db>>,
         for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: 'static,
-        D: 'static
+        D: 'static,
+        D::SubscriptionKeys: redb::Key + 'static,
     {
         let definitions = M::table_definitions();
-        let mut tables = self.open_model_tables(M::PERMISSIONS, definitions)?;
+        let mut tables = self.open_model_tables(definitions)?;
 
         model.update_entry(&mut tables)
     }
 
     pub fn delete_redb<'data, M>(&'db self, key: &'data <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>) -> NetabaseResult<()>
     where
-        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone + std::borrow::Borrow<<M as redb::Value>::SelfType<'db>> + redb::Value<SelfType<'db> = M>,
+        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
+        M::TableV: redb::Value<SelfType<'db> = M>,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: Clone,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: Clone,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: Clone,
@@ -401,10 +374,11 @@ where
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static, <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db> as redb::Value>::SelfType<'db>>,
         for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: 'static,
-        D: 'static
+        D: 'static,
+        D::SubscriptionKeys: redb::Key + 'static,
     {
         let definitions = M::table_definitions();
-        let mut tables = self.open_model_tables(M::PERMISSIONS, definitions)?;
+        let mut tables = self.open_model_tables(definitions)?;
 
         M::delete_entry(key, &mut tables)
     }
@@ -497,7 +471,7 @@ where
     {
         match &self.transaction {
             RedbTransactionType::Write(write_txn) => f(write_txn),
-            RedbTransactionType::Read(_) => Err(NetabaseError::Permission),
+            RedbTransactionType::Read(_) => Err(NetabaseError::Other),
         }
     }
 
@@ -507,7 +481,7 @@ where
     {
         match &self.transaction {
             RedbTransactionType::Read(read_txn) => f(read_txn),
-            RedbTransactionType::Write(_) => Err(NetabaseError::Permission),
+            RedbTransactionType::Write(_) => Err(NetabaseError::Other),
         }
     }
 

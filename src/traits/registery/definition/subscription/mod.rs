@@ -1,4 +1,18 @@
 use crate::traits::registery::definition::NetabaseDefinition;
+use strum::IntoDiscriminant;
+
+/// Trait for definition-level subscription key enums
+/// This enum holds all subscription topics for a definition
+/// and serves as the unified key type for subscription tables
+pub trait NetabaseDefinitionSubscriptionKeys:
+    IntoDiscriminant
+    + Clone
+    + std::fmt::Debug
+    + 'static
+where
+    Self::Discriminant: 'static + std::fmt::Debug,
+{
+}
 
 /// Maps a subscription topic discriminant to an array of model discriminants that subscribe to it
 #[derive(Debug, Clone, Copy)]

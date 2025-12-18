@@ -37,6 +37,24 @@ pub enum CategorySubscriptions {
 
 impl NetabaseModelSubscriptionKey<DefinitionTwo, Category, CategoryKeys> for CategorySubscriptions {}
 
+impl From<DefinitionTwoSubscriptions> for CategorySubscriptions {
+    fn from(value: DefinitionTwoSubscriptions) -> Self {
+        match value {
+            DefinitionTwoSubscriptions::General => CategorySubscriptions::General(value),
+        }
+    }
+}
+
+impl TryInto<DefinitionTwoSubscriptions> for CategorySubscriptions {
+    type Error = ();
+
+    fn try_into(self) -> Result<DefinitionTwoSubscriptions, Self::Error> {
+        match self {
+            CategorySubscriptions::General(def_sub) => Ok(def_sub),
+        }
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Encode, Decode, Serialize, Deserialize, Hash)]
 pub struct CategoryID(pub String);
 #[derive(Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Encode, Decode, Serialize, Deserialize, Hash)]
@@ -92,8 +110,6 @@ pub enum CategoryKeys {
 
 // --- Category Implementation ---
 
-use netabase_store::traits::permissions::{ModelPermissions, AccessLevel, CrossAccessLevel};
-
 impl NetabaseModel<DefinitionTwo> for Category {
     type Keys = CategoryKeys;
 
@@ -113,18 +129,6 @@ impl NetabaseModel<DefinitionTwo> for Category {
                 "DefinitionTwo:Subscription:General",
             ),
         ]),
-    };
-
-    const PERMISSIONS: ModelPermissions<'static, DefinitionTwo> = ModelPermissions {
-        // Category has no outbound relations
-        outbound: &[],
-
-        // Inbound: Will be populated by macro when Definition1::User is considered
-        // Since ModelPermissions is scoped to DefinitionTwo, we can't express cross-definition inbound here
-        inbound: &[],
-
-        // Cross-definition access
-        cross_definition: &[],
     };
 
     fn get_primary_key<'a>(&'a self) -> CategoryID {

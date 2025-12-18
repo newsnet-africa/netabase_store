@@ -1,4 +1,4 @@
-OUT_DIR = Some(/home/rusta/Projects/NewsNet/netabase_store/example/target/debug/build/alloca-c5d7e843f9577fcc/out)
+OUT_DIR = Some(/home/cheese/Projects/netabase_store/example/target/debug/build/alloca-c5d7e843f9577fcc/out)
 TARGET = Some(x86_64-unknown-linux-gnu)
 CARGO_ENCODED_RUSTFLAGS = Some()
 HOST = Some(x86_64-unknown-linux-gnu)
@@ -43,4 +43,4 @@ ARFLAGS_x86_64_unknown_linux_gnu = None
 cargo:rerun-if-env-changed=ARFLAGS_x86_64-unknown-linux-gnu
 ARFLAGS_x86_64-unknown-linux-gnu = None
 cargo:rustc-link-lib=static=calloca
-cargo:rustc-link-search=native=/home/rusta/Projects/NewsNet/netabase_store/example/target/debug/build/alloca-c5d7e843f9577fcc/out
+cargo:rustc-link-search=native=/home/cheese/Projects/netabase_store/example/target/debug/build/alloca-c5d7e843f9577fcc/out

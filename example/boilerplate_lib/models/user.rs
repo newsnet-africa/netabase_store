@@ -172,18 +172,18 @@ impl<'de> serde::Deserialize<'de> for User {
                                 return Err(serde::de::Error::duplicate_field("partner"));
                             }
                             // Deserialize ignoring lifetime
-                            let link: RelationalLink<'_, Definition, Definition, User> =
+                            let link: RelationalLink<'static, Definition, Definition, User> =
                                 map.next_value()?;
-                            partner = Some(unsafe { std::mem::transmute(link) });
+                            partner = Some(link);
                         }
                         Field::Category => {
                             if category.is_some() {
                                 return Err(serde::de::Error::duplicate_field("category"));
                             }
                             // Deserialize ignoring lifetime
-                            let link: RelationalLink<'_, Definition, DefinitionTwo, Category> =
+                            let link: RelationalLink<'static, Definition, DefinitionTwo, Category> =
                                 map.next_value()?;
-                            category = Some(unsafe { std::mem::transmute(link) });
+                            category = Some(link);
                         }
                         Field::Subscriptions => {
                             if subscriptions.is_some() {
@@ -292,6 +292,27 @@ pub enum UserSubscriptions {
 
 impl NetabaseModelSubscriptionKey<Definition, User, UserKeys> for UserSubscriptions {}
 
+impl From<DefinitionSubscriptions> for UserSubscriptions {
+    fn from(value: DefinitionSubscriptions) -> Self {
+        match value {
+            DefinitionSubscriptions::Topic1 => UserSubscriptions::Topic1(value),
+            DefinitionSubscriptions::Topic2 => UserSubscriptions::Topic2(value),
+            _ => panic!("Unsupported subscription topic for User model"),
+        }
+    }
+}
+
+impl TryInto<DefinitionSubscriptions> for UserSubscriptions {
+    type Error = ();
+
+    fn try_into(self) -> Result<DefinitionSubscriptions, Self::Error> {
+        match self {
+            UserSubscriptions::Topic1(def_sub) => Ok(def_sub),
+            UserSubscriptions::Topic2(def_sub) => Ok(def_sub),
+        }
+    }
+}
+
 #[derive(
     Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Encode, Decode, Serialize, Deserialize, Hash,
 )]
@@ -366,8 +387,6 @@ pub enum UserKeys {
 
 // --- User Implementation ---
 
-use netabase_store::traits::permissions::{AccessLevel, ModelPermissions};
-
 impl NetabaseModel<Definition> for User {
     type Keys = UserKeys;
 
@@ -403,23 +422,6 @@ impl NetabaseModel<Definition> for User {
                 "Definition:Subscription:Topic2",
             ),
         ]),
-    };
-
-    const PERMISSIONS: ModelPermissions<'static, Definition> = ModelPermissions {
-        // Outbound: Which models User can access within the same definition
-        // Now using DefinitionTreeNames instead of DefinitionDiscriminants
-        outbound: &[
-            // User can read/hydrate partner (another User)
-            (
-                DefinitionTreeNames::User(User::TREE_NAMES),
-                AccessLevel::new(true, false, false, false, true), // read + hydrate only
-            ),
-            // User can read posts
-            (
-                DefinitionTreeNames::Post(Post::TREE_NAMES),
-                AccessLevel::READ_ONLY,
-            ),
-        ],
     };
 
     fn get_primary_key<'b>(&'b self) -> UserID {
@@ -563,4 +565,5 @@ impl_redb_value_key_for_owned!(UserCategory);
 // RedbNetbaseModel impls - only needs type def as TREE_NAMES is in NetabaseModel
 impl<'db> RedbNetbaseModel<'db, Definition> for User {
     type RedbTables = ModelOpenTables<'db, 'db, Definition, Self>;
+    type TableV = User;
 }

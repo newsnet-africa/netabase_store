@@ -19,9 +19,9 @@ where
     for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: redb::Key + 'static,
-    M: 'db + 'static
+    M: 'db
 {
-    pub main: TableDefinition<'db, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>, M>,
+    pub main: TableDefinition<'db, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>, M::TableV>,
     pub main_name: &'db str,
     
     pub secondary: Vec<(
@@ -54,9 +54,10 @@ where
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    Self: 'db + 'static
+    Self: 'db
 {
     type RedbTables;
+    type TableV: redb::Value + redb::Key + 'static;
 
     fn table_definitions() -> RedbModelTableDefinitions<'db, Self, D> 
     where 
@@ -105,7 +106,7 @@ where
     }
 
     fn main_definition()
-    -> TableDefinition<'db, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>, Self>
+    -> TableDefinition<'db, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>, Self::TableV>
     {
         Self::table_definitions().main
     }

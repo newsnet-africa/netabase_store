@@ -21,7 +21,6 @@ use boilerplate_lib::GlobalKeys;
 use boilerplate_lib::models::post::{Post, PostID};
 use boilerplate_lib::models::user::{User, UserID, UserKeys};
 use netabase_store::relational::RelationalLink;
-use netabase_store::traits::permissions::AccessType;
 use netabase_store::traits::registery::definition::NetabaseDefinition;
 use netabase_store::traits::registery::models::model::NetabaseModel;
 use strum::AsRefStr;
@@ -278,50 +277,6 @@ fn main() {
     println!("  - Owned < Hydrated: {}", test_owned < test_hydrated);
     println!("  - Hydrated < Borrowed: {}", test_hydrated < test_borrowed);
 
-    println!("\n=== Permission System Demo ===");
-    use netabase_store::traits::permissions::AccessType;
-
-    println!("User Model Permissions:");
-    println!(
-        "  - Can access User (partner): {}",
-        User::PERMISSIONS.can_access_model(
-            &DefinitionTreeNames::User(User::TREE_NAMES),
-            AccessType::Read
-        )
-    );
-    println!(
-        "  - Can hydrate User (partner): {}",
-        User::PERMISSIONS.can_hydrate_relation(&DefinitionTreeNames::User(User::TREE_NAMES))
-    );
-    println!(
-        "  - Can access Post: {}",
-        User::PERMISSIONS.can_access_model(
-            &DefinitionTreeNames::Post(Post::TREE_NAMES),
-            AccessType::Read
-        )
-    );
-    println!(
-        "  - Can access Category (cross-def): {:?}",
-        User::PERMISSIONS.outbound
-    );
-    println!(
-        "  - Can hydrate Category (cross-def): {:?}",
-        User::PERMISSIONS.outbound
-    );
-
-    println!("\nPost Model Permissions:");
-    println!(
-        "  - Can access User (author): {}",
-        Post::PERMISSIONS.can_access_model(
-            &DefinitionTreeNames::User(User::TREE_NAMES),
-            AccessType::Read
-        )
-    );
-    println!(
-        "  - Outbound permissions: {} entries",
-        Post::PERMISSIONS.outbound.len()
-    );
-
     println!("\n=== Subscription Registry Demo ===");
     let reg = &<Definition as NetabaseDefinition>::SUBSCRIPTION_REGISTRY;
     println!("Definition subscription registry:");
@@ -356,23 +311,6 @@ fn main() {
         "  - General subscribers: {:?}",
         reg2.get_subscribers("General")
     );
-
-    println!("\n=== Definition Permissions Demo ===");
-    let def_perms = &<Definition as NetabaseDefinition>::PERMISSIONS;
-    println!("Definition-level permissions:");
-    println!(
-        "  - User access level: {:?}",
-        def_perms.get_model_access(DefinitionDiscriminants::User)
-    );
-    println!(
-        "  - Post access level: {:?}",
-        def_perms.get_model_access(DefinitionDiscriminants::Post)
-    );
-    println!(
-        "  - Requires write access: {}",
-        def_perms.requires_write_access()
-    );
-    println!("  - Can access Def2 (read): {:?}", def_perms.model_access);
 
     println!("\n✅ All features demonstrated successfully!");
     println!("\nType system test completed successfully!");

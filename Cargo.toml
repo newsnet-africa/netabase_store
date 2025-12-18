@@ -11,11 +11,15 @@ bincode = "2.0.1"
 thiserror = "2.0.17"
 rand = "0.9.2"
 derive_more = { version = "2.1.0", features = ["display"] }
-criterion = { version = "0.8.1", features = ["html_reports"] }
+
+[workspace]
+members = [
+  "netabase_macros"
+]
 
 [dev-dependencies]
 netabase_store_examples = { path = "./example" }
-criterion = "0.8.1"
+criterion = { version = "0.8.1", features = ["html_reports"] }
 derive_more = { version = "2.1.0", features = ["display"] }
 
 

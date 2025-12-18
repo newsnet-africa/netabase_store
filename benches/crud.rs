@@ -11,7 +11,7 @@ use redb::{MultimapTableDefinition, ReadableDatabase, ReadableTable, TableDefini
 use std::hint::black_box;
 
 // Include common test utils.
-// This injects create_test_db, cleanup_test_db, RedbStore, RedbPermissions, NetabaseResult into this scope.
+// This injects create_test_db, cleanup_test_db, RedbStore, NetabaseResult into this scope.
 include!("../tests/common/mod.rs");
 
 // --- Helpers ---
@@ -99,6 +99,10 @@ fn bench_crud_operations(c: &mut Criterion) {
         MultimapTableDefinition::new("Definition:User:Relational:Partner");
     const REL_CATEGORY: MultimapTableDefinition<UserRelationalKeys, UserID> =
         MultimapTableDefinition::new("Definition:User:Relational:Category");
+    const SUB_TOPIC1: MultimapTableDefinition<DefinitionSubscriptions, UserID> =
+        MultimapTableDefinition::new("Definition:Subscription:Topic1");
+    const SUB_TOPIC2: MultimapTableDefinition<DefinitionSubscriptions, UserID> =
+        MultimapTableDefinition::new("Definition:Subscription:Topic2");
 
     // --- Insert Benchmarks ---
     let mut insert_group = c.benchmark_group("CRUD/Insert");
@@ -163,6 +167,12 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut rel_category = txn
                             .open_multimap_table(REL_CATEGORY)
                             .expect("Failed to open rel category");
+                        let mut sub_topic1 = txn
+                            .open_multimap_table(SUB_TOPIC1)
+                            .expect("Failed to open sub topic1");
+                        let mut sub_topic2 = txn
+                            .open_multimap_table(SUB_TOPIC2)
+                            .expect("Failed to open sub topic2");
 
                         for user in users {
                             let user = black_box(user);
@@ -201,6 +211,23 @@ fn bench_crud_operations(c: &mut Criterion) {
                                     user_id,
                                 )
                                 .expect("Failed to insert rel category");
+
+                            // Insert Subscriptions
+                            for subscription in &user.subscriptions {
+                                match subscription {
+                                    DefinitionSubscriptions::Topic1 => {
+                                        sub_topic1
+                                            .insert(subscription, user_id)
+                                            .expect("Failed to insert sub topic1");
+                                    }
+                                    DefinitionSubscriptions::Topic2 => {
+                                        sub_topic2
+                                            .insert(subscription, user_id)
+                                            .expect("Failed to insert sub topic2");
+                                    }
+                                    _ => {}
+                                }
+                            }
                         }
                     }
                     txn.commit().expect("Failed to commit");
@@ -284,6 +311,12 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut rel_category = txn
                             .open_multimap_table(REL_CATEGORY)
                             .expect("Failed to open rel category");
+                        let mut sub_topic1 = txn
+                            .open_multimap_table(SUB_TOPIC1)
+                            .expect("Failed to open sub topic1");
+                        let mut sub_topic2 = txn
+                            .open_multimap_table(SUB_TOPIC2)
+                            .expect("Failed to open sub topic2");
 
                         for user in &users {
                             let user_id = &user.id;
@@ -313,6 +346,19 @@ fn bench_crud_operations(c: &mut Criterion) {
                                     user_id,
                                 )
                                 .unwrap();
+
+                            // Insert Subscriptions
+                            for subscription in &user.subscriptions {
+                                match subscription {
+                                    DefinitionSubscriptions::Topic1 => {
+                                        sub_topic1.insert(subscription, user_id).unwrap();
+                                    }
+                                    DefinitionSubscriptions::Topic2 => {
+                                        sub_topic2.insert(subscription, user_id).unwrap();
+                                    }
+                                    _ => {}
+                                }
+                            }
                         }
                     }
                     txn.commit().unwrap();
@@ -410,6 +456,12 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut rel_category = txn
                             .open_multimap_table(REL_CATEGORY)
                             .expect("Failed to open rel category");
+                        let mut sub_topic1 = txn
+                            .open_multimap_table(SUB_TOPIC1)
+                            .expect("Failed to open sub topic1");
+                        let mut sub_topic2 = txn
+                            .open_multimap_table(SUB_TOPIC2)
+                            .expect("Failed to open sub topic2");
 
                         for user in &users {
                             let user_id = &user.id;
@@ -439,6 +491,19 @@ fn bench_crud_operations(c: &mut Criterion) {
                                     user_id,
                                 )
                                 .unwrap();
+
+                            // Insert Subscriptions
+                            for subscription in &user.subscriptions {
+                                match subscription {
+                                    DefinitionSubscriptions::Topic1 => {
+                                        sub_topic1.insert(subscription, user_id).unwrap();
+                                    }
+                                    DefinitionSubscriptions::Topic2 => {
+                                        sub_topic2.insert(subscription, user_id).unwrap();
+                                    }
+                                    _ => {}
+                                }
+                            }
                         }
                     }
                     txn.commit().unwrap();
@@ -461,6 +526,12 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut rel_category = txn
                             .open_multimap_table(REL_CATEGORY)
                             .expect("Failed to open rel category");
+                        let mut sub_topic1 = txn
+                            .open_multimap_table(SUB_TOPIC1)
+                            .expect("Failed to open sub topic1");
+                        let mut sub_topic2 = txn
+                            .open_multimap_table(SUB_TOPIC2)
+                            .expect("Failed to open sub topic2");
 
                         for user in users {
                             // users is moved here
@@ -500,6 +571,19 @@ fn bench_crud_operations(c: &mut Criterion) {
                                     user_id,
                                 )
                                 .unwrap();
+
+                            // Remove Subscriptions
+                            for subscription in &stored_user.subscriptions {
+                                match subscription {
+                                    DefinitionSubscriptions::Topic1 => {
+                                        sub_topic1.remove(subscription, user_id).unwrap();
+                                    }
+                                    DefinitionSubscriptions::Topic2 => {
+                                        sub_topic2.remove(subscription, user_id).unwrap();
+                                    }
+                                    _ => {}
+                                }
+                            }
                         }
                     }
                     txn.commit().expect("Failed to commit");

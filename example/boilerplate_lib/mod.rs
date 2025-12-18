@@ -11,7 +11,6 @@
 use bincode::{BorrowDecode, Decode, Encode};
 use derive_more::{From, TryInto};
 use netabase_store::databases::redb::transaction::ModelOpenTables;
-use netabase_store::traits::permissions::{AccessLevel, CrossAccessLevel, ModelPermissions};
 use netabase_store::traits::registery::models::{
     StoreKey, StoreKeyMarker, StoreValue, StoreValueMarker,
     keys::{
@@ -24,7 +23,7 @@ use netabase_store::traits::registery::models::{
 use redb::{Key, Value};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use strum::{AsRefStr, EnumDiscriminants};
+use strum::{AsRefStr, EnumDiscriminants, IntoDiscriminant};
 
 // Declare modules first
 pub mod models;
@@ -43,7 +42,10 @@ pub mod models;
     Serialize,
     Deserialize,
     AsRefStr,
+    EnumDiscriminants,
 )]
+#[strum_discriminants(name(DefinitionTwoSubscriptionsDiscriminants))]
+#[strum_discriminants(derive(AsRefStr))]
 pub enum DefinitionTwoSubscriptions {
     General,
 }
@@ -174,6 +176,24 @@ pub enum DefinitionTwo {
 
 impl NetabaseModelSubscriptionKey<DefinitionTwo, Category, CategoryKeys> for CategorySubscriptions {}
 
+impl From<DefinitionTwoSubscriptions> for CategorySubscriptions {
+    fn from(value: DefinitionTwoSubscriptions) -> Self {
+        match value {
+            DefinitionTwoSubscriptions::General => CategorySubscriptions::General(value),
+        }
+    }
+}
+
+impl TryInto<DefinitionTwoSubscriptions> for CategorySubscriptions {
+    type Error = ();
+
+    fn try_into(self) -> Result<DefinitionTwoSubscriptions, Self::Error> {
+        match self {
+            CategorySubscriptions::General(def_sub) => Ok(def_sub),
+        }
+    }
+}
+
 impl NetabaseModel<DefinitionTwo> for Category {
     type Keys = CategoryKeys;
 
@@ -191,11 +211,6 @@ impl NetabaseModel<DefinitionTwo> for Category {
             CategorySubscriptionsDiscriminants::General,
             "DefinitionTwo:Subscription:General",
         )]),
-    };
-
-    const PERMISSIONS: ModelPermissions<'static, DefinitionTwo> = ModelPermissions {
-        // Outbound: no outbound relations for Category
-        outbound: &[],
     };
 
     fn get_primary_key<'a>(&'a self) -> CategoryID {
@@ -328,6 +343,7 @@ macro_rules! impl_redb_value_key_for_owned {
     };
 }
 
+impl_redb_value_key_for_owned!(DefinitionTwoSubscriptions);
 impl_redb_value_key_for_owned!(Category);
 impl_redb_value_key_for_owned!(CategorySecondaryKeys);
 impl_redb_value_key_for_owned!(CategoryRelationalKeys);
@@ -509,16 +525,18 @@ impl GlobalDefinitionEnum for DefinitionTwo {
     }
 }
 
-use netabase_store::traits::permissions::{
-    DefinitionPermissions, ModelAccessLevel,
-};
 use netabase_store::traits::registery::definition::subscription::{
-    DefinitionSubscriptionRegistry, SubscriptionEntry,
+    DefinitionSubscriptionRegistry, NetabaseDefinitionSubscriptionKeys, SubscriptionEntry,
 };
+
+// Implement NetabaseDefinitionSubscriptionKeys for DefinitionSubscriptions
+impl NetabaseDefinitionSubscriptionKeys for DefinitionSubscriptions {}
 
 impl NetabaseDefinition for Definition {
     type TreeNames = DefinitionTreeNames;
     type DefKeys = DefinitionKeys;
+    type SubscriptionKeys = DefinitionSubscriptions;
+    type SubscriptionKeysDiscriminant = DefinitionSubscriptionsDiscriminants;
 
     const SUBSCRIPTION_REGISTRY: DefinitionSubscriptionRegistry<'static, Self> =
         DefinitionSubscriptionRegistry::new(&[
@@ -539,13 +557,6 @@ impl NetabaseDefinition for Definition {
                 subscribers: &[DefinitionDiscriminants::Post],
             },
         ]);
-
-    const PERMISSIONS: DefinitionPermissions<'static, Self> = DefinitionPermissions {
-        model_access: &[
-            (DefinitionDiscriminants::User, ModelAccessLevel::ReadWrite),
-            (DefinitionDiscriminants::Post, ModelAccessLevel::ReadWrite),
-        ],
-    };
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -561,7 +572,46 @@ impl Default for DefinitionTreeNames {
     }
 }
 
-impl NetabaseDefinitionTreeNames<Definition> for DefinitionTreeNames {}
+impl TryInto<DiscriminantTableName<Definition>> for DefinitionTreeNames {
+    type Error = ();
+
+    fn try_into(self) -> Result<DiscriminantTableName<Definition>, Self::Error> {
+        // Convert the discriminant type to match the expected type
+        // This trait bound seems to expect DiscriminantTableName<Definition>
+        // but ModelTreeNames.main is DiscriminantTableName<DefinitionDiscriminants>
+        // For now, we'll return an error as this conversion doesn't seem to be used
+        Err(())
+    }
+}
+
+impl NetabaseDefinitionTreeNames<Definition> for DefinitionTreeNames {
+    fn get_tree_names(discriminant: DefinitionDiscriminants) -> Vec<Self> {
+        match discriminant {
+            DefinitionDiscriminants::User => vec![DefinitionTreeNames::User(User::TREE_NAMES)],
+            DefinitionDiscriminants::Post => vec![DefinitionTreeNames::Post(Post::TREE_NAMES)],
+        }
+    }
+
+    fn get_model_tree<M: NetabaseModel<Definition>>(&self) -> Option<M>
+    where
+        for<'a> Self: From<ModelTreeNames<'a, Self, M>>,
+        for<'a> <<M as NetabaseModel<Definition>>::Keys as NetabaseModelKeys<Definition, M>>::Secondary<'a>:
+            IntoDiscriminant,
+        for<'a> <<M as NetabaseModel<Definition>>::Keys as NetabaseModelKeys<Definition, M>>::Relational<'a>:
+            IntoDiscriminant,
+        for<'a> <<M as NetabaseModel<Definition>>::Keys as NetabaseModelKeys<Definition, M>>::Subscription<'a>:
+            IntoDiscriminant,
+        for<'a> <<<M as NetabaseModel<Definition>>::Keys as NetabaseModelKeys<Definition, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        for<'a> <<<M as NetabaseModel<Definition>>::Keys as NetabaseModelKeys<Definition, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        for<'a> <<<M as NetabaseModel<Definition>>::Keys as NetabaseModelKeys<Definition, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+         <<M as NetabaseModel<Definition>>::Keys as NetabaseModelKeys<Definition, M>>::Subscription<'static>: 'static
+    {
+        // This is a type-level operation that extracts the model if it matches type M
+        // The actual implementation is not straightforward without specialization
+        // For now, returning None as this seems to be unused in practice
+        None
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum DefinitionKeys {
@@ -588,7 +638,10 @@ impl RedbDefinition for Definition {
     Serialize,
     Deserialize,
     AsRefStr,
+    EnumDiscriminants,
 )]
+#[strum_discriminants(name(DefinitionSubscriptionsDiscriminants))]
+#[strum_discriminants(derive(AsRefStr))]
 pub enum DefinitionSubscriptions {
     Topic1,
     Topic2,
@@ -596,24 +649,24 @@ pub enum DefinitionSubscriptions {
     Topic4,
 }
 
+impl_redb_value_key_for_owned!(DefinitionSubscriptions);
+
 // --- Definition Two trait implementations ---
+
+// Implement NetabaseDefinitionSubscriptionKeys for DefinitionTwoSubscriptions
+impl NetabaseDefinitionSubscriptionKeys for DefinitionTwoSubscriptions {}
 
 impl NetabaseDefinition for DefinitionTwo {
     type TreeNames = DefinitionTwoTreeNames;
     type DefKeys = DefinitionTwoKeys;
+    type SubscriptionKeys = DefinitionTwoSubscriptions;
+    type SubscriptionKeysDiscriminant = DefinitionTwoSubscriptionsDiscriminants;
 
     const SUBSCRIPTION_REGISTRY: DefinitionSubscriptionRegistry<'static, Self> =
         DefinitionSubscriptionRegistry::new(&[SubscriptionEntry {
             topic: "General",
             subscribers: &[DefinitionTwoDiscriminants::Category],
         }]);
-
-    const PERMISSIONS: DefinitionPermissions<'static, Self> = DefinitionPermissions {
-        model_access: &[(
-            DefinitionTwoDiscriminants::Category,
-            ModelAccessLevel::ReadWrite,
-        )],
-    };
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -627,7 +680,45 @@ impl Default for DefinitionTwoTreeNames {
     }
 }
 
-impl NetabaseDefinitionTreeNames<DefinitionTwo> for DefinitionTwoTreeNames {}
+impl TryInto<DiscriminantTableName<DefinitionTwo>> for DefinitionTwoTreeNames {
+    type Error = ();
+
+    fn try_into(self) -> Result<DiscriminantTableName<DefinitionTwo>, Self::Error> {
+        // Convert the discriminant type to match the expected type
+        // This trait bound seems to expect DiscriminantTableName<DefinitionTwo>
+        // but ModelTreeNames.main is DiscriminantTableName<DefinitionTwoDiscriminants>
+        // For now, we'll return an error as this conversion doesn't seem to be used
+        Err(())
+    }
+}
+
+impl NetabaseDefinitionTreeNames<DefinitionTwo> for DefinitionTwoTreeNames {
+    fn get_tree_names(discriminant: DefinitionTwoDiscriminants) -> Vec<Self> {
+        match discriminant {
+            DefinitionTwoDiscriminants::Category => vec![DefinitionTwoTreeNames::Category(Category::TREE_NAMES)],
+        }
+    }
+
+    fn get_model_tree<M: NetabaseModel<DefinitionTwo>>(&self) -> Option<M>
+    where
+        for<'a> Self: From<ModelTreeNames<'a, Self, M>>,
+        for<'a> <<M as NetabaseModel<DefinitionTwo>>::Keys as NetabaseModelKeys<DefinitionTwo, M>>::Secondary<'a>:
+            IntoDiscriminant,
+        for<'a> <<M as NetabaseModel<DefinitionTwo>>::Keys as NetabaseModelKeys<DefinitionTwo, M>>::Relational<'a>:
+            IntoDiscriminant,
+        for<'a> <<M as NetabaseModel<DefinitionTwo>>::Keys as NetabaseModelKeys<DefinitionTwo, M>>::Subscription<'a>:
+            IntoDiscriminant,
+        for<'a> <<<M as NetabaseModel<DefinitionTwo>>::Keys as NetabaseModelKeys<DefinitionTwo, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        for<'a> <<<M as NetabaseModel<DefinitionTwo>>::Keys as NetabaseModelKeys<DefinitionTwo, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        for<'a> <<<M as NetabaseModel<DefinitionTwo>>::Keys as NetabaseModelKeys<DefinitionTwo, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+         <<M as NetabaseModel<DefinitionTwo>>::Keys as NetabaseModelKeys<DefinitionTwo, M>>::Subscription<'static>: 'static
+    {
+        // This is a type-level operation that extracts the model if it matches type M
+        // The actual implementation is not straightforward without specialization
+        // For now, returning None as this seems to be unused in practice
+        None
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum DefinitionTwoKeys {

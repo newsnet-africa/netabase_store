@@ -1,9 +1,8 @@
 // Common test utilities and helpers
 
-use netabase_store::databases::redb::{RedbPermissions, RedbStore};
+use netabase_store::databases::redb::RedbStore;
 use netabase_store::errors::NetabaseResult;
 use netabase_store::traits::database::store::NBStore;
-use netabase_store::traits::permissions::DefinitionPermissions;
 use std::path::PathBuf;
 use strum::IntoDiscriminant;
 
@@ -22,8 +21,7 @@ where
         std::fs::remove_file(&db_path).ok();
     }
 
-    let permissions = D::PERMISSIONS;
-    let store = RedbStore::<D>::new(&db_path, permissions)?;
+    let store = RedbStore::<D>::new(&db_path)?;
 
     Ok((store, db_path))
 }

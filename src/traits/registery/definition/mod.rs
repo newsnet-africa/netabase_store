@@ -2,7 +2,7 @@ pub mod redb_definition;
 pub mod subscription;
 
 use strum::IntoDiscriminant;
-use subscription::DefinitionSubscriptionRegistry;
+use subscription::{DefinitionSubscriptionRegistry, NetabaseDefinitionSubscriptionKeys};
 
 use crate::traits::registery::models::{
     keys::NetabaseModelKeys,
@@ -17,11 +17,16 @@ where
     type TreeNames: NetabaseDefinitionTreeNames<Self> + 'static;
     type DefKeys: NetabaseDefinitionKeys<Self>;
 
+    /// Definition-level subscription keys enum
+    /// This enum holds all subscription topics for the definition
+    /// and serves as the unified key type for subscription tables
+    type SubscriptionKeys: NetabaseDefinitionSubscriptionKeys<Discriminant = Self::SubscriptionKeysDiscriminant>;
+
+    /// Discriminant type for subscription keys
+    type SubscriptionKeysDiscriminant: 'static + std::fmt::Debug;
+
     /// Subscription registry mapping topics to models
     const SUBSCRIPTION_REGISTRY: DefinitionSubscriptionRegistry<'static, Self>;
-
-    /// Definition-level permissions specifying per-model access control
-    const PERMISSIONS: crate::traits::permissions::DefinitionPermissions<'static, Self>;
 }
 
 /// Trait for an enum that encapsulates the tree names for all models in a definition

@@ -1,21 +1,18 @@
 use crate::{
-    databases::redb::RedbPermissions,
     errors::{NetabaseError, NetabaseResult},
     traits::registery::definition::redb_definition::RedbDefinition,
 };
 use redb::{CommitError, TableError};
 use std::marker::PhantomData;
 
-/// Wrapper around redb::ReadTransaction that enforces permissions
+/// Wrapper around redb::ReadTransaction
 pub struct NetabaseRedbReadTransaction<'txn, D: RedbDefinition>
 where
     <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     D: Clone,
 {
     pub inner: redb::ReadTransaction,
-    #[allow(dead_code)] // permissions might be used in future or other methods
-    permissions: RedbPermissions<D>,
-    _marker: PhantomData<&'txn ()>,
+    _marker: PhantomData<(&'txn (), D)>,
 }
 
 impl<'txn, D: RedbDefinition> NetabaseRedbReadTransaction<'txn, D>
@@ -23,10 +20,9 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     D: Clone,
 {
-    pub fn new(inner: redb::ReadTransaction, permissions: RedbPermissions<D>) -> Self {
+    pub fn new(inner: redb::ReadTransaction) -> Self {
         Self {
             inner,
-            permissions,
             _marker: PhantomData,
         }
     }
@@ -50,16 +46,14 @@ where
     }
 }
 
-/// Wrapper around redb::WriteTransaction that enforces permissions
+/// Wrapper around redb::WriteTransaction
 pub struct NetabaseRedbWriteTransaction<'db, D: RedbDefinition>
 where
     <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     D: Clone,
 {
     pub inner: redb::WriteTransaction,
-    #[allow(dead_code)]
-    permissions: RedbPermissions<D>,
-    _marker: PhantomData<&'db ()>,
+    _marker: PhantomData<(&'db (), D)>,
 }
 
 impl<'db, D: RedbDefinition> NetabaseRedbWriteTransaction<'db, D>
@@ -67,10 +61,9 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     D: Clone,
 {
-    pub fn new(inner: redb::WriteTransaction, permissions: RedbPermissions<D>) -> Self {
+    pub fn new(inner: redb::WriteTransaction) -> Self {
         Self {
             inner,
-            permissions,
             _marker: PhantomData,
         }
     }

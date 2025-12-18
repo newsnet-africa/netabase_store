@@ -42,11 +42,6 @@ where
     type Keys: NetabaseModelKeys<D, Self>;
     const TREE_NAMES: ModelTreeNames<'static, D, Self>;
 
-    /// Model-level permissions (outbound only, same-definition access)
-    const PERMISSIONS: crate::traits::permissions::ModelPermissions<'static, D>
-    where D: 'static,
-    ;
-
 
     fn get_primary_key<'a>(&'a self) -> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'a>;
     fn get_secondary_keys<'a>(
