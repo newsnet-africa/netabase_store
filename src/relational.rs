@@ -545,7 +545,7 @@ where
     }
 }
 
-impl< 'de, SourceD, TargetD, M> Deserialize<'de> for RelationalLink<'de, SourceD, TargetD, M>
+impl<'de, 'data, SourceD, TargetD, M> Deserialize<'de> for RelationalLink<'data, SourceD, TargetD, M>
 where
     SourceD: NetabaseDefinition + 'static,
     SourceD::Discriminant: std::fmt::Debug,
@@ -648,7 +648,7 @@ where
 }
 
 // Bincode BorrowDecode
-impl<'de, SourceD, TargetD, M, C> BorrowDecode<'de, C> for RelationalLink<'de, SourceD, TargetD, M>
+impl<'de, 'data, SourceD, TargetD, M, C> BorrowDecode<'de, C> for RelationalLink<'data, SourceD, TargetD, M>
 where
     SourceD: NetabaseDefinition + 'static,
     SourceD::Discriminant: std::fmt::Debug,

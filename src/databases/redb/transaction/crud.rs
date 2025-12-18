@@ -58,7 +58,7 @@ where
     M: RedbNetbaseModel<'db, D> + Clone,
     D::Discriminant: 'static + std::fmt::Debug,
     <D as IntoDiscriminant>::Discriminant: std::fmt::Debug,
-    M::TableV: redb::Value<SelfType<'db> = M>,
+    for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
     <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key + Clone + 'static,
     for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db> as redb::Value>::SelfType<'a>>,
     

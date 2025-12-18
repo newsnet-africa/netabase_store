@@ -14,20 +14,11 @@ derive_more = { version = "2.1.0", features = ["display"] }
 
 [workspace]
 members = [
-  "netabase_macros"
+  "netabase_macros",
+  "boilerplate"
 ]
 
 [dev-dependencies]
-netabase_store_examples = { path = "./example" }
-criterion = { version = "0.8.1", features = ["html_reports"] }
+netabase_store_examples = { path = "./boilerplate" }
 derive_more = { version = "2.1.0", features = ["display"] }
 
-
-[[example]]
-name = "boilerplate"
-path = "./example/boilerplate.rs"
-
-[[bench]]
-name = "crud"
-path = "./benches/crud.rs"
-harness = false

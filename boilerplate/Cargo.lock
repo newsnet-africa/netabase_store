@@ -359,7 +359,6 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "derive_more",
- "netabase_store_examples",
  "rand",
  "redb",
  "serde",

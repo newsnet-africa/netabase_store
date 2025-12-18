@@ -273,7 +273,7 @@ where
     pub fn create_redb<'data: 'db, M>(&'db self, model: &'data M) -> NetabaseResult<()>
     where
         M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
-        M::TableV: redb::Value<SelfType<'db> = M>,
+        for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: Clone,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: Clone,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: Clone,
@@ -302,7 +302,7 @@ where
     pub fn read_redb<'data: 'db, M>(&'db self, key: &'data <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>) -> NetabaseResult<Option<M>>
     where
         M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
-        M::TableV: redb::Value<SelfType<'db> = M>,
+        for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: Clone,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: Clone,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: Clone,
@@ -330,7 +330,7 @@ where
     pub fn update_redb<'data: 'db, M>(&'db self, model: &'data M) -> NetabaseResult<()>
     where
         M: RedbModelCrud<'db,  D> + RedbNetbaseModel<'db, D> + Clone,
-        M::TableV: redb::Value<SelfType<'db> = M>,
+        for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: Clone,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: Clone,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: Clone,
@@ -358,7 +358,7 @@ where
     pub fn delete_redb<'data, M>(&'db self, key: &'data <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>) -> NetabaseResult<()>
     where
         M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
-        M::TableV: redb::Value<SelfType<'db> = M>,
+        for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: Clone,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: Clone,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: Clone,
