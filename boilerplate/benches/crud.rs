@@ -5,9 +5,7 @@ use netabase_store_examples::boilerplate_lib::models::user::{
     User, UserAge, UserCategory, UserID, UserName, UserPartner, UserRelationalKeys,
     UserSecondaryKeys,
 };
-use netabase_store_examples::boilerplate_lib::{
-    CategoryID, Definition, DefinitionSubscriptions,
-};
+use netabase_store_examples::boilerplate_lib::{CategoryID, Definition, DefinitionSubscriptions};
 use rand::prelude::*;
 use redb::{MultimapTableDefinition, ReadableDatabase, ReadableTable, TableDefinition};
 use std::hint::black_box;
@@ -113,8 +111,8 @@ fn bench_crud_operations(c: &mut Criterion) {
     insert_group.measurement_time(std::time::Duration::from_secs(10));
 
     for size in sizes.iter() {
-        // Optimized Insert
-        insert_group.bench_with_input(BenchmarkId::new("Optimized", size), size, |b, &size| {
+        // Abstracted Insert
+        insert_group.bench_with_input(BenchmarkId::new("Abstracted", size), size, |b, &size| {
             b.iter_batched(
                 || {
                     let users: Vec<User> = (0..size).map(|_| generate_random_user()).collect();
@@ -123,7 +121,8 @@ fn bench_crud_operations(c: &mut Criterion) {
                         create_test_db::<Definition>(&name).expect("Failed to create DB");
                     (store, users, CleanupGuard(path))
                 },
-                |(store, users, _guard): (_, _, _)| {
+                |(store, users, _guard)| {
+                    // MEASURED: Transaction, table opening, and insert loop
                     let txn = store.begin_transaction().expect("Failed to begin txn");
                     {
                         let mut tables = txn
@@ -154,7 +153,8 @@ fn bench_crud_operations(c: &mut Criterion) {
                     let db = redb::Database::create(&path).expect("Failed to create raw DB");
                     (db, users, CleanupGuard(path))
                 },
-                |(db, users, _guard): (_, _, _)| {
+                |(db, users, _guard)| {
+                    // MEASURED: Transaction, table opening, and insert loop
                     let txn = db.begin_write().expect("Failed to begin txn");
                     {
                         let mut main_table = txn.open_table(MAIN).expect("Failed to open main");
@@ -177,13 +177,13 @@ fn bench_crud_operations(c: &mut Criterion) {
                             .open_multimap_table(SUB_TOPIC2)
                             .expect("Failed to open sub topic2");
 
-                        for user in users {
+                        for user in &users {
                             let user = black_box(user);
                             let user_id = &user.id;
 
                             // Insert Main
                             main_table
-                                .insert(user_id, &user)
+                                .insert(user_id, user)
                                 .expect("Failed to insert main");
 
                             // Insert Secondary
@@ -247,8 +247,8 @@ fn bench_crud_operations(c: &mut Criterion) {
     read_group.measurement_time(std::time::Duration::from_secs(10));
 
     for size in sizes.iter() {
-        // Optimized Read
-        read_group.bench_with_input(BenchmarkId::new("Optimized", size), size, |b, &size| {
+        // Abstracted Read
+        read_group.bench_with_input(BenchmarkId::new("Abstracted", size), size, |b, &size| {
             b.iter_batched(
                 || {
                     let users: Vec<User> = (0..size).map(|_| generate_random_user()).collect();
@@ -256,6 +256,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                     let (store, path) =
                         create_test_db::<Definition>(&name).expect("Failed to create DB");
 
+                    // Insert data in setup
                     let txn = store.begin_transaction().expect("Failed to begin txn");
                     {
                         let mut tables = txn
@@ -270,7 +271,8 @@ fn bench_crud_operations(c: &mut Criterion) {
 
                     (store, users, CleanupGuard(path))
                 },
-                |(store, users, _guard): (_, _, _)| {
+                |(store, users, _guard)| {
+                    // MEASURED: Transaction, table opening, and read loop
                     let txn = store.begin_transaction().expect("Failed to begin txn");
                     {
                         let tables = txn
@@ -299,6 +301,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                     }
                     let db = redb::Database::create(&path).expect("Failed to create raw DB");
 
+                    // Insert data in setup
                     let txn = db.begin_write().expect("Failed to begin txn");
                     {
                         let mut main_table = txn.open_table(MAIN).expect("Failed to open main");
@@ -368,14 +371,14 @@ fn bench_crud_operations(c: &mut Criterion) {
 
                     (db, users, CleanupGuard(path))
                 },
-                |(db, users, _guard): (_, _, _)| {
+                |(db, users, _guard)| {
+                    // MEASURED: Transaction, table opening, and read loop
                     let txn = db.begin_read().expect("Failed to begin txn");
-                    {
-                        let main_table = txn.open_table(MAIN).expect("Failed to open main");
-                        for user in &users {
-                            black_box(main_table.get(black_box(&user.id)))
-                                .expect("Failed to get user");
-                        }
+                    let main_table = txn.open_table(MAIN).expect("Failed to open main");
+                    for user in &users {
+                        black_box(main_table.get(black_box(&user.id)))
+                            .expect("Failed to get user")
+                            .map(|g| g.value());
                     }
                 },
                 BatchSize::PerIteration,
@@ -390,8 +393,8 @@ fn bench_crud_operations(c: &mut Criterion) {
     delete_group.measurement_time(std::time::Duration::from_secs(10));
 
     for size in sizes.iter() {
-        // Optimized Delete
-        delete_group.bench_with_input(BenchmarkId::new("Optimized", size), size, |b, &size| {
+        // Abstracted Delete
+        delete_group.bench_with_input(BenchmarkId::new("Abstracted", size), size, |b, &size| {
             b.iter_batched(
                 || {
                     let users: Vec<User> = (0..size).map(|_| generate_random_user()).collect();
@@ -399,6 +402,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                     let (store, path) =
                         create_test_db::<Definition>(&name).expect("Failed to create DB");
 
+                    // Insert data in setup
                     let txn = store.begin_transaction().expect("Failed to begin txn");
                     {
                         let mut tables = txn
@@ -413,14 +417,14 @@ fn bench_crud_operations(c: &mut Criterion) {
 
                     (store, users, CleanupGuard(path))
                 },
-                |(store, users, _guard): (_, _, _)| {
+                |(store, users, _guard)| {
+                    // MEASURED: Transaction, table opening, and delete loop
                     let txn = store.begin_transaction().expect("Failed to begin txn");
                     {
                         let mut tables = txn
                             .prepare_model::<User>()
                             .expect("Failed to prepare model");
                         for user in users {
-                            // users is moved here
                             let user = black_box(user);
                             User::delete_entry(&user.id, &mut tables)
                                 .expect("Failed to delete user");
@@ -444,6 +448,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                     }
                     let db = redb::Database::create(&path).expect("Failed to create raw DB");
 
+                    // Insert data in setup
                     let txn = db.begin_write().expect("Failed to begin txn");
                     {
                         let mut main_table = txn.open_table(MAIN).expect("Failed to open main");
@@ -513,7 +518,8 @@ fn bench_crud_operations(c: &mut Criterion) {
 
                     (db, users, CleanupGuard(path))
                 },
-                |(db, users, _guard): (_, _, _)| {
+                |(db, users, _guard)| {
+                    // MEASURED: Transaction, table opening, and delete loop
                     let txn = db.begin_write().expect("Failed to begin txn");
                     {
                         let mut main_table = txn.open_table(MAIN).expect("Failed to open main");
@@ -536,8 +542,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                             .open_multimap_table(SUB_TOPIC2)
                             .expect("Failed to open sub topic2");
 
-                        for user in users {
-                            // users is moved here
+                        for user in &users {
                             let user_id = &user.id;
                             let stored_user = black_box(main_table.get(user_id))
                                 .expect("Failed to get user")

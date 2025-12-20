@@ -8,7 +8,7 @@ pub enum PermissionFlag {
     ReadWrite
 }
 
-pub struct RelationPermission<'tree_name, D: NetabaseDefinition, M: NetabaseModel<D>>(ModelTreeNames<'tree_name, D, M>, PermissionFlag)
+pub struct RelationPermission<'tree_name, D: NetabaseDefinition, M: NetabaseModel<D>>(pub ModelTreeNames<'tree_name, D, M>, pub PermissionFlag)
 where
     D::Discriminant: 'static + std::fmt::Debug,
     M: NetabaseModel<D>,
@@ -28,7 +28,7 @@ where
     for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
 {
-    relationa_tree_access: & 'source [RelationPermission<'tree_name, D, M>],
+    pub relationa_tree_access: & 'source [RelationPermission<'tree_name, D, M>],
 }
 
 /// Trait for types that can be converted to/from a global definition enum

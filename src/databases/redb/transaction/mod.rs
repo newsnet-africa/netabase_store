@@ -7,6 +7,7 @@ use strum::IntoDiscriminant;
 
 use crate::{
     errors::{NetabaseError, NetabaseResult},
+    relational::{ModelRelationPermissions, RelationPermission, PermissionFlag},
     traits::{
         database::transaction::NBTransaction,
         registery::{
@@ -77,15 +78,20 @@ where
         for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: 'static,
     {
-        self.open_model_tables(M::table_definitions())
+        // For batch operations, we default to ReadWrite permissions for the model being prepared
+        let perms = ModelRelationPermissions {
+            relationa_tree_access: &[RelationPermission(M::TREE_NAMES, PermissionFlag::ReadWrite)]
+        };
+        self.open_model_tables(M::table_definitions(), Some(perms))
     }
 
     /// Open tables for a specific model (concrete implementation)
     ///
     /// Opens all tables defined in M::TREE_NAMES for the given model.
-    pub fn open_model_tables<'txn, 'data, M>(
+    pub fn open_model_tables<'txn, 'data, 'perms, M>(
         &'txn self,
         definitions: RedbModelTableDefinitions<'data, M, D>,
+        relational_permissions: Option<ModelRelationPermissions<'perms, 'static, D, M>>
     ) -> NetabaseResult<ModelOpenTables<'txn, 'data, D, M>>
     where
         M: RedbNetbaseModel<'data, D> + redb::Key,
@@ -167,6 +173,8 @@ where
                 })
             }
             RedbTransactionType::Write(write_txn) => {
+                use crate::relational::PermissionFlag;
+
                 // For write transactions, open read-write tables
                 let main_table = {
                     write_txn
@@ -194,13 +202,24 @@ where
                     .relational
                     .iter()
                     .map(|disc_table| {
-                        let def = redb::MultimapTableDefinition::new(disc_table.table_name);
+                        let permission_flag = if let Some(perms) = &relational_permissions {
+                             perms.relationa_tree_access.iter()
+                                 .find(|p| p.0.relational.iter().any(|r| r.table_name == disc_table.table_name))
+                                 .map(|p| &p.1)
+                                 .unwrap_or(&PermissionFlag::ReadOnly)
+                        } else {
+                            &PermissionFlag::ReadOnly
+                        };
 
+                        let def = redb::MultimapTableDefinition::new(disc_table.table_name);
+                        
                         write_txn.open_multimap_table(def).map(|table| {
+                            let table_perm = match permission_flag {
+                                PermissionFlag::ReadWrite => TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)),
+                                PermissionFlag::ReadOnly => TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)),
+                            };
                             (
-                                TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(
-                                    table,
-                                )),
+                                table_perm,
                                 disc_table.table_name,
                             )
                         })
@@ -294,7 +313,10 @@ where
         D::SubscriptionKeys: redb::Key + 'static,
     {
         let definitions = M::table_definitions();
-        let mut tables = self.open_model_tables(definitions)?;
+        let perms = ModelRelationPermissions {
+            relationa_tree_access: &[RelationPermission(M::TREE_NAMES, PermissionFlag::ReadWrite)]
+        };
+        let mut tables = self.open_model_tables(definitions, Some(perms))?;
 
         model.create_entry(&mut tables)
     }
@@ -322,7 +344,7 @@ where
         D::SubscriptionKeys: redb::Key + 'static,
     {
         let definitions = M::table_definitions();
-        let tables = self.open_model_tables(definitions)?;
+        let tables = self.open_model_tables(definitions, None)?;
 
         M::read_entry(key, &tables)
     }
@@ -350,7 +372,10 @@ where
         D::SubscriptionKeys: redb::Key + 'static,
     {
         let definitions = M::table_definitions();
-        let mut tables = self.open_model_tables(definitions)?;
+        let perms = ModelRelationPermissions {
+            relationa_tree_access: &[RelationPermission(M::TREE_NAMES, PermissionFlag::ReadWrite)]
+        };
+        let mut tables = self.open_model_tables(definitions, Some(perms))?;
 
         model.update_entry(&mut tables)
     }
@@ -378,7 +403,10 @@ where
         D::SubscriptionKeys: redb::Key + 'static,
     {
         let definitions = M::table_definitions();
-        let mut tables = self.open_model_tables(definitions)?;
+        let perms = ModelRelationPermissions {
+            relationa_tree_access: &[RelationPermission(M::TREE_NAMES, PermissionFlag::ReadWrite)]
+        };
+        let mut tables = self.open_model_tables(definitions, Some(perms))?;
 
         M::delete_entry(key, &mut tables)
     }

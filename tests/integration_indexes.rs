@@ -5,7 +5,7 @@ mod common;
 use common::{cleanup_test_db, create_test_db};
 use netabase_store::databases::redb::transaction::RedbModelCrud;
 use netabase_store::errors::NetabaseResult;
-use netabase_store::relational::RelationalLink;
+use netabase_store::relational::{RelationalLink, ModelRelationPermissions, RelationPermission, PermissionFlag};
 use netabase_store::traits::registery::models::model::{NetabaseModel, RedbNetbaseModel};
 
 use netabase_store_examples::models::post::{Post, PostID};
@@ -41,7 +41,7 @@ fn test_secondary_key_indexes_created() -> NetabaseResult<()> {
     let txn = store.begin_transaction()?;
     {
         let table_defs = User::table_definitions();
-        let tables = txn.open_model_tables(table_defs)?;
+        let tables = txn.open_model_tables(table_defs, None)?;
 
         // Verify user1 exists
         let user1 = User::read_entry(&UserID("user1".to_string()), &tables)?;
@@ -102,7 +102,10 @@ fn test_secondary_index_update() -> NetabaseResult<()> {
     let txn = store.begin_transaction()?;
     {
         let table_defs = User::table_definitions();
-        let mut tables = txn.open_model_tables(table_defs)?;
+        let perms = ModelRelationPermissions {
+            relationa_tree_access: &[RelationPermission(User::TREE_NAMES, PermissionFlag::ReadWrite)]
+        };
+        let mut tables = txn.open_model_tables(table_defs, Some(perms))?;
         updated_user.update_entry(&mut tables)?;
     }
     txn.commit()?;
@@ -111,7 +114,7 @@ fn test_secondary_index_update() -> NetabaseResult<()> {
     let txn = store.begin_transaction()?;
     {
         let table_defs = User::table_definitions();
-        let tables = txn.open_model_tables(table_defs)?;
+        let tables = txn.open_model_tables(table_defs, None)?;
 
         let user = User::read_entry(&user_id, &tables)?;
         assert!(user.is_some());
@@ -162,7 +165,7 @@ fn test_relational_key_indexes_created() -> NetabaseResult<()> {
     let txn = store.begin_transaction()?;
     {
         let table_defs = User::table_definitions();
-        let tables = txn.open_model_tables(table_defs)?;
+        let tables = txn.open_model_tables(table_defs, None)?;
 
         let user1_read = User::read_entry(&user1_id, &tables)?;
         assert!(user1_read.is_some());
@@ -222,7 +225,7 @@ fn test_post_author_relationship() -> NetabaseResult<()> {
     let txn = store.begin_transaction()?;
     {
         let table_defs = Post::table_definitions();
-        let tables = txn.open_model_tables(table_defs)?;
+        let tables = txn.open_model_tables(table_defs, None)?;
 
         for post_id in &post_ids {
             let post = Post::read_entry(&PostID(post_id.to_string()), &tables)?;
@@ -273,7 +276,7 @@ fn test_relational_key_update() -> NetabaseResult<()> {
     let txn = store.begin_transaction()?;
     {
         let table_defs = User::table_definitions();
-        let tables = txn.open_model_tables(table_defs)?;
+        let tables = txn.open_model_tables(table_defs, None)?;
 
         let user = User::read_entry(&user_id, &tables)?;
         assert_eq!(user.unwrap().partner.get_primary_key().0, "old_partner");
@@ -293,7 +296,10 @@ fn test_relational_key_update() -> NetabaseResult<()> {
     let txn = store.begin_transaction()?;
     {
         let table_defs = User::table_definitions();
-        let mut tables = txn.open_model_tables(table_defs)?;
+        let perms = ModelRelationPermissions {
+            relationa_tree_access: &[RelationPermission(User::TREE_NAMES, PermissionFlag::ReadWrite)]
+        };
+        let mut tables = txn.open_model_tables(table_defs, Some(perms))?;
         updated_user.update_entry(&mut tables)?;
     }
     txn.commit()?;
@@ -302,7 +308,7 @@ fn test_relational_key_update() -> NetabaseResult<()> {
     let txn = store.begin_transaction()?;
     {
         let table_defs = User::table_definitions();
-        let tables = txn.open_model_tables(table_defs)?;
+        let tables = txn.open_model_tables(table_defs, None)?;
 
         let user = User::read_entry(&user_id, &tables)?;
         assert!(user.is_some());
@@ -363,7 +369,7 @@ fn test_subscription_indexes_created() -> NetabaseResult<()> {
     let txn = store.begin_transaction()?;
     {
         let table_defs = User::table_definitions();
-        let tables = txn.open_model_tables(table_defs)?;
+        let tables = txn.open_model_tables(table_defs, None)?;
 
         let user1_read = User::read_entry(&UserID("sub_user1".to_string()), &tables)?;
         assert!(user1_read.is_some());
@@ -416,7 +422,10 @@ fn test_subscription_update() -> NetabaseResult<()> {
     let txn = store.begin_transaction()?;
     {
         let table_defs = User::table_definitions();
-        let mut tables = txn.open_model_tables(table_defs)?;
+        let perms = ModelRelationPermissions {
+            relationa_tree_access: &[RelationPermission(User::TREE_NAMES, PermissionFlag::ReadWrite)]
+        };
+        let mut tables = txn.open_model_tables(table_defs, Some(perms))?;
         updated_user.update_entry(&mut tables)?;
     }
     txn.commit()?;
@@ -425,7 +434,7 @@ fn test_subscription_update() -> NetabaseResult<()> {
     let txn = store.begin_transaction()?;
     {
         let table_defs = User::table_definitions();
-        let tables = txn.open_model_tables(table_defs)?;
+        let tables = txn.open_model_tables(table_defs, None)?;
 
         let user = User::read_entry(&user_id, &tables)?;
         assert!(user.is_some());
@@ -473,7 +482,7 @@ fn test_delete_cleans_all_indexes() -> NetabaseResult<()> {
     let txn = store.begin_transaction()?;
     {
         let table_defs = User::table_definitions();
-        let tables = txn.open_model_tables(table_defs)?;
+        let tables = txn.open_model_tables(table_defs, None)?;
 
         assert!(User::read_entry(&user_id, &tables)?.is_some());
     }
@@ -483,7 +492,10 @@ fn test_delete_cleans_all_indexes() -> NetabaseResult<()> {
     let txn = store.begin_transaction()?;
     {
         let table_defs = User::table_definitions();
-        let mut tables = txn.open_model_tables(table_defs)?;
+        let perms = ModelRelationPermissions {
+            relationa_tree_access: &[RelationPermission(User::TREE_NAMES, PermissionFlag::ReadWrite)]
+        };
+        let mut tables = txn.open_model_tables(table_defs, Some(perms))?;
 
         User::delete_entry(&user_id, &mut tables)?;
     }
@@ -493,7 +505,7 @@ fn test_delete_cleans_all_indexes() -> NetabaseResult<()> {
     let txn = store.begin_transaction()?;
     {
         let table_defs = User::table_definitions();
-        let tables = txn.open_model_tables(table_defs)?;
+        let tables = txn.open_model_tables(table_defs, None)?;
 
         assert!(
             User::read_entry(&user_id, &tables)?.is_none(),
