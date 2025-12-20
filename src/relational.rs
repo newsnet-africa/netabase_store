@@ -1,7 +1,35 @@
-use crate::traits::registery::{definition::NetabaseDefinition, models::keys::NetabaseModelKeys};
+use crate::{databases::redb::transaction::TablePermission, traits::registery::{definition::NetabaseDefinition, models::{keys::NetabaseModelKeys, model::NetabaseModel, treenames::ModelTreeNames}}};
 use serde::{Serialize, Deserialize};
 use bincode::{Encode, Decode, BorrowDecode};
 use strum::IntoDiscriminant;
+
+pub enum PermissionFlag {
+    ReadOnly,
+    ReadWrite
+}
+
+pub struct RelationPermission<'tree_name, D: NetabaseDefinition, M: NetabaseModel<D>>(ModelTreeNames<'tree_name, D, M>, PermissionFlag)
+where
+    D::Discriminant: 'static + std::fmt::Debug,
+    M: NetabaseModel<D>,
+    for<'b> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'b>: IntoDiscriminant,
+    for<'b> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'b>: IntoDiscriminant,
+    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug;
+
+pub struct ModelRelationPermissions<'source, 'tree_name, D: NetabaseDefinition, M: NetabaseModel<D>>
+where
+    D::Discriminant: 'static + std::fmt::Debug,
+    M: NetabaseModel<D>,
+    for<'b> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'b>: IntoDiscriminant,
+    for<'b> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'b>: IntoDiscriminant,
+    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+{
+    relationa_tree_access: & 'source [RelationPermission<'tree_name, D, M>],
+}
 
 /// Trait for types that can be converted to/from a global definition enum
 pub trait IntoGlobalDefinition {

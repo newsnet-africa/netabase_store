@@ -1,5 +1,5 @@
-use strum::IntoDiscriminant;
 use crate::{
+    Permission,
     traits::registery::{
         definition::redb_definition::RedbDefinition,
         models::{
@@ -8,6 +8,11 @@ use crate::{
         },
     },
 };
+use strum::IntoDiscriminant;
+
+pub struct ModelTablePermissions {
+    main: Permission,
+}
 
 pub struct ModelOpenTables<'txn, 'db, D: RedbDefinition, M: RedbNetbaseModel<'db, D> + redb::Key>
 where
