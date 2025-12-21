@@ -20,7 +20,9 @@ use netabase_store_examples::boilerplate_lib::DefinitionTwoDiscriminants;
 use netabase_store_examples::boilerplate_lib::GlobalDefinitionKeys;
 use netabase_store_examples::boilerplate_lib::GlobalKeys;
 use netabase_store_examples::boilerplate_lib::models::post::{Post, PostID};
-use netabase_store_examples::boilerplate_lib::models::user::{User, UserID, UserKeys};
+use netabase_store_examples::boilerplate_lib::models::user::{
+    User, UserFile, UserFileEnum, UserID, UserKeys,
+};
 use netabase_store::relational::RelationalLink;
 use netabase_store::traits::registery::definition::NetabaseDefinition;
 use netabase_store::traits::registery::models::model::NetabaseModel;
@@ -57,6 +59,10 @@ fn main() {
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),
         subscriptions: vec![DefinitionSubscriptions::Topic1],
+        user_file: UserFileEnum::Complete(UserFile {
+            filename: "profile.jpg".to_string(),
+            mime_type: "image/jpeg".to_string(),
+        }),
     };
 
     let post_id = PostID("post1".to_string());
@@ -190,6 +196,10 @@ fn main() {
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),
         subscriptions: vec![DefinitionSubscriptions::Topic2],
+        user_file: UserFileEnum::Complete(UserFile {
+            filename: "resume.pdf".to_string(),
+            mime_type: "application/pdf".to_string(),
+        }),
     };
     let owned = RelationalLink::<Definition, Definition, User>::new_owned(
         UserID("user2".to_string()),
@@ -252,6 +262,10 @@ fn main() {
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),
         subscriptions: vec![],
+        user_file: UserFileEnum::Complete(UserFile {
+            filename: "test.txt".to_string(),
+            mime_type: "text/plain".to_string(),
+        }),
     };
     let test_owned = RelationalLink::<Definition, Definition, User>::new_owned(
         UserID("test".to_string()),
@@ -264,6 +278,10 @@ fn main() {
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),
         subscriptions: vec![],
+        user_file: UserFileEnum::Complete(UserFile {
+            filename: "test.txt".to_string(),
+            mime_type: "text/plain".to_string(),
+        }),
     };
     let test_hydrated = RelationalLink::<Definition, Definition, User>::new_hydrated(
         UserID("test".to_string()),

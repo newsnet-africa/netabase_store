@@ -1,10 +1,9 @@
-use crate::{
-    traits::registery::{
-        definition::redb_definition::RedbDefinition,
-        models::{
-            keys::NetabaseModelKeys,
-            model::{NetabaseModel, redb_model::RedbNetbaseModel},
-        },
+use crate::traits::registery::{
+    definition::redb_definition::RedbDefinition,
+    models::{
+        StoreKey,
+        keys::{NetabaseModelKeys, blob::NetabaseModelBlobKey},
+        model::{NetabaseModel, redb_model::RedbNetbaseModel},
     },
 };
 use strum::IntoDiscriminant;
@@ -16,12 +15,17 @@ where
     D: Clone,
     <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key + 'static,
     <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key + 'static,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: redb::Key + 'static,
     <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key + 'static,
     D::SubscriptionKeys: redb::Key + 'static,
     for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: 'static,
+    for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a>: IntoDiscriminant,
+    for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as NetabaseModelBlobKey<'a, D, M, <M as NetabaseModel<D>>::Keys>>::BlobTypes: redb::Key + redb::Value + 'static,
+    <M as NetabaseModel<D>>::Keys: 'static
 {
     pub main: TablePermission<'txn, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>, M::TableV>,
 
@@ -37,6 +41,11 @@ where
 
     pub subscription: Vec<(
         TablePermission<'txn, D::SubscriptionKeys, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>>,
+        &'db str,
+    )>,
+
+    pub blob: Vec<(
+        TablePermission<'txn, <M::Keys as NetabaseModelKeys<D, M>>::Blob<'db>, <<M::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobTypes>,
         &'db str,
     )>,
 }

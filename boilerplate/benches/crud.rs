@@ -3,7 +3,7 @@ use netabase_store::databases::redb::transaction::RedbModelCrud;
 use netabase_store::relational::RelationalLink;
 use netabase_store_examples::boilerplate_lib::models::user::{
     User, UserAge, UserCategory, UserID, UserName, UserPartner, UserRelationalKeys,
-    UserSecondaryKeys,
+    UserSecondaryKeys, UserFile, UserFileEnum,
 };
 use netabase_store_examples::boilerplate_lib::{CategoryID, Definition, DefinitionSubscriptions};
 use rand::prelude::*;
@@ -74,6 +74,10 @@ pub fn generate_random_user() -> User {
         partner,
         category,
         subscriptions,
+        user_file: UserFileEnum::Complete(UserFile {
+            filename: "random.bin".to_string(),
+            mime_type: "application/octet-stream".to_string(),
+        }),
     }
 }
 

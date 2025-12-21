@@ -36,6 +36,7 @@ where
         IntoDiscriminant,
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
      <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'static>: 'static
 {
@@ -47,6 +48,9 @@ where
     fn get_secondary_keys<'a>(
         &'a self,
     ) -> Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Secondary<'a>>;
+    fn get_blobs<'a>(
+        &'a self,
+    ) -> Vec<(<Self::Keys as NetabaseModelKeys<D, Self>>::Blob<'a>, <<Self::Keys as NetabaseModelKeys<D, Self>>::Blob<'a> as crate::traits::registery::models::keys::blob::NetabaseModelBlobKey<'a, D, Self, Self::Keys>>::BlobTypes)>;
     fn get_relational_keys<'a>(
         &'a self,
     ) -> Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Relational<'a>>;

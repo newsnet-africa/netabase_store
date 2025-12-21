@@ -10,6 +10,7 @@ use netabase_store::traits::registery::models::{
     keys::{
         NetabaseModelKeys, NetabaseModelPrimaryKey, NetabaseModelRelationalKey,
         NetabaseModelSecondaryKey, NetabaseModelSubscriptionKey,
+        blob::NetabaseModelBlobKey,
     },
     model::{NetabaseModel, NetabaseModelMarker, RedbNetbaseModel},
     treenames::{DiscriminantTableName, ModelTreeNames},
@@ -17,6 +18,8 @@ use netabase_store::traits::registery::models::{
 use std::fmt::Display;
 
 use bincode::{BorrowDecode, Decode, Encode};
+use bincode::enc::write::Writer;
+use bincode::de::read::Reader;
 use derive_more::Display;
 use redb::{Key, Value};
 use serde::{Deserialize, Serialize};
@@ -64,6 +67,114 @@ macro_rules! impl_redb_value_key_for_owned {
     };
 }
 
+// --- Blob Types ---
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct UserFile {
+    pub filename: String,
+    pub mime_type: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct UserFileBlob(pub u32, pub Vec<u8>);
+
+impl Encode for UserFileBlob {
+    fn encode<E: bincode::enc::Encoder>(&self, encoder: &mut E) -> Result<(), bincode::error::EncodeError> {
+        // Encode u32 as Big Endian for sorting
+        let index_be = self.0.to_be_bytes();
+        encoder.writer().write(&index_be)?;
+        self.1.encode(encoder)?;
+        Ok(())
+    }
+}
+
+impl Decode<()> for UserFileBlob {
+    fn decode<D: bincode::de::Decoder<Context = ()>>(decoder: &mut D) -> Result<Self, bincode::error::DecodeError> {
+        let mut index_bytes = [0u8; 4];
+        decoder.reader().read(&mut index_bytes)?;
+        let index = u32::from_be_bytes(index_bytes);
+        let data = Vec::<u8>::decode(decoder)?;
+        Ok(UserFileBlob(index, data))
+    }
+}
+
+impl<'de> BorrowDecode<'de, ()> for UserFileBlob {
+    fn borrow_decode<D: bincode::de::BorrowDecoder<'de, Context = ()>>(
+        decoder: &mut D,
+    ) -> Result<Self, bincode::error::DecodeError> {
+        Self::decode(decoder)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, Serialize, Deserialize)]
+pub struct UserFileBlobKey(pub UserID);
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, EnumDiscriminants)]
+#[strum_discriminants(name(UserFileEnumDiscriminants))]
+pub enum UserFileEnum {
+    Complete(UserFile),
+    Blobs(Vec<UserFileBlob>),
+    StoredBlobs,
+}
+
+// Manual Encode/Decode for UserFileEnum to handle StoredBlobs transition
+impl Encode for UserFileEnum {
+    fn encode<E: bincode::enc::Encoder>(&self, encoder: &mut E) -> Result<(), bincode::error::EncodeError> {
+        match self {
+            UserFileEnum::Complete(f) => {
+                0u32.encode(encoder)?;
+                f.encode(encoder)?;
+            }
+            UserFileEnum::Blobs(_) | UserFileEnum::StoredBlobs => {
+                1u32.encode(encoder)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Decode<()> for UserFileEnum {
+    fn decode<D: bincode::de::Decoder<Context = ()>>(decoder: &mut D) -> Result<Self, bincode::error::DecodeError> {
+        let variant = u32::decode(decoder)?;
+        match variant {
+            0 => Ok(UserFileEnum::Complete(UserFile::decode(decoder)?)),
+            1 => Ok(UserFileEnum::StoredBlobs),
+            _ => Err(bincode::error::DecodeError::Other("Invalid UserFileEnum variant")),
+        }
+    }
+}
+
+impl<'de> BorrowDecode<'de, ()> for UserFileEnum {
+    fn borrow_decode<D: bincode::de::BorrowDecoder<'de, Context = ()>>(
+        decoder: &mut D,
+    ) -> Result<Self, bincode::error::DecodeError> {
+        Self::decode(decoder)
+    }
+}
+
+// Blob Keys Enum
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, Serialize, Deserialize, EnumDiscriminants)]
+#[strum_discriminants(name(UserBlobKeysDiscriminants))]
+#[strum_discriminants(derive(AsRefStr))]
+pub enum UserBlobKeys {
+    UserFile(UserFileBlobKey),
+}
+impl_redb_value_key_for_owned!(UserBlobKeys);
+
+// Blob Types Enum (Values)
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, Serialize, Deserialize, EnumDiscriminants)]
+#[strum_discriminants(name(UserBlobTypesDiscriminants))]
+#[strum_discriminants(derive(AsRefStr))]
+pub enum UserBlobTypes {
+    UserFile(UserFileBlob),
+}
+impl_redb_value_key_for_owned!(UserBlobTypes);
+
+// Impl NetabaseModelBlobKey
+impl<'a> NetabaseModelBlobKey<'a, Definition, User, UserKeys> for UserBlobKeys {
+    type BlobTypes = UserBlobTypes;
+}
+
 // --- User Model ---
 
 #[derive(Debug, Clone, Encode, Serialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -74,6 +185,7 @@ pub struct User {
     pub partner: RelationalLink<'static, Definition, Definition, User>,
     pub category: RelationalLink<'static, Definition, DefinitionTwo, Category>,
     pub subscriptions: Vec<DefinitionSubscriptions>,
+    pub user_file: UserFileEnum,
 }
 
 use std::fmt;
@@ -102,10 +214,16 @@ impl fmt::Display for User {
             .collect();
         let subs = subs.join(", ");
 
+        let file_status = match &self.user_file {
+            UserFileEnum::Complete(_) => "Complete",
+            UserFileEnum::Blobs(b) => "Blobs",
+            UserFileEnum::StoredBlobs => "StoredBlobs",
+        };
+
         write!(
             f,
-            "User {{ id: {}, name: \"{}\", age: {}, partner: {:?}, category: {:?}, subscriptions: [{}] }}",
-            id, name, age, partner, category, subs
+            "User {{ id: {}, name: \"{}\", age: {}, partner: {:?}, category: {:?}, subscriptions: [{}], file: {} }}",
+            id, name, age, partner, category, subs, file_status
         )
     }
 }
@@ -125,6 +243,7 @@ impl<'de> serde::Deserialize<'de> for User {
             Partner,
             Category,
             Subscriptions,
+            UserFile,
         }
 
         struct UserVisitor;
@@ -146,6 +265,7 @@ impl<'de> serde::Deserialize<'de> for User {
                 let mut partner = None;
                 let mut category = None;
                 let mut subscriptions = None;
+                let mut user_file = None;
 
                 while let Some(key) = map.next_key()? {
                     match key {
@@ -191,6 +311,12 @@ impl<'de> serde::Deserialize<'de> for User {
                             }
                             subscriptions = Some(map.next_value()?);
                         }
+                        Field::UserFile => {
+                            if user_file.is_some() {
+                                return Err(serde::de::Error::duplicate_field("user_file"));
+                            }
+                            user_file = Some(map.next_value()?);
+                        }
                     }
                 }
 
@@ -202,6 +328,7 @@ impl<'de> serde::Deserialize<'de> for User {
                     category.ok_or_else(|| serde::de::Error::missing_field("category"))?;
                 let subscriptions = subscriptions
                     .ok_or_else(|| serde::de::Error::missing_field("subscriptions"))?;
+                let user_file = user_file.ok_or_else(|| serde::de::Error::missing_field("user_file"))?;
 
                 Ok(User {
                     id,
@@ -210,11 +337,12 @@ impl<'de> serde::Deserialize<'de> for User {
                     partner,
                     category,
                     subscriptions,
+                    user_file,
                 })
             }
         }
 
-        const FIELDS: &[&str] = &["id", "name", "age", "partner", "category", "subscriptions"];
+        const FIELDS: &[&str] = &["id", "name", "age", "partner", "category", "subscriptions", "user_file"];
         deserializer.deserialize_struct("User", FIELDS, UserVisitor)
     }
 }
@@ -232,6 +360,7 @@ impl Decode<()> for User {
             RelationalLink::<'static, Definition, DefinitionTwo, Category>::decode(decoder)?;
         let subscriptions: Vec<DefinitionSubscriptions> =
             Vec::<DefinitionSubscriptions>::decode(decoder)?;
+        let user_file: UserFileEnum = UserFileEnum::decode(decoder)?;
 
         Ok(Self {
             id,
@@ -240,6 +369,7 @@ impl Decode<()> for User {
             partner,
             category,
             subscriptions,
+            user_file,
         })
     }
 }
@@ -257,6 +387,7 @@ impl<'de> BorrowDecode<'de, ()> for User {
             RelationalLink::<'static, Definition, DefinitionTwo, Category>::decode(decoder)?;
         let subscriptions: Vec<DefinitionSubscriptions> =
             Vec::<DefinitionSubscriptions>::decode(decoder)?;
+        let user_file: UserFileEnum = UserFileEnum::borrow_decode(decoder)?;
 
         Ok(Self {
             id,
@@ -265,6 +396,7 @@ impl<'de> BorrowDecode<'de, ()> for User {
             partner,
             category,
             subscriptions,
+            user_file,
         })
     }
 }
@@ -383,6 +515,7 @@ pub enum UserKeys {
     Secondary(UserSecondaryKeys),
     Relational(UserRelationalKeys),
     Subscription(UserSubscriptions),
+    Blob(UserBlobKeys),
 }
 
 // --- User Implementation ---
@@ -411,6 +544,12 @@ impl NetabaseModel<Definition> for User {
                 UserRelationalKeysDiscriminants::Category,
                 "Definition:User:Relational:Category",
             ),
+        ],
+        blob: &[
+            DiscriminantTableName::new(
+                UserBlobKeysDiscriminants::UserFile,
+                "Definition:User:Blob:UserFile",
+            )
         ],
         subscription: Some(&[
             DiscriminantTableName::new(
@@ -442,6 +581,18 @@ impl NetabaseModel<Definition> for User {
         ]
     }
 
+    fn get_blobs<'a>(&'a self) -> Vec<(UserBlobKeys, UserBlobTypes)> {
+        match &self.user_file {
+            UserFileEnum::Blobs(blobs) => {
+                 blobs.iter().map(|b| (
+                     UserBlobKeys::UserFile(UserFileBlobKey(self.id.clone())),
+                     UserBlobTypes::UserFile(b.clone())
+                 )).collect()
+            },
+            _ => vec![]
+        }
+    }
+
     fn get_subscription_keys<'b>(&'b self) -> Vec<UserSubscriptions> {
         self.subscriptions
             .iter()
@@ -466,10 +617,14 @@ impl StoreValue<Definition, UserID> for User {}
 impl StoreKeyMarker<Definition> for UserSecondaryKeys {}
 impl StoreKeyMarker<Definition> for UserRelationalKeys {}
 impl StoreKeyMarker<Definition> for UserSubscriptions {}
+impl StoreKeyMarker<Definition> for UserBlobKeys {}
+impl StoreValueMarker<Definition> for UserBlobTypes {}
 
 impl StoreKey<Definition, UserID> for UserSecondaryKeys {}
 impl StoreKey<Definition, UserID> for UserRelationalKeys {}
 impl StoreKey<Definition, UserID> for UserSubscriptions {}
+impl StoreKey<Definition, UserBlobTypes> for UserBlobKeys {}
+impl StoreValue<Definition, UserBlobKeys> for UserBlobTypes {}
 
 impl StoreValue<Definition, UserSecondaryKeys> for UserID {}
 impl StoreValue<Definition, UserRelationalKeys> for UserID {}
@@ -482,6 +637,7 @@ impl NetabaseModelKeys<Definition, User> for UserKeys {
     type Secondary<'user> = UserSecondaryKeys;
     type Relational<'user> = UserRelationalKeys;
     type Subscription<'user> = UserSubscriptions;
+    type Blob<'user> = UserBlobKeys;
 }
 
 impl<'a> NetabaseModelPrimaryKey<'a, Definition, User, UserKeys> for UserID {}

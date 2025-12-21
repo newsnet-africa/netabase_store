@@ -13,9 +13,8 @@ pub trait NetabaseModelBlobKey<
     D: NetabaseDefinition,
     M: NetabaseModelMarker<D>,
     K: NetabaseModelKeys<D, M> + 'static,
->: StoreKeyMarker<D> + Clone where
+>: StoreKeyMarker<D> + Clone + StoreKey<D, Self::BlobTypes> where
     D::Discriminant: 'static + std::fmt::Debug,
-    K::Relational<'a>: StoreKeyMarker<D> + StoreKey<D, Self::BlobTypes>,
     <<K as NetabaseModelKeys<D, M>>::Blob<'a> as IntoDiscriminant>::Discriminant: 'static,
     <Self::BlobTypes as IntoDiscriminant>::Discriminant: 'static,
 {
