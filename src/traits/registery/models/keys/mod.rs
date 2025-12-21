@@ -1,3 +1,4 @@
+use crate::traits::registery::models::keys::blob::NetabaseModelBlobKey;
 pub use crate::traits::registery::models::keys::primary::NetabaseModelPrimaryKey;
 pub use crate::traits::registery::models::keys::relational::{
     NetabaseModelRelationalKey, NetabaseModelRelationalKeyForeign,
@@ -8,6 +9,7 @@ use crate::traits::registery::{
     definition::NetabaseDefinition, models::model::NetabaseModelMarker,
 };
 
+pub mod blob;
 pub mod primary;
 pub mod relational;
 pub mod secondary;
@@ -26,4 +28,5 @@ where
     type Secondary<'a>: NetabaseModelSecondaryKey<'a, D, M, Self>;
     type Relational<'a>: NetabaseModelRelationalKey<'a, D, M, Self>; // More flexible, specific foreign types defined elsewhere
     type Subscription<'a>: NetabaseModelSubscriptionKey<D, M, Self> + 'static;
+    type Blob<'a>: NetabaseModelBlobKey<'a, D, M, Self>;
 }

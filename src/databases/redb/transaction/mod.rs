@@ -7,13 +7,13 @@ use strum::IntoDiscriminant;
 
 use crate::{
     errors::{NetabaseError, NetabaseResult},
-    relational::{ModelRelationPermissions, RelationPermission, PermissionFlag},
+    relational::{ModelRelationPermissions, PermissionFlag, RelationPermission},
     traits::{
         database::transaction::NBTransaction,
         registery::{
             definition::{NetabaseDefinition, redb_definition::RedbDefinition},
             models::{
-                keys::NetabaseModelKeys,
+                keys::{NetabaseModelKeys, blob::NetabaseModelBlobKey},
                 model::{
                     NetabaseModel,
                     redb_model::{RedbModelTableDefinitions, RedbNetbaseModel},
@@ -76,11 +76,14 @@ where
         for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: redb::Key + 'static,
     {
         // For batch operations, we default to ReadWrite permissions for the model being prepared
         let perms = ModelRelationPermissions {
-            relationa_tree_access: &[RelationPermission(M::TREE_NAMES, PermissionFlag::ReadWrite)]
+            relationa_tree_access: &[RelationPermission(M::TREE_NAMES, PermissionFlag::ReadWrite)],
         };
         self.open_model_tables(M::table_definitions(), Some(perms))
     }
@@ -104,7 +107,10 @@ where
         for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'data>: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'data>: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'data> as NetabaseModelBlobKey<'data, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: redb::Key + 'static,
     {
         let _table_definitions = definitions; // Keep for future use
 
@@ -122,6 +128,20 @@ where
 
                 let secondary_tables: Result<Vec<_>, NetabaseError> = M::TREE_NAMES
                     .secondary
+                    .iter()
+                    .map(|disc_table| -> Result<_, NetabaseError> {
+                        let def = redb::MultimapTableDefinition::new(disc_table.table_name);
+                        read_txn.open_multimap_table(def).map(|table| {
+                            (
+                                TablePermission::ReadOnly(TableType::MultimapTable(table)),
+                                disc_table.table_name,
+                            )
+                        })
+                    })
+                    .collect();
+
+                let blob_tables: Result<Vec<_>, NetabaseError> = M::TREE_NAMES
+                    .blob
                     .iter()
                     .map(|disc_table| -> Result<_, NetabaseError> {
                         let def = redb::MultimapTableDefinition::new(disc_table.table_name);
@@ -168,6 +188,7 @@ where
                 Ok(ModelOpenTables {
                     main: main_table,
                     secondary: secondary_tables?,
+                    blob: blob_tables?,
                     relational: relational_tables?,
                     subscription: subscription_tables?,
                 })
@@ -198,30 +219,53 @@ where
                     })
                     .collect();
 
+                let blob_tables: Result<Vec<_>, NetabaseError> = M::TREE_NAMES
+                    .blob
+                    .iter()
+                    .map(|disc_table| -> Result<_, NetabaseError> {
+                        let def = redb::MultimapTableDefinition::new(disc_table.table_name);
+                        write_txn.open_multimap_table(def).map(|table| {
+                            (
+                                TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(
+                                    table,
+                                )),
+                                disc_table.table_name,
+                            )
+                        })
+                    })
+                    .collect();
+
                 let relational_tables: Result<Vec<_>, NetabaseError> = M::TREE_NAMES
                     .relational
                     .iter()
                     .map(|disc_table| {
                         let permission_flag = if let Some(perms) = &relational_permissions {
-                             perms.relationa_tree_access.iter()
-                                 .find(|p| p.0.relational.iter().any(|r| r.table_name == disc_table.table_name))
-                                 .map(|p| &p.1)
-                                 .unwrap_or(&PermissionFlag::ReadOnly)
+                            perms
+                                .relationa_tree_access
+                                .iter()
+                                .find(|p| {
+                                    p.0.relational
+                                        .iter()
+                                        .any(|r| r.table_name == disc_table.table_name)
+                                })
+                                .map(|p| &p.1)
+                                .unwrap_or(&PermissionFlag::ReadOnly)
                         } else {
                             &PermissionFlag::ReadOnly
                         };
 
                         let def = redb::MultimapTableDefinition::new(disc_table.table_name);
-                        
+
                         write_txn.open_multimap_table(def).map(|table| {
                             let table_perm = match permission_flag {
-                                PermissionFlag::ReadWrite => TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)),
-                                PermissionFlag::ReadOnly => TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)),
+                                PermissionFlag::ReadWrite => TablePermission::ReadWrite(
+                                    ReadWriteTableType::MultimapTable(table),
+                                ),
+                                PermissionFlag::ReadOnly => TablePermission::ReadOnlyWrite(
+                                    ReadWriteTableType::MultimapTable(table),
+                                ),
                             };
-                            (
-                                table_perm,
-                                disc_table.table_name,
-                            )
+                            (table_perm, disc_table.table_name)
                         })
                     })
                     .collect();
@@ -248,6 +292,7 @@ where
                 Ok(ModelOpenTables {
                     main: main_table,
                     secondary: secondary_tables?,
+                    blob: blob_tables?,
                     relational: relational_tables?,
                     subscription: subscription_tables?,
                 })
@@ -300,6 +345,8 @@ where
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
             'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as IntoDiscriminant>::Discriminant:
+            'static,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
@@ -311,10 +358,16 @@ where
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: 'static,
         D: 'static,
         D::SubscriptionKeys: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: redb::Key + 'static, <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'static>: 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as redb::Value>::SelfType<'a>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem as redb::Value>::SelfType<'a>>,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a>: Into<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as NetabaseModelBlobKey<'a, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: Into<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem>,
     {
         let definitions = M::table_definitions();
         let perms = ModelRelationPermissions {
-            relationa_tree_access: &[RelationPermission(M::TREE_NAMES, PermissionFlag::ReadWrite)]
+            relationa_tree_access: &[RelationPermission(M::TREE_NAMES, PermissionFlag::ReadWrite)],
         };
         let mut tables = self.open_model_tables(definitions, Some(perms))?;
 
@@ -332,6 +385,8 @@ where
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
             'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as IntoDiscriminant>::Discriminant:
+            'static,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
@@ -342,6 +397,12 @@ where
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: 'static,
         D: 'static,
         D::SubscriptionKeys: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: redb::Key + 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as redb::Value>::SelfType<'a>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem as redb::Value>::SelfType<'a>>,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a>: Into<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as NetabaseModelBlobKey<'a, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: Into<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem>,
     {
         let definitions = M::table_definitions();
         let tables = self.open_model_tables(definitions, None)?;
@@ -360,6 +421,8 @@ where
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
             'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as IntoDiscriminant>::Discriminant:
+            'static,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
@@ -370,10 +433,16 @@ where
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: 'static,
         D: 'static,
         D::SubscriptionKeys: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: redb::Key + 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as redb::Value>::SelfType<'a>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem as redb::Value>::SelfType<'a>>,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a>: Into<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as NetabaseModelBlobKey<'a, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: Into<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem>,
     {
         let definitions = M::table_definitions();
         let perms = ModelRelationPermissions {
-            relationa_tree_access: &[RelationPermission(M::TREE_NAMES, PermissionFlag::ReadWrite)]
+            relationa_tree_access: &[RelationPermission(M::TREE_NAMES, PermissionFlag::ReadWrite)],
         };
         let mut tables = self.open_model_tables(definitions, Some(perms))?;
 
@@ -391,6 +460,8 @@ where
             'static,
         for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
             'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as IntoDiscriminant>::Discriminant:
+            'static,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
@@ -401,10 +472,16 @@ where
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: 'static,
         D: 'static,
         D::SubscriptionKeys: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: redb::Key + 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as redb::Value>::SelfType<'a>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem as redb::Value>::SelfType<'a>>,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a>: Into<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as NetabaseModelBlobKey<'a, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: Into<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem>,
     {
         let definitions = M::table_definitions();
         let perms = ModelRelationPermissions {
-            relationa_tree_access: &[RelationPermission(M::TREE_NAMES, PermissionFlag::ReadWrite)]
+            relationa_tree_access: &[RelationPermission(M::TREE_NAMES, PermissionFlag::ReadWrite)],
         };
         let mut tables = self.open_model_tables(definitions, Some(perms))?;
 

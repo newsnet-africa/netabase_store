@@ -5,11 +5,12 @@ use crate::{
 };
 use netabase_store::databases::redb::transaction::ModelOpenTables;
 use netabase_store::relational::RelationalLink;
+use netabase_store::blob::NetabaseBlobItem;
 use netabase_store::traits::registery::models::{
     StoreKey, StoreKeyMarker, StoreValue, StoreValueMarker,
     keys::{
         NetabaseModelKeys, NetabaseModelPrimaryKey, NetabaseModelRelationalKey,
-        NetabaseModelSecondaryKey, NetabaseModelSubscriptionKey,
+        NetabaseModelSecondaryKey, NetabaseModelSubscriptionKey, blob::NetabaseModelBlobKey,
     },
     model::{NetabaseModel, NetabaseModelMarker, RedbNetbaseModel},
     treenames::{DiscriminantTableName, ModelTreeNames},
@@ -377,12 +378,45 @@ pub enum UserRelationalKeys {
     Category(UserCategory),
 }
 
+#[derive(
+    Clone,
+    Eq,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    Debug,
+    Encode,
+    Decode,
+    EnumDiscriminants,
+    Serialize,
+    Deserialize,
+    Hash,
+)]
+#[strum_discriminants(name(UserBlobKeysDiscriminants))]
+#[strum_discriminants(derive(AsRefStr))]
+pub enum UserBlobKeys {
+    None,
+}
+
+impl<'a> NetabaseModelBlobKey<'a, Definition, User, UserKeys> for UserBlobKeys {
+    type PrimaryKey = UserID;
+    type BlobItem = UserBlobItem;
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, Serialize, Deserialize)]
+pub struct UserBlobItem;
+
+impl NetabaseBlobItem for UserBlobItem {
+    type Blobs = ();
+}
+
 #[derive(Clone, Debug)]
 pub enum UserKeys {
     Primary(UserID),
     Secondary(UserSecondaryKeys),
     Relational(UserRelationalKeys),
     Subscription(UserSubscriptions),
+    Blob(UserBlobKeys),
 }
 
 // --- User Implementation ---
@@ -422,6 +456,10 @@ impl NetabaseModel<Definition> for User {
                 "Definition:Subscription:Topic2",
             ),
         ]),
+        blob: &[DiscriminantTableName::new(
+            UserBlobKeysDiscriminants::None,
+            "Definition:User:Blob:None",
+        )],
     };
 
     fn get_primary_key<'b>(&'b self) -> UserID {
@@ -454,6 +492,15 @@ impl NetabaseModel<Definition> for User {
             })
             .collect()
     }
+
+    fn get_blob_entries<'a>(
+        &'a self,
+    ) -> Vec<(
+        <Self::Keys as NetabaseModelKeys<Definition, Self>>::Blob<'a>,
+        <<Self::Keys as NetabaseModelKeys<Definition, Self>>::Blob<'a> as NetabaseModelBlobKey<'a, Definition, Self, Self::Keys>>::BlobItem,
+    )> {
+        vec![]
+    }
 }
 
 impl StoreValueMarker<Definition> for User {}
@@ -466,6 +513,7 @@ impl StoreValue<Definition, UserID> for User {}
 impl StoreKeyMarker<Definition> for UserSecondaryKeys {}
 impl StoreKeyMarker<Definition> for UserRelationalKeys {}
 impl StoreKeyMarker<Definition> for UserSubscriptions {}
+impl StoreKeyMarker<Definition> for UserBlobKeys {}
 
 impl StoreKey<Definition, UserID> for UserSecondaryKeys {}
 impl StoreKey<Definition, UserID> for UserRelationalKeys {}
@@ -482,6 +530,7 @@ impl NetabaseModelKeys<Definition, User> for UserKeys {
     type Secondary<'user> = UserSecondaryKeys;
     type Relational<'user> = UserRelationalKeys;
     type Subscription<'user> = UserSubscriptions;
+    type Blob<'user> = UserBlobKeys;
 }
 
 impl<'a> NetabaseModelPrimaryKey<'a, Definition, User, UserKeys> for UserID {}
@@ -567,6 +616,8 @@ impl_redb_value_key_for_owned!(UserSecondaryKeys);
 impl_redb_value_key_for_owned!(UserRelationalKeys);
 impl_redb_value_key_for_owned!(UserSubscriptions);
 impl_redb_value_key_for_owned!(UserCategory);
+impl_redb_value_key_for_owned!(UserBlobKeys);
+impl_redb_value_key_for_owned!(UserBlobItem);
 
 // RedbNetbaseModel impls - only needs type def as TREE_NAMES is in NetabaseModel
 impl<'db> RedbNetbaseModel<'db, Definition> for User {

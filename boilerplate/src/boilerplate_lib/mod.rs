@@ -11,11 +11,12 @@
 use bincode::{BorrowDecode, Decode, Encode};
 use derive_more::{From, TryInto};
 use netabase_store::databases::redb::transaction::ModelOpenTables;
+use netabase_store::blob::NetabaseBlobItem;
 use netabase_store::traits::registery::models::{
     StoreKey, StoreKeyMarker, StoreValue, StoreValueMarker,
     keys::{
         NetabaseModelKeys, NetabaseModelPrimaryKey, NetabaseModelRelationalKey,
-        NetabaseModelSecondaryKey, NetabaseModelSubscriptionKey,
+        NetabaseModelSecondaryKey, NetabaseModelSubscriptionKey, blob::NetabaseModelBlobKey,
     },
     model::{NetabaseModel, NetabaseModelMarker, RedbNetbaseModel},
     treenames::{DiscriminantTableName, ModelTreeNames},
@@ -131,12 +132,45 @@ pub enum CategoryRelationalKeys {
     None,
 }
 
+#[derive(
+    Clone,
+    Eq,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    Debug,
+    Encode,
+    Decode,
+    EnumDiscriminants,
+    Serialize,
+    Deserialize,
+    Hash,
+)]
+#[strum_discriminants(name(CategoryBlobKeysDiscriminants))]
+#[strum_discriminants(derive(AsRefStr))]
+pub enum CategoryBlobKeys {
+    None,
+}
+
+impl<'a> NetabaseModelBlobKey<'a, DefinitionTwo, Category, CategoryKeys> for CategoryBlobKeys {
+    type PrimaryKey = CategoryID;
+    type BlobItem = CategoryBlobItem;
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, Serialize, Deserialize)]
+pub struct CategoryBlobItem;
+
+impl NetabaseBlobItem for CategoryBlobItem {
+    type Blobs = ();
+}
+
 #[derive(Clone, Debug)]
 pub enum CategoryKeys {
     Primary(CategoryID),
     Secondary(CategorySecondaryKeys),
     Relational(CategoryRelationalKeys),
     Subscription(CategorySubscriptions),
+    Blob(CategoryBlobKeys),
 }
 
 // Import from modules
@@ -211,6 +245,10 @@ impl NetabaseModel<DefinitionTwo> for Category {
             CategorySubscriptionsDiscriminants::General,
             "DefinitionTwo:Subscription:General",
         )]),
+        blob: &[DiscriminantTableName::new(
+            CategoryBlobKeysDiscriminants::None,
+            "DefinitionTwo:Blob:None",
+        )],
     };
 
     fn get_primary_key<'a>(&'a self) -> CategoryID {
@@ -230,6 +268,15 @@ impl NetabaseModel<DefinitionTwo> for Category {
             DefinitionTwoSubscriptions::General,
         )]
     }
+
+    fn get_blob_entries<'a>(
+        &'a self,
+    ) -> Vec<(
+        <Self::Keys as NetabaseModelKeys<DefinitionTwo, Self>>::Blob<'a>,
+        <<Self::Keys as NetabaseModelKeys<DefinitionTwo, Self>>::Blob<'a> as NetabaseModelBlobKey<'a, DefinitionTwo, Self, Self::Keys>>::BlobItem,
+    )> {
+        vec![]
+    }
 }
 
 impl StoreValueMarker<DefinitionTwo> for Category {}
@@ -242,6 +289,7 @@ impl StoreValue<DefinitionTwo, CategoryID> for Category {}
 impl StoreKeyMarker<DefinitionTwo> for CategorySecondaryKeys {}
 impl StoreKeyMarker<DefinitionTwo> for CategoryRelationalKeys {}
 impl StoreKeyMarker<DefinitionTwo> for CategorySubscriptions {}
+impl StoreKeyMarker<DefinitionTwo> for CategoryBlobKeys {}
 
 impl StoreKey<DefinitionTwo, CategoryID> for CategorySecondaryKeys {}
 impl StoreKey<DefinitionTwo, CategoryID> for CategoryRelationalKeys {}
@@ -258,6 +306,7 @@ impl NetabaseModelKeys<DefinitionTwo, Category> for CategoryKeys {
     type Secondary<'a> = CategorySecondaryKeys;
     type Relational<'a> = CategoryRelationalKeys;
     type Subscription<'a> = CategorySubscriptions;
+    type Blob<'a> = CategoryBlobKeys;
 }
 
 impl<'a> NetabaseModelPrimaryKey<'a, DefinitionTwo, Category, CategoryKeys> for CategoryID {}
@@ -348,6 +397,8 @@ impl_redb_value_key_for_owned!(Category);
 impl_redb_value_key_for_owned!(CategorySecondaryKeys);
 impl_redb_value_key_for_owned!(CategoryRelationalKeys);
 impl_redb_value_key_for_owned!(CategorySubscriptions);
+impl_redb_value_key_for_owned!(CategoryBlobKeys);
+impl_redb_value_key_for_owned!(CategoryBlobItem);
 
 impl<'db> RedbNetbaseModel<'db, DefinitionTwo> for Category {
     type RedbTables = ModelOpenTables<'db, 'db, DefinitionTwo, Self>;
@@ -605,6 +656,7 @@ impl NetabaseDefinitionTreeNames<Definition> for DefinitionTreeNames {
         for<'a> <<<M as NetabaseModel<Definition>>::Keys as NetabaseModelKeys<Definition, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         for<'a> <<<M as NetabaseModel<Definition>>::Keys as NetabaseModelKeys<Definition, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         for<'a> <<<M as NetabaseModel<Definition>>::Keys as NetabaseModelKeys<Definition, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        for<'a> <<<M as NetabaseModel<Definition>>::Keys as NetabaseModelKeys<Definition, M>>::Blob<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
          <<M as NetabaseModel<Definition>>::Keys as NetabaseModelKeys<Definition, M>>::Subscription<'static>: 'static
     {
         // This is a type-level operation that extracts the model if it matches type M
@@ -712,6 +764,7 @@ impl NetabaseDefinitionTreeNames<DefinitionTwo> for DefinitionTwoTreeNames {
         for<'a> <<<M as NetabaseModel<DefinitionTwo>>::Keys as NetabaseModelKeys<DefinitionTwo, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         for<'a> <<<M as NetabaseModel<DefinitionTwo>>::Keys as NetabaseModelKeys<DefinitionTwo, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         for<'a> <<<M as NetabaseModel<DefinitionTwo>>::Keys as NetabaseModelKeys<DefinitionTwo, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        for<'a> <<<M as NetabaseModel<DefinitionTwo>>::Keys as NetabaseModelKeys<DefinitionTwo, M>>::Blob<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
          <<M as NetabaseModel<DefinitionTwo>>::Keys as NetabaseModelKeys<DefinitionTwo, M>>::Subscription<'static>: 'static
     {
         // This is a type-level operation that extracts the model if it matches type M

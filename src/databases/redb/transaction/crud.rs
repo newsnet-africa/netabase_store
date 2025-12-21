@@ -6,7 +6,7 @@ use crate::{
     traits::registery::{
         definition::redb_definition::RedbDefinition,
         models::{
-            keys::NetabaseModelKeys,
+            keys::{NetabaseModelKeys, blob::NetabaseModelBlobKey},
             model::{NetabaseModel, redb_model::RedbNetbaseModel},
         },
     },
@@ -27,8 +27,15 @@ where
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     // Add missing static bound
     <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'db>: 'static,
+    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'db>: redb::Key + 'static,
+    for<'a> <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'db>: std::borrow::Borrow<<<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'db> as redb::Value>::SelfType<'a>>,
+    for<'a> <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'a>: Into<<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'db>>,
+    <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'db> as NetabaseModelBlobKey<'db, D, Self, <Self as NetabaseModel<D>>::Keys>>::BlobItem: redb::Key + 'static,
+    for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'db> as NetabaseModelBlobKey<'db, D, Self, <Self as NetabaseModel<D>>::Keys>>::BlobItem: std::borrow::Borrow<<<<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'db> as NetabaseModelBlobKey<'db, D, Self, <Self as NetabaseModel<D>>::Keys>>::BlobItem as redb::Value>::SelfType<'a>>,
+    for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'a> as NetabaseModelBlobKey<'a, D, Self, <Self as NetabaseModel<D>>::Keys>>::BlobItem: Into<<<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'db> as NetabaseModelBlobKey<'db, D, Self, <Self as NetabaseModel<D>>::Keys>>::BlobItem>,
     Self: 'db
 {
     fn create_entry<'txn>(
@@ -80,11 +87,18 @@ where
     for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: 'static,
     D::SubscriptionKeys: redb::Key + Clone + 'static + PartialEq,
     for<'a> D::SubscriptionKeys: std::borrow::Borrow<<D::SubscriptionKeys as redb::Value>::SelfType<'a>>,
     M: 'db,
-    for<'a> &'a <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db> as redb::Value>::SelfType<'a>>
+    for<'a> &'a <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db> as redb::Value>::SelfType<'a>>,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: redb::Key + 'static,
+    for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as redb::Value>::SelfType<'a>>,
+    for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a>: Into<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>>,
+    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: redb::Key + 'static,
+    for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem as redb::Value>::SelfType<'a>>,
+    for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as NetabaseModelBlobKey<'a, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: Into<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem>
 {
     fn create_entry<'txn>(
         &'db self,
@@ -142,6 +156,20 @@ where
                      let model_key: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db> = key.into();
                      let def_key: D::SubscriptionKeys = model_key.try_into().map_err(|_| NetabaseError::Other)?;
                      table.insert(def_key.borrow(), self.get_primary_key().borrow())
+                         .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                 }
+                 _ => return Err(NetabaseError::Other),
+             }
+        }
+
+        // 5. Insert into Blob Tables
+        let blob_entries = self.get_blob_entries();
+        for ((table_perm, _name), (key, item)) in tables.blob.iter_mut().zip(blob_entries.into_iter()) {
+             match table_perm {
+                 TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                     // key is Blob<'db>. item is BlobItem.
+                     // table is MultimapTable<Blob<'db>, BlobItem>.
+                     table.insert(key, item)
                          .map_err(|e| NetabaseError::RedbError(e.into()))?;
                  }
                  _ => return Err(NetabaseError::Other),
@@ -264,6 +292,33 @@ where
                     _ => return Err(NetabaseError::Other),
                 }
             }
+
+            // 5. Update Blob Tables
+            let old_blob_entries = old_model.get_blob_entries();
+            let new_blob_entries = self.get_blob_entries();
+
+            for (((table_perm, _name), (old_key, old_item)), (new_key, new_item)) in tables.blob.iter_mut()
+                .zip(old_blob_entries.into_iter())
+                .zip(new_blob_entries.into_iter())
+            {
+                 match table_perm {
+                     TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                        let old_key: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> = old_key.into();
+                        let old_item: <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem = old_item.into();
+                        
+                        type BlobK<'a, D, M> = <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a>;
+                        type BlobI<'a, D, M> = <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as NetabaseModelBlobKey<'a, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem;
+
+                        if <BlobK<'db, D, M> as redb::Value>::as_bytes(old_key.borrow()).as_ref() != <BlobK<'db, D, M> as redb::Value>::as_bytes(new_key.borrow()).as_ref() || <BlobI<'db, D, M> as redb::Value>::as_bytes(old_item.borrow()).as_ref() != <BlobI<'db, D, M> as redb::Value>::as_bytes(new_item.borrow()).as_ref() {
+                              table.remove(old_key, old_item)
+                                  .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                              table.insert(new_key, new_item)
+                                  .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                        }
+                     }
+                     _ => return Err(NetabaseError::Other),
+                 }
+            }
         } else {
             // Model didn't exist before, insert into secondary/relational/subscription tables
             // (main table already updated above)
@@ -306,6 +361,18 @@ where
                     }
                     _ => return Err(NetabaseError::Other),
                 }
+            }
+
+            // Insert into Blob Tables
+            let blob_entries = self.get_blob_entries();
+            for ((table_perm, _name), (key, item)) in tables.blob.iter_mut().zip(blob_entries.into_iter()) {
+                 match table_perm {
+                     TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                         table.insert(key, item)
+                             .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                     }
+                     _ => return Err(NetabaseError::Other),
+                 }
             }
         }
 
@@ -366,6 +433,20 @@ where
                         let model_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db> = subscription_key.into();
                         let def_k: D::SubscriptionKeys = model_k.try_into().map_err(|_| NetabaseError::Other)?;
                         table.remove(def_k.borrow(), key.borrow())
+                            .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                    }
+                    _ => return Err(NetabaseError::Other),
+                }
+            }
+
+            // 6. Remove from Blob Tables
+            let blob_entries = model.get_blob_entries();
+            for ((table_perm, _name), (key, item)) in tables.blob.iter_mut().zip(blob_entries.into_iter()) {
+                match table_perm {
+                    TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                        let key: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> = key.into();
+                        let item: <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem = item.into();
+                        table.remove(key, item)
                             .map_err(|e| NetabaseError::RedbError(e.into()))?;
                     }
                     _ => return Err(NetabaseError::Other),

@@ -20,7 +20,9 @@ where
     /// Definition-level subscription keys enum
     /// This enum holds all subscription topics for the definition
     /// and serves as the unified key type for subscription tables
-    type SubscriptionKeys: NetabaseDefinitionSubscriptionKeys<Discriminant = Self::SubscriptionKeysDiscriminant>;
+    type SubscriptionKeys: NetabaseDefinitionSubscriptionKeys<
+        Discriminant = Self::SubscriptionKeysDiscriminant,
+    >;
 
     /// Discriminant type for subscription keys
     type SubscriptionKeysDiscriminant: 'static + std::fmt::Debug;
@@ -46,10 +48,13 @@ where
             IntoDiscriminant,
         for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a>:
             IntoDiscriminant,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a>:
+            IntoDiscriminant,
         for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a>:
             IntoDiscriminant,
         for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
          <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static
     ;

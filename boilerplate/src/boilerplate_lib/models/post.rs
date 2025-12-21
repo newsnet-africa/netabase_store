@@ -2,11 +2,12 @@ use super::user::{User, UserID};
 use crate::{Definition, DefinitionDiscriminants, DefinitionSubscriptions, DefinitionTreeNames};
 use netabase_store::databases::redb::transaction::ModelOpenTables;
 use netabase_store::relational::RelationalLink;
+use netabase_store::blob::NetabaseBlobItem;
 use netabase_store::traits::registery::models::{
     StoreKey, StoreKeyMarker, StoreValue, StoreValueMarker,
     keys::{
         NetabaseModelKeys, NetabaseModelPrimaryKey, NetabaseModelRelationalKey,
-        NetabaseModelSecondaryKey, NetabaseModelSubscriptionKey,
+        NetabaseModelSecondaryKey, NetabaseModelSubscriptionKey, blob::NetabaseModelBlobKey,
     },
     model::{NetabaseModel, NetabaseModelMarker, RedbNetbaseModel},
     treenames::{DiscriminantTableName, ModelTreeNames},
@@ -214,12 +215,45 @@ pub enum PostRelationalKeys {
     Author(UserID),
 }
 
+#[derive(
+    Clone,
+    Eq,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    Debug,
+    Encode,
+    Decode,
+    EnumDiscriminants,
+    Serialize,
+    Deserialize,
+    Hash,
+)]
+#[strum_discriminants(name(PostBlobKeysDiscriminants))]
+#[strum_discriminants(derive(AsRefStr))]
+pub enum PostBlobKeys {
+    None,
+}
+
+impl<'a> NetabaseModelBlobKey<'a, Definition, Post, PostKeys> for PostBlobKeys {
+    type PrimaryKey = PostID;
+    type BlobItem = PostBlobItem;
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, Serialize, Deserialize)]
+pub struct PostBlobItem;
+
+impl NetabaseBlobItem for PostBlobItem {
+    type Blobs = ();
+}
+
 #[derive(Clone, Debug)]
 pub enum PostKeys {
     Primary(PostID),
     Secondary(PostSecondaryKeys),
     Relational(PostRelationalKeys),
     Subscription(PostSubscriptions),
+    Blob(PostBlobKeys),
 }
 
 // --- Post Implementation ---
@@ -250,6 +284,10 @@ impl NetabaseModel<Definition> for Post {
                 "Definition:Subscription:Topic4",
             ),
         ]),
+        blob: &[DiscriminantTableName::new(
+            PostBlobKeysDiscriminants::None,
+            "Definition:Post:Blob:None",
+        )],
     };
 
     fn get_primary_key(&self) -> PostID {
@@ -270,6 +308,15 @@ impl NetabaseModel<Definition> for Post {
         // Example: Post doesn't subscribe to anything for now
         vec![]
     }
+
+    fn get_blob_entries<'a>(
+        &'a self,
+    ) -> Vec<(
+        <Self::Keys as NetabaseModelKeys<Definition, Self>>::Blob<'a>,
+        <<Self::Keys as NetabaseModelKeys<Definition, Self>>::Blob<'a> as NetabaseModelBlobKey<'a, Definition, Self, Self::Keys>>::BlobItem,
+    )> {
+        vec![]
+    }
 }
 
 impl StoreValueMarker<Definition> for Post {}
@@ -282,6 +329,7 @@ impl StoreValue<Definition, PostID> for Post {}
 impl StoreKeyMarker<Definition> for PostSecondaryKeys {}
 impl StoreKeyMarker<Definition> for PostRelationalKeys {}
 impl StoreKeyMarker<Definition> for PostSubscriptions {}
+impl StoreKeyMarker<Definition> for PostBlobKeys {}
 
 impl StoreKey<Definition, PostID> for PostSecondaryKeys {}
 impl StoreKey<Definition, PostID> for PostRelationalKeys {}
@@ -298,6 +346,7 @@ impl NetabaseModelKeys<Definition, Post> for PostKeys {
     type Secondary<'a> = PostSecondaryKeys;
     type Relational<'a> = PostRelationalKeys;
     type Subscription<'a> = PostSubscriptions;
+    type Blob<'a> = PostBlobKeys;
 }
 
 impl<'a> NetabaseModelPrimaryKey<'a, Definition, Post, PostKeys> for PostID {}
@@ -416,6 +465,8 @@ impl Key for Post {
 impl_redb_value_key_for_owned!(PostSecondaryKeys);
 impl_redb_value_key_for_owned!(PostRelationalKeys);
 impl_redb_value_key_for_owned!(PostSubscriptions);
+impl_redb_value_key_for_owned!(PostBlobKeys);
+impl_redb_value_key_for_owned!(PostBlobItem);
 
 // RedbNetbaseModel impls - only needs type def as TREE_NAMES is in NetabaseModel
 impl<'db> RedbNetbaseModel<'db, Definition> for Post {

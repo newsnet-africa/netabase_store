@@ -6,7 +6,7 @@ use strum::IntoDiscriminant;
 use crate::traits::registery::{
     definition::NetabaseDefinition,
     models::{
-        StoreKeyMarker, StoreValue, StoreValueMarker, keys::NetabaseModelKeys,
+        StoreKeyMarker, StoreValue, StoreValueMarker, keys::{NetabaseModelKeys, blob::NetabaseModelBlobKey},
         treenames::ModelTreeNames,
     },
 };
@@ -34,9 +34,12 @@ where
         IntoDiscriminant,
     for<'a> <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'a>:
         IntoDiscriminant,
+    for<'a> <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'a>:
+        IntoDiscriminant,
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
      <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'static>: 'static
 {
     type Keys: NetabaseModelKeys<D, Self>;
@@ -53,6 +56,12 @@ where
     fn get_subscription_keys<'a>(
         &'a self,
     ) -> Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Subscription<'a>>;
+    fn get_blob_entries<'a>(
+        &'a self,
+    ) -> Vec<(
+        <Self::Keys as NetabaseModelKeys<D, Self>>::Blob<'a>,
+        <<Self::Keys as NetabaseModelKeys<D, Self>>::Blob<'a> as NetabaseModelBlobKey<'a, D, Self, Self::Keys>>::BlobItem,
+    )>;
 
     /// Get all relational links from this model
     fn get_relational_links(&self) -> Vec<D::DefKeys> {
