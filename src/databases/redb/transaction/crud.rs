@@ -164,13 +164,13 @@ where
 
         // 5. Insert into Blob Tables
         let blob_entries = self.get_blob_entries();
-        for ((table_perm, _name), (key, item)) in tables.blob.iter_mut().zip(blob_entries.into_iter()) {
+        for ((table_perm, _name), field_blobs) in tables.blob.iter_mut().zip(blob_entries.into_iter()) {
              match table_perm {
                  TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
-                     // key is Blob<'db>. item is BlobItem.
-                     // table is MultimapTable<Blob<'db>, BlobItem>.
-                     table.insert(key, item)
-                         .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                     for (key, item) in field_blobs {
+                         table.insert(key, item)
+                             .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                     }
                  }
                  _ => return Err(NetabaseError::Other),
              }
@@ -297,23 +297,23 @@ where
             let old_blob_entries = old_model.get_blob_entries();
             let new_blob_entries = self.get_blob_entries();
 
-            for (((table_perm, _name), (old_key, old_item)), (new_key, new_item)) in tables.blob.iter_mut()
+            for (((table_perm, _name), old_blobs), new_blobs) in tables.blob.iter_mut()
                 .zip(old_blob_entries.into_iter())
                 .zip(new_blob_entries.into_iter())
             {
                  match table_perm {
                      TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
-                        let old_key: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> = old_key.into();
-                        let old_item: <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem = old_item.into();
-                        
-                        type BlobK<'a, D, M> = <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a>;
-                        type BlobI<'a, D, M> = <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as NetabaseModelBlobKey<'a, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem;
+                        for (old_key, old_item) in old_blobs {
+                            let old_key: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> = old_key.into();
+                            let old_item: <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem = old_item.into();
+                            
+                            table.remove(old_key, old_item)
+                                .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                        }
 
-                        if <BlobK<'db, D, M> as redb::Value>::as_bytes(old_key.borrow()).as_ref() != <BlobK<'db, D, M> as redb::Value>::as_bytes(new_key.borrow()).as_ref() || <BlobI<'db, D, M> as redb::Value>::as_bytes(old_item.borrow()).as_ref() != <BlobI<'db, D, M> as redb::Value>::as_bytes(new_item.borrow()).as_ref() {
-                              table.remove(old_key, old_item)
-                                  .map_err(|e| NetabaseError::RedbError(e.into()))?;
-                              table.insert(new_key, new_item)
-                                  .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                        for (new_key, new_item) in new_blobs {
+                            table.insert(new_key, new_item)
+                                .map_err(|e| NetabaseError::RedbError(e.into()))?;
                         }
                      }
                      _ => return Err(NetabaseError::Other),
@@ -365,11 +365,13 @@ where
 
             // Insert into Blob Tables
             let blob_entries = self.get_blob_entries();
-            for ((table_perm, _name), (key, item)) in tables.blob.iter_mut().zip(blob_entries.into_iter()) {
+            for ((table_perm, _name), field_blobs) in tables.blob.iter_mut().zip(blob_entries.into_iter()) {
                  match table_perm {
                      TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
-                         table.insert(key, item)
-                             .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                         for (key, item) in field_blobs {
+                             table.insert(key, item)
+                                 .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                         }
                      }
                      _ => return Err(NetabaseError::Other),
                  }
@@ -441,13 +443,15 @@ where
 
             // 6. Remove from Blob Tables
             let blob_entries = model.get_blob_entries();
-            for ((table_perm, _name), (key, item)) in tables.blob.iter_mut().zip(blob_entries.into_iter()) {
+            for ((table_perm, _name), field_blobs) in tables.blob.iter_mut().zip(blob_entries.into_iter()) {
                 match table_perm {
                     TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
-                        let key: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> = key.into();
-                        let item: <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem = item.into();
-                        table.remove(key, item)
-                            .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                        for (key, item) in field_blobs {
+                            let key: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> = key.into();
+                            let item: <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem = item.into();
+                            table.remove(key, item)
+                                .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                        }
                     }
                     _ => return Err(NetabaseError::Other),
                 }

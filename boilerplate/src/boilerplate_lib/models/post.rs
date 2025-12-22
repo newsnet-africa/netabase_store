@@ -245,11 +245,13 @@ pub struct PostBlobItem;
 
 impl NetabaseBlobItem for PostBlobItem {
     type Blobs = ();
-    fn split_into_blobs(&self) -> Vec<Self::Blobs> {
-        vec![]
+    
+    fn wrap_blob(_index: u8, _data: Vec<u8>) -> Self::Blobs {
+        ()
     }
-    fn reconstruct_from_blobs(_blobs: Vec<Self::Blobs>) -> Self {
-        PostBlobItem
+
+    fn unwrap_blob(_blob: &Self::Blobs) -> Option<(u8, Vec<u8>)> {
+        None
     }
 }
 
@@ -317,10 +319,10 @@ impl NetabaseModel<Definition> for Post {
 
     fn get_blob_entries<'a>(
         &'a self,
-    ) -> Vec<(
+    ) -> Vec<Vec<(
         <Self::Keys as NetabaseModelKeys<Definition, Self>>::Blob<'a>,
         <<Self::Keys as NetabaseModelKeys<Definition, Self>>::Blob<'a> as NetabaseModelBlobKey<'a, Definition, Self, Self::Keys>>::BlobItem,
-    )> {
+    )>> {
         vec![]
     }
 }

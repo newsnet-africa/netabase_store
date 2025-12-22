@@ -3,6 +3,7 @@ pub mod subscription;
 
 use strum::IntoDiscriminant;
 use subscription::{DefinitionSubscriptionRegistry, NetabaseDefinitionSubscriptionKeys};
+use serde::Serialize;
 
 use crate::traits::registery::models::{
     keys::NetabaseModelKeys,
@@ -16,6 +17,13 @@ where
 {
     type TreeNames: NetabaseDefinitionTreeNames<Self> + 'static;
     type DefKeys: NetabaseDefinitionKeys<Self>;
+
+    /// A user-friendly identifier for the definition, used in RelationalLink for better debugging/serialization.
+    /// This replaces PhantomData to bind the definition type while providing useful info.
+    type DebugName: Clone + std::fmt::Debug + PartialEq + Eq + std::hash::Hash + Serialize + 'static;
+
+    /// Returns the debug identifier for this definition
+    fn debug_name() -> Self::DebugName;
 
     /// Definition-level subscription keys enum
     /// This enum holds all subscription topics for the definition

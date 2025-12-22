@@ -9,9 +9,9 @@
 
 // Basic imports needed for early type definitions
 use bincode::{BorrowDecode, Decode, Encode};
-use derive_more::{From, TryInto};
-use netabase_store::databases::redb::transaction::ModelOpenTables;
+use derive_more::{From, Into, TryInto};
 use netabase_store::blob::NetabaseBlobItem;
+use netabase_store::databases::redb::transaction::ModelOpenTables;
 use netabase_store::traits::registery::models::{
     StoreKey, StoreKeyMarker, StoreValue, StoreValueMarker,
     keys::{
@@ -157,16 +157,20 @@ impl<'a> NetabaseModelBlobKey<'a, DefinitionTwo, Category, CategoryKeys> for Cat
     type BlobItem = CategoryBlobItem;
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, Serialize, Deserialize)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, Serialize, Deserialize,
+)]
 pub struct CategoryBlobItem;
 
 impl NetabaseBlobItem for CategoryBlobItem {
     type Blobs = ();
-    fn split_into_blobs(&self) -> Vec<Self::Blobs> {
-        vec![]
+
+    fn wrap_blob(_index: u8, _data: Vec<u8>) -> Self::Blobs {
+        ()
     }
-    fn reconstruct_from_blobs(_blobs: Vec<Self::Blobs>) -> Self {
-        CategoryBlobItem
+
+    fn unwrap_blob(_blob: &Self::Blobs) -> Option<(u8, Vec<u8>)> {
+        None
     }
 }
 
@@ -277,10 +281,10 @@ impl NetabaseModel<DefinitionTwo> for Category {
 
     fn get_blob_entries<'a>(
         &'a self,
-    ) -> Vec<(
+    ) -> Vec<Vec<(
         <Self::Keys as NetabaseModelKeys<DefinitionTwo, Self>>::Blob<'a>,
         <<Self::Keys as NetabaseModelKeys<DefinitionTwo, Self>>::Blob<'a> as NetabaseModelBlobKey<'a, DefinitionTwo, Self, Self::Keys>>::BlobItem,
-    )> {
+    )>>{
         vec![]
     }
 }
@@ -615,6 +619,11 @@ impl NetabaseDefinition for Definition {
                 subscribers: &[DefinitionDiscriminants::Post],
             },
         ]);
+
+    type DebugName = &'static str;
+    fn debug_name() -> Self::DebugName {
+        "Definition"
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -715,17 +724,25 @@ impl_redb_value_key_for_owned!(DefinitionSubscriptions);
 // Implement NetabaseDefinitionSubscriptionKeys for DefinitionTwoSubscriptions
 impl NetabaseDefinitionSubscriptionKeys for DefinitionTwoSubscriptions {}
 
+#[derive(Into, From, Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct DefintionTwoDebugName(String);
+
 impl NetabaseDefinition for DefinitionTwo {
     type TreeNames = DefinitionTwoTreeNames;
     type DefKeys = DefinitionTwoKeys;
     type SubscriptionKeys = DefinitionTwoSubscriptions;
     type SubscriptionKeysDiscriminant = DefinitionTwoSubscriptionsDiscriminants;
+    type DebugName = DefintionTwoDebugName;
 
     const SUBSCRIPTION_REGISTRY: DefinitionSubscriptionRegistry<'static, Self> =
         DefinitionSubscriptionRegistry::new(&[SubscriptionEntry {
             topic: "General",
             subscribers: &[DefinitionTwoDiscriminants::Category],
         }]);
+
+    fn debug_name() -> Self::DebugName {
+        "DefinitionTwo".to_string().into()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -754,7 +771,9 @@ impl TryInto<DiscriminantTableName<DefinitionTwo>> for DefinitionTwoTreeNames {
 impl NetabaseDefinitionTreeNames<DefinitionTwo> for DefinitionTwoTreeNames {
     fn get_tree_names(discriminant: DefinitionTwoDiscriminants) -> Vec<Self> {
         match discriminant {
-            DefinitionTwoDiscriminants::Category => vec![DefinitionTwoTreeNames::Category(Category::TREE_NAMES)],
+            DefinitionTwoDiscriminants::Category => {
+                vec![DefinitionTwoTreeNames::Category(Category::TREE_NAMES)]
+            }
         }
     }
 

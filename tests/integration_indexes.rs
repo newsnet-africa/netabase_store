@@ -32,6 +32,7 @@ fn test_secondary_key_indexes_created() -> NetabaseResult<()> {
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
             subscriptions: vec![],
+            bio: Vec::new(),
         };
         txn.create_redb(&user)?;
     }
@@ -83,6 +84,7 @@ fn test_secondary_index_update() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
         subscriptions: vec![],
+        bio: Vec::new(),
     };
 
     let txn = store.begin_transaction()?;
@@ -97,6 +99,7 @@ fn test_secondary_index_update() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
         subscriptions: vec![],
+        bio: Vec::new(),
     };
 
     let txn = store.begin_transaction()?;
@@ -145,6 +148,7 @@ fn test_relational_key_indexes_created() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(user2_id.clone()),
         category: RelationalLink::new_dehydrated(CategoryID("cat1".to_string())),
         subscriptions: vec![],
+        bio: Vec::new(),
     };
 
     let user2 = User {
@@ -154,6 +158,7 @@ fn test_relational_key_indexes_created() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(user1_id.clone()),
         category: RelationalLink::new_dehydrated(CategoryID("cat1".to_string())),
         subscriptions: vec![],
+        bio: Vec::new(),
     };
 
     let txn = store.begin_transaction()?;
@@ -201,6 +206,7 @@ fn test_post_author_relationship() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
         subscriptions: vec![],
+        bio: Vec::new(),
     };
 
     let txn = store.begin_transaction()?;
@@ -266,6 +272,7 @@ fn test_relational_key_update() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(old_partner_id.clone()),
         category: RelationalLink::new_dehydrated(CategoryID("cat1".to_string())),
         subscriptions: vec![],
+        bio: Vec::new(),
     };
 
     let txn = store.begin_transaction()?;
@@ -291,6 +298,7 @@ fn test_relational_key_update() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(new_partner_id.clone()),
         category: RelationalLink::new_dehydrated(CategoryID("cat2".to_string())),
         subscriptions: vec![],
+        bio: Vec::new(),
     };
 
     let txn = store.begin_transaction()?;
@@ -349,6 +357,7 @@ fn test_subscription_indexes_created() -> NetabaseResult<()> {
             DefinitionSubscriptions::Topic1,
             DefinitionSubscriptions::Topic2,
         ],
+        bio: Vec::new(),
     };
 
     let user2 = User {
@@ -358,6 +367,7 @@ fn test_subscription_indexes_created() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
         subscriptions: vec![DefinitionSubscriptions::Topic1], // Only Topic1
+        bio: Vec::new(),
     };
 
     let txn = store.begin_transaction()?;
@@ -403,6 +413,7 @@ fn test_subscription_update() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
         subscriptions: vec![DefinitionSubscriptions::Topic1],
+        bio: Vec::new(),
     };
 
     let txn = store.begin_transaction()?;
@@ -417,6 +428,7 @@ fn test_subscription_update() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
         subscriptions: vec![DefinitionSubscriptions::Topic2],
+        bio: Vec::new(),
     };
 
     let txn = store.begin_transaction()?;
@@ -472,6 +484,7 @@ fn test_delete_cleans_all_indexes() -> NetabaseResult<()> {
             DefinitionSubscriptions::Topic1,
             DefinitionSubscriptions::Topic2,
         ],
+        bio: Vec::new(),
     };
 
     let txn = store.begin_transaction()?;

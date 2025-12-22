@@ -58,10 +58,10 @@ where
     ) -> Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Subscription<'a>>;
     fn get_blob_entries<'a>(
         &'a self,
-    ) -> Vec<(
+    ) -> Vec<Vec<(
         <Self::Keys as NetabaseModelKeys<D, Self>>::Blob<'a>,
         <<Self::Keys as NetabaseModelKeys<D, Self>>::Blob<'a> as NetabaseModelBlobKey<'a, D, Self, Self::Keys>>::BlobItem,
-    )>;
+    )>>;
 
     /// Get all relational links from this model
     fn get_relational_links(&self) -> Vec<D::DefKeys> {

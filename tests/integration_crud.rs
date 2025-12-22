@@ -25,6 +25,7 @@ fn test_create_and_verify() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
         subscriptions: vec![DefinitionSubscriptions::Topic1],
+        bio: Vec::new(),
     };
 
     // Create in database
@@ -79,6 +80,7 @@ fn test_create_duplicate_should_overwrite() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
         subscriptions: vec![],
+        bio: Vec::new(),
     };
 
     let txn = store.begin_transaction()?;
@@ -93,6 +95,7 @@ fn test_create_duplicate_should_overwrite() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
         subscriptions: vec![],
+        bio: Vec::new(),
     };
 
     let txn = store.begin_transaction()?;
@@ -152,6 +155,7 @@ fn test_update_and_verify() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("partner_old".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("cat_old".to_string())),
         subscriptions: vec![DefinitionSubscriptions::Topic1],
+        bio: Vec::new(),
     };
 
     let txn = store.begin_transaction()?;
@@ -178,6 +182,7 @@ fn test_update_and_verify() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("partner_new".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("cat_new".to_string())),
         subscriptions: vec![DefinitionSubscriptions::Topic2],
+        bio: Vec::new(),
     };
 
     let txn = store.begin_transaction()?;
@@ -228,6 +233,7 @@ fn test_update_nonexistent_should_fail() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
         subscriptions: vec![],
+        bio: Vec::new(),
     };
 
     let txn = store.begin_transaction()?;
@@ -266,6 +272,7 @@ fn test_delete_and_verify() -> NetabaseResult<()> {
             DefinitionSubscriptions::Topic1,
             DefinitionSubscriptions::Topic2,
         ],
+        bio: Vec::new(),
     };
 
     let txn = store.begin_transaction()?;
@@ -355,6 +362,7 @@ fn test_multiple_creates_and_verify_all() -> NetabaseResult<()> {
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
             subscriptions: vec![],
+            bio: Vec::new(),
         };
         txn.create_redb(&user)?;
     }
@@ -393,6 +401,7 @@ fn test_transaction_rollback_on_drop() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
         subscriptions: vec![],
+        bio: Vec::new(),
     };
 
     // Create but don't commit (drop transaction)

@@ -2,8 +2,8 @@ use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_ma
 use netabase_store::databases::redb::transaction::RedbModelCrud;
 use netabase_store::relational::RelationalLink;
 use netabase_store_examples::boilerplate_lib::models::user::{
-    User, UserAge, UserCategory, UserID, UserName, UserPartner, UserRelationalKeys,
-    UserSecondaryKeys,
+    User, UserAge, UserBlobItem, UserBlobKeys, UserCategory, UserID, UserName, UserPartner,
+    UserRelationalKeys, UserSecondaryKeys,
 };
 use netabase_store_examples::boilerplate_lib::{CategoryID, Definition, DefinitionSubscriptions};
 use rand::prelude::*;
@@ -67,6 +67,11 @@ pub fn generate_random_user() -> User {
         subscriptions.push(all_subs[i].clone());
     }
 
+    // random bio (1kb - 10kb)
+    let bio_size = rng.random_range(1024..10240);
+    let mut bio = vec![0u8; bio_size];
+    rng.fill_bytes(&mut bio);
+
     User {
         id: user_id,
         name,
@@ -74,6 +79,7 @@ pub fn generate_random_user() -> User {
         partner,
         category,
         subscriptions,
+        bio,
     }
 }
 
@@ -88,7 +94,7 @@ impl Drop for CleanupGuard {
 // --- Benchmarks ---
 
 fn bench_crud_operations(c: &mut Criterion) {
-    let sizes = [0, 100, 1000, 10000, 100000];
+    let sizes = [0, 100, 1_000, 10_000, 100_000, 1_000_000];
 
     // Define table definitions matching User::TREE_NAMES for raw redb operations
     const MAIN: TableDefinition<UserID, User> = TableDefinition::new("User:User:Primary:Main");
@@ -104,6 +110,8 @@ fn bench_crud_operations(c: &mut Criterion) {
         MultimapTableDefinition::new("Definition:Subscription:Topic1");
     const SUB_TOPIC2: MultimapTableDefinition<DefinitionSubscriptions, UserID> =
         MultimapTableDefinition::new("Definition:Subscription:Topic2");
+    const BLOB_NONE: MultimapTableDefinition<UserBlobKeys, UserBlobItem> =
+        MultimapTableDefinition::new("Definition:User:Blob:None");
 
     // --- Insert Benchmarks ---
     let mut insert_group = c.benchmark_group("CRUD/Insert");
@@ -176,6 +184,9 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut sub_topic2 = txn
                             .open_multimap_table(SUB_TOPIC2)
                             .expect("Failed to open sub topic2");
+                        let mut blob_none = txn
+                            .open_multimap_table(BLOB_NONE)
+                            .expect("Failed to open blob none");
 
                         for user in &users {
                             let user = black_box(user);
@@ -231,6 +242,11 @@ fn bench_crud_operations(c: &mut Criterion) {
                                     _ => {}
                                 }
                             }
+
+                            // Insert Blobs
+                            blob_none
+                                .insert(&UserBlobKeys::None, &UserBlobItem(user_id.clone()))
+                                .expect("Failed to insert blob none");
                         }
                     }
                     txn.commit().expect("Failed to commit");
@@ -323,6 +339,9 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut sub_topic2 = txn
                             .open_multimap_table(SUB_TOPIC2)
                             .expect("Failed to open sub topic2");
+                        let mut blob_none = txn
+                            .open_multimap_table(BLOB_NONE)
+                            .expect("Failed to open blob none");
 
                         for user in &users {
                             let user_id = &user.id;
@@ -365,6 +384,11 @@ fn bench_crud_operations(c: &mut Criterion) {
                                     _ => {}
                                 }
                             }
+
+                            // Insert Blobs
+                            blob_none
+                                .insert(&UserBlobKeys::None, &UserBlobItem(user_id.clone()))
+                                .unwrap();
                         }
                     }
                     txn.commit().unwrap();
@@ -470,6 +494,9 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut sub_topic2 = txn
                             .open_multimap_table(SUB_TOPIC2)
                             .expect("Failed to open sub topic2");
+                        let mut blob_none = txn
+                            .open_multimap_table(BLOB_NONE)
+                            .expect("Failed to open blob none");
 
                         for user in &users {
                             let user_id = &user.id;
@@ -512,6 +539,11 @@ fn bench_crud_operations(c: &mut Criterion) {
                                     _ => {}
                                 }
                             }
+
+                            // Insert Blobs
+                            blob_none
+                                .insert(&UserBlobKeys::None, &UserBlobItem(user_id.clone()))
+                                .unwrap();
                         }
                     }
                     txn.commit().unwrap();
@@ -541,6 +573,9 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut sub_topic2 = txn
                             .open_multimap_table(SUB_TOPIC2)
                             .expect("Failed to open sub topic2");
+                        let mut blob_none = txn
+                            .open_multimap_table(BLOB_NONE)
+                            .expect("Failed to open blob none");
 
                         for user in &users {
                             let user_id = &user.id;
@@ -592,6 +627,11 @@ fn bench_crud_operations(c: &mut Criterion) {
                                     _ => {}
                                 }
                             }
+
+                            // Remove Blobs
+                            blob_none
+                                .remove(&UserBlobKeys::None, &UserBlobItem(user_id.clone()))
+                                .unwrap();
                         }
                     }
                     txn.commit().expect("Failed to commit");

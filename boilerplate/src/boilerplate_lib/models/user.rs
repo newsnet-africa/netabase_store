@@ -92,7 +92,10 @@ pub struct User {
 }
 
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
-pub struct LargeUserFile(pub Vec<u8>);
+pub struct LargeUserFile {
+    pub data: Vec<u8>,
+    pub metadata: String,
+}
 
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
 pub struct AnotherLargeUserFile(pub Vec<u8>);
@@ -560,7 +563,7 @@ impl NetabaseModel<Definition> for User {
 
     fn get_blob_entries<'a>(
         &'a self,
-    ) -> Vec<(
+    ) -> Vec<Vec<(
         <Self::Keys as NetabaseModelKeys<Definition, Self>>::Blob<'a>,
         <<Self::Keys as NetabaseModelKeys<Definition, Self>>::Blob<'a> as NetabaseModelBlobKey< 
             'a,
@@ -568,11 +571,10 @@ impl NetabaseModel<Definition> for User {
             Self,
             Self::Keys,
         >>::BlobItem,
-    )> {
-        let mut entries = Vec::new();
-
+    )>> {
+        let mut bio_entries = Vec::new();
         for blob in self.bio.split_into_blobs() {
-            entries.push((
+            bio_entries.push((
                 UserBlobKeys::LargeUserFile {
                     owner: self.id.clone(),
                 },
@@ -580,8 +582,9 @@ impl NetabaseModel<Definition> for User {
             ));
         }
 
+        let mut another_entries = Vec::new();
         for blob in self.another.split_into_blobs() {
-            entries.push((
+            another_entries.push((
                 UserBlobKeys::AnotherLargeUserFile {
                     owner: self.id.clone(),
                 },
@@ -589,7 +592,7 @@ impl NetabaseModel<Definition> for User {
             ));
         }
 
-        entries
+        vec![bio_entries, another_entries]
     }
 }
 
@@ -712,72 +715,47 @@ impl_redb_value_key_for_owned!(UserBlobItem);
 
 impl NetabaseBlobItem for LargeUserFile {
     type Blobs = UserBlobItem;
-    fn split_into_blobs(&self) -> Vec<Self::Blobs> {
-        self.0
-            .chunks(60000)
-            .enumerate()
-            .map(|(i, chunk)| UserBlobItem::LargeUserFile {
-                index: i as u8,
-                value: chunk.to_vec(),
-            })
-            .collect()
+
+    fn wrap_blob(index: u8, data: Vec<u8>) -> Self::Blobs {
+        UserBlobItem::LargeUserFile { index, value: data }
     }
 
-    fn reconstruct_from_blobs(blobs: Vec<Self::Blobs>) -> Self {
-        let mut parts: Vec<(u8, Vec<u8>)> = blobs
-            .into_iter()
-            .filter_map(|b| {
-                if let UserBlobItem::LargeUserFile { index, value } = b {
-                    Some((index, value))
-                } else {
-                    None
-                }
-            })
-            .collect();
-        parts.sort_by_key(|(i, _)| *i);
-        let mut result = Vec::new();
-        for (_, part) in parts {
-            result.extend(part);
+    fn unwrap_blob(blob: &Self::Blobs) -> Option<(u8, Vec<u8>)> {
+        if let UserBlobItem::LargeUserFile { index, value } = blob {
+            Some((*index, value.clone()))
+        } else {
+            None
         }
-        LargeUserFile(result)
     }
 }
 
 impl NetabaseBlobItem for AnotherLargeUserFile {
     type Blobs = UserBlobItem;
-    fn split_into_blobs(&self) -> Vec<Self::Blobs> {
-        self.0
-            .chunks(60000)
-            .enumerate()
-            .map(|(i, chunk)| UserBlobItem::AnotherLargeUserFile {
-                index: i as u8,
-                value: chunk.to_vec(),
-            })
-            .collect()
+
+    fn wrap_blob(index: u8, data: Vec<u8>) -> Self::Blobs {
+        UserBlobItem::AnotherLargeUserFile { index, value: data }
     }
 
-    fn reconstruct_from_blobs(blobs: Vec<Self::Blobs>) -> Self {
-        let mut parts: Vec<(u8, Vec<u8>)> = blobs
-            .into_iter()
-            .filter_map(|b| {
-                if let UserBlobItem::AnotherLargeUserFile { index, value } = b {
-                    Some((index, value))
-                } else {
-                    None
-                }
-            })
-            .collect();
-        parts.sort_by_key(|(i, _)| *i);
-        let mut result = Vec::new();
-        for (_, part) in parts {
-            result.extend(part);
+    fn unwrap_blob(blob: &Self::Blobs) -> Option<(u8, Vec<u8>)> {
+        if let UserBlobItem::AnotherLargeUserFile { index, value } = blob {
+            Some((*index, value.clone()))
+        } else {
+            None
         }
-        AnotherLargeUserFile(result)
     }
 }
 
 impl NetabaseBlobItem for UserBlobItem {
     type Blobs = Self;
+
+    fn wrap_blob(_index: u8, _data: Vec<u8>) -> Self::Blobs {
+        unimplemented!("UserBlobItem is the blob container, not the content")
+    }
+
+    fn unwrap_blob(_blob: &Self::Blobs) -> Option<(u8, Vec<u8>)> {
+        unimplemented!("UserBlobItem is the blob container, not the content")
+    }
+
     fn split_into_blobs(&self) -> Vec<Self::Blobs> {
         vec![self.clone()]
     }

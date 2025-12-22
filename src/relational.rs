@@ -160,27 +160,27 @@ where
     /// Dehydrated: Contains only the primary key
     Dehydrated {
         primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
-        _source: std::marker::PhantomData<SourceD>,
+        _source: SourceD::DebugName,
     },
     /// Owned: Fully owns the related model (no lifetime dependency)
     /// Used when the model is constructed independently and needs to be stored with full ownership
     Owned {
         primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
         model: Box<M>,
-        _source: std::marker::PhantomData<SourceD>,
+        _source: SourceD::DebugName,
     },
     /// Hydrated: Contains a borrowed reference to the model (application-controlled lifetime)
     Hydrated {
         primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
         model: &'data M,
-        _source: std::marker::PhantomData<SourceD>,
+        _source: SourceD::DebugName,
     },
     /// Borrowed: Contains both the primary key and a borrowed reference from AccessGuard
     /// Lifetime is tied to database transaction -> table -> AccessGuard chain
     Borrowed {
         primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
         model: &'data M,
-        _source: std::marker::PhantomData<SourceD>,
+        _source: SourceD::DebugName,
     },
 }
 
@@ -364,7 +364,7 @@ where
     ) -> Self {
         Self::Dehydrated {
             primary_key,
-            _source: std::marker::PhantomData,
+            _source: SourceD::debug_name(),
         }
     }
 
@@ -376,7 +376,7 @@ where
         Self::Hydrated {
             primary_key,
             model,
-            _source: std::marker::PhantomData,
+            _source: SourceD::debug_name(),
         }
     }
 
@@ -389,7 +389,7 @@ where
         Self::Owned {
             primary_key,
             model: Box::new(model),
-            _source: std::marker::PhantomData,
+            _source: SourceD::debug_name(),
         }
     }
 
@@ -404,7 +404,7 @@ where
         Self::Borrowed {
             primary_key,
             model,
-            _source: std::marker::PhantomData,
+            _source: SourceD::debug_name(),
         }
     }
 
@@ -477,7 +477,7 @@ where
         };
         Self::Dehydrated {
             primary_key,
-            _source: std::marker::PhantomData,
+            _source: SourceD::debug_name(),
         }
     }
 
@@ -492,7 +492,7 @@ where
         Self::Hydrated {
             primary_key,
             model,
-            _source: std::marker::PhantomData,
+            _source: SourceD::debug_name(),
         }
     }
 
@@ -506,7 +506,7 @@ where
         };
         Self::Dehydrated {
             primary_key,
-            _source: std::marker::PhantomData,
+            _source: SourceD::debug_name(),
         }
     }
 
@@ -604,7 +604,7 @@ where
     {
         
     let proxy = <M::Keys as NetabaseModelKeys<TargetD, M>>::Primary::deserialize(deserializer)?;
-        Ok(RelationalLink::Dehydrated{primary_key: proxy, _source: std::marker::PhantomData})
+        Ok(RelationalLink::Dehydrated{primary_key: proxy, _source: SourceD::debug_name()})
     }
 }
 
@@ -672,7 +672,7 @@ where
                 let primary_key = <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static> as Decode<C>>::decode(decoder)?;
                 Ok(Self::Dehydrated {
                     primary_key,
-                    _source: std::marker::PhantomData,
+            _source: SourceD::debug_name(),
                 })
             }
             1 => {
@@ -682,7 +682,7 @@ where
                 Ok(Self::Owned {
                     primary_key,
                     model: Box::new(model),
-                    _source: std::marker::PhantomData,
+            _source: SourceD::debug_name(),
                 })
             }
             _ => Err(bincode::error::DecodeError::Other("Invalid RelationalLink variant")),
@@ -712,7 +712,7 @@ where
                 let primary_key = <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static> as BorrowDecode<'de, C>>::borrow_decode(decoder)?;
                 Ok(Self::Dehydrated {
                     primary_key,
-                    _source: std::marker::PhantomData,
+            _source: SourceD::debug_name(),
                 })
             }
             1 => {
@@ -722,7 +722,7 @@ where
                 Ok(Self::Owned {
                     primary_key,
                     model: Box::new(model),
-                    _source: std::marker::PhantomData,
+            _source: SourceD::debug_name(),
                 })
             }
             _ => Err(bincode::error::DecodeError::Other("Invalid RelationalLink variant")),
