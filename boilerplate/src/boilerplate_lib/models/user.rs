@@ -722,6 +722,25 @@ impl NetabaseBlobItem for LargeUserFile {
             })
             .collect()
     }
+
+    fn reconstruct_from_blobs(blobs: Vec<Self::Blobs>) -> Self {
+        let mut parts: Vec<(u8, Vec<u8>)> = blobs
+            .into_iter()
+            .filter_map(|b| {
+                if let UserBlobItem::LargeUserFile { index, value } = b {
+                    Some((index, value))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        parts.sort_by_key(|(i, _)| *i);
+        let mut result = Vec::new();
+        for (_, part) in parts {
+            result.extend(part);
+        }
+        LargeUserFile(result)
+    }
 }
 
 impl NetabaseBlobItem for AnotherLargeUserFile {
@@ -736,12 +755,35 @@ impl NetabaseBlobItem for AnotherLargeUserFile {
             })
             .collect()
     }
+
+    fn reconstruct_from_blobs(blobs: Vec<Self::Blobs>) -> Self {
+        let mut parts: Vec<(u8, Vec<u8>)> = blobs
+            .into_iter()
+            .filter_map(|b| {
+                if let UserBlobItem::AnotherLargeUserFile { index, value } = b {
+                    Some((index, value))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        parts.sort_by_key(|(i, _)| *i);
+        let mut result = Vec::new();
+        for (_, part) in parts {
+            result.extend(part);
+        }
+        AnotherLargeUserFile(result)
+    }
 }
 
 impl NetabaseBlobItem for UserBlobItem {
     type Blobs = Self;
     fn split_into_blobs(&self) -> Vec<Self::Blobs> {
         vec![self.clone()]
+    }
+
+    fn reconstruct_from_blobs(blobs: Vec<Self::Blobs>) -> Self {
+        blobs.into_iter().next().unwrap()
     }
 }
 

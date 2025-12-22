@@ -165,6 +165,9 @@ impl NetabaseBlobItem for CategoryBlobItem {
     fn split_into_blobs(&self) -> Vec<Self::Blobs> {
         vec![]
     }
+    fn reconstruct_from_blobs(_blobs: Vec<Self::Blobs>) -> Self {
+        CategoryBlobItem
+    }
 }
 
 #[derive(Clone, Debug)]

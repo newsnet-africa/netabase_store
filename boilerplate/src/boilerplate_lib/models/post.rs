@@ -248,6 +248,9 @@ impl NetabaseBlobItem for PostBlobItem {
     fn split_into_blobs(&self) -> Vec<Self::Blobs> {
         vec![]
     }
+    fn reconstruct_from_blobs(_blobs: Vec<Self::Blobs>) -> Self {
+        PostBlobItem
+    }
 }
 
 #[derive(Clone, Debug)]

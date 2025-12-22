@@ -20,10 +20,12 @@ use netabase_store_examples::boilerplate_lib::DefinitionTwoDiscriminants;
 use netabase_store_examples::boilerplate_lib::GlobalDefinitionKeys;
 use netabase_store_examples::boilerplate_lib::GlobalKeys;
 use netabase_store_examples::boilerplate_lib::models::post::{Post, PostID};
-use netabase_store_examples::boilerplate_lib::models::user::{User, UserID, UserKeys, LargeUserFile, AnotherLargeUserFile};
+use netabase_store_examples::boilerplate_lib::models::user::{User, UserID, UserKeys, LargeUserFile, AnotherLargeUserFile, UserBlobKeys};
 use netabase_store::relational::RelationalLink;
 use netabase_store::traits::registery::definition::NetabaseDefinition;
 use netabase_store::traits::registery::models::model::NetabaseModel;
+use netabase_store::blob::NetabaseBlobItem;
+use netabase_store::databases::redb::transaction::ModelOpenTables;
 use strum::AsRefStr;
 
 use netabase_store_examples::boilerplate_lib::Category;
@@ -50,6 +52,9 @@ fn main() {
     };
 
     let user_id = UserID("user1".to_string());
+    let alice_bio_data = vec![0u8; 150_000]; // 150KB, should split into 3 blobs (60K, 60K, 30K)
+    let alice_another_data = vec![1u8; 70_000]; // 70KB, should split into 2 blobs (60K, 10K)
+
     let user = User {
         id: user_id.clone(),
         name: "Alice".to_string(),
@@ -57,8 +62,8 @@ fn main() {
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),
         subscriptions: vec![DefinitionSubscriptions::Topic1],
-        bio: LargeUserFile(Vec::new()),
-        another: AnotherLargeUserFile(Vec::new()),
+        bio: LargeUserFile(alice_bio_data.clone()),
+        another: AnotherLargeUserFile(alice_another_data.clone()),
     };
 
     let post_id = PostID("post1".to_string());
@@ -69,8 +74,38 @@ fn main() {
     };
 
     println!("Created Category: {:?}", category);
-    println!("Created User: {:?}", user);
+    // Print summary instead of full debug for user to avoid flooding terminal with 220KB of data
+    println!("Created User: Alice with {} bytes bio and {} bytes another", user.bio.0.len(), user.another.0.len());
     println!("Created Post: {:?}", post);
+
+    // Test blob splitting logic
+    let blob_entries = user.get_blob_entries();
+    println!("User blob splitting test:");
+    println!("  - Total blob entries: {}", blob_entries.len());
+    let bio_blobs = blob_entries.iter().filter(|(k, _)| matches!(k, UserBlobKeys::LargeUserFile{..})).count();
+    let another_blobs = blob_entries.iter().filter(|(k, _)| matches!(k, UserBlobKeys::AnotherLargeUserFile{..})).count();
+    println!("  - LargeUserFile blobs: {} (expected 3)", bio_blobs);
+    println!("  - AnotherLargeUserFile blobs: {} (expected 2)", another_blobs);
+
+    // Test reconstruction
+    println!("\nUser blob reconstruction test:");
+    let bio_blob_items: Vec<netabase_store_examples::boilerplate_lib::models::user::UserBlobItem> = blob_entries
+        .iter()
+        .filter(|(k, _)| matches!(k, UserBlobKeys::LargeUserFile{..}))
+        .map(|(_, v)| v.clone())
+        .collect();
+    let reconstructed_bio = LargeUserFile::reconstruct_from_blobs(bio_blob_items);
+    println!("  - Reconstructed bio length: {}", reconstructed_bio.0.len());
+    println!("  - Bio matches original: {}", reconstructed_bio.0 == alice_bio_data);
+
+    let another_blob_items: Vec<netabase_store_examples::boilerplate_lib::models::user::UserBlobItem> = blob_entries
+        .iter()
+        .filter(|(k, _)| matches!(k, UserBlobKeys::AnotherLargeUserFile{..}))
+        .map(|(_, v)| v.clone())
+        .collect();
+    let reconstructed_another = AnotherLargeUserFile::reconstruct_from_blobs(another_blob_items);
+    println!("  - Reconstructed another length: {}", reconstructed_another.0.len());
+    println!("  - Another matches original: {}", reconstructed_another.0 == alice_another_data);
 
     // Test primary keys
     println!("User primary key: {:?}", user.get_primary_key());
@@ -192,8 +227,8 @@ fn main() {
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),
         subscriptions: vec![DefinitionSubscriptions::Topic2],
-        bio: LargeUserFile(Vec::new()),
-        another: AnotherLargeUserFile(Vec::new()),
+        bio: LargeUserFile(vec![2u8; 80_000]), // 80KB -> 2 blobs
+        another: AnotherLargeUserFile(vec![3u8; 10_000]), // 10KB -> 1 blob
     };
     let owned = RelationalLink::<Definition, Definition, User>::new_owned(
         UserID("user2".to_string()),
@@ -256,8 +291,8 @@ fn main() {
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),
         subscriptions: vec![],
-        bio: LargeUserFile(Vec::new()),
-        another: AnotherLargeUserFile(Vec::new()),
+        bio: LargeUserFile(vec![4u8; 65_000]), // 65KB -> 2 blobs
+        another: AnotherLargeUserFile(vec![5u8; 5_000]),
     };
     let test_owned = RelationalLink::<Definition, Definition, User>::new_owned(
         UserID("test".to_string()),
@@ -270,8 +305,8 @@ fn main() {
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),
         subscriptions: vec![],
-        bio: LargeUserFile(Vec::new()),
-        another: AnotherLargeUserFile(Vec::new()),
+        bio: LargeUserFile(vec![6u8; 125_000]), // 125KB -> 3 blobs
+        another: AnotherLargeUserFile(vec![7u8; 2_000]),
     };
     let test_hydrated = RelationalLink::<Definition, Definition, User>::new_hydrated(
         UserID("test".to_string()),
