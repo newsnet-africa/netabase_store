@@ -1,16 +1,28 @@
 use crate::boilerplate_lib::models::post::Post;
 use crate::{
-    Category, CategoryID, Definition, DefinitionDiscriminants, DefinitionSubscriptions,
-    DefinitionTreeNames, DefinitionTwo,
+    Category,
+    CategoryID,
+    Definition,
+    DefinitionDiscriminants,
+    DefinitionSubscriptions,
+    DefinitionTreeNames,
+    DefinitionTwo,
 };
+use netabase_store::blob::NetabaseBlobItem;
 use netabase_store::databases::redb::transaction::ModelOpenTables;
 use netabase_store::relational::RelationalLink;
-use netabase_store::blob::NetabaseBlobItem;
 use netabase_store::traits::registery::models::{
-    StoreKey, StoreKeyMarker, StoreValue, StoreValueMarker,
+    StoreKey,
+    StoreKeyMarker,
+    StoreValue,
+    StoreValueMarker,
     keys::{
-        NetabaseModelKeys, NetabaseModelPrimaryKey, NetabaseModelRelationalKey,
-        NetabaseModelSecondaryKey, NetabaseModelSubscriptionKey, blob::NetabaseModelBlobKey,
+        NetabaseModelKeys,
+        NetabaseModelPrimaryKey,
+        NetabaseModelRelationalKey,
+        NetabaseModelSecondaryKey,
+        NetabaseModelSubscriptionKey,
+        blob::NetabaseModelBlobKey,
     },
     model::{NetabaseModel, NetabaseModelMarker, RedbNetbaseModel},
     treenames::{DiscriminantTableName, ModelTreeNames},
@@ -53,7 +65,7 @@ macro_rules! impl_redb_value_key_for_owned {
                 None
             }
             fn type_name() -> redb::TypeName {
-                redb::TypeName::new(std::any::type_name::<$type>()) 
+                redb::TypeName::new(std::any::type_name::<$type>())
             }
         }
 
@@ -75,7 +87,15 @@ pub struct User {
     pub partner: RelationalLink<'static, Definition, Definition, User>,
     pub category: RelationalLink<'static, Definition, DefinitionTwo, Category>,
     pub subscriptions: Vec<DefinitionSubscriptions>,
+    pub bio: LargeUserFile,
+    pub another: AnotherLargeUserFile,
 }
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
+pub struct LargeUserFile(pub Vec<u8>);
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
+pub struct AnotherLargeUserFile(pub Vec<u8>);
 
 use std::fmt;
 
@@ -126,6 +146,8 @@ impl<'de> serde::Deserialize<'de> for User {
             Partner,
             Category,
             Subscriptions,
+            Bio,
+            Another,
         }
 
         struct UserVisitor;
@@ -147,6 +169,8 @@ impl<'de> serde::Deserialize<'de> for User {
                 let mut partner = None;
                 let mut category = None;
                 let mut subscriptions = None;
+                let mut bio = None;
+                let mut another = None;
 
                 while let Some(key) = map.next_key()? {
                     match key {
@@ -192,6 +216,18 @@ impl<'de> serde::Deserialize<'de> for User {
                             }
                             subscriptions = Some(map.next_value()?);
                         }
+                        Field::Bio => {
+                            if bio.is_some() {
+                                return Err(serde::de::Error::duplicate_field("bio"));
+                            }
+                            bio = Some(map.next_value()?);
+                        }
+                        Field::Another => {
+                            if another.is_some() {
+                                return Err(serde::de::Error::duplicate_field("another"));
+                            }
+                            another = Some(map.next_value()?);
+                        }
                     }
                 }
 
@@ -203,6 +239,8 @@ impl<'de> serde::Deserialize<'de> for User {
                     category.ok_or_else(|| serde::de::Error::missing_field("category"))?;
                 let subscriptions = subscriptions
                     .ok_or_else(|| serde::de::Error::missing_field("subscriptions"))?;
+                let bio = bio.unwrap_or_default();
+                let another = another.unwrap_or_default();
 
                 Ok(User {
                     id,
@@ -211,11 +249,22 @@ impl<'de> serde::Deserialize<'de> for User {
                     partner,
                     category,
                     subscriptions,
+                    bio,
+                    another,
                 })
             }
         }
 
-        const FIELDS: &[&str] = &["id", "name", "age", "partner", "category", "subscriptions"];
+        const FIELDS: &[&str] = &[
+            "id",
+            "name",
+            "age",
+            "partner",
+            "category",
+            "subscriptions",
+            "bio",
+            "another",
+        ];
         deserializer.deserialize_struct("User", FIELDS, UserVisitor)
     }
 }
@@ -233,6 +282,8 @@ impl Decode<()> for User {
             RelationalLink::<'static, Definition, DefinitionTwo, Category>::decode(decoder)?;
         let subscriptions: Vec<DefinitionSubscriptions> =
             Vec::<DefinitionSubscriptions>::decode(decoder)?;
+        let bio: LargeUserFile = LargeUserFile::decode(decoder)?;
+        let another: AnotherLargeUserFile = AnotherLargeUserFile::decode(decoder)?;
 
         Ok(Self {
             id,
@@ -241,6 +292,8 @@ impl Decode<()> for User {
             partner,
             category,
             subscriptions,
+            bio,
+            another,
         })
     }
 }
@@ -258,6 +311,8 @@ impl<'de> BorrowDecode<'de, ()> for User {
             RelationalLink::<'static, Definition, DefinitionTwo, Category>::decode(decoder)?;
         let subscriptions: Vec<DefinitionSubscriptions> =
             Vec::<DefinitionSubscriptions>::decode(decoder)?;
+        let bio: LargeUserFile = LargeUserFile::decode(decoder)?;
+        let another: AnotherLargeUserFile = AnotherLargeUserFile::decode(decoder)?;
 
         Ok(Self {
             id,
@@ -266,6 +321,8 @@ impl<'de> BorrowDecode<'de, ()> for User {
             partner,
             category,
             subscriptions,
+            bio,
+            another,
         })
     }
 }
@@ -395,7 +452,8 @@ pub enum UserRelationalKeys {
 #[strum_discriminants(name(UserBlobKeysDiscriminants))]
 #[strum_discriminants(derive(AsRefStr))]
 pub enum UserBlobKeys {
-    None,
+    LargeUserFile { owner: UserID },
+    AnotherLargeUserFile {  owner: UserID },
 }
 
 impl<'a> NetabaseModelBlobKey<'a, Definition, User, UserKeys> for UserBlobKeys {
@@ -403,11 +461,12 @@ impl<'a> NetabaseModelBlobKey<'a, Definition, User, UserKeys> for UserBlobKeys {
     type BlobItem = UserBlobItem;
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, Serialize, Deserialize)]
-pub struct UserBlobItem;
-
-impl NetabaseBlobItem for UserBlobItem {
-    type Blobs = ();
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode, Serialize, Deserialize,
+)]
+pub enum UserBlobItem {
+    LargeUserFile{index: u8, value: Vec<u8>},
+    AnotherLargeUserFile{index: u8, value: Vec<u8>},
 }
 
 #[derive(Clone, Debug)]
@@ -456,10 +515,16 @@ impl NetabaseModel<Definition> for User {
                 "Definition:Subscription:Topic2",
             ),
         ]),
-        blob: &[DiscriminantTableName::new(
-            UserBlobKeysDiscriminants::None,
-            "Definition:User:Blob:None",
-        )],
+        blob: &[
+            DiscriminantTableName::new(
+                UserBlobKeysDiscriminants::LargeUserFile,
+                "Definition:User:Blob:LargeUserFile",
+            ),
+            DiscriminantTableName::new(
+                UserBlobKeysDiscriminants::AnotherLargeUserFile,
+                "Definition:User:Blob:AnotherLargeUserFile",
+            ),
+        ],
     };
 
     fn get_primary_key<'b>(&'b self) -> UserID {
@@ -497,9 +562,34 @@ impl NetabaseModel<Definition> for User {
         &'a self,
     ) -> Vec<(
         <Self::Keys as NetabaseModelKeys<Definition, Self>>::Blob<'a>,
-        <<Self::Keys as NetabaseModelKeys<Definition, Self>>::Blob<'a> as NetabaseModelBlobKey<'a, Definition, Self, Self::Keys>>::BlobItem,
+        <<Self::Keys as NetabaseModelKeys<Definition, Self>>::Blob<'a> as NetabaseModelBlobKey< 
+            'a,
+            Definition,
+            Self,
+            Self::Keys,
+        >>::BlobItem,
     )> {
-        vec![]
+        let mut entries = Vec::new();
+
+        for blob in self.bio.split_into_blobs() {
+            entries.push((
+                UserBlobKeys::LargeUserFile {
+                    owner: self.id.clone(),
+                },
+                blob,
+            ));
+        }
+
+        for blob in self.another.split_into_blobs() {
+            entries.push((
+                UserBlobKeys::AnotherLargeUserFile {
+                    owner: self.id.clone(),
+                },
+                blob,
+            ));
+        }
+
+        entries
     }
 }
 
@@ -514,6 +604,7 @@ impl StoreKeyMarker<Definition> for UserSecondaryKeys {}
 impl StoreKeyMarker<Definition> for UserRelationalKeys {}
 impl StoreKeyMarker<Definition> for UserSubscriptions {}
 impl StoreKeyMarker<Definition> for UserBlobKeys {}
+impl StoreKeyMarker<Definition> for UserBlobItem {}
 
 impl StoreKey<Definition, UserID> for UserSecondaryKeys {}
 impl StoreKey<Definition, UserID> for UserRelationalKeys {}
@@ -546,7 +637,7 @@ impl Value for User {
     where
         Self: 'a;
     type AsBytes<'a>
-        = Cow<'a, [u8]> 
+        = Cow<'a, [u8]>
     where
         Self: 'a;
 
@@ -618,6 +709,41 @@ impl_redb_value_key_for_owned!(UserSubscriptions);
 impl_redb_value_key_for_owned!(UserCategory);
 impl_redb_value_key_for_owned!(UserBlobKeys);
 impl_redb_value_key_for_owned!(UserBlobItem);
+
+impl NetabaseBlobItem for LargeUserFile {
+    type Blobs = UserBlobItem;
+    fn split_into_blobs(&self) -> Vec<Self::Blobs> {
+        self.0
+            .chunks(60000)
+            .enumerate()
+            .map(|(i, chunk)| UserBlobItem::LargeUserFile {
+                index: i as u8,
+                value: chunk.to_vec(),
+            })
+            .collect()
+    }
+}
+
+impl NetabaseBlobItem for AnotherLargeUserFile {
+    type Blobs = UserBlobItem;
+    fn split_into_blobs(&self) -> Vec<Self::Blobs> {
+        self.0
+            .chunks(60000)
+            .enumerate()
+            .map(|(i, chunk)| UserBlobItem::AnotherLargeUserFile {
+                index: i as u8,
+                value: chunk.to_vec(),
+            })
+            .collect()
+    }
+}
+
+impl NetabaseBlobItem for UserBlobItem {
+    type Blobs = Self;
+    fn split_into_blobs(&self) -> Vec<Self::Blobs> {
+        vec![self.clone()]
+    }
+}
 
 // RedbNetbaseModel impls - only needs type def as TREE_NAMES is in NetabaseModel
 impl<'db> RedbNetbaseModel<'db, Definition> for User {

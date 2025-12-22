@@ -20,7 +20,7 @@ use netabase_store_examples::boilerplate_lib::DefinitionTwoDiscriminants;
 use netabase_store_examples::boilerplate_lib::GlobalDefinitionKeys;
 use netabase_store_examples::boilerplate_lib::GlobalKeys;
 use netabase_store_examples::boilerplate_lib::models::post::{Post, PostID};
-use netabase_store_examples::boilerplate_lib::models::user::{User, UserID, UserKeys};
+use netabase_store_examples::boilerplate_lib::models::user::{User, UserID, UserKeys, LargeUserFile, AnotherLargeUserFile};
 use netabase_store::relational::RelationalLink;
 use netabase_store::traits::registery::definition::NetabaseDefinition;
 use netabase_store::traits::registery::models::model::NetabaseModel;
@@ -57,6 +57,8 @@ fn main() {
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),
         subscriptions: vec![DefinitionSubscriptions::Topic1],
+        bio: LargeUserFile(Vec::new()),
+        another: AnotherLargeUserFile(Vec::new()),
     };
 
     let post_id = PostID("post1".to_string());
@@ -190,6 +192,8 @@ fn main() {
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),
         subscriptions: vec![DefinitionSubscriptions::Topic2],
+        bio: LargeUserFile(Vec::new()),
+        another: AnotherLargeUserFile(Vec::new()),
     };
     let owned = RelationalLink::<Definition, Definition, User>::new_owned(
         UserID("user2".to_string()),
@@ -252,6 +256,8 @@ fn main() {
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),
         subscriptions: vec![],
+        bio: LargeUserFile(Vec::new()),
+        another: AnotherLargeUserFile(Vec::new()),
     };
     let test_owned = RelationalLink::<Definition, Definition, User>::new_owned(
         UserID("test".to_string()),
@@ -264,6 +270,8 @@ fn main() {
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),
         subscriptions: vec![],
+        bio: LargeUserFile(Vec::new()),
+        another: AnotherLargeUserFile(Vec::new()),
     };
     let test_hydrated = RelationalLink::<Definition, Definition, User>::new_hydrated(
         UserID("test".to_string()),

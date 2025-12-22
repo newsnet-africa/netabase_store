@@ -10,4 +10,5 @@ pub enum BlobLink<T: NetabaseBlobItem> {
 
 pub trait NetabaseBlobItem {
     type Blobs;
+    fn split_into_blobs(&self) -> Vec<Self::Blobs>;
 }

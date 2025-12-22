@@ -245,6 +245,9 @@ pub struct PostBlobItem;
 
 impl NetabaseBlobItem for PostBlobItem {
     type Blobs = ();
+    fn split_into_blobs(&self) -> Vec<Self::Blobs> {
+        vec![]
+    }
 }
 
 #[derive(Clone, Debug)]

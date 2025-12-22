@@ -162,6 +162,9 @@ pub struct CategoryBlobItem;
 
 impl NetabaseBlobItem for CategoryBlobItem {
     type Blobs = ();
+    fn split_into_blobs(&self) -> Vec<Self::Blobs> {
+        vec![]
+    }
 }
 
 #[derive(Clone, Debug)]
