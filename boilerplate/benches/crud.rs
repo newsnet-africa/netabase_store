@@ -23,6 +23,23 @@ fn random_id(prefix: &str, rng: &mut impl Rng) -> String {
     format!("{}_{:016x}", prefix, n)
 }
 
+/// Helper to split blob data like the abstracted version does
+/// Mimics NetabaseBlobItem::split_into_blobs() behavior
+fn split_blob_into_chunks<T: bincode::Encode>(item: &T) -> Vec<(u8, Vec<u8>)> {
+    use bincode::Encode;
+    let serialized = bincode::encode_to_vec(item, bincode::config::standard()).unwrap();
+
+    if serialized.is_empty() {
+        return Vec::new();
+    }
+
+    serialized
+        .chunks(60000) // 60KB chunks
+        .enumerate()
+        .map(|(i, chunk)| (i as u8, chunk.to_vec()))
+        .collect()
+}
+
 pub fn generate_random_user() -> User {
     let mut rng = rand::rng();
 
@@ -121,6 +138,8 @@ fn bench_crud_operations(c: &mut Criterion) {
     // Updated blob table name and type usage
     const BLOB_BIO: MultimapTableDefinition<UserBlobKeys, UserBlobItem> =
         MultimapTableDefinition::new("Definition:User:Blob:Bio");
+    const BLOB_ANOTHER: MultimapTableDefinition<UserBlobKeys, UserBlobItem> =
+        MultimapTableDefinition::new("Definition:User:Blob:Another");
 
     // --- Insert Benchmarks ---
     let mut insert_group = c.benchmark_group("CRUD/Insert");
@@ -193,9 +212,12 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut sub_topic2 = txn
                             .open_multimap_table(SUB_TOPIC2)
                             .expect("Failed to open sub topic2");
-                        let mut blob_table = txn
+                        let mut blob_bio_table = txn
                             .open_multimap_table(BLOB_BIO)
-                            .expect("Failed to open blob table");
+                            .expect("Failed to open blob bio table");
+                        let mut blob_another_table = txn
+                            .open_multimap_table(BLOB_ANOTHER)
+                            .expect("Failed to open blob another table");
 
                         for user in &users {
                             let user = black_box(user);
@@ -252,15 +274,28 @@ fn bench_crud_operations(c: &mut Criterion) {
                                 }
                             }
 
-                            // Insert Blobs
-                            // Simplified: Just insert one chunk as the whole blob for benchmark comparison
-                            // In reality, it should be split
-                            blob_table
-                                .insert(
-                                    &UserBlobKeys::Bio { owner: user_id.clone() },
-                                    &UserBlobItem::Bio { index: 0, value: user.bio.data.clone() }
-                                )
-                                .expect("Failed to insert blob");
+                            // Insert Blobs - properly split like the abstracted version
+                            // Bio field
+                            let bio_chunks = split_blob_into_chunks(&user.bio);
+                            for (index, chunk) in bio_chunks {
+                                blob_bio_table
+                                    .insert(
+                                        &UserBlobKeys::Bio { owner: user_id.clone() },
+                                        &UserBlobItem::Bio { index, value: chunk }
+                                    )
+                                    .expect("Failed to insert bio blob");
+                            }
+
+                            // Another field
+                            let another_chunks = split_blob_into_chunks(&user.another);
+                            for (index, chunk) in another_chunks {
+                                blob_another_table
+                                    .insert(
+                                        &UserBlobKeys::Another { owner: user_id.clone() },
+                                        &UserBlobItem::Another { index, value: chunk }
+                                    )
+                                    .expect("Failed to insert another blob");
+                            }
                         }
                     }
                     txn.commit().expect("Failed to commit");
@@ -353,9 +388,12 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut sub_topic2 = txn
                             .open_multimap_table(SUB_TOPIC2)
                             .expect("Failed to open sub topic2");
-                        let mut blob_table = txn
+                        let mut blob_bio_table = txn
                             .open_multimap_table(BLOB_BIO)
-                            .expect("Failed to open blob table");
+                            .expect("Failed to open blob bio table");
+                        let mut blob_another_table = txn
+                            .open_multimap_table(BLOB_ANOTHER)
+                            .expect("Failed to open blob another table");
 
                         for user in &users {
                             let user_id = &user.id;
@@ -399,13 +437,26 @@ fn bench_crud_operations(c: &mut Criterion) {
                                 }
                             }
 
-                            // Insert Blobs
-                            blob_table
-                                .insert(
-                                    &UserBlobKeys::Bio { owner: user_id.clone() },
-                                    &UserBlobItem::Bio { index: 0, value: user.bio.data.clone() }
-                                )
-                                .unwrap();
+                            // Insert Blobs - properly split like the abstracted version
+                            let bio_chunks = split_blob_into_chunks(&user.bio);
+                            for (index, chunk) in bio_chunks {
+                                blob_bio_table
+                                    .insert(
+                                        &UserBlobKeys::Bio { owner: user_id.clone() },
+                                        &UserBlobItem::Bio { index, value: chunk }
+                                    )
+                                    .unwrap();
+                            }
+
+                            let another_chunks = split_blob_into_chunks(&user.another);
+                            for (index, chunk) in another_chunks {
+                                blob_another_table
+                                    .insert(
+                                        &UserBlobKeys::Another { owner: user_id.clone() },
+                                        &UserBlobItem::Another { index, value: chunk }
+                                    )
+                                    .unwrap();
+                            }
                         }
                     }
                     txn.commit().unwrap();
@@ -511,9 +562,12 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut sub_topic2 = txn
                             .open_multimap_table(SUB_TOPIC2)
                             .expect("Failed to open sub topic2");
-                        let mut blob_table = txn
+                        let mut blob_bio_table = txn
                             .open_multimap_table(BLOB_BIO)
-                            .expect("Failed to open blob table");
+                            .expect("Failed to open blob bio table");
+                        let mut blob_another_table = txn
+                            .open_multimap_table(BLOB_ANOTHER)
+                            .expect("Failed to open blob another table");
 
                         for user in &users {
                             let user_id = &user.id;
@@ -557,13 +611,26 @@ fn bench_crud_operations(c: &mut Criterion) {
                                 }
                             }
 
-                            // Insert Blobs
-                            blob_table
-                                .insert(
-                                    &UserBlobKeys::Bio { owner: user_id.clone() },
-                                    &UserBlobItem::Bio { index: 0, value: user.bio.data.clone() }
-                                )
-                                .unwrap();
+                            // Insert Blobs - properly split like the abstracted version
+                            let bio_chunks = split_blob_into_chunks(&user.bio);
+                            for (index, chunk) in bio_chunks {
+                                blob_bio_table
+                                    .insert(
+                                        &UserBlobKeys::Bio { owner: user_id.clone() },
+                                        &UserBlobItem::Bio { index, value: chunk }
+                                    )
+                                    .unwrap();
+                            }
+
+                            let another_chunks = split_blob_into_chunks(&user.another);
+                            for (index, chunk) in another_chunks {
+                                blob_another_table
+                                    .insert(
+                                        &UserBlobKeys::Another { owner: user_id.clone() },
+                                        &UserBlobItem::Another { index, value: chunk }
+                                    )
+                                    .unwrap();
+                            }
                         }
                     }
                     txn.commit().unwrap();
@@ -593,9 +660,12 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut sub_topic2 = txn
                             .open_multimap_table(SUB_TOPIC2)
                             .expect("Failed to open sub topic2");
-                        let mut blob_table = txn
+                        let mut blob_bio_table = txn
                             .open_multimap_table(BLOB_BIO)
-                            .expect("Failed to open blob table");
+                            .expect("Failed to open blob bio table");
+                        let mut blob_another_table = txn
+                            .open_multimap_table(BLOB_ANOTHER)
+                            .expect("Failed to open blob another table");
 
                         for user in &users {
                             let user_id = &user.id;
@@ -648,13 +718,26 @@ fn bench_crud_operations(c: &mut Criterion) {
                                 }
                             }
 
-                            // Remove Blobs
-                            blob_table
-                                .remove(
-                                    &UserBlobKeys::Bio { owner: user_id.clone() },
-                                    &UserBlobItem::Bio { index: 0, value: stored_user.bio.data.clone() }
-                                )
-                                .unwrap();
+                            // Remove Blobs - properly remove all chunks like the abstracted version
+                            let bio_chunks = split_blob_into_chunks(&stored_user.bio);
+                            for (index, chunk) in bio_chunks {
+                                blob_bio_table
+                                    .remove(
+                                        &UserBlobKeys::Bio { owner: user_id.clone() },
+                                        &UserBlobItem::Bio { index, value: chunk }
+                                    )
+                                    .unwrap();
+                            }
+
+                            let another_chunks = split_blob_into_chunks(&stored_user.another);
+                            for (index, chunk) in another_chunks {
+                                blob_another_table
+                                    .remove(
+                                        &UserBlobKeys::Another { owner: user_id.clone() },
+                                        &UserBlobItem::Another { index, value: chunk }
+                                    )
+                                    .unwrap();
+                            }
                         }
                     }
                     txn.commit().expect("Failed to commit");
