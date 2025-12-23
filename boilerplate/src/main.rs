@@ -1,38 +1,21 @@
 // Boilerplate example - Main entry point
 //
-// This example has been restructured into modules:
-// - boilerplate_lib/models/user.rs - User model
-// - boilerplate_lib/models/post.rs - Post model
-// - boilerplate_lib/mod.rs - Definition
-//
-// Run with: cargo run --example boilerplate
-
-// mod boilerplate_lib; // Removed, now using library crate
+// Now fully powered by macros! The entire boilerplate is generated automatically.
+// Run with: cargo run --bin netabase_store_examples
 
 use netabase_store::blob::NetabaseBlobItem;
 use netabase_store::databases::redb::transaction::ModelOpenTables;
 use netabase_store::relational::RelationalLink;
 use netabase_store::traits::registery::definition::NetabaseDefinition;
 use netabase_store::traits::registery::models::model::NetabaseModel;
-use netabase_store_examples::boilerplate_lib;
-use netabase_store_examples::boilerplate_lib::Definition;
-use netabase_store_examples::boilerplate_lib::DefinitionDiscriminants;
-use netabase_store_examples::boilerplate_lib::DefinitionKeys;
-use netabase_store_examples::boilerplate_lib::DefinitionSubscriptions;
-use netabase_store_examples::boilerplate_lib::DefinitionTreeNames;
-use netabase_store_examples::boilerplate_lib::DefinitionTwo;
-use netabase_store_examples::boilerplate_lib::DefinitionTwoDiscriminants;
-use netabase_store_examples::boilerplate_lib::GlobalDefinitionKeys;
-use netabase_store_examples::boilerplate_lib::GlobalKeys;
-use netabase_store_examples::boilerplate_lib::models::post::{Post, PostID};
-use netabase_store_examples::boilerplate_lib::models::user::{
-    AnotherLargeUserFile, LargeUserFile, User, UserBlobKeys, UserID, UserKeys,
+use netabase_store_examples::boilerplate_lib::{
+    Category, CategoryID, Definition, DefinitionKeys, DefinitionTreeName, DefinitionTreeNames,
+    DefinitionTwo, DefinitionTwoTreeName, DefinitionSubscriptions, Post, PostID, User, UserID,
+    UserKeys, UserBlobKeys,
 };
-use strum::AsRefStr;
-
-use netabase_store_examples::boilerplate_lib::Category;
-use netabase_store_examples::boilerplate_lib::CategoryID;
-use netabase_store_examples::boilerplate_lib::DefinitionTwoTreeNames;
+use netabase_store_examples::boilerplate_lib::models::blob_types::{
+    AnotherLargeUserFile, LargeUserFile,
+};
 
 fn main() {
     println!("Netabase Store - Boilerplate Example");
@@ -51,6 +34,8 @@ fn main() {
     let category = Category {
         id: category_id.clone(),
         name: "General".to_string(),
+        description: "A general category".to_string(),
+        subscriptions: vec![],
     };
 
     let user_id = UserID("user1".to_string());
@@ -75,7 +60,10 @@ fn main() {
     let post = Post {
         id: post_id.clone(),
         title: "Hello World".to_string(),
-        author: RelationalLink::new_dehydrated(user_id.clone()),
+        author_id: "user1".to_string(),
+        content: "This is a test post".to_string(),
+        published: true,
+        subscriptions: vec![DefinitionSubscriptions::Topic3],
     };
 
     println!("Created Category: {:?}", category);
@@ -97,11 +85,11 @@ fn main() {
     println!("  - Total blob entries: {}", blob_entries.len());
     let bio_blobs = blob_entries
         .iter()
-        .filter(|(k, _)| matches!(k, UserBlobKeys::LargeUserFile { .. }))
+        .filter(|(k, _)| matches!(k, UserBlobKeys::Bio { .. }))
         .count();
     let another_blobs = blob_entries
         .iter()
-        .filter(|(k, _)| matches!(k, UserBlobKeys::AnotherLargeUserFile { .. }))
+        .filter(|(k, _)| matches!(k, UserBlobKeys::Another { .. }))
         .count();
     println!("  - LargeUserFile blobs: {} (expected 3)", bio_blobs);
     println!(
@@ -111,10 +99,10 @@ fn main() {
 
     // Test reconstruction
     println!("\nUser blob reconstruction test:");
-    let bio_blob_items: Vec<netabase_store_examples::boilerplate_lib::models::user::UserBlobItem> =
+    let bio_blob_items: Vec<netabase_store_examples::boilerplate_lib::UserBlobItem> =
         blob_entries
             .iter()
-            .filter(|(k, _)| matches!(k, UserBlobKeys::LargeUserFile { .. }))
+            .filter(|(k, _)| matches!(k, UserBlobKeys::Bio { .. }))
             .map(|(_, v)| v.clone())
             .collect();
     let reconstructed_bio = LargeUserFile::reconstruct_from_blobs(bio_blob_items);
@@ -128,10 +116,10 @@ fn main() {
     );
 
     let another_blob_items: Vec<
-        netabase_store_examples::boilerplate_lib::models::user::UserBlobItem,
+        netabase_store_examples::boilerplate_lib::UserBlobItem,
     > = blob_entries
         .iter()
-        .filter(|(k, _)| matches!(k, UserBlobKeys::AnotherLargeUserFile { .. }))
+        .filter(|(k, _)| matches!(k, UserBlobKeys::Another { .. }))
         .map(|(_, v)| v.clone())
         .collect();
     let reconstructed_another = AnotherLargeUserFile::reconstruct_from_blobs(another_blob_items);
@@ -176,15 +164,15 @@ fn main() {
     // Test discriminants
     println!(
         "User discriminant: {:?}",
-        DefinitionDiscriminants::User.as_ref()
+        DefinitionTreeName::User.as_ref()
     );
     println!(
         "Post discriminant: {:?}",
-        DefinitionDiscriminants::Post.as_ref()
+        DefinitionTreeName::Post.as_ref()
     );
     println!(
         "Category discriminant: {:?}",
-        DefinitionTwoDiscriminants::Category.as_ref()
+        DefinitionTwoTreeName::Category.as_ref()
     );
 
     // Test tree names structure with formatted table names
@@ -380,19 +368,19 @@ fn main() {
     );
     println!(
         "  - User subscribes to: {:?}",
-        reg.get_model_topics(DefinitionDiscriminants::User)
+        reg.get_model_topics(DefinitionTreeName::User)
     );
     println!(
         "  - Post subscribes to: {:?}",
-        reg.get_model_topics(DefinitionDiscriminants::Post)
+        reg.get_model_topics(DefinitionTreeName::Post)
     );
     println!(
         "  - Does User subscribe to Topic1? {}",
-        reg.model_subscribes_to("Topic1", DefinitionDiscriminants::User)
+        reg.model_subscribes_to("Topic1", DefinitionTreeName::User)
     );
     println!(
         "  - Does Post subscribe to Topic1? {}",
-        reg.model_subscribes_to("Topic1", DefinitionDiscriminants::Post)
+        reg.model_subscribes_to("Topic1", DefinitionTreeName::Post)
     );
 
     let reg2 = &<DefinitionTwo as NetabaseDefinition>::SUBSCRIPTION_REGISTRY;

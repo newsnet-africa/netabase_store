@@ -145,11 +145,13 @@ impl<'a> SerializationGenerator<'a> {
     }
 
     /// Generate blob trait implementations
-    /// NOTE: Users must manually implement NetabaseBlobItem for their blob types.
-    /// We only generate the implementation for the BlobItem enum itself.
+    /// Generates NetabaseBlobItem implementations for:
+    /// 1. Each user-defined blob type (with type Blobs = BlobItem enum)
+    /// 2. The BlobItem enum itself
     pub fn generate_blob_traits(&self) -> TokenStream {
         let model_name = &self.visitor.model_name;
         let blob_item_enum = blob_item_enum_name(model_name);
+        let mut output = TokenStream::new();
 
         // If no blob fields, generate empty impl for the struct
         if self.visitor.blob_fields.is_empty() {
@@ -176,7 +178,32 @@ impl<'a> SerializationGenerator<'a> {
             };
         }
 
-        // Generate impl for the BlobItem enum only
+        // Generate NetabaseBlobItem impl for each blob field type
+        for field in &self.visitor.blob_fields {
+            let field_type = &field.ty;
+            let variant_name = to_pascal_case(&field.name.to_string());
+            let variant_ident = syn::Ident::new(&variant_name, field.name.span());
+
+            output.extend(quote! {
+                impl netabase_store::blob::NetabaseBlobItem for #field_type {
+                    type Blobs = #blob_item_enum;
+
+                    fn wrap_blob(index: u8, data: Vec<u8>) -> Self::Blobs {
+                        #blob_item_enum::#variant_ident { index, value: data }
+                    }
+
+                    fn unwrap_blob(blob: &Self::Blobs) -> Option<(u8, Vec<u8>)> {
+                        if let #blob_item_enum::#variant_ident { index, value } = blob {
+                            Some((*index, value.clone()))
+                        } else {
+                            None
+                        }
+                    }
+                }
+            });
+        }
+
+        // Generate impl for the BlobItem enum itself
         let reconstruct_arms: Vec<_> = self.visitor.blob_fields
             .iter()
             .map(|field| {
@@ -189,7 +216,7 @@ impl<'a> SerializationGenerator<'a> {
             })
             .collect();
 
-        quote! {
+        output.extend(quote! {
             impl netabase_store::blob::NetabaseBlobItem for #blob_item_enum {
                 type Blobs = Self;
 
@@ -214,7 +241,9 @@ impl<'a> SerializationGenerator<'a> {
                     panic!("Cannot unwrap blob directly on enum")
                 }
             }
-        }
+        });
+
+        output
     }
 }
 

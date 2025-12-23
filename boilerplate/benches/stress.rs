@@ -3,14 +3,11 @@ use netabase_store::databases::redb::transaction::RedbModelCrud;
 use netabase_store::relational::RelationalLink;
 use netabase_store_examples::boilerplate_lib::{
     CategoryID, Definition, DefinitionSubscriptions,
-    models::{
-        heavy::{
-            HeavyAttachment, HeavyCategory, HeavyCreator, HeavyID, HeavyModel, HeavyRelation,
-            HeavyScore,
-        },
-        user::{AnotherLargeUserFile, LargeUserFile, User, UserID},
-    },
 };
+use netabase_store_examples::boilerplate_lib::definition::{
+    HeavyModel, HeavyModelID, User, UserID,
+};
+use netabase_store_examples::boilerplate_lib::models::blob_types::{AnotherLargeUserFile, LargeUserFile, HeavyAttachment};
 use rand::prelude::*;
 use std::hint::black_box;
 use std::path::PathBuf;
@@ -98,7 +95,7 @@ fn generate_random_heavy(
     existing_users: &[User],
     existing_heavies: &[HeavyModel],
 ) -> HeavyModel {
-    let id = HeavyID(random_id("heavy", rng));
+    let id = HeavyModelID(random_id("heavy", rng));
 
     let creator = if !existing_users.is_empty() {
         let user = existing_users.choose(rng).unwrap();
