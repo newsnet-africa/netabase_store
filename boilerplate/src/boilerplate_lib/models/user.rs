@@ -375,24 +375,24 @@ impl TryInto<DefinitionSubscriptions> for UserSubscriptions {
 }
 
 #[derive(
-    Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Encode, Decode, Serialize, Deserialize, Hash,
+    Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Encode, Decode, Serialize, Deserialize, Hash, Display,
 )]
 pub struct UserID(pub String);
 #[derive(
-    Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Encode, Decode, Serialize, Deserialize, Hash,
+    Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Encode, Decode, Serialize, Deserialize, Hash, Display,
 )]
 pub struct UserName(pub String);
 #[derive(
-    Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Encode, Decode, Serialize, Deserialize, Hash,
+    Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Encode, Decode, Serialize, Deserialize, Hash, Display,
 )]
 pub struct UserAge(pub u8);
 
 #[derive(
-    Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Encode, Decode, Serialize, Deserialize, Hash,
+    Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Encode, Decode, Serialize, Deserialize, Hash, Display,
 )]
 pub struct UserPartner(pub UserID);
 #[derive(
-    Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Encode, Decode, Serialize, Deserialize, Hash,
+    Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Encode, Decode, Serialize, Deserialize, Hash, Display,
 )]
 pub struct UserCategory(pub CategoryID);
 

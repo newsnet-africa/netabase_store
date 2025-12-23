@@ -3,13 +3,14 @@
 // This example has been restructured into modules:
 // - boilerplate_lib/models/user.rs - User model
 // - boilerplate_lib/models/post.rs - Post model
+// - boilerplate_lib/models/heavy.rs - Heavy model
 // - boilerplate_lib/mod.rs - Definitions
 //
 // Run with: cargo run --example boilerplate
 
 // Basic imports needed for early type definitions
 use bincode::{BorrowDecode, Decode, Encode};
-use derive_more::{From, Into, TryInto};
+use derive_more::{Display, From, Into, TryInto};
 use netabase_store::blob::NetabaseBlobItem;
 use netabase_store::databases::redb::transaction::ModelOpenTables;
 use netabase_store::traits::registery::models::{
@@ -84,11 +85,33 @@ pub enum CategorySubscriptions {
 // Note: impl NetabaseModelSubscriptionKey will be added after DefinitionTwo is defined
 
 #[derive(
-    Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Encode, Decode, Serialize, Deserialize, Hash,
+    Clone,
+    Eq,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    Debug,
+    Encode,
+    Decode,
+    Serialize,
+    Deserialize,
+    Hash,
+    Display,
 )]
 pub struct CategoryID(pub String);
 #[derive(
-    Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Encode, Decode, Serialize, Deserialize, Hash,
+    Clone,
+    Eq,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    Debug,
+    Encode,
+    Decode,
+    Serialize,
+    Deserialize,
+    Hash,
+    Display,
 )]
 pub struct CategoryName(pub String);
 
@@ -184,6 +207,7 @@ pub enum CategoryKeys {
 }
 
 // Import from modules
+use models::heavy::{HeavyID, HeavyKeys, HeavyModel};
 use models::post::{Post, PostID, PostKeys};
 use models::user::{User, UserID, UserKeys};
 use netabase_store::relational::GlobalDefinitionEnum;
@@ -454,6 +478,7 @@ pub enum GlobalDefinitionKeys {
 pub enum GlobalKeys {
     Def1User,
     Def1Post,
+    Def1Heavy,
     Def2Category,
 }
 
@@ -479,6 +504,7 @@ pub enum GlobalKeys {
 pub enum Definition {
     User(User),
     Post(Post),
+    Heavy(HeavyModel),
 }
 
 impl Decode<()> for Definition {
@@ -489,6 +515,8 @@ impl Decode<()> for Definition {
             return Ok(Self::User(user));
         } else if let Ok(post) = Post::decode(decoder) {
             return Ok(Self::Post(post));
+        } else if let Ok(heavy) = HeavyModel::decode(decoder) {
+            return Ok(Self::Heavy(heavy));
         } else {
             return Err(bincode::error::DecodeError::Other("Failed to decode"));
         }
@@ -503,87 +531,11 @@ impl<'de> BorrowDecode<'de, ()> for Definition {
             return Ok(Self::User(user));
         } else if let Ok(post) = Post::borrow_decode(decoder) {
             return Ok(Self::Post(post));
+        } else if let Ok(heavy) = HeavyModel::borrow_decode(decoder) {
+            return Ok(Self::Heavy(heavy));
         } else {
             return Err(bincode::error::DecodeError::Other("Failed to decode"));
         }
-    }
-}
-
-impl GlobalDefinitionEnum for Definition {
-    type GlobalDefinition = GlobalDefinition;
-    type GlobalDefinitionKeys = GlobalDefinitionKeys;
-    type GlobalKeys = GlobalKeys;
-
-    fn into_global_definition(self) -> Self::GlobalDefinition {
-        GlobalDefinition::Def1(self)
-    }
-
-    fn from_global_definition(global: Self::GlobalDefinition) -> Option<Self> {
-        match global {
-            GlobalDefinition::Def1(def) => Some(def),
-            _ => None,
-        }
-    }
-
-    fn discriminant_into_global(discriminant: Self::Discriminant) -> Self::GlobalKeys {
-        match discriminant {
-            DefinitionDiscriminants::User => GlobalKeys::Def1User,
-            DefinitionDiscriminants::Post => GlobalKeys::Def1Post,
-        }
-    }
-
-    fn discriminant_from_global(global: Self::GlobalKeys) -> Option<Self::Discriminant> {
-        match global {
-            GlobalKeys::Def1User => Some(DefinitionDiscriminants::User),
-            GlobalKeys::Def1Post => Some(DefinitionDiscriminants::Post),
-            _ => None,
-        }
-    }
-
-    fn definition_discriminant_to_global() -> Self::GlobalDefinitionKeys {
-        GlobalDefinitionKeys::Def1
-    }
-
-    fn global_to_definition_discriminant(global: Self::GlobalDefinitionKeys) -> bool {
-        matches!(global, GlobalDefinitionKeys::Def1)
-    }
-}
-
-impl GlobalDefinitionEnum for DefinitionTwo {
-    type GlobalDefinition = GlobalDefinition;
-    type GlobalDefinitionKeys = GlobalDefinitionKeys;
-    type GlobalKeys = GlobalKeys;
-
-    fn into_global_definition(self) -> Self::GlobalDefinition {
-        GlobalDefinition::Def2(self)
-    }
-
-    fn from_global_definition(global: Self::GlobalDefinition) -> Option<Self> {
-        match global {
-            GlobalDefinition::Def2(def) => Some(def),
-            _ => None,
-        }
-    }
-
-    fn discriminant_into_global(discriminant: Self::Discriminant) -> Self::GlobalKeys {
-        match discriminant {
-            DefinitionTwoDiscriminants::Category => GlobalKeys::Def2Category,
-        }
-    }
-
-    fn discriminant_from_global(global: Self::GlobalKeys) -> Option<Self::Discriminant> {
-        match global {
-            GlobalKeys::Def2Category => Some(DefinitionTwoDiscriminants::Category),
-            _ => None,
-        }
-    }
-
-    fn definition_discriminant_to_global() -> Self::GlobalDefinitionKeys {
-        GlobalDefinitionKeys::Def2
-    }
-
-    fn global_to_definition_discriminant(global: Self::GlobalDefinitionKeys) -> bool {
-        matches!(global, GlobalDefinitionKeys::Def2)
     }
 }
 
@@ -604,19 +556,31 @@ impl NetabaseDefinition for Definition {
         DefinitionSubscriptionRegistry::new(&[
             SubscriptionEntry {
                 topic: "Topic1",
-                subscribers: &[DefinitionDiscriminants::User],
+                subscribers: &[
+                    DefinitionDiscriminants::User,
+                    DefinitionDiscriminants::Heavy,
+                ],
             },
             SubscriptionEntry {
                 topic: "Topic2",
-                subscribers: &[DefinitionDiscriminants::User],
+                subscribers: &[
+                    DefinitionDiscriminants::User,
+                    DefinitionDiscriminants::Heavy,
+                ],
             },
             SubscriptionEntry {
                 topic: "Topic3",
-                subscribers: &[DefinitionDiscriminants::Post],
+                subscribers: &[
+                    DefinitionDiscriminants::Post,
+                    DefinitionDiscriminants::Heavy,
+                ],
             },
             SubscriptionEntry {
                 topic: "Topic4",
-                subscribers: &[DefinitionDiscriminants::Post],
+                subscribers: &[
+                    DefinitionDiscriminants::Post,
+                    DefinitionDiscriminants::Heavy,
+                ],
             },
         ]);
 
@@ -630,6 +594,7 @@ impl NetabaseDefinition for Definition {
 pub enum DefinitionTreeNames {
     User(ModelTreeNames<'static, Definition, User>),
     Post(ModelTreeNames<'static, Definition, Post>),
+    Heavy(ModelTreeNames<'static, Definition, HeavyModel>),
 }
 
 impl Default for DefinitionTreeNames {
@@ -656,6 +621,9 @@ impl NetabaseDefinitionTreeNames<Definition> for DefinitionTreeNames {
         match discriminant {
             DefinitionDiscriminants::User => vec![DefinitionTreeNames::User(User::TREE_NAMES)],
             DefinitionDiscriminants::Post => vec![DefinitionTreeNames::Post(Post::TREE_NAMES)],
+            DefinitionDiscriminants::Heavy => {
+                vec![DefinitionTreeNames::Heavy(HeavyModel::TREE_NAMES)]
+            }
         }
     }
 
@@ -685,6 +653,7 @@ impl NetabaseDefinitionTreeNames<Definition> for DefinitionTreeNames {
 pub enum DefinitionKeys {
     User(UserKeys),
     Post(PostKeys),
+    Heavy(HeavyKeys),
 }
 
 impl NetabaseDefinitionKeys<Definition> for DefinitionKeys {}

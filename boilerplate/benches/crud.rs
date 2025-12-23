@@ -3,7 +3,7 @@ use netabase_store::databases::redb::transaction::RedbModelCrud;
 use netabase_store::relational::RelationalLink;
 use netabase_store_examples::boilerplate_lib::models::user::{
     User, UserAge, UserBlobItem, UserBlobKeys, UserCategory, UserID, UserName, UserPartner,
-    UserRelationalKeys, UserSecondaryKeys,
+    UserRelationalKeys, UserSecondaryKeys, LargeUserFile, AnotherLargeUserFile
 };
 use netabase_store_examples::boilerplate_lib::{CategoryID, Definition, DefinitionSubscriptions};
 use rand::prelude::*;
@@ -69,8 +69,14 @@ pub fn generate_random_user() -> User {
 
     // random bio (1kb - 10kb)
     let bio_size = rng.random_range(1024..10240);
-    let mut bio = vec![0u8; bio_size];
-    rng.fill_bytes(&mut bio);
+    let mut bio_data = vec![0u8; bio_size];
+    rng.fill_bytes(&mut bio_data);
+    let bio = LargeUserFile {
+        data: bio_data,
+        metadata: "meta".to_string(),
+    };
+
+    let another = AnotherLargeUserFile(vec![0u8; 100]);
 
     User {
         id: user_id,
@@ -80,6 +86,7 @@ pub fn generate_random_user() -> User {
         category,
         subscriptions,
         bio,
+        another,
     }
 }
 
@@ -110,8 +117,9 @@ fn bench_crud_operations(c: &mut Criterion) {
         MultimapTableDefinition::new("Definition:Subscription:Topic1");
     const SUB_TOPIC2: MultimapTableDefinition<DefinitionSubscriptions, UserID> =
         MultimapTableDefinition::new("Definition:Subscription:Topic2");
-    const BLOB_NONE: MultimapTableDefinition<UserBlobKeys, UserBlobItem> =
-        MultimapTableDefinition::new("Definition:User:Blob:None");
+    // Updated blob table name and type usage
+    const BLOB_LARGE_FILE: MultimapTableDefinition<UserBlobKeys, UserBlobItem> =
+        MultimapTableDefinition::new("Definition:User:Blob:LargeUserFile");
 
     // --- Insert Benchmarks ---
     let mut insert_group = c.benchmark_group("CRUD/Insert");
@@ -184,9 +192,9 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut sub_topic2 = txn
                             .open_multimap_table(SUB_TOPIC2)
                             .expect("Failed to open sub topic2");
-                        let mut blob_none = txn
-                            .open_multimap_table(BLOB_NONE)
-                            .expect("Failed to open blob none");
+                        let mut blob_table = txn
+                            .open_multimap_table(BLOB_LARGE_FILE)
+                            .expect("Failed to open blob table");
 
                         for user in &users {
                             let user = black_box(user);
@@ -244,9 +252,14 @@ fn bench_crud_operations(c: &mut Criterion) {
                             }
 
                             // Insert Blobs
-                            blob_none
-                                .insert(&UserBlobKeys::None, &UserBlobItem(user_id.clone()))
-                                .expect("Failed to insert blob none");
+                            // Simplified: Just insert one chunk as the whole blob for benchmark comparison
+                            // In reality, it should be split
+                            blob_table
+                                .insert(
+                                    &UserBlobKeys::LargeUserFile { owner: user_id.clone() },
+                                    &UserBlobItem::LargeUserFile { index: 0, value: user.bio.data.clone() }
+                                )
+                                .expect("Failed to insert blob");
                         }
                     }
                     txn.commit().expect("Failed to commit");
@@ -339,9 +352,9 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut sub_topic2 = txn
                             .open_multimap_table(SUB_TOPIC2)
                             .expect("Failed to open sub topic2");
-                        let mut blob_none = txn
-                            .open_multimap_table(BLOB_NONE)
-                            .expect("Failed to open blob none");
+                        let mut blob_table = txn
+                            .open_multimap_table(BLOB_LARGE_FILE)
+                            .expect("Failed to open blob table");
 
                         for user in &users {
                             let user_id = &user.id;
@@ -386,8 +399,11 @@ fn bench_crud_operations(c: &mut Criterion) {
                             }
 
                             // Insert Blobs
-                            blob_none
-                                .insert(&UserBlobKeys::None, &UserBlobItem(user_id.clone()))
+                            blob_table
+                                .insert(
+                                    &UserBlobKeys::LargeUserFile { owner: user_id.clone() },
+                                    &UserBlobItem::LargeUserFile { index: 0, value: user.bio.data.clone() }
+                                )
                                 .unwrap();
                         }
                     }
@@ -494,9 +510,9 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut sub_topic2 = txn
                             .open_multimap_table(SUB_TOPIC2)
                             .expect("Failed to open sub topic2");
-                        let mut blob_none = txn
-                            .open_multimap_table(BLOB_NONE)
-                            .expect("Failed to open blob none");
+                        let mut blob_table = txn
+                            .open_multimap_table(BLOB_LARGE_FILE)
+                            .expect("Failed to open blob table");
 
                         for user in &users {
                             let user_id = &user.id;
@@ -541,8 +557,11 @@ fn bench_crud_operations(c: &mut Criterion) {
                             }
 
                             // Insert Blobs
-                            blob_none
-                                .insert(&UserBlobKeys::None, &UserBlobItem(user_id.clone()))
+                            blob_table
+                                .insert(
+                                    &UserBlobKeys::LargeUserFile { owner: user_id.clone() },
+                                    &UserBlobItem::LargeUserFile { index: 0, value: user.bio.data.clone() }
+                                )
                                 .unwrap();
                         }
                     }
@@ -573,9 +592,9 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut sub_topic2 = txn
                             .open_multimap_table(SUB_TOPIC2)
                             .expect("Failed to open sub topic2");
-                        let mut blob_none = txn
-                            .open_multimap_table(BLOB_NONE)
-                            .expect("Failed to open blob none");
+                        let mut blob_table = txn
+                            .open_multimap_table(BLOB_LARGE_FILE)
+                            .expect("Failed to open blob table");
 
                         for user in &users {
                             let user_id = &user.id;
@@ -629,8 +648,11 @@ fn bench_crud_operations(c: &mut Criterion) {
                             }
 
                             // Remove Blobs
-                            blob_none
-                                .remove(&UserBlobKeys::None, &UserBlobItem(user_id.clone()))
+                            blob_table
+                                .remove(
+                                    &UserBlobKeys::LargeUserFile { owner: user_id.clone() },
+                                    &UserBlobItem::LargeUserFile { index: 0, value: stored_user.bio.data.clone() }
+                                )
                                 .unwrap();
                         }
                     }

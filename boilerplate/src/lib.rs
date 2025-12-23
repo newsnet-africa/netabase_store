@@ -1,5 +1,8 @@
+// Boilerplate library with manual implementations (baseline)
 pub mod boilerplate_lib;
 
-// Re-export everything from boilerplate_lib to satisfy `crate::Type` usages in submodules
-// This mimics the structure where these types were expected to be at crate root (or accessible via crate::)
+// Macro-based library - 1:1 parity with boilerplate_lib
+pub mod boilerplate_lib_macros;
+
+// Re-export manual version by default
 pub use boilerplate_lib::*;
