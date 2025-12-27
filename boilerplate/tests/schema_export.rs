@@ -1,17 +1,20 @@
-use netabase_store_examples::boilerplate_lib::{Definition, DefinitionTwo};
 use netabase_store::traits::registery::definition::NetabaseDefinition;
+use netabase_store_examples::boilerplate_lib::{Definition, DefinitionTwo};
 use std::fs;
 use std::path::PathBuf;
 
 #[test]
 fn test_definition_schema_export() {
     let toml = Definition::export_toml();
-    println!("Definition TOML:\n{}", toml);
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    let path = PathBuf::from(manifest_dir).join("definition_roundtrip_schema.toml");
+    fs::write(&path, &toml).expect("Failed to write roundtrip schema");
+    println!("Saved DefinitionTwo schema to {:?}", path);
 
     // Save DefinitionTwo to file for round-trip testing (simpler, no conflicting blob types)
     let toml_two = DefinitionTwo::export_toml();
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-    let path = PathBuf::from(manifest_dir).join("roundtrip_schema.toml");
+    let path = PathBuf::from(manifest_dir).join("definition_2_roundtrip_schema.toml");
     fs::write(&path, &toml_two).expect("Failed to write roundtrip schema");
     println!("Saved DefinitionTwo schema to {:?}", path);
 
@@ -20,12 +23,12 @@ fn test_definition_schema_export() {
     assert!(toml.contains("name = \"User\""));
     assert!(toml.contains("name = \"Post\""));
     assert!(toml.contains("name = \"HeavyModel\""));
-    
+
     // Verify fields and types
     assert!(toml.contains("name = \"partner\""));
     assert!(toml.contains("definition = \"Definition\""));
     assert!(toml.contains("model = \"User\""));
-    
+
     assert!(toml.contains("name = \"category\""));
     assert!(toml.contains("definition = \"DefinitionTwo\""));
     assert!(toml.contains("model = \"Category\""));
