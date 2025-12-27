@@ -1,11 +1,13 @@
-use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use netabase_store::databases::redb::transaction::RedbModelCrud;
 use netabase_store::relational::RelationalLink;
 use netabase_store_examples::boilerplate_lib::definition::{
     User, UserAge, UserBlobItem, UserBlobKeys, UserCategory, UserID, UserName, UserPartner,
     UserRelationalKeys, UserSecondaryKeys,
 };
-use netabase_store_examples::boilerplate_lib::models::blob_types::{LargeUserFile, AnotherLargeUserFile};
+use netabase_store_examples::boilerplate_lib::models::blob_types::{
+    AnotherLargeUserFile, LargeUserFile,
+};
 use netabase_store_examples::boilerplate_lib::{CategoryID, Definition, DefinitionSubscriptions};
 use rand::prelude::*;
 use redb::{MultimapTableDefinition, ReadableDatabase, ReadableTable, TableDefinition};
@@ -119,7 +121,7 @@ impl Drop for CleanupGuard {
 // --- Benchmarks ---
 
 fn bench_crud_operations(c: &mut Criterion) {
-    let sizes = [0, 100, 1_000, 10_000, 100_000, 1_000_000];
+    let sizes = [0, 100, 1_000, 10_000, 100_000];
 
     // Define table definitions matching User::TREE_NAMES for raw redb operations
     const MAIN: TableDefinition<UserID, User> = TableDefinition::new("User:User:Primary:Main");
@@ -280,8 +282,13 @@ fn bench_crud_operations(c: &mut Criterion) {
                             for (index, chunk) in bio_chunks {
                                 blob_bio_table
                                     .insert(
-                                        &UserBlobKeys::Bio { owner: user_id.clone() },
-                                        &UserBlobItem::Bio { index, value: chunk }
+                                        &UserBlobKeys::Bio {
+                                            owner: user_id.clone(),
+                                        },
+                                        &UserBlobItem::Bio {
+                                            index,
+                                            value: chunk,
+                                        },
                                     )
                                     .expect("Failed to insert bio blob");
                             }
@@ -291,8 +298,13 @@ fn bench_crud_operations(c: &mut Criterion) {
                             for (index, chunk) in another_chunks {
                                 blob_another_table
                                     .insert(
-                                        &UserBlobKeys::Another { owner: user_id.clone() },
-                                        &UserBlobItem::Another { index, value: chunk }
+                                        &UserBlobKeys::Another {
+                                            owner: user_id.clone(),
+                                        },
+                                        &UserBlobItem::Another {
+                                            index,
+                                            value: chunk,
+                                        },
                                     )
                                     .expect("Failed to insert another blob");
                             }
@@ -442,8 +454,13 @@ fn bench_crud_operations(c: &mut Criterion) {
                             for (index, chunk) in bio_chunks {
                                 blob_bio_table
                                     .insert(
-                                        &UserBlobKeys::Bio { owner: user_id.clone() },
-                                        &UserBlobItem::Bio { index, value: chunk }
+                                        &UserBlobKeys::Bio {
+                                            owner: user_id.clone(),
+                                        },
+                                        &UserBlobItem::Bio {
+                                            index,
+                                            value: chunk,
+                                        },
                                     )
                                     .unwrap();
                             }
@@ -452,8 +469,13 @@ fn bench_crud_operations(c: &mut Criterion) {
                             for (index, chunk) in another_chunks {
                                 blob_another_table
                                     .insert(
-                                        &UserBlobKeys::Another { owner: user_id.clone() },
-                                        &UserBlobItem::Another { index, value: chunk }
+                                        &UserBlobKeys::Another {
+                                            owner: user_id.clone(),
+                                        },
+                                        &UserBlobItem::Another {
+                                            index,
+                                            value: chunk,
+                                        },
                                     )
                                     .unwrap();
                             }
@@ -616,8 +638,13 @@ fn bench_crud_operations(c: &mut Criterion) {
                             for (index, chunk) in bio_chunks {
                                 blob_bio_table
                                     .insert(
-                                        &UserBlobKeys::Bio { owner: user_id.clone() },
-                                        &UserBlobItem::Bio { index, value: chunk }
+                                        &UserBlobKeys::Bio {
+                                            owner: user_id.clone(),
+                                        },
+                                        &UserBlobItem::Bio {
+                                            index,
+                                            value: chunk,
+                                        },
                                     )
                                     .unwrap();
                             }
@@ -626,8 +653,13 @@ fn bench_crud_operations(c: &mut Criterion) {
                             for (index, chunk) in another_chunks {
                                 blob_another_table
                                     .insert(
-                                        &UserBlobKeys::Another { owner: user_id.clone() },
-                                        &UserBlobItem::Another { index, value: chunk }
+                                        &UserBlobKeys::Another {
+                                            owner: user_id.clone(),
+                                        },
+                                        &UserBlobItem::Another {
+                                            index,
+                                            value: chunk,
+                                        },
                                     )
                                     .unwrap();
                             }
@@ -723,8 +755,13 @@ fn bench_crud_operations(c: &mut Criterion) {
                             for (index, chunk) in bio_chunks {
                                 blob_bio_table
                                     .remove(
-                                        &UserBlobKeys::Bio { owner: user_id.clone() },
-                                        &UserBlobItem::Bio { index, value: chunk }
+                                        &UserBlobKeys::Bio {
+                                            owner: user_id.clone(),
+                                        },
+                                        &UserBlobItem::Bio {
+                                            index,
+                                            value: chunk,
+                                        },
                                     )
                                     .unwrap();
                             }
@@ -733,8 +770,13 @@ fn bench_crud_operations(c: &mut Criterion) {
                             for (index, chunk) in another_chunks {
                                 blob_another_table
                                     .remove(
-                                        &UserBlobKeys::Another { owner: user_id.clone() },
-                                        &UserBlobItem::Another { index, value: chunk }
+                                        &UserBlobKeys::Another {
+                                            owner: user_id.clone(),
+                                        },
+                                        &UserBlobItem::Another {
+                                            index,
+                                            value: chunk,
+                                        },
                                     )
                                     .unwrap();
                             }
