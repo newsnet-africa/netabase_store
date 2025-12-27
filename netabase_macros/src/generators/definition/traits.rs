@@ -577,11 +577,43 @@ impl<'a> DefinitionTraitGenerator<'a> {
             }
         }).collect();
 
+        let struct_schemas: Vec<_> = self.visitor.regular_structs.iter().map(|s_info| {
+            let name_str = s_info.name.to_string();
+            let is_tuple = s_info.is_tuple;
+            
+            let field_schemas: Vec<_> = s_info.fields.iter().map(|(fname, fty)| {
+                let name = if let Some(n) = fname {
+                    n.to_string()
+                } else {
+                    "".to_string()
+                };
+                let type_name = quote! { #fty }.to_string();
+                
+                quote! {
+                    netabase_store::traits::registery::definition::schema::StructFieldSchema {
+                        name: #name.to_string(),
+                        type_name: #type_name.to_string(),
+                    }
+                }
+            }).collect();
+
+            quote! {
+                netabase_store::traits::registery::definition::schema::StructSchema {
+                    name: #name_str.to_string(),
+                    fields: vec![#(#field_schemas),*],
+                    is_tuple: #is_tuple,
+                }
+            }
+        }).collect();
+
         quote! {
             netabase_store::traits::registery::definition::schema::DefinitionSchema {
                 name: #def_name_str.to_string(),
                 models: vec![
                     #(#model_schemas),*
+                ],
+                structs: vec![
+                    #(#struct_schemas),*
                 ],
                 subscriptions: vec![
                     #(#sub_strs),*

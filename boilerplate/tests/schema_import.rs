@@ -1,37 +1,68 @@
 use netabase_store::traits::registery::definition::NetabaseDefinition;
+use netabase_store::blob::NetabaseBlobItem;
+use netabase_store::relational::RelationalLink;
+use bincode::{Encode, Decode};
+use serde::{Serialize, Deserialize};
 
+// Test 1: Import Definition (Definition) from definition_roundtrip_schema.toml
 #[netabase_macros::netabase_definition(
-    ImportedDefinition,
-    subscriptions(General),
-    from_file = "definition_2_roundtrip_schema.toml"
+    Definition,
+    subscriptions(Topic1, Topic2, Topic3, Topic4),
+    from_file = "definition_roundtrip_schema.toml"
 )]
 pub mod imported_def {
     use super::*;
+    // Import DefinitionTwo and Category from lib for cross-links
+    pub use netabase_store_examples::boilerplate_lib::{DefinitionTwo, Category, CategoryID};
+    
+    // Define blob types locally so macro can implement NetabaseBlobItem for them
+    // (Avoids orphan rule violation)
+    #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
+    pub struct LargeUserFile {
+        pub data: Vec<u8>,
+        pub metadata: String,
+    }
+
+    #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
+    pub struct AnotherLargeUserFile(pub Vec<u8>);
+
+    #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
+    pub struct HeavyAttachment {
+        pub mime_type: String,
+        pub data: Vec<u8>,
+    }
 }
 
 #[test]
-fn test_schema_import() {
-    use imported_def::{Category as ImportedCategory, CategoryID, ImportedDefinition};
+fn test_definition_roundtrip() {
+    use imported_def::{Definition, User, UserID}; // Local definitions
+    use netabase_store_examples::boilerplate_lib::CategoryID; // External ID
 
     // Verify Definition
-    let schema = ImportedDefinition::schema();
-    assert_eq!(schema.name, "ImportedDefinition");
-    assert!(schema.subscriptions.contains(&"General".to_string()));
+    let schema = Definition::schema();
+    assert_eq!(schema.name, "Definition");
+    assert!(schema.subscriptions.contains(&"Topic1".to_string()));
 
     // Verify Model
-    assert!(schema.models.iter().any(|m| m.name == "Category"));
+    assert!(schema.models.iter().any(|m| m.name == "User"));
 
-    // Verify Struct Generation (if this compiles, struct exists)
-    let cat = ImportedCategory {
-        id: CategoryID("cat1".to_string()),
+    // Verify Struct Generation
+    let user = User {
+        id: UserID("user1".to_string()),
         name: "test".to_string(),
-        description: "desc".to_string(),
+        age: 25,
+        partner: RelationalLink::new_dehydrated(UserID("partner1".to_string())),
+        category: RelationalLink::new_dehydrated(CategoryID("cat1".to_string())),
+        bio: imported_def::LargeUserFile::default(),
+        another: imported_def::AnotherLargeUserFile::default(),
         subscriptions: vec![],
     };
 
-    assert_eq!(cat.name, "test");
+    assert_eq!(user.name, "test");
+    assert_eq!(user.age, 25);
 }
 
+// Test 2: Import DefinitionTwo (RoundtripDefinition) from definition_2_roundtrip_schema.toml
 #[netabase_macros::netabase_definition(
     RoundtripDefinition,
     subscriptions(General),

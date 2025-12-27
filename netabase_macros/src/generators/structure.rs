@@ -67,6 +67,43 @@ impl StructureGenerator {
             });
         }
 
+        for s in &schema.structs {
+            let struct_name = Ident::new(&s.name, Span::call_site());
+            
+            let struct_def = if s.is_tuple {
+                let mut fields = TokenStream::new();
+                for field in &s.fields {
+                    let field_type: syn::Type = syn::parse_str(&field.type_name)
+                        .unwrap_or_else(|_| panic!("Failed to parse type: {}", field.type_name));
+                    fields.extend(quote! {
+                         pub #field_type,
+                    });
+                }
+                quote! {
+                    #[derive(Debug, Clone, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
+                    pub struct #struct_name(#fields);
+                }
+            } else {
+                let mut fields = TokenStream::new();
+                for field in &s.fields {
+                     let field_name = Ident::new(&field.name, Span::call_site());
+                     let field_type: syn::Type = syn::parse_str(&field.type_name)
+                        .unwrap_or_else(|_| panic!("Failed to parse type: {}", field.type_name));
+                     fields.extend(quote! {
+                         pub #field_name: #field_type,
+                     });
+                }
+                quote! {
+                    #[derive(Debug, Clone, bincode::Encode, bincode::Decode, serde::Serialize, serde::Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
+                    pub struct #struct_name {
+                        #fields
+                    }
+                }
+            };
+            
+            tokens.extend(struct_def);
+        }
+
         tokens
     }
 }

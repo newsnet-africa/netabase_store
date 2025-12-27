@@ -8,6 +8,14 @@ pub struct ModelInfo {
     pub visitor: ModelFieldVisitor,
 }
 
+/// Information about a regular struct (not a model)
+#[derive(Debug, Clone)]
+pub struct RegularStructInfo {
+    pub name: syn::Ident,
+    pub fields: Vec<(Option<syn::Ident>, syn::Type)>,
+    pub is_tuple: bool,
+}
+
 /// Information about subscription topics defined at the definition level
 #[derive(Debug, Clone)]
 pub struct DefinitionSubscriptions {
@@ -18,6 +26,7 @@ pub struct DefinitionSubscriptions {
 pub struct DefinitionVisitor {
     pub definition_name: syn::Ident,
     pub models: Vec<ModelInfo>,
+    pub regular_structs: Vec<RegularStructInfo>,
     pub subscriptions: DefinitionSubscriptions,
     pub nested_definitions: Vec<DefinitionVisitor>,
 }
@@ -27,6 +36,7 @@ impl DefinitionVisitor {
         Self {
             definition_name,
             models: Vec::new(),
+            regular_structs: Vec::new(),
             subscriptions: DefinitionSubscriptions { topics: subscriptions },
             nested_definitions: Vec::new(),
         }
@@ -68,6 +78,7 @@ impl DefinitionVisitor {
         });
 
         if !has_netabase_model {
+            self.visit_regular_struct(item_struct)?;
             return Ok(());
         }
 
@@ -91,6 +102,36 @@ impl DefinitionVisitor {
             visitor,
         });
 
+        Ok(())
+    }
+
+    fn visit_regular_struct(&mut self, item_struct: &ItemStruct) -> Result<()> {
+        let mut fields_info = Vec::new();
+        let mut is_tuple = false;
+
+        match &item_struct.fields {
+            syn::Fields::Named(fields) => {
+                for field in &fields.named {
+                    let name = field.ident.clone();
+                    let ty = field.ty.clone();
+                    fields_info.push((name, ty));
+                }
+            }
+            syn::Fields::Unnamed(fields) => {
+                is_tuple = true;
+                for field in &fields.unnamed {
+                    let ty = field.ty.clone();
+                    fields_info.push((None, ty));
+                }
+            }
+            syn::Fields::Unit => {}
+        }
+
+        self.regular_structs.push(RegularStructInfo {
+            name: item_struct.ident.clone(),
+            fields: fields_info,
+            is_tuple,
+        });
         Ok(())
     }
 
