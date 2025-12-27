@@ -1,18 +1,22 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{parse2, ItemMod, Result, Attribute, visit_mut::VisitMut};
+use std::path::PathBuf;
+use std::fs;
 
 use crate::visitors::definition::DefinitionVisitor;
 use crate::visitors::model::ModelMutator;
 use crate::generators::definition::{DefinitionEnumGenerator, DefinitionTraitGenerator};
 use crate::generators::model::{WrapperTypeGenerator, KeyEnumGenerator, SerializationGenerator};
+use crate::generators::structure::StructureGenerator;
 use crate::utils::attributes::{parse_definition_attribute, parse_definition_attribute_from_tokens, remove_attribute};
 use crate::utils::naming::path_last_segment;
+use crate::utils::schema::DefinitionSchema;
 
 /// Implementation of the netabase_definition attribute macro
 pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
     // Parse attribute to get definition name and subscriptions
-    let (definition_path, subscriptions) = parse_definition_attribute_from_tokens(attr)?;
+    let (definition_path, subscriptions, from_file) = parse_definition_attribute_from_tokens(attr)?;
 
     let definition_name = path_last_segment(&definition_path)
         .ok_or_else(|| syn::Error::new_spanned(&definition_path, "Invalid definition name"))?
@@ -27,6 +31,34 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
             module,
             "netabase_definition can only be applied to modules with content (not external modules)"
         ));
+    }
+
+    // Handle file import if specified
+    if let Some(file_path) = from_file {
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").map_err(|e| syn::Error::new(
+            proc_macro2::Span::call_site(),
+            format!("Failed to get CARGO_MANIFEST_DIR: {}", e)
+        ))?;
+        let path = PathBuf::from(manifest_dir).join(file_path);
+        
+        let content = fs::read_to_string(&path).map_err(|e| syn::Error::new(
+            proc_macro2::Span::call_site(),
+            format!("Failed to read schema file at {:?}: {}", path, e)
+        ))?;
+
+        let schema: DefinitionSchema = toml::from_str(&content).map_err(|e| syn::Error::new(
+            proc_macro2::Span::call_site(),
+            format!("Failed to parse schema TOML: {}", e)
+        ))?;
+
+        // Generate structs from schema
+        let generated_structs = StructureGenerator::generate(&schema);
+        
+        // Parse generated code into items and inject into module
+        let file: syn::File = parse2(generated_structs)?;
+        if let Some((_, items)) = &mut module.content {
+            items.extend(file.items.into_iter().map(syn::Item::from));
+        }
     }
 
     // 1. Create visitor and collect information (Read-only pass)

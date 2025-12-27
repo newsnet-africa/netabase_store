@@ -196,7 +196,7 @@ impl<'a> DefinitionEnumGenerator<'a> {
                 #model_name(netabase_store::traits::registery::models::treenames::ModelTreeNames<'static, #definition_name, #model_name>) 
             });
             get_tree_names_arms.push(quote! {
-                #discriminant_name::#model_name => vec![#enum_name::#model_name(#model_name::TREE_NAMES)]
+                #discriminant_name::#model_name => vec![#enum_name::#model_name(<#model_name as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES)]
             });
         }
 
@@ -218,7 +218,7 @@ impl<'a> DefinitionEnumGenerator<'a> {
         // Default implementation (use first model or nested def)
         let default_variant = if !self.visitor.models.is_empty() {
              let first_model = &self.visitor.models[0].name;
-             quote! { #enum_name::#first_model(#first_model::TREE_NAMES) }
+             quote! { #enum_name::#first_model(<#first_model as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES) }
         } else if !self.visitor.nested_definitions.is_empty() {
              let first_nested = &self.visitor.nested_definitions[0].definition_name;
              let nested_tree_names = definition_tree_names_enum_name(first_nested);

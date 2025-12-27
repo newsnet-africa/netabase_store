@@ -100,7 +100,7 @@ impl DefinitionVisitor {
             .find(|a| a.path().is_ident("netabase_definition"))
             .unwrap();
 
-        let (def_name, subscriptions) = crate::utils::attributes::parse_definition_attribute(attr)?;
+        let (def_name, subscriptions, _) = crate::utils::attributes::parse_definition_attribute(attr)?;
 
         let def_name_ident = crate::utils::naming::path_last_segment(&def_name)
             .ok_or_else(|| syn::Error::new_spanned(&def_name, "Invalid definition name"))?

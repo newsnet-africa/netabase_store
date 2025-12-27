@@ -80,50 +80,59 @@ pub fn parse_subscribe_attribute(attr: &Attribute) -> Result<Vec<Path>> {
 }
 
 /// Parse subscriptions from netabase_definition attribute
-/// #[netabase_definition(DefinitionName, subscriptions(Topic1, Topic2))]
-pub fn parse_definition_attribute_from_tokens(tokens: proc_macro2::TokenStream) -> Result<(Path, Vec<Path>)> {
+/// #[netabase_definition(DefinitionName, subscriptions(Topic1, Topic2), from_file = "path/to/schema.toml")]
+pub fn parse_definition_attribute_from_tokens(tokens: proc_macro2::TokenStream) -> Result<(Path, Vec<Path>, Option<String>)> {
     use syn::parse::Parse;
+    use syn::Token;
 
     struct DefinitionAttr {
         definition: Path,
-        _comma: syn::Token![,],
-        _subscriptions_kw: syn::Ident,
-        topics: Vec<Path>,
+        subscriptions: Vec<Path>,
+        from_file: Option<String>,
     }
 
     impl Parse for DefinitionAttr {
         fn parse(input: syn::parse::ParseStream) -> Result<Self> {
             let definition: Path = input.parse()?;
-            let _comma = input.parse()?;
+            
+            let mut subscriptions = Vec::new();
+            let mut from_file = None;
 
-            // Parse subscriptions(...)
-            let subscriptions_ident: syn::Ident = input.parse()?;
-            if subscriptions_ident != "subscriptions" {
-                return Err(Error::new(
-                    subscriptions_ident.span(),
-                    "expected 'subscriptions'"
-                ));
+            while !input.is_empty() {
+                let _comma: Token![,] = input.parse()?;
+                if input.is_empty() {
+                    break;
+                }
+
+                let ident: syn::Ident = input.parse()?;
+                if ident == "subscriptions" {
+                    let content;
+                    syn::parenthesized!(content in input);
+                    let topics: syn::punctuated::Punctuated<Path, Token![,]> =
+                        content.parse_terminated(Parse::parse, Token![,])?;
+                    subscriptions = topics.into_iter().collect();
+                } else if ident == "from_file" {
+                    let _eq: Token![=] = input.parse()?;
+                    let lit: syn::LitStr = input.parse()?;
+                    from_file = Some(lit.value());
+                } else {
+                    return Err(Error::new(ident.span(), "expected 'subscriptions' or 'from_file'"));
+                }
             }
-
-            let content;
-            syn::parenthesized!(content in input);
-            let topics: syn::punctuated::Punctuated<Path, syn::Token![,]> =
-                content.parse_terminated(Parse::parse, syn::Token![,])?;
 
             Ok(DefinitionAttr {
                 definition,
-                _comma,
-                _subscriptions_kw: subscriptions_ident,
-                topics: topics.into_iter().collect(),
+                subscriptions,
+                from_file,
             })
         }
     }
 
     let attr: DefinitionAttr = syn::parse2(tokens)?;
-    Ok((attr.definition, attr.topics))
+    Ok((attr.definition, attr.subscriptions, attr.from_file))
 }
 
-pub fn parse_definition_attribute(attr: &Attribute) -> Result<(Path, Vec<Path>)> {
+pub fn parse_definition_attribute(attr: &Attribute) -> Result<(Path, Vec<Path>, Option<String>)> {
     let meta = &attr.meta;
 
     if let Meta::List(meta_list) = meta {
@@ -131,7 +140,7 @@ pub fn parse_definition_attribute(attr: &Attribute) -> Result<(Path, Vec<Path>)>
     } else {
         Err(Error::new_spanned(
             attr,
-            "netabase_definition must be in the form #[netabase_definition(DefinitionName, subscriptions(Topic1, Topic2))]"
+            "netabase_definition must be in the form #[netabase_definition(DefinitionName, subscriptions(...), from_file = \"...\")]"
         ))
     }
 }

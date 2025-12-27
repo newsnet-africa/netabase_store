@@ -1,0 +1,21 @@
+name = "ImportedDefinition"
+subscriptions = ["TopicA", "TopicB"]
+
+[[models]]
+name = "ImportedUser"
+subscriptions = ["TopicA"]
+
+[[models.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[models.fields]]
+name = "username"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "age"
+type_name = "u8"
+kind = "Regular"
