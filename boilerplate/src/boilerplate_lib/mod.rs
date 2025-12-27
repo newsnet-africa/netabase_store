@@ -5,10 +5,7 @@ use serde::{Deserialize, Serialize};
 
 // Declare models module
 pub mod models;
-use netabase_store::blob::NetabaseBlobItem;
 use netabase_store::traits::registery::models::model::NetabaseModel;
-// Import blob types
-use models::blob_types::*;
 
 // DefinitionTwo with Category model (defined first to avoid forward references)
 #[netabase_macros::netabase_definition(DefinitionTwo, subscriptions(General))]
@@ -46,6 +43,22 @@ pub mod definition_two {
 pub mod definition {
     use super::definition_two::{Category, CategoryID, DefinitionTwo};
     use super::*;
+    use netabase_store::blob::NetabaseBlobItem;
+
+    #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
+    pub struct LargeUserFile {
+        pub data: Vec<u8>,
+        pub metadata: String,
+    }
+
+    #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
+    pub struct AnotherLargeUserFile(pub Vec<u8>);
+
+    #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
+    pub struct HeavyAttachment {
+        pub mime_type: String,
+        pub data: Vec<u8>,
+    }
 
     #[derive(
         netabase_macros::NetabaseModel,

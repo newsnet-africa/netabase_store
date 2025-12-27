@@ -23,9 +23,12 @@ fn test_definition_schema_export() {
     assert!(toml.contains("name = \"User\""));
     assert!(toml.contains("name = \"Post\""));
     assert!(toml.contains("name = \"HeavyModel\""));
+    assert!(toml.contains("name = \"LargeUserFile\""));
+    assert!(toml.contains("name = \"AnotherLargeUserFile\""));
+    assert!(toml.contains("name = \"HeavyAttachment\""));
+    assert!(toml.contains("is_tuple = true")); // For AnotherLargeUserFile
 
-    // Verify fields and types
-    assert!(toml.contains("name = \"partner\""));
+    // Verify fields and types    assert!(toml.contains("name = \"partner\""));
     assert!(toml.contains("definition = \"Definition\""));
     assert!(toml.contains("model = \"User\""));
 

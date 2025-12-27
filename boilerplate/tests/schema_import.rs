@@ -14,23 +14,6 @@ pub mod imported_def {
     use super::*;
     // Import DefinitionTwo and Category from lib for cross-links
     pub use netabase_store_examples::boilerplate_lib::{DefinitionTwo, Category, CategoryID};
-    
-    // Define blob types locally so macro can implement NetabaseBlobItem for them
-    // (Avoids orphan rule violation)
-    #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
-    pub struct LargeUserFile {
-        pub data: Vec<u8>,
-        pub metadata: String,
-    }
-
-    #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
-    pub struct AnotherLargeUserFile(pub Vec<u8>);
-
-    #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
-    pub struct HeavyAttachment {
-        pub mime_type: String,
-        pub data: Vec<u8>,
-    }
 }
 
 #[test]
@@ -76,6 +59,7 @@ pub mod roundtrip_import {
 fn test_roundtrip_translation() {
     // This test verifies that we can import the schema exported by DefinitionTwo
     use roundtrip_import::{Category, CategoryID, RoundtripDefinition};
+    use netabase_store::traits::registery::definition::NetabaseDefinition;
 
     let schema = RoundtripDefinition::schema();
     assert_eq!(schema.name, "RoundtripDefinition");

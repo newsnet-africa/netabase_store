@@ -13,7 +13,7 @@ use netabase_store_examples::boilerplate_lib::{
     DefinitionTwo, DefinitionTwoTreeName, DefinitionSubscriptions, Post, PostID, User, UserID,
     UserKeys, UserBlobKeys,
 };
-use netabase_store_examples::boilerplate_lib::models::blob_types::{
+use netabase_store_examples::boilerplate_lib::definition::{
     AnotherLargeUserFile, LargeUserFile,
 };
 
