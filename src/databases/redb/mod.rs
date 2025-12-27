@@ -39,7 +39,19 @@ where
     where
         D::TreeNames: Default,
     {
-        let db = redb::Database::create(path).map_err(|e| NetabaseError::RedbError(e.into()))?;
+        let path_ref = path.as_ref();
+        let db =
+            redb::Database::create(path_ref).map_err(|e| NetabaseError::RedbError(e.into()))?;
+
+        let schema_path = path_ref.join(".netabase_schema.toml");
+        let toml = D::export_toml();
+
+        std::fs::write(&schema_path, &toml);
+
+        println!(
+            "Written toml to path: {:?}.\n\tToml File: {:?}",
+            schema_path, toml
+        );
 
         Ok(Self {
             _tree_names: Default::default(),

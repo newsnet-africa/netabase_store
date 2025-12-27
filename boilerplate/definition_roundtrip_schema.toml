@@ -149,3 +149,35 @@ kind = "Regular"
 name = "matrix"
 type_name = "Vec < u64 >"
 kind = "Regular"
+
+[[structs]]
+name = "LargeUserFile"
+is_tuple = false
+
+[[structs.fields]]
+name = "data"
+type_name = "Vec < u8 >"
+
+[[structs.fields]]
+name = "metadata"
+type_name = "String"
+
+[[structs]]
+name = "AnotherLargeUserFile"
+is_tuple = true
+
+[[structs.fields]]
+name = ""
+type_name = "Vec < u8 >"
+
+[[structs]]
+name = "HeavyAttachment"
+is_tuple = false
+
+[[structs.fields]]
+name = "mime_type"
+type_name = "String"
+
+[[structs.fields]]
+name = "data"
+type_name = "Vec < u8 >"
