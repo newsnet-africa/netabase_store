@@ -461,6 +461,9 @@ impl<'a> DefinitionTraitGenerator<'a> {
             })
             .collect();
 
+        // Schema generation
+        let schema_impl = self.generate_schema_impl();
+
         quote! {
             impl netabase_store::traits::registery::definition::NetabaseDefinition for #definition_name {
                 type TreeNames = #tree_names_enum;
@@ -471,6 +474,10 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     #debug_name_str
                 }
 
+                fn schema() -> netabase_store::traits::registery::definition::schema::DefinitionSchema {
+                    #schema_impl
+                }
+
                 type SubscriptionKeys = #subscription_enum;
                 type SubscriptionKeysDiscriminant = #subscription_discriminant_type;
 
@@ -478,6 +485,107 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     netabase_store::traits::registery::definition::subscription::DefinitionSubscriptionRegistry::new(&[
                         #(#registry_entries),*
                     ]);
+            }
+        }
+    }
+
+    fn generate_schema_impl(&self) -> TokenStream {
+        let def_name_str = self.visitor.definition_name.to_string();
+        
+        let sub_strs: Vec<_> = self.visitor.subscriptions.topics.iter()
+            .map(|t| {
+                let s = path_last_segment(t).unwrap().to_string();
+                quote! { #s.to_string() }
+            })
+            .collect();
+
+        let model_schemas: Vec<_> = self.visitor.models.iter().map(|model_info| {
+            let model_name_str = model_info.name.to_string();
+            let visitor = &model_info.visitor;
+
+            let mut field_schemas = Vec::new();
+
+            // Helper to add field
+            let mut add_field = |info: &crate::visitors::model::field::FieldInfo, key_type_expr: TokenStream| {
+                let f_name = info.name.to_string();
+                let ty = &info.ty;
+                let type_name = quote! { #ty }.to_string();
+                field_schemas.push(quote! {
+                    netabase_store::traits::registery::definition::schema::FieldSchema {
+                        name: #f_name.to_string(),
+                        type_name: #type_name.to_string(),
+                        key_type: #key_type_expr,
+                    }
+                });
+            };
+
+            // Primary
+            if let Some(pk) = &visitor.primary_key {
+                add_field(pk, quote! { netabase_store::traits::registery::definition::schema::KeyTypeSchema::Primary });
+            }
+
+            // Secondary
+            for sk in &visitor.secondary_keys {
+                add_field(sk, quote! { netabase_store::traits::registery::definition::schema::KeyTypeSchema::Secondary });
+            }
+
+            // Relational
+            for rk in &visitor.relational_keys {
+                match &rk.key_type {
+                    crate::visitors::model::field::FieldKeyType::Relational { definition, model } => {
+                         let def_s = path_last_segment(definition).unwrap().to_string();
+                         let mod_s = path_last_segment(model).unwrap().to_string();
+                         add_field(rk, quote! {
+                             netabase_store::traits::registery::definition::schema::KeyTypeSchema::Relational {
+                                 definition: #def_s.to_string(),
+                                 model: #mod_s.to_string(),
+                             }
+                         });
+                    },
+                    _ => panic!("Expected Relational key type"),
+                }
+            }
+
+            // Blob
+            for bk in &visitor.blob_fields {
+                 add_field(bk, quote! { netabase_store::traits::registery::definition::schema::KeyTypeSchema::Blob });
+            }
+
+            // Regular
+            for rk in &visitor.regular_fields {
+                 add_field(rk, quote! { netabase_store::traits::registery::definition::schema::KeyTypeSchema::Regular });
+            }
+
+            let model_subs: Vec<_> = visitor.subscriptions.as_ref().map(|s| &s.topics).unwrap_or(&Vec::new())
+                .iter()
+                .map(|t| {
+                    let s = path_last_segment(t).unwrap().to_string();
+                    quote! { #s.to_string() }
+                })
+                .collect();
+
+            quote! {
+                netabase_store::traits::registery::definition::schema::ModelSchema {
+                    name: #model_name_str.to_string(),
+                    fields: vec![
+                        #(#field_schemas),*
+                    ],
+                    subscriptions: vec![
+                        #(#model_subs),*
+                    ],
+                }
+            }
+        }).collect();
+
+        quote! {
+            netabase_store::traits::registery::definition::schema::DefinitionSchema {
+                name: #def_name_str.to_string(),
+                models: vec![
+                    #(#model_schemas),*
+                ],
+                subscriptions: vec![
+                    #(#sub_strs),*
+                ],
             }
         }
     }

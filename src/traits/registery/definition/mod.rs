@@ -1,6 +1,8 @@
 pub mod redb_definition;
 pub mod subscription;
+pub mod schema;
 
+use schema::DefinitionSchema;
 use strum::IntoDiscriminant;
 use subscription::{DefinitionSubscriptionRegistry, NetabaseDefinitionSubscriptionKeys};
 use serde::Serialize;
@@ -24,6 +26,15 @@ where
 
     /// Returns the debug identifier for this definition
     fn debug_name() -> Self::DebugName;
+
+    /// Returns the schema definition
+    fn schema() -> DefinitionSchema;
+
+    /// Exports the schema to a TOML string
+    fn export_toml() -> String {
+        let schema = Self::schema();
+        toml::to_string_pretty(&schema).unwrap_or_else(|e| format!("# Error serializing to TOML: {}", e))
+    }
 
     /// Definition-level subscription keys enum
     /// This enum holds all subscription topics for the definition
