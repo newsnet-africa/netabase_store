@@ -1,0 +1,21 @@
+name = "DefinitionTwo"
+subscriptions = ["General"]
+
+[[models]]
+name = "Category"
+subscriptions = ["General"]
+
+[[models.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[models.fields]]
+name = "name"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "description"
+type_name = "String"
+kind = "Regular"

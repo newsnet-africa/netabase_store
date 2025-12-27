@@ -28,3 +28,32 @@ fn test_schema_import() {
     
     assert_eq!(user.username, "test");
 }
+
+#[netabase_macros::netabase_definition(RoundtripDefinition, subscriptions(General), from_file = "roundtrip_schema.toml")]
+pub mod roundtrip_import {
+    use super::*;
+}
+
+#[test]
+fn test_roundtrip_translation() {
+    // This test verifies that we can import the schema exported by DefinitionTwo
+    use roundtrip_import::{RoundtripDefinition, Category as ImportedCategory, CategoryID as ImportedCategoryID};
+
+    let schema = RoundtripDefinition::schema();
+    assert_eq!(schema.name, "RoundtripDefinition"); 
+    
+    // Check models exist
+    assert!(schema.models.iter().any(|m| m.name == "Category"));
+
+    // Verify fields were correctly reconstructed
+    let cat_model = schema.models.iter().find(|m| m.name == "Category").unwrap();
+    assert!(cat_model.fields.iter().any(|f| f.name == "id" && matches!(f.key_type, netabase_store::traits::registery::definition::schema::KeyTypeSchema::Primary)));
+    
+    // Verify struct works
+    let _cat = ImportedCategory {
+        id: ImportedCategoryID("cat1".to_string()),
+        name: "test".to_string(),
+        description: "desc".to_string(),
+        subscriptions: vec![],
+    };
+}

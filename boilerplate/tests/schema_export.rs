@@ -1,10 +1,19 @@
 use netabase_store_examples::boilerplate_lib::{Definition, DefinitionTwo};
 use netabase_store::traits::registery::definition::NetabaseDefinition;
+use std::fs;
+use std::path::PathBuf;
 
 #[test]
 fn test_definition_schema_export() {
     let toml = Definition::export_toml();
     println!("Definition TOML:\n{}", toml);
+
+    // Save DefinitionTwo to file for round-trip testing (simpler, no conflicting blob types)
+    let toml_two = DefinitionTwo::export_toml();
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    let path = PathBuf::from(manifest_dir).join("roundtrip_schema.toml");
+    fs::write(&path, &toml_two).expect("Failed to write roundtrip schema");
+    println!("Saved DefinitionTwo schema to {:?}", path);
 
     // Verify main definition
     assert!(toml.contains("name = \"Definition\""));
