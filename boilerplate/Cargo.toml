@@ -15,6 +15,7 @@ bincode = "2.0.1"
 derive_more = { version = "2.1.0", features = ["display", "try_into", "from", "into"] }
 from = "0.1.4"
 clap = { version = "4.5.23", features = ["derive"] }
+netabase_helper_macros = { version = "0.1.0", path = "netabase_helper_macros" }
 
 [dev-dependencies]
 criterion = { version = "0.8.1", features = ["html_reports"] }

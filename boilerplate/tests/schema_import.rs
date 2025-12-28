@@ -4,17 +4,11 @@ use netabase_store::relational::RelationalLink;
 use bincode::{Encode, Decode};
 use serde::{Serialize, Deserialize};
 
+// Import DefinitionTwo and Category from lib for cross-links
+pub use netabase_store_examples::boilerplate_lib::{DefinitionTwo, Category, CategoryID};
+
 // Test 1: Import Definition (Definition) from definition_roundtrip_schema.toml
-#[netabase_macros::netabase_definition(
-    Definition,
-    subscriptions(Topic1, Topic2, Topic3, Topic4),
-    from_file = "definition_roundtrip_schema.toml"
-)]
-pub mod imported_def {
-    use super::*;
-    // Import DefinitionTwo and Category from lib for cross-links
-    pub use netabase_store_examples::boilerplate_lib::{DefinitionTwo, Category, CategoryID};
-}
+netabase_store_examples::import_netabase_schema!("definition_roundtrip_schema.toml", imported_def);
 
 #[test]
 fn test_definition_roundtrip() {
@@ -46,23 +40,18 @@ fn test_definition_roundtrip() {
 }
 
 // Test 2: Import DefinitionTwo (RoundtripDefinition) from definition_2_roundtrip_schema.toml
-#[netabase_macros::netabase_definition(
-    RoundtripDefinition,
-    subscriptions(General),
-    from_file = "definition_2_roundtrip_schema.toml"
-)]
-pub mod roundtrip_import {
-    use super::*;
-}
+// Note: We name it differently to avoid conflict with LibDefinitionTwo above if name was the same.
+// But name in TOML is "DefinitionTwo", so it will conflict if we don't use a different module name or alias.
+netabase_store_examples::import_netabase_schema!("definition_2_roundtrip_schema.toml", roundtrip_import);
 
 #[test]
 fn test_roundtrip_translation() {
     // This test verifies that we can import the schema exported by DefinitionTwo
-    use roundtrip_import::{Category, CategoryID, RoundtripDefinition};
+    use roundtrip_import::{Category, CategoryID, DefinitionTwo};
     use netabase_store::traits::registery::definition::NetabaseDefinition;
 
-    let schema = RoundtripDefinition::schema();
-    assert_eq!(schema.name, "RoundtripDefinition");
+    let schema = DefinitionTwo::schema();
+    assert_eq!(schema.name, "DefinitionTwo");
 
     // Check models exist
     assert!(schema.models.iter().any(|m| m.name == "Category"));
