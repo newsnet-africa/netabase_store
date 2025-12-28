@@ -9,7 +9,7 @@ use netabase_store::relational::{RelationalLink, ModelRelationPermissions, Relat
 use netabase_store::traits::registery::models::model::{NetabaseModel, RedbNetbaseModel};
 
 // Use boilerplate models from examples
-use netabase_store_examples::models::user::{User, UserID};
+use netabase_store_examples::{User, UserID, LargeUserFile, AnotherLargeUserFile};
 use netabase_store_examples::{CategoryID, Definition, DefinitionSubscriptions};
 
 #[test]
@@ -25,7 +25,8 @@ fn test_create_and_verify() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
         subscriptions: vec![DefinitionSubscriptions::Topic1],
-        bio: Vec::new(),
+        bio: LargeUserFile::default(),
+        another: AnotherLargeUserFile(vec![]),
     };
 
     // Create in database
@@ -80,7 +81,8 @@ fn test_create_duplicate_should_overwrite() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
         subscriptions: vec![],
-        bio: Vec::new(),
+        bio: LargeUserFile::default(),
+        another: AnotherLargeUserFile(vec![]),
     };
 
     let txn = store.begin_transaction()?;
@@ -95,7 +97,8 @@ fn test_create_duplicate_should_overwrite() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
         subscriptions: vec![],
-        bio: Vec::new(),
+        bio: LargeUserFile::default(),
+        another: AnotherLargeUserFile(vec![]),
     };
 
     let txn = store.begin_transaction()?;
@@ -155,7 +158,8 @@ fn test_update_and_verify() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("partner_old".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("cat_old".to_string())),
         subscriptions: vec![DefinitionSubscriptions::Topic1],
-        bio: Vec::new(),
+        bio: LargeUserFile::default(),
+        another: AnotherLargeUserFile(vec![]),
     };
 
     let txn = store.begin_transaction()?;
@@ -182,7 +186,8 @@ fn test_update_and_verify() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("partner_new".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("cat_new".to_string())),
         subscriptions: vec![DefinitionSubscriptions::Topic2],
-        bio: Vec::new(),
+        bio: LargeUserFile::default(),
+        another: AnotherLargeUserFile(vec![]),
     };
 
     let txn = store.begin_transaction()?;
@@ -233,7 +238,8 @@ fn test_update_nonexistent_should_fail() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
         subscriptions: vec![],
-        bio: Vec::new(),
+        bio: LargeUserFile::default(),
+        another: AnotherLargeUserFile(vec![]),
     };
 
     let txn = store.begin_transaction()?;
@@ -272,7 +278,8 @@ fn test_delete_and_verify() -> NetabaseResult<()> {
             DefinitionSubscriptions::Topic1,
             DefinitionSubscriptions::Topic2,
         ],
-        bio: Vec::new(),
+        bio: LargeUserFile::default(),
+        another: AnotherLargeUserFile(vec![]),
     };
 
     let txn = store.begin_transaction()?;
@@ -362,7 +369,8 @@ fn test_multiple_creates_and_verify_all() -> NetabaseResult<()> {
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
             subscriptions: vec![],
-            bio: Vec::new(),
+            bio: LargeUserFile::default(),
+            another: AnotherLargeUserFile(vec![]),
         };
         txn.create_redb(&user)?;
     }
@@ -401,7 +409,8 @@ fn test_transaction_rollback_on_drop() -> NetabaseResult<()> {
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
         subscriptions: vec![],
-        bio: Vec::new(),
+        bio: LargeUserFile::default(),
+        another: AnotherLargeUserFile(vec![]),
     };
 
     // Create but don't commit (drop transaction)

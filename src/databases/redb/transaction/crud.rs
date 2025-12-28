@@ -1,4 +1,4 @@
-use redb::{self, ReadableTable};
+use redb::{self, ReadableTable, ReadableTableMetadata};
 use strum::IntoDiscriminant;
 use std::borrow::Borrow;
 
@@ -57,6 +57,24 @@ where
         key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>,
         tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()>;
+
+    fn list_entries<'txn>(
+        tables: &ModelOpenTables<'txn, 'db, D, Self>,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> NetabaseResult<Vec<Self>>;
+
+    fn list_range<'txn, R>(
+        tables: &ModelOpenTables<'txn, 'db, D, Self>,
+        range: R,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> NetabaseResult<Vec<Self>>
+    where R: std::ops::RangeBounds<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>> + Clone;
+
+    fn count_entries<'txn>(
+        tables: &ModelOpenTables<'txn, 'db, D, Self>
+    ) -> NetabaseResult<u64>;
 }
 
 impl<'db, D, M> RedbModelCrud<'db, D> for M
@@ -459,5 +477,83 @@ where
         }
 
         Ok(())
+    }
+
+    fn list_entries<'txn>(
+        tables: &ModelOpenTables<'txn, 'db, D, Self>,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> NetabaseResult<Vec<Self>> {
+        Self::list_range(tables, .., limit, offset)
+    }
+
+    fn list_range<'txn, R>(
+        tables: &ModelOpenTables<'txn, 'db, D, Self>,
+        range: R,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> NetabaseResult<Vec<Self>>
+    where R: std::ops::RangeBounds<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>> + Clone
+    {
+        println!("RedbModelCrud::list_range: limit={:?}, offset={:?}", limit, offset);
+        match &tables.main {
+            TablePermission::ReadOnly(TableType::Table(table)) => {
+                let iter = table.range(range).map_err(|e| NetabaseError::RedbError(e.into()))?;
+                let iter = iter.skip(offset.unwrap_or(0));
+                
+                let mut result = Vec::new();
+                if let Some(limit) = limit {
+                    for item in iter.take(limit) {
+                        let (_k, v) = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                        result.push(v.value());
+                    }
+                } else {
+                     for item in iter {
+                        let (_k, v) = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                        result.push(v.value());
+                    }
+                }
+                println!("RedbModelCrud::list_range: found {} items", result.len());
+                Ok(result)
+            },
+            TablePermission::ReadWrite(ReadWriteTableType::Table(table)) => {
+                let iter = table.range(range).map_err(|e| NetabaseError::RedbError(e.into()))?;
+                let iter = iter.skip(offset.unwrap_or(0));
+                
+                let mut result = Vec::new();
+                if let Some(limit) = limit {
+                    for item in iter.take(limit) {
+                        let (_k, v) = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                        result.push(v.value());
+                    }
+                } else {
+                     for item in iter {
+                        let (_k, v) = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                        result.push(v.value());
+                    }
+                }
+                println!("RedbModelCrud::list_range: found {} items", result.len());
+                Ok(result)
+            },
+            _ => Err(NetabaseError::Other),
+        }
+    }
+
+    fn count_entries<'txn>(
+        tables: &ModelOpenTables<'txn, 'db, D, Self>
+    ) -> NetabaseResult<u64> {
+         match &tables.main {
+            TablePermission::ReadOnly(TableType::Table(table)) => {
+                let count = table.len().map_err(|e| NetabaseError::RedbError(e.into()))?;
+                println!("RedbModelCrud::count_entries: {}", count);
+                Ok(count)
+            },
+            TablePermission::ReadWrite(ReadWriteTableType::Table(table)) => {
+                let count = table.len().map_err(|e| NetabaseError::RedbError(e.into()))?;
+                println!("RedbModelCrud::count_entries: {}", count);
+                Ok(count)
+            },
+            _ => Err(NetabaseError::Other),
+        }
     }
 }
