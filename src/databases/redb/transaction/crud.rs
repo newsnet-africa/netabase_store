@@ -1,4 +1,4 @@
-use redb::{self, ReadableTable, ReadableTableMetadata};
+use redb::{self, AccessGuard, ReadableTable, ReadableTableMetadata};
 use strum::IntoDiscriminant;
 use std::borrow::Borrow;
 
@@ -13,6 +13,7 @@ use crate::{
     errors::{NetabaseResult, NetabaseError},
 };
 use super::tables::{ModelOpenTables, TablePermission, ReadWriteTableType, TableType};
+use super::options::QueryConfig;
 
 /// Trait to handle automatic insertion/update of models into their respective tables
 pub trait RedbModelCrud<'db,  D>: RedbNetbaseModel<'db, D>
@@ -36,6 +37,7 @@ where
     <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'db> as NetabaseModelBlobKey<'db, D, Self, <Self as NetabaseModel<D>>::Keys>>::BlobItem: redb::Key + 'static,
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'db> as NetabaseModelBlobKey<'db, D, Self, <Self as NetabaseModel<D>>::Keys>>::BlobItem: std::borrow::Borrow<<<<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'db> as NetabaseModelBlobKey<'db, D, Self, <Self as NetabaseModel<D>>::Keys>>::BlobItem as redb::Value>::SelfType<'a>>,
     for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'a> as NetabaseModelBlobKey<'a, D, Self, <Self as NetabaseModel<D>>::Keys>>::BlobItem: Into<<<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'db> as NetabaseModelBlobKey<'db, D, Self, <Self as NetabaseModel<D>>::Keys>>::BlobItem>,
+    for<'a> <Self as RedbNetbaseModel<'db, D>>::TableV: redb::Value<SelfType<'a> = Self>,
     Self: 'db
 {
     fn create_entry<'txn>(
@@ -45,8 +47,22 @@ where
 
     fn read_entry<'txn>(
         key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>,
-        tables: &ModelOpenTables<'txn, 'db, D, Self>
-    ) -> NetabaseResult<Option<Self>>;
+        tables: &'txn ModelOpenTables<'txn, 'db, D, Self>,
+        config: QueryConfig,
+    ) -> NetabaseResult<Option<AccessGuard<'txn, <Self as RedbNetbaseModel<'db, D>>::TableV>>>
+    where
+    'db: 'txn;
+
+    fn read_default<'txn>(
+        key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>,
+        tables: &'txn ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Option<Self>>
+    where
+    'db: 'txn,
+    {
+        Self::read_entry(key, tables, QueryConfig::default())
+            .map(|opt| opt.map(|g| g.value()))
+    }
 
     fn update_entry<'txn>(
         &'db self,
@@ -58,18 +74,23 @@ where
         tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()>;
 
-    fn list_entries<'txn>(
-        tables: &ModelOpenTables<'txn, 'db, D, Self>,
-        limit: Option<usize>,
-        offset: Option<usize>,
-    ) -> NetabaseResult<Vec<Self>>;
+    fn list_entries<'a, 'txn>(
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+        config: QueryConfig,
+    ) -> NetabaseResult<Vec<AccessGuard<'a, <Self as RedbNetbaseModel<'db, D>>::TableV>>>;
 
-    fn list_range<'txn, R>(
-        tables: &ModelOpenTables<'txn, 'db, D, Self>,
+    fn list_default<'a, 'txn>(
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Vec<Self>> {
+        Self::list_entries(tables, QueryConfig::default())
+            .map(|vec| vec.into_iter().map(|g| g.value()).collect())
+    }
+
+    fn list_range<'a, 'txn, R>(
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
         range: R,
-        limit: Option<usize>,
-        offset: Option<usize>,
-    ) -> NetabaseResult<Vec<Self>>
+        config: QueryConfig,
+    ) -> NetabaseResult<Vec<AccessGuard<'a, <Self as RedbNetbaseModel<'db, D>>::TableV>>>
     where R: std::ops::RangeBounds<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>> + Clone;
 
     fn count_entries<'txn>(
@@ -197,19 +218,23 @@ where
         Ok(())
     }
 
-    fn read_entry<'txn>(
+    fn read_entry<'a, 'txn>(
         key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>,
-        tables: &ModelOpenTables<'txn, 'db, D, Self>
-    ) -> NetabaseResult<Option<Self>>
-    {
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+        _config: QueryConfig,
+    ) -> NetabaseResult<Option<AccessGuard<'a, <Self as RedbNetbaseModel<'db, D>>::TableV>>>
+    where
+    'db: 'txn
+{
         match &tables.main {
             TablePermission::ReadOnly(TableType::Table(table)) => {
                 let result = table.get(key.borrow()).map_err(|e| NetabaseError::RedbError(e.into()))?;
-                Ok(result.map(|access_guard| access_guard.value()))
+                Ok(result)
+
             },
             TablePermission::ReadWrite(ReadWriteTableType::Table(table)) => {
                 let result = table.get(key.borrow()).map_err(|e| NetabaseError::RedbError(e.into()))?;
-                Ok(result.map(|access_guard| access_guard.value()))
+                Ok(result)
             },
             _ => Err(NetabaseError::Other),
         }
@@ -404,18 +429,17 @@ where
         tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()>
     {
-        let model = Self::read_entry(key, tables)?;
-
-        if let Some(model) = model {
-            // 2. Remove from Main Table
-            match &mut tables.main {
-                TablePermission::ReadWrite(ReadWriteTableType::Table(table)) => {
-                    table.remove(key.borrow())
-                        .map_err(|e| NetabaseError::RedbError(e.into()))?;
-                }
-                _ => return Err(NetabaseError::Other),
+        // 2. Remove from Main Table first and get the old model
+        let model_option = match &mut tables.main {
+            TablePermission::ReadWrite(ReadWriteTableType::Table(table)) => {
+                table.remove(key.borrow())
+                    .map_err(|e| NetabaseError::RedbError(e.into()))?
+                    .map(|g| g.value())
             }
+            _ => return Err(NetabaseError::Other),
+        };
 
+        if let Some(model) = model_option {
             // 3. Remove from Secondary Tables
             let secondary_keys = model.get_secondary_keys();
             for ((table_perm, _name), secondary_key) in tables.secondary.iter_mut().zip(secondary_keys.into_iter()) {
@@ -479,22 +503,22 @@ where
         Ok(())
     }
 
-    fn list_entries<'txn>(
-        tables: &ModelOpenTables<'txn, 'db, D, Self>,
-        limit: Option<usize>,
-        offset: Option<usize>,
-    ) -> NetabaseResult<Vec<Self>> {
-        Self::list_range(tables, .., limit, offset)
+    fn list_entries<'a, 'txn>(
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+        config: QueryConfig,
+    ) -> NetabaseResult<Vec<AccessGuard<'a, <Self as RedbNetbaseModel<'db, D>>::TableV>>> {
+        Self::list_range(tables, .., config)
     }
 
-    fn list_range<'txn, R>(
-        tables: &ModelOpenTables<'txn, 'db, D, Self>,
+    fn list_range<'a, 'txn, R>(
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
         range: R,
-        limit: Option<usize>,
-        offset: Option<usize>,
-    ) -> NetabaseResult<Vec<Self>>
+        config: QueryConfig,
+    ) -> NetabaseResult<Vec<AccessGuard<'a, <Self as RedbNetbaseModel<'db, D>>::TableV>>>
     where R: std::ops::RangeBounds<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>> + Clone
     {
+        let limit = config.list.limit;
+        let offset = config.list.offset;
         println!("RedbModelCrud::list_range: limit={:?}, offset={:?}", limit, offset);
         match &tables.main {
             TablePermission::ReadOnly(TableType::Table(table)) => {
@@ -505,12 +529,12 @@ where
                 if let Some(limit) = limit {
                     for item in iter.take(limit) {
                         let (_k, v) = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
-                        result.push(v.value());
+                        result.push(v);
                     }
                 } else {
                      for item in iter {
                         let (_k, v) = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
-                        result.push(v.value());
+                        result.push(v);
                     }
                 }
                 println!("RedbModelCrud::list_range: found {} items", result.len());
@@ -524,12 +548,12 @@ where
                 if let Some(limit) = limit {
                     for item in iter.take(limit) {
                         let (_k, v) = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
-                        result.push(v.value());
+                        result.push(v);
                     }
                 } else {
                      for item in iter {
                         let (_k, v) = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
-                        result.push(v.value());
+                        result.push(v);
                     }
                 }
                 println!("RedbModelCrud::list_range: found {} items", result.len());

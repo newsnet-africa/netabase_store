@@ -40,7 +40,7 @@ fn test_create_and_verify() -> NetabaseResult<()> {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
 
-        let read_user = User::read_entry(&user_id, &tables)?;
+        let read_user = User::read_default(&user_id, &tables)?;
 
         // Verify user exists
         assert!(read_user.is_some(), "User should exist after creation");
@@ -111,7 +111,7 @@ fn test_create_duplicate_should_overwrite() -> NetabaseResult<()> {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
 
-        let read_user = User::read_entry(&user_id, &tables)?;
+        let read_user = User::read_default(&user_id, &tables)?;
         assert!(read_user.is_some());
 
         let read_user = read_user.unwrap();
@@ -133,7 +133,7 @@ fn test_read_nonexistent() -> NetabaseResult<()> {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
 
-        let result = User::read_entry(&UserID("does_not_exist".to_string()), &tables)?;
+        let result = User::read_default(&UserID("does_not_exist".to_string()), &tables)?;
 
         // VERIFY: Should return None for nonexistent user
         assert!(result.is_none(), "Should return None for nonexistent user");
@@ -172,7 +172,7 @@ fn test_update_and_verify() -> NetabaseResult<()> {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
 
-        let read = User::read_entry(&user_id, &tables)?;
+        let read = User::read_default(&user_id, &tables)?;
         assert!(read.is_some());
         assert_eq!(read.unwrap().name, "Original");
     }
@@ -207,7 +207,7 @@ fn test_update_and_verify() -> NetabaseResult<()> {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
 
-        let read = User::read_entry(&user_id, &tables)?;
+        let read = User::read_default(&user_id, &tables)?;
         assert!(read.is_some(), "User should still exist after update");
 
         let read = read.unwrap();
@@ -292,7 +292,7 @@ fn test_delete_and_verify() -> NetabaseResult<()> {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
 
-        let exists = User::read_entry(&user_id, &tables)?;
+        let exists = User::read_default(&user_id, &tables)?;
         assert!(exists.is_some(), "User should exist before deletion");
     }
     txn.commit()?;
@@ -316,7 +316,7 @@ fn test_delete_and_verify() -> NetabaseResult<()> {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
 
-        let exists = User::read_entry(&user_id, &tables)?;
+        let exists = User::read_default(&user_id, &tables)?;
         assert!(exists.is_none(), "User should not exist after deletion");
     }
     txn.commit()?;
@@ -383,7 +383,7 @@ fn test_multiple_creates_and_verify_all() -> NetabaseResult<()> {
         let tables = txn.open_model_tables(table_defs, None)?;
 
         for (id, expected_name, expected_age) in &users {
-            let read = User::read_entry(&UserID(id.to_string()), &tables)?;
+            let read = User::read_default(&UserID(id.to_string()), &tables)?;
 
             assert!(read.is_some(), "User {} should exist", id);
             let read = read.unwrap();
@@ -426,7 +426,7 @@ fn test_transaction_rollback_on_drop() -> NetabaseResult<()> {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
 
-        let exists = User::read_entry(&user_id, &tables)?;
+        let exists = User::read_default(&user_id, &tables)?;
         assert!(exists.is_none(), "User should not exist after rollback");
     }
     txn.commit()?;

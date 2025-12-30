@@ -356,7 +356,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                             .prepare_model::<User>()
                             .expect("Failed to prepare model");
                         for user in &users {
-                            black_box(User::read_entry(black_box(&user.id), &tables))
+                            black_box(User::read_default(black_box(&user.id), &tables))
                                 .expect("Failed to read user");
                         }
                     }

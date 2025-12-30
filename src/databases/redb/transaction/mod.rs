@@ -1,6 +1,7 @@
 pub mod crud;
 pub mod tables;
 pub mod wrappers;
+pub mod options;
 
 use redb::{ReadableDatabase, TransactionError};
 use strum::IntoDiscriminant;
@@ -26,6 +27,7 @@ use crate::{
 pub use self::crud::RedbModelCrud;
 pub use self::tables::{ModelOpenTables, ReadWriteTableType, TablePermission, TableType};
 pub use self::wrappers::{NetabaseRedbReadTransaction, NetabaseRedbWriteTransaction};
+pub use self::options::*;
 
 pub struct RedbTransactionInner<'txn, D: RedbDefinition>
 where
@@ -407,7 +409,7 @@ where
         let definitions = M::table_definitions();
         let tables = self.open_model_tables(definitions, None)?;
 
-        M::read_entry(key, &tables)
+        M::read_default(key, &tables)
     }
 
     pub fn update_redb<'data: 'db, M>(&'db self, model: &'data M) -> NetabaseResult<()>

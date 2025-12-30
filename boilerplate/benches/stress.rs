@@ -236,7 +236,7 @@ fn bench_stress_operations(c: &mut Criterion) {
                     let txn = store.begin_transaction().unwrap();
                     let tables = txn.prepare_model::<HeavyModel>().unwrap();
                     for item in &heavies {
-                        black_box(HeavyModel::read_entry(&item.id, &tables)).unwrap();
+                        black_box(HeavyModel::read_default(&item.id, &tables)).unwrap();
                     }
                 },
                 BatchSize::PerIteration,
@@ -283,13 +283,13 @@ fn bench_stress_operations(c: &mut Criterion) {
 
                     for item in &heavies {
                         // 1. Read Heavy
-                        let heavy = HeavyModel::read_entry(&item.id, &heavy_tables)
+                        let heavy = HeavyModel::read_default(&item.id, &heavy_tables)
                             .unwrap()
                             .unwrap();
 
                         // 2. Hydrate Creator
                         let creator_id = heavy.creator.get_primary_key();
-                        black_box(User::read_entry(creator_id, &user_tables)).unwrap();
+                        black_box(User::read_default(creator_id, &user_tables)).unwrap();
                     }
                 },
                 BatchSize::PerIteration,

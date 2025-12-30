@@ -3,7 +3,7 @@
 pub mod common;
 
 use common::{cleanup_test_db, create_test_db};
-use netabase_store::databases::redb::transaction::RedbModelCrud;
+use netabase_store::databases::redb::transaction::{RedbModelCrud, QueryConfig};
 use netabase_store::errors::NetabaseResult;
 use netabase_store::relational::{RelationalLink};
 use netabase_store::traits::registery::models::model::{NetabaseModel, RedbNetbaseModel};
@@ -86,7 +86,7 @@ fn test_list_entries() -> NetabaseResult<()> {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
         
-        let users = User::list_entries(&tables, None, None)?;
+        let users = User::list_default(&tables)?;
         println!("Listed users: {:#?}", users);
         assert_eq!(users.len(), 3, "Should list 3 users");
         
@@ -131,7 +131,7 @@ fn test_list_entries_pagination() -> NetabaseResult<()> {
         let tables = txn.open_model_tables(table_defs, None)?;
         
         // 1. First page (limit 3, offset 0)
-        let page1 = User::list_entries(&tables, Some(3), None)?;
+        let page1: Vec<User> = User::list_entries(&tables, QueryConfig::new().with_limit(3))?.into_iter().map(|g| g.value()).collect();
         println!("Page 1: {:#?}", page1);
         assert_eq!(page1.len(), 3);
         assert_eq!(page1[0].id.0, "user_0");
@@ -139,7 +139,7 @@ fn test_list_entries_pagination() -> NetabaseResult<()> {
         assert_eq!(page1[2].id.0, "user_2");
 
         // 2. Second page (limit 3, offset 3)
-        let page2 = User::list_entries(&tables, Some(3), Some(3))?;
+        let page2: Vec<User> = User::list_entries(&tables, QueryConfig::new().with_limit(3).with_offset(3))?.into_iter().map(|g| g.value()).collect();
         println!("Page 2: {:#?}", page2);
         assert_eq!(page2.len(), 3);
         assert_eq!(page2[0].id.0, "user_3");
@@ -147,13 +147,13 @@ fn test_list_entries_pagination() -> NetabaseResult<()> {
         assert_eq!(page2[2].id.0, "user_5");
         
         // 3. Last page (limit 3, offset 9) - should return 1 item (user_9)
-        let page4 = User::list_entries(&tables, Some(3), Some(9))?;
+        let page4: Vec<User> = User::list_entries(&tables, QueryConfig::new().with_limit(3).with_offset(9))?.into_iter().map(|g| g.value()).collect();
         println!("Page 4: {:#?}", page4);
         assert_eq!(page4.len(), 1);
         assert_eq!(page4[0].id.0, "user_9");
 
         // 4. Out of bounds offset
-        let empty_page = User::list_entries(&tables, Some(3), Some(100))?;
+        let empty_page: Vec<User> = User::list_entries(&tables, QueryConfig::new().with_limit(3).with_offset(100))?.into_iter().map(|g| g.value()).collect();
         println!("Empty Page: {:?}", empty_page);
         assert_eq!(empty_page.len(), 0);
     }
@@ -195,7 +195,7 @@ fn test_list_range() -> NetabaseResult<()> {
         // Range: b_user to d_user (inclusive start, exclusive end)
         // Should include: b_user, c_user
         let range = UserID("b_user".to_string())..UserID("d_user".to_string());
-        let result = User::list_range(&tables, range, None, None)?;
+        let result: Vec<User> = User::list_range(&tables, range, QueryConfig::default())?.into_iter().map(|g| g.value()).collect();
         println!("Range (b..d): {:#?}", result);
         
         assert_eq!(result.len(), 2);
@@ -205,7 +205,7 @@ fn test_list_range() -> NetabaseResult<()> {
         // Range inclusive: b_user to d_user=
         // Should include: b_user, c_user, d_user
         let range_inclusive = UserID("b_user".to_string())..=UserID("d_user".to_string());
-        let result_inc = User::list_range(&tables, range_inclusive, None, None)?;
+        let result_inc: Vec<User> = User::list_range(&tables, range_inclusive, QueryConfig::default())?.into_iter().map(|g| g.value()).collect();
         println!("Range Inclusive (b..=d): {:#?}", result_inc);
         
         assert_eq!(result_inc.len(), 3);
@@ -217,7 +217,7 @@ fn test_list_range() -> NetabaseResult<()> {
         // b_user..=e_user -> b, c, d, e
         // offset 1, limit 2 -> c, d
         let range_page = UserID("b_user".to_string())..=UserID("e_user".to_string());
-        let result_page = User::list_range(&tables, range_page, Some(2), Some(1))?;
+        let result_page: Vec<User> = User::list_range(&tables, range_page, QueryConfig::new().with_limit(2).with_offset(1))?.into_iter().map(|g| g.value()).collect();
         println!("Range Page (b..=e, skip 1, limit 2): {:#?}", result_page);
         
         assert_eq!(result_page.len(), 2);

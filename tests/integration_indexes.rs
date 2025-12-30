@@ -49,17 +49,17 @@ fn test_secondary_key_indexes_created() -> NetabaseResult<()> {
         let tables = txn.open_model_tables(table_defs, None)?;
 
         // Verify user1 exists
-        let user1 = User::read_entry(&UserID("user1".to_string()), &tables)?;
+        let user1 = User::read_default(&UserID("user1".to_string()), &tables)?;
         assert!(user1.is_some());
         assert_eq!(user1.unwrap().name, "Alice");
 
         // Verify user2 exists
-        let user2 = User::read_entry(&UserID("user2".to_string()), &tables)?;
+        let user2 = User::read_default(&UserID("user2".to_string()), &tables)?;
         assert!(user2.is_some());
         assert_eq!(user2.unwrap().age, 25);
 
         // Verify user3 exists
-        let user3 = User::read_entry(&UserID("user3".to_string()), &tables)?;
+        let user3 = User::read_default(&UserID("user3".to_string()), &tables)?;
         assert!(user3.is_some());
         assert_eq!(user3.unwrap().name, "Bob");
     }
@@ -128,7 +128,7 @@ fn test_secondary_index_update() -> NetabaseResult<()> {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
 
-        let user = User::read_entry(&user_id, &tables)?;
+        let user = User::read_default(&user_id, &tables)?;
         assert!(user.is_some());
         assert_eq!(user.unwrap().name, "Bob", "Name should be updated");
     }
@@ -183,12 +183,12 @@ fn test_relational_key_indexes_created() -> NetabaseResult<()> {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
 
-        let user1_read = User::read_entry(&user1_id, &tables)?;
+        let user1_read = User::read_default(&user1_id, &tables)?;
         assert!(user1_read.is_some());
         let user1_read = user1_read.unwrap();
         assert_eq!(user1_read.partner.get_primary_key().0, "user2");
 
-        let user2_read = User::read_entry(&user2_id, &tables)?;
+        let user2_read = User::read_default(&user2_id, &tables)?;
         assert!(user2_read.is_some());
         let user2_read = user2_read.unwrap();
         assert_eq!(user2_read.partner.get_primary_key().0, "user1");
@@ -249,7 +249,7 @@ fn test_post_author_relationship() -> NetabaseResult<()> {
         let tables = txn.open_model_tables(table_defs, None)?;
 
         for post_id in &post_ids {
-            let post = Post::read_entry(&PostID(post_id.to_string()), &tables)?;
+            let post = Post::read_default(&PostID(post_id.to_string()), &tables)?;
             assert!(post.is_some(), "Post {} should exist", post_id);
 
             let post = post.unwrap();
@@ -295,7 +295,7 @@ fn test_relational_key_update() -> NetabaseResult<()> {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
 
-        let user = User::read_entry(&user_id, &tables)?;
+        let user = User::read_default(&user_id, &tables)?;
         assert_eq!(user.unwrap().partner.get_primary_key().0, "old_partner");
     }
     txn.commit()?;
@@ -332,7 +332,7 @@ fn test_relational_key_update() -> NetabaseResult<()> {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
 
-        let user = User::read_entry(&user_id, &tables)?;
+        let user = User::read_default(&user_id, &tables)?;
         assert!(user.is_some());
         let user = user.unwrap();
         assert_eq!(
@@ -397,11 +397,11 @@ fn test_subscription_indexes_created() -> NetabaseResult<()> {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
 
-        let user1_read = User::read_entry(&UserID("sub_user1".to_string()), &tables)?;
+        let user1_read = User::read_default(&UserID("sub_user1".to_string()), &tables)?;
         assert!(user1_read.is_some());
         assert_eq!(user1_read.unwrap().subscriptions.len(), 2);
 
-        let user2_read = User::read_entry(&UserID("sub_user2".to_string()), &tables)?;
+        let user2_read = User::read_default(&UserID("sub_user2".to_string()), &tables)?;
         assert!(user2_read.is_some());
         assert_eq!(user2_read.unwrap().subscriptions.len(), 1);
     }
@@ -469,7 +469,7 @@ fn test_subscription_update() -> NetabaseResult<()> {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
 
-        let user = User::read_entry(&user_id, &tables)?;
+        let user = User::read_default(&user_id, &tables)?;
         assert!(user.is_some());
         let user = user.unwrap();
         assert_eq!(user.subscriptions.len(), 1);
@@ -519,7 +519,7 @@ fn test_delete_cleans_all_indexes() -> NetabaseResult<()> {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
 
-        assert!(User::read_entry(&user_id, &tables)?.is_some());
+        assert!(User::read_default(&user_id, &tables)?.is_some());
     }
     txn.commit()?;
 
@@ -546,7 +546,7 @@ fn test_delete_cleans_all_indexes() -> NetabaseResult<()> {
         let tables = txn.open_model_tables(table_defs, None)?;
 
         assert!(
-            User::read_entry(&user_id, &tables)?.is_none(),
+            User::read_default(&user_id, &tables)?.is_none(),
             "User should be deleted from main table"
         );
     }
