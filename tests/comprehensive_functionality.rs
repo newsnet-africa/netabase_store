@@ -437,6 +437,11 @@ fn test_crud_delete_model_state_verification() -> NetabaseResult<()> {
 /// 3. **Hydrated**: Holds a reference to a model with user-controlled lifetime
 /// 4. **Borrowed**: Holds a reference from a database AccessGuard
 ///
+/// ## Important Semantic Note
+/// `is_hydrated()` returns true for ANY variant containing model data (Owned, Hydrated, Borrowed).
+/// Use `is_owned()`, `is_borrowed()` to check for specific variants.
+/// Only `Dehydrated` variant has `is_hydrated() == false`.
+///
 /// ## Verification Strategy
 /// For each variant, verify:
 /// - Correct variant type detection (is_dehydrated, is_owned, etc.)
@@ -505,7 +510,10 @@ fn test_relational_links_all_variants() -> NetabaseResult<()> {
 
     assert!(!owned.is_dehydrated(), "Should not be dehydrated");
     assert!(owned.is_owned(), "Should be owned");
-    assert!(!owned.is_hydrated(), "Should not be hydrated");
+    assert!(
+        owned.is_hydrated(),
+        "Owned is hydrated (contains model data)"
+    );
     assert!(!owned.is_borrowed(), "Should not be borrowed");
 
     assert_eq!(
@@ -576,7 +584,10 @@ fn test_relational_links_all_variants() -> NetabaseResult<()> {
 
     assert!(!borrowed.is_dehydrated(), "Should not be dehydrated");
     assert!(!borrowed.is_owned(), "Should not be owned");
-    assert!(!borrowed.is_hydrated(), "Should not be hydrated");
+    assert!(
+        borrowed.is_hydrated(),
+        "Borrowed is hydrated (contains model data)"
+    );
     assert!(borrowed.is_borrowed(), "Should be borrowed");
 
     assert_eq!(
