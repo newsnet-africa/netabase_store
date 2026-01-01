@@ -1,5 +1,5 @@
-use syn::{ItemMod, ItemStruct, Path, Result};
 use crate::visitors::model::ModelFieldVisitor;
+use syn::{ItemMod, ItemStruct, Path, Result};
 
 /// Information about a model within a definition
 #[derive(Debug, Clone)]
@@ -23,23 +23,43 @@ pub struct DefinitionSubscriptions {
 }
 
 /// Visitor that collects information about models within a definition
+#[derive(Debug, Clone)]
 pub struct DefinitionVisitor {
     pub definition_name: syn::Ident,
     pub models: Vec<ModelInfo>,
     pub regular_structs: Vec<RegularStructInfo>,
     pub subscriptions: DefinitionSubscriptions,
     pub nested_definitions: Vec<DefinitionVisitor>,
+    /// Repository identifiers this definition belongs to
+    pub repositories: Vec<syn::Ident>,
 }
 
 impl DefinitionVisitor {
-    pub fn new(definition_name: syn::Ident, subscriptions: Vec<Path>) -> Self {
+    pub fn new(
+        definition_name: syn::Ident,
+        subscriptions: Vec<Path>,
+        repositories: Vec<syn::Ident>,
+    ) -> Self {
         Self {
             definition_name,
             models: Vec::new(),
             regular_structs: Vec::new(),
-            subscriptions: DefinitionSubscriptions { topics: subscriptions },
+            subscriptions: DefinitionSubscriptions {
+                topics: subscriptions,
+            },
             nested_definitions: Vec::new(),
+            repositories,
         }
+    }
+
+    /// Check if this definition belongs to a specific repository
+    pub fn belongs_to_repository(&self, repo_name: &syn::Ident) -> bool {
+        self.repositories.iter().any(|r| r == repo_name)
+    }
+
+    /// Get repository discriminant names as strings
+    pub fn repository_discriminant_names(&self) -> Vec<String> {
+        self.repositories.iter().map(|r| r.to_string()).collect()
     }
 
     /// Visit items in the definition module and collect model information
@@ -52,7 +72,9 @@ impl DefinitionVisitor {
                     }
                     syn::Item::Mod(nested_mod) => {
                         // Check for nested netabase_definition attribute
-                        if let Some(attr) = nested_mod.attrs.iter()
+                        if let Some(attr) = nested_mod
+                            .attrs
+                            .iter()
                             .find(|a| a.path().is_ident("netabase_definition"))
                         {
                             self.visit_nested_definition(nested_mod)?;
@@ -137,17 +159,20 @@ impl DefinitionVisitor {
 
     fn visit_nested_definition(&mut self, nested_mod: &ItemMod) -> Result<()> {
         // Parse nested definition attribute
-        let attr = nested_mod.attrs.iter()
+        let attr = nested_mod
+            .attrs
+            .iter()
             .find(|a| a.path().is_ident("netabase_definition"))
             .unwrap();
 
-        let (def_name, subscriptions, _) = crate::utils::attributes::parse_definition_attribute(attr)?;
+        let config = crate::utils::attributes::parse_definition_attribute(attr)?;
 
-        let def_name_ident = crate::utils::naming::path_last_segment(&def_name)
-            .ok_or_else(|| syn::Error::new_spanned(&def_name, "Invalid definition name"))?
+        let def_name_ident = crate::utils::naming::path_last_segment(&config.definition)
+            .ok_or_else(|| syn::Error::new_spanned(&config.definition, "Invalid definition name"))?
             .clone();
 
-        let mut nested_visitor = DefinitionVisitor::new(def_name_ident, subscriptions);
+        let mut nested_visitor =
+            DefinitionVisitor::new(def_name_ident, config.subscriptions, config.repositories);
         nested_visitor.visit_module(nested_mod)?;
 
         self.nested_definitions.push(nested_visitor);

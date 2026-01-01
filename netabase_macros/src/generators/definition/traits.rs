@@ -38,6 +38,10 @@ impl<'a> DefinitionTraitGenerator<'a> {
         let redb_def_trait = self.generate_redb_definition_trait();
         output.extend(redb_def_trait);
 
+        // Generate InRepository<Standalone> if no explicit repositories
+        let standalone_impl = self.generate_standalone_repository_impl();
+        output.extend(standalone_impl);
+
         for model_info in &self.visitor.models {
             // First generate subscription enum for this model (if it has subscriptions)
             let sub_enum = self.generate_subscription_enum(definition_name, model_info);
@@ -49,6 +53,31 @@ impl<'a> DefinitionTraitGenerator<'a> {
         }
 
         output
+    }
+
+    /// Generate InRepository<Standalone> implementation for definitions without explicit repos.
+    ///
+    /// This allows definitions to use RelationalLink even when not part of an explicit repository.
+    fn generate_standalone_repository_impl(&self) -> TokenStream {
+        // Only generate Standalone impl if no explicit repositories specified
+        if !self.visitor.repositories.is_empty() {
+            return TokenStream::new();
+        }
+
+        let definition_name = &self.visitor.definition_name;
+
+        quote! {
+            impl netabase_store::traits::registery::repository::InRepository<
+                netabase_store::traits::registery::repository::Standalone
+            > for #definition_name {
+                type RepositoryDiscriminant = netabase_store::traits::registery::repository::StandaloneDiscriminant;
+
+                #[inline]
+                fn repository_discriminant() -> Self::RepositoryDiscriminant {
+                    netabase_store::traits::registery::repository::StandaloneDiscriminant
+                }
+            }
+        }
     }
 
     fn generate_definition_keys_trait(&self) -> TokenStream {
