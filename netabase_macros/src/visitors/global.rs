@@ -1,5 +1,5 @@
-use syn::{ItemMod, Path, Result};
 use crate::visitors::definition::DefinitionVisitor;
+use syn::{ItemMod, Result};
 
 /// Information about all definitions at the global level
 pub struct GlobalVisitor {
@@ -21,8 +21,10 @@ impl GlobalVisitor {
             for item in items {
                 if let syn::Item::Mod(nested_mod) = item {
                     // Check for netabase_definition attribute
-                    if let Some(attr) = nested_mod.attrs.iter()
-                        .find(|a| a.path().is_ident("netabase_definition"))
+                    if nested_mod
+                        .attrs
+                        .iter()
+                        .any(|a| a.path().is_ident("netabase_definition"))
                     {
                         self.visit_definition(nested_mod)?;
                     }
@@ -34,17 +36,20 @@ impl GlobalVisitor {
     }
 
     fn visit_definition(&mut self, def_mod: &ItemMod) -> Result<()> {
-        let attr = def_mod.attrs.iter()
+        let attr = def_mod
+            .attrs
+            .iter()
             .find(|a| a.path().is_ident("netabase_definition"))
             .unwrap();
 
-        let (def_name, subscriptions, _) = crate::utils::attributes::parse_definition_attribute(attr)?;
+        let config = crate::utils::attributes::parse_definition_attribute(attr)?;
 
-        let def_name_ident = crate::utils::naming::path_last_segment(&def_name)
-            .ok_or_else(|| syn::Error::new_spanned(&def_name, "Invalid definition name"))?
+        let def_name_ident = crate::utils::naming::path_last_segment(&config.definition)
+            .ok_or_else(|| syn::Error::new_spanned(&config.definition, "Invalid definition name"))?
             .clone();
 
-        let mut def_visitor = DefinitionVisitor::new(def_name_ident, subscriptions);
+        let mut def_visitor =
+            DefinitionVisitor::new(def_name_ident, config.subscriptions, config.repositories);
         def_visitor.visit_module(def_mod)?;
 
         self.definitions.push(def_visitor);

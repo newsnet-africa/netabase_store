@@ -1,11 +1,14 @@
 use proc_macro::TokenStream;
 
-mod utils;
-mod visitors;
 mod generators;
 mod macros;
+mod utils;
+mod visitors;
 
-#[proc_macro_derive(NetabaseModel, attributes(primary_key, secondary_key, relation, blob, subscribe))]
+#[proc_macro_derive(
+    NetabaseModel,
+    attributes(primary_key, secondary_key, relation, blob, subscribe)
+)]
 pub fn netabase_model(input: TokenStream) -> TokenStream {
     macros::netabase_model::netabase_model_derive(input.into())
         .unwrap_or_else(|err| err.to_compile_error())
@@ -15,6 +18,13 @@ pub fn netabase_model(input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn netabase_definition(attr: TokenStream, item: TokenStream) -> TokenStream {
     macros::netabase_definition::netabase_definition_attribute(attr.into(), item.into())
+        .unwrap_or_else(|err| err.to_compile_error())
+        .into()
+}
+
+#[proc_macro_attribute]
+pub fn netabase_repository(attr: TokenStream, item: TokenStream) -> TokenStream {
+    macros::netabase_repository::netabase_repository_attribute(attr.into(), item.into())
         .unwrap_or_else(|err| err.to_compile_error())
         .into()
 }

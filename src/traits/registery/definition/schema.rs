@@ -9,6 +9,14 @@ pub struct DefinitionSchema {
     pub subscriptions: Vec<String>,
 }
 
+impl DefinitionSchema {
+    /// Convert the schema to a TOML string.
+    pub fn to_toml(&self) -> String {
+        toml::to_string_pretty(self)
+            .unwrap_or_else(|e| format!("# Error serializing to TOML: {}", e))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ModelSchema {
     pub name: String,

@@ -1,25 +1,25 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{parse2, ItemMod, Result, Attribute, visit_mut::VisitMut};
-use std::path::PathBuf;
 use std::fs;
+use std::path::PathBuf;
+use syn::{ItemMod, Result, parse2, visit_mut::VisitMut};
 
-use crate::visitors::definition::DefinitionVisitor;
-use crate::visitors::model::ModelMutator;
 use crate::generators::definition::{DefinitionEnumGenerator, DefinitionTraitGenerator};
-use crate::generators::model::{WrapperTypeGenerator, KeyEnumGenerator, SerializationGenerator};
+use crate::generators::model::{KeyEnumGenerator, SerializationGenerator, WrapperTypeGenerator};
 use crate::generators::structure::StructureGenerator;
-use crate::utils::attributes::{parse_definition_attribute, parse_definition_attribute_from_tokens, remove_attribute};
+use crate::utils::attributes::{parse_definition_attribute_from_tokens, remove_attribute};
 use crate::utils::naming::path_last_segment;
 use crate::utils::schema::DefinitionSchema;
+use crate::visitors::definition::DefinitionVisitor;
+use crate::visitors::model::ModelMutator;
 
 /// Implementation of the netabase_definition attribute macro
 pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
-    // Parse attribute to get definition name and subscriptions
-    let (definition_path, subscriptions, from_file) = parse_definition_attribute_from_tokens(attr)?;
+    // Parse attribute to get definition name, subscriptions, and repositories
+    let config = parse_definition_attribute_from_tokens(attr)?;
 
-    let definition_name = path_last_segment(&definition_path)
-        .ok_or_else(|| syn::Error::new_spanned(&definition_path, "Invalid definition name"))?
+    let definition_name = path_last_segment(&config.definition)
+        .ok_or_else(|| syn::Error::new_spanned(&config.definition, "Invalid definition name"))?
         .clone();
 
     // Parse the module
@@ -29,31 +29,37 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
     if module.content.is_none() {
         return Err(syn::Error::new_spanned(
             module,
-            "netabase_definition can only be applied to modules with content (not external modules)"
+            "netabase_definition can only be applied to modules with content (not external modules)",
         ));
     }
 
     // Handle file import if specified
-    if let Some(file_path) = from_file {
-        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").map_err(|e| syn::Error::new(
-            proc_macro2::Span::call_site(),
-            format!("Failed to get CARGO_MANIFEST_DIR: {}", e)
-        ))?;
+    if let Some(file_path) = config.from_file {
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").map_err(|e| {
+            syn::Error::new(
+                proc_macro2::Span::call_site(),
+                format!("Failed to get CARGO_MANIFEST_DIR: {}", e),
+            )
+        })?;
         let path = PathBuf::from(manifest_dir).join(file_path);
-        
-        let content = fs::read_to_string(&path).map_err(|e| syn::Error::new(
-            proc_macro2::Span::call_site(),
-            format!("Failed to read schema file at {:?}: {}", path, e)
-        ))?;
 
-        let schema: DefinitionSchema = toml::from_str(&content).map_err(|e| syn::Error::new(
-            proc_macro2::Span::call_site(),
-            format!("Failed to parse schema TOML: {}", e)
-        ))?;
+        let content = fs::read_to_string(&path).map_err(|e| {
+            syn::Error::new(
+                proc_macro2::Span::call_site(),
+                format!("Failed to read schema file at {:?}: {}", path, e),
+            )
+        })?;
+
+        let schema: DefinitionSchema = toml::from_str(&content).map_err(|e| {
+            syn::Error::new(
+                proc_macro2::Span::call_site(),
+                format!("Failed to parse schema TOML: {}", e),
+            )
+        })?;
 
         // Generate structs from schema
         let generated_structs = StructureGenerator::generate(&schema);
-        
+
         // Parse generated code into items and inject into module
         let file: syn::File = parse2(generated_structs)?;
         if let Some((_, items)) = &mut module.content {
@@ -62,7 +68,11 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
     }
 
     // 1. Create visitor and collect information (Read-only pass)
-    let mut visitor = DefinitionVisitor::new(definition_name.clone(), subscriptions);
+    let mut visitor = DefinitionVisitor::new(
+        definition_name.clone(),
+        config.subscriptions.clone(),
+        config.repositories.clone(),
+    );
     visitor.visit_module(&module)?;
 
     // 2. Generate Definition-level code
@@ -80,7 +90,7 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
 
     for model_info in &visitor.models {
         let model_visitor = &model_info.visitor;
-        
+
         // Wrapper Types (ID, wrappers)
         let wrappers = WrapperTypeGenerator::new(model_visitor).generate();
         model_generated_code.push(wrappers);
@@ -119,17 +129,19 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
             #definition_tree_names_enum
             #def_trait_impls
         };
-        
-        let def_file: syn::File = parse2(def_items_tokens)
-            .map_err(|e| syn::Error::new(e.span(), format!("Failed to parse definition items: {}", e)))?;
-        
+
+        let def_file: syn::File = parse2(def_items_tokens).map_err(|e| {
+            syn::Error::new(e.span(), format!("Failed to parse definition items: {}", e))
+        })?;
+
         items.extend(def_file.items.into_iter().map(syn::Item::from));
 
         // Add model-level items
         for code in model_generated_code {
-             let file: syn::File = parse2(code)
-                .map_err(|e| syn::Error::new(e.span(), format!("Failed to parse model items: {}", e)))?;
-             items.extend(file.items.into_iter().map(syn::Item::from));
+            let file: syn::File = parse2(code).map_err(|e| {
+                syn::Error::new(e.span(), format!("Failed to parse model items: {}", e))
+            })?;
+            items.extend(file.items.into_iter().map(syn::Item::from));
         }
     }
 

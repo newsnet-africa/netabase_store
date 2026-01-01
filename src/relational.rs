@@ -1,4 +1,8 @@
-use crate::{databases::redb::transaction::TablePermission, traits::registery::{definition::NetabaseDefinition, models::{keys::NetabaseModelKeys, model::NetabaseModel, treenames::ModelTreeNames}}};
+use crate::traits::registery::{
+    definition::NetabaseDefinition,
+    models::{keys::NetabaseModelKeys, model::NetabaseModel, treenames::ModelTreeNames},
+    repository::{InRepository, NetabaseRepository, RepositoryPermissions},
+};
 use serde::{Serialize, Deserialize};
 use bincode::{Encode, Decode, BorrowDecode};
 use strum::IntoDiscriminant;
@@ -35,62 +39,18 @@ where
     pub relationa_tree_access: & 'source [RelationPermission<'tree_name, D, M>],
 }
 
-/// Trait for types that can be converted to/from a global definition enum
-pub trait IntoGlobalDefinition {
-    type GlobalEnum: Clone + PartialEq + Eq + std::hash::Hash + std::fmt::Debug;
-
-    fn into_global(self) -> Self::GlobalEnum;
-    fn from_global(global: Self::GlobalEnum) -> Option<Self>
-    where
-        Self: Sized;
-}
-
-/// Trait for managing global definition collections
-pub trait GlobalDefinitionCollection {
-    type DefinitionType;
-    type GlobalEnum;
-
-    fn add_definition(&mut self, def: Self::DefinitionType);
-    fn get_definition(&self, global: &Self::GlobalEnum) -> Option<&Self::DefinitionType>;
-    fn remove_definition(&mut self, global: &Self::GlobalEnum) -> Option<Self::DefinitionType>;
-}
-
-/// Trait that enables any definition to be part of a global enum system
-/// This should be implemented by macro for all NetabaseDefinition types
+/// A relational link between models within a repository context.
 ///
-/// The hierarchy is:
-/// - GlobalDefinition: enum holding all definition instances (Definition1 | Definition2 | ...)
-/// - GlobalDefinitionKeys: enum holding all definition discriminants (Definition1, Definition2, ...)
-/// - GlobalKeys: enum holding model discriminants across definitions (Definition1::User, Definition2::Article, ...)
+/// This type enforces repository isolation at compile time through the `R` type parameter.
+/// Both source and target definitions must belong to the same repository.
 ///
-/// Note: This trait does not require NetabaseDefinition to avoid circular dependencies.
-/// Types implementing this should also implement NetabaseDefinition separately.
-pub trait GlobalDefinitionEnum: IntoDiscriminant + Sized
-where
-    <Self as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-{
-    /// Enum that holds all definition instances
-    type GlobalDefinition: Clone + PartialEq + Eq + std::hash::Hash + std::fmt::Debug;
-
-    /// Enum that holds definition-level discriminants (which definition, not which model)
-    type GlobalDefinitionKeys: Clone + PartialEq + Eq + std::hash::Hash + std::fmt::Debug + 'static;
-
-    /// Enum that holds model discriminants across definitions (which definition + which model)
-    type GlobalKeys: Clone + PartialEq + Eq + std::hash::Hash + std::fmt::Debug + 'static;
-
-    fn into_global_definition(self) -> Self::GlobalDefinition;
-    fn from_global_definition(global: Self::GlobalDefinition) -> Option<Self>
-    where
-        Self: Sized;
-
-    fn discriminant_into_global(discriminant: Self::Discriminant) -> Self::GlobalKeys;
-    fn discriminant_from_global(global: Self::GlobalKeys) -> Option<Self::Discriminant>;
-
-    fn definition_discriminant_to_global() -> Self::GlobalDefinitionKeys;
-    fn global_to_definition_discriminant(global: Self::GlobalDefinitionKeys) -> bool;
-}
-
-/// A relational link between models supporting four lifecycle states:
+/// # Type Parameters
+///
+/// - `'data`: Lifetime for borrowed references
+/// - `R`: Repository type providing isolation context
+/// - `SourceD`: Source definition type
+/// - `TargetD`: Target definition type
+/// - `M`: Target model type
 ///
 /// # Variants
 ///
@@ -119,37 +79,30 @@ where
 ///    - Zero-copy database access
 ///    - Requires 'data lifetime
 ///
-/// # Lifetime Management
+/// # Security Model
 ///
-/// The `'data` lifetime represents:
-/// - For Owned: No lifetime constraints (uses 'static internally)
-/// - For Hydrated: lifetime of the borrowed reference
-/// - For Borrowed: lifetime chain from database transaction
+/// The repository type parameter `R` ensures compile-time isolation:
+/// - Both `SourceD` and `TargetD` must implement `InRepository<R>`
+/// - Links cannot cross repository boundaries
+/// - This prevents unauthorized access between unrelated definitions
 ///
 /// # Example
 ///
 /// ```rust,ignore
-/// // Dehydrated - just the key
-/// let link = RelationalLink::new_dehydrated(user_id);
+/// // Within EmployeeRepo context
+/// let link: RelationalLink<EmployeeRepo, Employee, Inventory, Item> =
+///     RelationalLink::new_dehydrated(item_id);
 ///
-/// // Owned - with owned model (no lifetime constraints)
-/// let user = User { id: user_id.clone(), name: "Alice".to_string(), age: 30 };
-/// let link = RelationalLink::new_owned(user_id, user);
-///
-/// // Hydrated - with model reference
-/// let link = RelationalLink::new_hydrated(user_id, &user);
-///
-/// // Borrowed - from database (in transaction context)
-/// let guard = table.get(&key)?;
-/// let model = guard.value();
-/// let link = RelationalLink::new_borrowed(key, model);
+/// // This would fail to compile - different repos:
+/// // let bad: RelationalLink<EmployeeRepo, Employee, Reports, Report> = ...
 /// ```
 #[derive(Debug, Clone)]
-pub enum RelationalLink<'data, SourceD, TargetD, M>
+pub enum RelationalLink<'data, R, SourceD, TargetD, M>
 where
-    SourceD: NetabaseDefinition + 'static,
+    R: NetabaseRepository,
+    SourceD: NetabaseDefinition + InRepository<R> + 'static,
     SourceD::Discriminant: std::fmt::Debug,
-    TargetD: NetabaseDefinition + 'static,
+    TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD>,
     for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
@@ -161,6 +114,7 @@ where
     Dehydrated {
         primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
         _source: SourceD::DebugName,
+        _repo: std::marker::PhantomData<R>,
     },
     /// Owned: Fully owns the related model (no lifetime dependency)
     /// Used when the model is constructed independently and needs to be stored with full ownership
@@ -168,12 +122,14 @@ where
         primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
         model: Box<M>,
         _source: SourceD::DebugName,
+        _repo: std::marker::PhantomData<R>,
     },
     /// Hydrated: Contains a borrowed reference to the model (application-controlled lifetime)
     Hydrated {
         primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
         model: &'data M,
         _source: SourceD::DebugName,
+        _repo: std::marker::PhantomData<R>,
     },
     /// Borrowed: Contains both the primary key and a borrowed reference from AccessGuard
     /// Lifetime is tied to database transaction -> table -> AccessGuard chain
@@ -181,15 +137,17 @@ where
         primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
         model: &'data M,
         _source: SourceD::DebugName,
+        _repo: std::marker::PhantomData<R>,
     },
 }
 
-// PartialEq implementation for new RelationalLink
-impl<'data, SourceD, TargetD, M> PartialEq for RelationalLink<'data, SourceD, TargetD, M>
+// PartialEq implementation for RelationalLink
+impl<'data, R, SourceD, TargetD, M> PartialEq for RelationalLink<'data, R, SourceD, TargetD, M>
 where
-    SourceD: NetabaseDefinition + 'static,
+    R: NetabaseRepository,
+    SourceD: NetabaseDefinition + InRepository<R> + 'static,
     SourceD::Discriminant: std::fmt::Debug,
-    TargetD: NetabaseDefinition + 'static,
+    TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD>,
     <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: PartialEq,
@@ -217,11 +175,12 @@ where
 }
 
 // Eq implementation
-impl<'data, SourceD, TargetD, M> Eq for RelationalLink<'data, SourceD, TargetD, M>
+impl<'data, R, SourceD, TargetD, M> Eq for RelationalLink<'data, R, SourceD, TargetD, M>
 where
-    SourceD: NetabaseDefinition + 'static,
+    R: NetabaseRepository,
+    SourceD: NetabaseDefinition + InRepository<R> + 'static,
     SourceD::Discriminant: std::fmt::Debug,
-    TargetD: NetabaseDefinition + 'static,
+    TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD>,
     <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: Eq,
@@ -232,11 +191,12 @@ where
 {}
 
 // Hash implementation
-impl<'data, SourceD, TargetD, M> std::hash::Hash for RelationalLink<'data, SourceD, TargetD, M>
+impl<'data, R, SourceD, TargetD, M> std::hash::Hash for RelationalLink<'data, R, SourceD, TargetD, M>
 where
-    SourceD: NetabaseDefinition + 'static,
+    R: NetabaseRepository,
+    SourceD: NetabaseDefinition + InRepository<R> + 'static,
     SourceD::Discriminant: std::fmt::Debug,
-    TargetD: NetabaseDefinition + 'static,
+    TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD> + std::hash::Hash,
     <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: std::hash::Hash,
@@ -270,11 +230,12 @@ where
 }
 
 // PartialOrd implementation
-impl<'data, SourceD, TargetD, M> PartialOrd for RelationalLink<'data, SourceD, TargetD, M>
+impl<'data, R, SourceD, TargetD, M> PartialOrd for RelationalLink<'data, R, SourceD, TargetD, M>
 where
-    SourceD: NetabaseDefinition + 'static,
+    R: NetabaseRepository,
+    SourceD: NetabaseDefinition + InRepository<R> + 'static,
     SourceD::Discriminant: std::fmt::Debug,
-    TargetD: NetabaseDefinition + 'static,
+    TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD> + PartialOrd,
     <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: PartialOrd,
@@ -308,11 +269,12 @@ where
 }
 
 // Ord implementation
-impl<'data, SourceD, TargetD, M> Ord for RelationalLink<'data, SourceD, TargetD, M>
+impl<'data, R, SourceD, TargetD, M> Ord for RelationalLink<'data, R, SourceD, TargetD, M>
 where
-    SourceD: NetabaseDefinition + 'static,
+    R: NetabaseRepository,
+    SourceD: NetabaseDefinition + InRepository<R> + 'static,
     SourceD::Discriminant: std::fmt::Debug,
-    TargetD: NetabaseDefinition + 'static,
+    TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD> + Ord,
     <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: Ord,
@@ -345,12 +307,13 @@ where
     }
 }
 
-// Implementation for new RelationalLink
-impl<'data, SourceD, TargetD, M> RelationalLink<'data, SourceD, TargetD, M>
+// Implementation for RelationalLink
+impl<'data, R, SourceD, TargetD, M> RelationalLink<'data, R, SourceD, TargetD, M>
 where
-    SourceD: NetabaseDefinition + 'static,
+    R: NetabaseRepository,
+    SourceD: NetabaseDefinition + InRepository<R> + 'static,
     SourceD::Discriminant: std::fmt::Debug,
-    TargetD: NetabaseDefinition + 'static,
+    TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD>,
     for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
@@ -359,16 +322,19 @@ where
     for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
 {
     /// Create a new dehydrated relational link with just the primary key
+    #[inline]
     pub fn new_dehydrated(
         primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
     ) -> Self {
         Self::Dehydrated {
             primary_key,
             _source: SourceD::debug_name(),
+            _repo: std::marker::PhantomData,
         }
     }
 
     /// Create a new hydrated relational link with the model and primary key
+    #[inline]
     pub fn new_hydrated(
         primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
         model: &'data M,
@@ -377,11 +343,13 @@ where
             primary_key,
             model,
             _source: SourceD::debug_name(),
+            _repo: std::marker::PhantomData,
         }
     }
 
     /// Create a new owned relational link with a Box-owned model
     /// This variant owns the model completely and has no lifetime dependencies
+    #[inline]
     pub fn new_owned(
         primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
         model: M,
@@ -390,6 +358,7 @@ where
             primary_key,
             model: Box::new(model),
             _source: SourceD::debug_name(),
+            _repo: std::marker::PhantomData,
         }
     }
 
@@ -397,6 +366,7 @@ where
     /// This variant is used when loading models from the database
     /// The lifetime 'data is tied to the AccessGuard lifetime chain:
     /// Transaction<'txn> -> Table<'txn> -> AccessGuard<'txn> -> Value<'txn>
+    #[inline]
     pub fn new_borrowed(
         primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
         model: &'data M,
@@ -405,10 +375,12 @@ where
             primary_key,
             model,
             _source: SourceD::debug_name(),
+            _repo: std::marker::PhantomData,
         }
     }
 
     /// Get the primary key from the relation
+    #[inline]
     pub fn get_primary_key(&self) -> &<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static> {
         match self {
             Self::Dehydrated { primary_key, .. } => primary_key,
@@ -420,27 +392,32 @@ where
 
     /// Check if this relation is currently hydrated (contains model data)
     /// Returns true for Owned, Hydrated, and Borrowed variants
+    #[inline]
     pub fn is_hydrated(&self) -> bool {
         matches!(self, Self::Owned { .. } | Self::Hydrated { .. } | Self::Borrowed { .. })
     }
 
     /// Check if this relation is dehydrated (contains only primary key)
+    #[inline]
     pub fn is_dehydrated(&self) -> bool {
         matches!(self, Self::Dehydrated { .. })
     }
 
     /// Check if this relation is owned (fully owns the model)
+    #[inline]
     pub fn is_owned(&self) -> bool {
         matches!(self, Self::Owned { .. })
     }
 
     /// Check if this relation is borrowed (from AccessGuard)
+    #[inline]
     pub fn is_borrowed(&self) -> bool {
         matches!(self, Self::Borrowed { .. })
     }
 
     /// Consume the link and extract the owned model if it's an Owned variant
     /// Returns None for other variants
+    #[inline]
     pub fn into_owned(self) -> Option<M> {
         match self {
             Self::Owned { model, .. } => Some(*model),
@@ -450,6 +427,7 @@ where
 
     /// Get the hydrated model if available, otherwise None
     /// Works for Owned, Hydrated, and Borrowed variants
+    #[inline]
     pub fn get_model(&self) -> Option<&M> {
         match self {
             Self::Owned { model, .. } => Some(model.as_ref()),
@@ -462,12 +440,14 @@ where
     /// Get borrowed model reference if available
     /// This is an alias for get_model() but with a more explicit name
     /// Works for Owned (derefs Box), Hydrated, and Borrowed variants
+    #[inline]
     pub fn as_borrowed(&self) -> Option<&M> {
         self.get_model()
     }
 
     /// Convert to owned/dehydrated - useful when you need to persist
     /// Extracts the primary key and discards the model reference
+    #[inline]
     pub fn to_owned_key(self) -> Self {
         let primary_key = match self {
             Self::Dehydrated { primary_key, .. } => primary_key,
@@ -478,10 +458,12 @@ where
         Self::Dehydrated {
             primary_key,
             _source: SourceD::debug_name(),
+            _repo: std::marker::PhantomData,
         }
     }
 
     /// Convert a dehydrated relation to hydrated by providing the model data
+    #[inline]
     pub fn hydrate_with_model(self, model: &'data M) -> Self {
         let primary_key = match self {
             Self::Dehydrated { primary_key, .. } => primary_key,
@@ -493,10 +475,12 @@ where
             primary_key,
             model,
             _source: SourceD::debug_name(),
+            _repo: std::marker::PhantomData,
         }
     }
 
     /// Convert a hydrated or borrowed relation back to dehydrated
+    #[inline]
     pub fn dehydrate(self) -> Self {
         let primary_key = match self {
             Self::Dehydrated { primary_key, .. } => primary_key,
@@ -507,43 +491,43 @@ where
         Self::Dehydrated {
             primary_key,
             _source: SourceD::debug_name(),
+            _repo: std::marker::PhantomData,
         }
     }
 
     /// Check if this is a same-definition relation (SourceD == TargetD)
+    #[inline]
     pub fn is_same_definition() -> bool {
         std::any::TypeId::of::<SourceD>() == std::any::TypeId::of::<TargetD>()
     }
 
     /// Check if this is a cross-definition relation (SourceD != TargetD)
+    #[inline]
     pub fn is_cross_definition() -> bool {
         !Self::is_same_definition()
     }
 
-    // TODO: Add hydrate() method after Phase 3-4
-    // This method will load the model from the database with conditional permission checks
+    /// Validate that this link can be accessed within the given repository permissions.
+    #[inline]
+    pub fn validate_repository_access(&self, _perms: &RepositoryPermissions<R>) -> Result<(), RelationalLinkError> {
+        // For now, always allow - permissions will be checked more thoroughly
+        // when actual hydration from database occurs
+        Ok(())
+    }
+
+    // TODO: Add hydrate_in_repository() method after transaction implementation
+    // This method will load the model from the database within repository context
     //
-    // Implementation notes for relational table queries:
-    // - Relational tables store: PrimaryKey -> [ForeignKeys]
-    // - To hydrate a relation from source model's primary key:
-    //   1. Query relational table using source model's primary key as the lookup key
-    //   2. Retrieve list of foreign keys (the values in the multimap)
-    //   3. Use each foreign key to fetch the related model from its main table
-    //   4. Create Borrowed/Hydrated RelationalLink with the retrieved model
-    //
-    // Example: For User with partner relation:
-    //   - Table: "Definition:User:Relational:Partner" stores UserID (pk) -> [UserID (partner)]
-    //   - Query: table.get(user.id) returns iterator of partner UserIDs
-    //   - For each partner ID, query User main table to get the Partner model
-    //
-    // Signature: pub fn hydrate<Trans>(self, transaction: &Trans, conditionally: bool) -> NetabaseResult<Self>
+    // Signature: pub fn hydrate_in_repository<Trans>(self, transaction: &Trans) -> Result<Self, RelationalLinkError>
+    // where Trans: NBRepositoryTransaction<'db, R>
 }
 
-impl<'data, SourceD, TargetD, M> Serialize for RelationalLink<'data, SourceD, TargetD, M>
+impl<'data, R, SourceD, TargetD, M> Serialize for RelationalLink<'data, R, SourceD, TargetD, M>
 where
-    SourceD: NetabaseDefinition + 'static,
+    R: NetabaseRepository,
+    SourceD: NetabaseDefinition + InRepository<R> + 'static,
     SourceD::Discriminant: std::fmt::Debug,
-    TargetD: NetabaseDefinition + 'static,
+    TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD> + Serialize,
     <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: Serialize,
@@ -585,11 +569,12 @@ where
     }
 }
 
-impl<'de, 'data, SourceD, TargetD, M> Deserialize<'de> for RelationalLink<'data, SourceD, TargetD, M>
+impl<'de, 'data, R, SourceD, TargetD, M> Deserialize<'de> for RelationalLink<'data, R, SourceD, TargetD, M>
 where
-    SourceD: NetabaseDefinition + 'static,
+    R: NetabaseRepository,
+    SourceD: NetabaseDefinition + InRepository<R> + 'static,
     SourceD::Discriminant: std::fmt::Debug,
-    TargetD: NetabaseDefinition + 'static,
+    TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD>,
     <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: Deserialize<'de>,
@@ -602,18 +587,22 @@ where
     where
         D: serde::Deserializer<'de>,
     {
-        
-    let proxy = <M::Keys as NetabaseModelKeys<TargetD, M>>::Primary::deserialize(deserializer)?;
-        Ok(RelationalLink::Dehydrated{primary_key: proxy, _source: SourceD::debug_name()})
+        let proxy = <M::Keys as NetabaseModelKeys<TargetD, M>>::Primary::deserialize(deserializer)?;
+        Ok(RelationalLink::Dehydrated {
+            primary_key: proxy,
+            _source: SourceD::debug_name(),
+            _repo: std::marker::PhantomData,
+        })
     }
 }
 
 // Bincode Encode
-impl<'data, SourceD, TargetD, M> Encode for RelationalLink<'data, SourceD, TargetD, M>
+impl<'data, R, SourceD, TargetD, M> Encode for RelationalLink<'data, R, SourceD, TargetD, M>
 where
-    SourceD: NetabaseDefinition + 'static,
+    R: NetabaseRepository,
+    SourceD: NetabaseDefinition + InRepository<R> + 'static,
     SourceD::Discriminant: std::fmt::Debug,
-    TargetD: NetabaseDefinition + 'static,
+    TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD> + Encode,
     <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: Encode,
@@ -651,11 +640,12 @@ where
 }
 
 // Bincode Decode
-impl<'data, SourceD, TargetD, M, C> Decode<C> for RelationalLink<'data, SourceD, TargetD, M>
+impl<'data, R, SourceD, TargetD, M, C> Decode<C> for RelationalLink<'data, R, SourceD, TargetD, M>
 where
-    SourceD: NetabaseDefinition + 'static,
+    R: NetabaseRepository,
+    SourceD: NetabaseDefinition + InRepository<R> + 'static,
     SourceD::Discriminant: std::fmt::Debug,
-    TargetD: NetabaseDefinition + 'static,
+    TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD> + Decode<C>,
     <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: Decode<C>,
@@ -672,7 +662,8 @@ where
                 let primary_key = <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static> as Decode<C>>::decode(decoder)?;
                 Ok(Self::Dehydrated {
                     primary_key,
-            _source: SourceD::debug_name(),
+                    _source: SourceD::debug_name(),
+                    _repo: std::marker::PhantomData,
                 })
             }
             1 => {
@@ -682,7 +673,8 @@ where
                 Ok(Self::Owned {
                     primary_key,
                     model: Box::new(model),
-            _source: SourceD::debug_name(),
+                    _source: SourceD::debug_name(),
+                    _repo: std::marker::PhantomData,
                 })
             }
             _ => Err(bincode::error::DecodeError::Other("Invalid RelationalLink variant")),
@@ -691,11 +683,12 @@ where
 }
 
 // Bincode BorrowDecode
-impl<'de, 'data, SourceD, TargetD, M, C> BorrowDecode<'de, C> for RelationalLink<'data, SourceD, TargetD, M>
+impl<'de, 'data, R, SourceD, TargetD, M, C> BorrowDecode<'de, C> for RelationalLink<'data, R, SourceD, TargetD, M>
 where
-    SourceD: NetabaseDefinition + 'static,
+    R: NetabaseRepository,
+    SourceD: NetabaseDefinition + InRepository<R> + 'static,
     SourceD::Discriminant: std::fmt::Debug,
-    TargetD: NetabaseDefinition + 'static,
+    TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD> + BorrowDecode<'de, C>,
     <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: BorrowDecode<'de, C>,
@@ -712,7 +705,8 @@ where
                 let primary_key = <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static> as BorrowDecode<'de, C>>::borrow_decode(decoder)?;
                 Ok(Self::Dehydrated {
                     primary_key,
-            _source: SourceD::debug_name(),
+                    _source: SourceD::debug_name(),
+                    _repo: std::marker::PhantomData,
                 })
             }
             1 => {
@@ -722,13 +716,15 @@ where
                 Ok(Self::Owned {
                     primary_key,
                     model: Box::new(model),
-            _source: SourceD::debug_name(),
+                    _source: SourceD::debug_name(),
+                    _repo: std::marker::PhantomData,
                 })
             }
             _ => Err(bincode::error::DecodeError::Other("Invalid RelationalLink variant")),
         }
     }
 }
+
 #[derive(Debug, thiserror::Error)]
 pub enum RelationalLinkError {
     #[error("Key mismatch: the provided model's primary key doesn't match the stored foreign key")]
@@ -740,81 +736,6 @@ pub enum RelationalLinkError {
     #[error("Not found: the related model could not be found")]
     NotFound,
 
-    #[error("Cross-definition access error")]
-    CrossDefinitionError,
-}
-
-/// Cross-definition permissions for relational access
-/// Uses strongly typed table definitions instead of strings
-#[derive(Debug, Clone)]
-pub struct CrossDefinitionPermissions<D: GlobalDefinitionEnum>
-where
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
-    <D as strum::IntoDiscriminant>::Discriminant: 'static,
-{
-    /// List of accessible table definitions (strongly typed)
-    pub accessible_tables: Vec<D::GlobalKeys>,
-    /// Whether read access is allowed
-    pub read_allowed: bool,
-    /// Whether write access is allowed
-    pub write_allowed: bool,
-    /// Whether hydration (loading related data) is allowed
-    pub hydration_allowed: bool,
-}
-
-impl<D: GlobalDefinitionEnum> CrossDefinitionPermissions<D>
-where
-    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
-    <D as strum::IntoDiscriminant>::Discriminant: 'static,
-{
-    /// Create new cross-definition permissions
-    pub fn new(
-        accessible_tables: Vec<D::GlobalKeys>,
-        read_allowed: bool,
-        write_allowed: bool,
-        hydration_allowed: bool,
-    ) -> Self {
-        Self {
-            accessible_tables,
-            read_allowed,
-            write_allowed,
-            hydration_allowed,
-        }
-    }
-
-    /// Create read-only permissions with specified tables
-    pub fn read_only(accessible_tables: Vec<D::GlobalKeys>) -> Self {
-        Self::new(accessible_tables, true, false, true)
-    }
-
-    /// Create full permissions with specified tables
-    pub fn full_access(accessible_tables: Vec<D::GlobalKeys>) -> Self {
-        Self::new(accessible_tables, true, true, true)
-    }
-
-    /// Create no permissions
-    pub fn no_access() -> Self
-    where
-        <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    {
-        Self::new(Vec::new(), false, false, false)
-    }
-
-    /// Check if the given operation is allowed
-    pub fn can_read(&self) -> bool {
-        self.read_allowed
-    }
-
-    pub fn can_write(&self) -> bool {
-        self.write_allowed
-    }
-
-    pub fn can_hydrate(&self) -> bool {
-        self.hydration_allowed
-    }
-
-    /// Check if a specific table key is accessible
-    pub fn can_access_table(&self, key: &D::GlobalKeys) -> bool {
-        self.accessible_tables.contains(key)
-    }
+    #[error("Repository access error: cannot access definition outside of repository context")]
+    RepositoryAccessError,
 }

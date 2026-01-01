@@ -1,4 +1,4 @@
-use syn::{Attribute, Meta, Path, Result, Error};
+use syn::{Attribute, Error, Meta, Path, Result};
 
 /// Utilities for parsing field and item attributes
 
@@ -45,7 +45,7 @@ pub fn parse_link_attribute(attr: &Attribute) -> Result<(Path, Path)> {
     } else {
         Err(Error::new_spanned(
             attr,
-            "link attribute must be in the form #[link(Definition, Model)]"
+            "link attribute must be in the form #[link(Definition, Model)]",
         ))
     }
 }
@@ -74,29 +74,58 @@ pub fn parse_subscribe_attribute(attr: &Attribute) -> Result<Vec<Path>> {
     } else {
         Err(Error::new_spanned(
             attr,
-            "subscribe attribute must be in the form #[subscribe(Topic1, Topic2, ...)]"
+            "subscribe attribute must be in the form #[subscribe(Topic1, Topic2, ...)]",
         ))
     }
 }
 
+/// Parsed definition attribute containing all configuration
+#[derive(Debug, Clone)]
+pub struct DefinitionAttributeConfig {
+    /// The definition name path
+    pub definition: Path,
+    /// Subscription topics for this definition
+    pub subscriptions: Vec<Path>,
+    /// Optional file path to import schema from
+    pub from_file: Option<String>,
+    /// Repository identifiers this definition belongs to
+    pub repositories: Vec<syn::Ident>,
+}
+
+impl DefinitionAttributeConfig {
+    /// Check if this definition belongs to a specific repository
+    pub fn belongs_to_repository(&self, repo_name: &syn::Ident) -> bool {
+        self.repositories.iter().any(|r| r == repo_name)
+    }
+
+    /// Check if this definition has any repository memberships
+    pub fn has_repositories(&self) -> bool {
+        !self.repositories.is_empty()
+    }
+}
+
 /// Parse subscriptions from netabase_definition attribute
-/// #[netabase_definition(DefinitionName, subscriptions(Topic1, Topic2), from_file = "path/to/schema.toml")]
-pub fn parse_definition_attribute_from_tokens(tokens: proc_macro2::TokenStream) -> Result<(Path, Vec<Path>, Option<String>)> {
-    use syn::parse::Parse;
+/// #[netabase_definition(DefinitionName, subscriptions(Topic1, Topic2), repos(Repo1, Repo2), from_file = "path/to/schema.toml")]
+pub fn parse_definition_attribute_from_tokens(
+    tokens: proc_macro2::TokenStream,
+) -> Result<DefinitionAttributeConfig> {
     use syn::Token;
+    use syn::parse::Parse;
 
     struct DefinitionAttr {
         definition: Path,
         subscriptions: Vec<Path>,
         from_file: Option<String>,
+        repositories: Vec<syn::Ident>,
     }
 
     impl Parse for DefinitionAttr {
         fn parse(input: syn::parse::ParseStream) -> Result<Self> {
             let definition: Path = input.parse()?;
-            
+
             let mut subscriptions = Vec::new();
             let mut from_file = None;
+            let mut repositories = Vec::new();
 
             while !input.is_empty() {
                 let _comma: Token![,] = input.parse()?;
@@ -115,8 +144,17 @@ pub fn parse_definition_attribute_from_tokens(tokens: proc_macro2::TokenStream) 
                     let _eq: Token![=] = input.parse()?;
                     let lit: syn::LitStr = input.parse()?;
                     from_file = Some(lit.value());
+                } else if ident == "repos" {
+                    let content;
+                    syn::parenthesized!(content in input);
+                    let repo_list: syn::punctuated::Punctuated<syn::Ident, Token![,]> =
+                        content.parse_terminated(Parse::parse, Token![,])?;
+                    repositories = repo_list.into_iter().collect();
                 } else {
-                    return Err(Error::new(ident.span(), "expected 'subscriptions' or 'from_file'"));
+                    return Err(Error::new(
+                        ident.span(),
+                        "expected 'subscriptions', 'from_file', or 'repos'",
+                    ));
                 }
             }
 
@@ -124,15 +162,21 @@ pub fn parse_definition_attribute_from_tokens(tokens: proc_macro2::TokenStream) 
                 definition,
                 subscriptions,
                 from_file,
+                repositories,
             })
         }
     }
 
     let attr: DefinitionAttr = syn::parse2(tokens)?;
-    Ok((attr.definition, attr.subscriptions, attr.from_file))
+    Ok(DefinitionAttributeConfig {
+        definition: attr.definition,
+        subscriptions: attr.subscriptions,
+        from_file: attr.from_file,
+        repositories: attr.repositories,
+    })
 }
 
-pub fn parse_definition_attribute(attr: &Attribute) -> Result<(Path, Vec<Path>, Option<String>)> {
+pub fn parse_definition_attribute(attr: &Attribute) -> Result<DefinitionAttributeConfig> {
     let meta = &attr.meta;
 
     if let Meta::List(meta_list) = meta {
@@ -140,7 +184,49 @@ pub fn parse_definition_attribute(attr: &Attribute) -> Result<(Path, Vec<Path>, 
     } else {
         Err(Error::new_spanned(
             attr,
-            "netabase_definition must be in the form #[netabase_definition(DefinitionName, subscriptions(...), from_file = \"...\")]"
+            "netabase_definition must be in the form #[netabase_definition(DefinitionName, subscriptions(...), repos(...), from_file = \"...\")]",
+        ))
+    }
+}
+
+/// Parsed repository attribute containing configuration
+#[derive(Debug, Clone)]
+pub struct RepositoryAttributeConfig {
+    /// The repository name identifier
+    pub name: syn::Ident,
+}
+
+/// Parse netabase_repository attribute
+/// #[netabase_repository(RepoName)]
+pub fn parse_repository_attribute_from_tokens(
+    tokens: proc_macro2::TokenStream,
+) -> Result<RepositoryAttributeConfig> {
+    use syn::parse::Parse;
+
+    struct RepositoryAttr {
+        name: syn::Ident,
+    }
+
+    impl Parse for RepositoryAttr {
+        fn parse(input: syn::parse::ParseStream) -> Result<Self> {
+            let name: syn::Ident = input.parse()?;
+            Ok(RepositoryAttr { name })
+        }
+    }
+
+    let attr: RepositoryAttr = syn::parse2(tokens)?;
+    Ok(RepositoryAttributeConfig { name: attr.name })
+}
+
+pub fn parse_repository_attribute(attr: &Attribute) -> Result<RepositoryAttributeConfig> {
+    let meta = &attr.meta;
+
+    if let Meta::List(meta_list) = meta {
+        parse_repository_attribute_from_tokens(meta_list.tokens.clone())
+    } else {
+        Err(Error::new_spanned(
+            attr,
+            "netabase_repository must be in the form #[netabase_repository(RepoName)]",
         ))
     }
 }
@@ -152,12 +238,16 @@ pub fn parse_global_attribute(attr: &Attribute) -> Result<Path> {
 
     if let Meta::List(meta_list) = meta {
         let tokens = &meta_list.tokens;
-        syn::parse2(tokens.clone())
-            .map_err(|e| Error::new(e.span(), format!("Failed to parse netabase attribute: {}", e)))
+        syn::parse2(tokens.clone()).map_err(|e| {
+            Error::new(
+                e.span(),
+                format!("Failed to parse netabase attribute: {}", e),
+            )
+        })
     } else {
         Err(Error::new_spanned(
             attr,
-            "netabase must be in the form #[netabase(GlobalName)]"
+            "netabase must be in the form #[netabase(GlobalName)]",
         ))
     }
 }
