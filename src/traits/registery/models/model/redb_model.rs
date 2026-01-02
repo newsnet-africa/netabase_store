@@ -2,7 +2,7 @@ use redb::{MultimapTableDefinition, TableDefinition};
 use strum::IntoDiscriminant;
 
 use crate::traits::registery::{
-    definition::{NetabaseDefinition, redb_definition::RedbDefinition},
+    definition::redb_definition::RedbDefinition,
     models::keys::{NetabaseModelKeys, blob::NetabaseModelBlobKey},
 };
 use super::NetabaseModel;

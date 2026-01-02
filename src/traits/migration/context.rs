@@ -5,7 +5,6 @@
 //! older node or reading from an old database, the context triggers automatic
 //! migration during deserialization.
 
-use bincode::de::Decoder;
 use bincode::error::DecodeError;
 
 /// Version context for migration-aware deserialization.

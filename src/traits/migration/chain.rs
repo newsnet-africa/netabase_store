@@ -5,7 +5,7 @@
 //! migration paths.
 
 use super::{
-    MigrateFrom, MigrateTo, MigrationError, MigrationPath, MigrationResult, VersionedModel,
+    MigrateFrom, MigrateTo, MigrationError, VersionedModel,
 };
 
 /// Builder for creating migration chains at compile time.
