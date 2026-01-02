@@ -1,857 +1,1202 @@
-![crates.io](https://img.shields.io/crates/v/netabase_store.svg)
-![crates.io downloads](https://img.shields.io/crates/d/netabase_store.svg) ![docs.rs](https://docs.rs/netabase_store/badge.svg)
-
 # Netabase Store
 
-A type-safe, multi-backend key-value storage library for Rust with support for native (Sled, Redb) and WASM (IndexedDB) environments, inspired by [`native_db`](https://crates.io/crates/native_db).
+A type-safe, high-performance embedded database library for Rust with support for multiple backends (redb, sled, IndexedDB for WASM), automatic model migration, and compile-time schema validation.
 
-> ⚠️ **Early Development**: This crate is still in early development and will change frequently as it stabilizes. It is not advised to use this in a production environment until it stabilizes.
+[![Crates.io](https://img.shields.io/crates/v/netabase_store.svg)](https://crates.io/crates/netabase_store)
+[![Documentation](https://docs.rs/netabase_store/badge.svg)](https://docs.rs/netabase_store)
+[![License](https://img.shields.io/crates/l/netabase_store.svg)](LICENSE)
+
+## Features
+
+- 🔒 **Type-Safe**: Compile-time schema validation with Rust's type system
+- ⚡ **High Performance**: Zero-copy operations with bincode serialization
+- 🔄 **Auto Migration**: Automatic schema versioning and data migration
+- 🎯 **Multiple Backends**: Redb, Sled, or IndexedDB (WASM)
+- 📦 **Unified API**: Same code works across all backends
+- 🔍 **Secondary Indexes**: Fast lookups on non-primary fields
+- 💾 **Transactions**: ACID-compliant read/write transactions
+- 🌐 **Cross-Platform**: Native (Linux, macOS, Windows) and WASM support
+- 📚 **Rich Query API**: Builder pattern with pagination, filtering, and ordering
+- 🔔 **Subscriptions**: Real-time change notifications (optional feature)
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Core Concepts](#core-concepts)
+  - [Models](#models)
+  - [Definitions](#definitions)
+  - [Stores and Backends](#stores-and-backends)
+- [Complete Feature Guide](#complete-feature-guide)
+  - [Defining Models](#defining-models)
+  - [Primary and Secondary Keys](#primary-and-secondary-keys)
+  - [Database Operations](#database-operations)
+  - [Transactions](#transactions)
+  - [Queries and Pagination](#queries-and-pagination)
+  - [Model Migration](#model-migration)
+  - [Backend-Specific Features](#backend-specific-features)
+- [Advanced Topics](#advanced-topics)
+  - [Version Migration](#version-migration)
+  - [Batch Operations](#batch-operations)
+  - [Custom Serialization](#custom-serialization)
+  - [Performance Tuning](#performance-tuning)
+- [Examples](#examples)
+- [API Reference](#api-reference)
 
 ## Installation
 
 Add to your `Cargo.toml`:
 
 ```toml
-[package]
-name = "my_project"
-version = "0.1.0"
-edition = "2024"
-
 [dependencies]
-netabase_store = { version = "0.0.7", features = ["native"] }
-
-# Required dependencies
-bincode = { version = "2.0", features = ["serde"] }
+netabase_store = "0.1"
+bincode = "2.0"
 serde = { version = "1.0", features = ["derive"] }
-strum = { version = "0.27.2", features = ["derive"] }
-derive_more = { version = "2.0.1", features = ["from", "try_into", "into"] }
-libp2p = "0.56" # Optional, if you would like to use this as a persistent backend for [`libp2p-kad` RecordStore implementation](https://docs.rs/libp2p/latest/libp2p/kad/index.html)
-anyhow = "1.0"
-```
 
-### Feature Flags
-
-**The default feature set includes `native` which provides both Sled and Redb backends. You can customize features for your specific needs.**
-
-#### Backend Features:
-- `native` - **(Recommended)** Enables both Sled and Redb backends for desktop/server
-- `sled` - Sled backend only (high-performance embedded database)
-- `redb` - Redb backend only (memory-efficient, ACID compliant)
-- `redb-zerocopy` - Zero-copy Redb variant (maximum performance, requires `redb`)
-- `wasm` - IndexedDB backend for browser/WASM applications
-
-
-#### Integration Features:
-- `libp2p` - Enable libp2p integration for distributed systems
-- `record-store` - Enable RecordStore trait (requires `libp2p`)
-
-#### Common Configurations:
-
-```toml
-# For desktop/server applications (recommended):
-netabase_store = { version = "0.0.6", features = ["native"] }
-
-# For WASM/browser applications:
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-netabase_store = { version = "0.0.7", default-features = false, features = ["wasm"] }
-
-# For specific backend only:
-netabase_store = { version = "0.0.7", features = ["sled"] }
-
-# For zero-copy redb optimization:
-netabase_store = { version = "0.0.7", features = ["redb-zerocopy"] }
-
-# For libp2p integration:
-netabase_store = { version = "0.0.7", features = ["native", "libp2p"] }
+# For procedural macros
+netabase_macros = "0.1"
 ```
 
 ## Quick Start
 
-### 1. Define Your Schema
+Here's a complete example that demonstrates the basics:
 
 ```rust
-use netabase_store::netabase_definition_module;
-use netabase_store::traits::model::NetabaseModelTrait;
+use netabase_store::{netabase_definition, NetabaseModel};
+use netabase_store::databases::redb::RedbStore;
+use netabase_store::traits::database::transaction::{
+    NetabaseRwTransaction, NetabaseRoTransaction
+};
+use bincode::{Encode, Decode};
 
-#[netabase_definition_module(BlogDefinition, BlogKeys)]
-pub mod blog_schema {
-    use netabase_store::{NetabaseModel, netabase};
+// Step 1: Define your models
+#[netabase_definition]
+mod blog {
+    use super::*;
 
-    #[derive(NetabaseModel, bincode::Encode, bincode::Decode, Clone, Debug, serde::Serialize, serde::Deserialize)]
-    #[netabase(BlogDefinition)]
+    #[derive(Debug, Clone, PartialEq, NetabaseModel, Encode, Decode)]
     pub struct User {
-        #[primary_key]
+        #[primary]
         pub id: u64,
         pub username: String,
-        #[secondary_key]
+        #[secondary]
         pub email: String,
     }
 
-    #[derive(NetabaseModel, bincode::Encode, bincode::Decode, Clone, Debug, serde::Serialize, serde::Deserialize)]
-    #[netabase(BlogDefinition)]
+    #[derive(Debug, Clone, PartialEq, NetabaseModel, Encode, Decode)]
     pub struct Post {
-        #[primary_key]
+        #[primary]
         pub id: u64,
         pub title: String,
         pub content: String,
-        #[secondary_key]
+        #[secondary]
         pub author_id: u64,
     }
 }
 
-use blog_schema::*;
-```
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Step 2: Open a database
+    let store = RedbStore::<blog::Blog>::open("my_blog.db")?;
 
-### 2. Use with NetabaseStore (Recommended)
-
-The unified `NetabaseStore` provides a consistent API across all backends:
-
-```rust
-use netabase_store::NetabaseStore;
-
-fn main() -> anyhow::Result<()> {
-    // Create a store with any backend - easily switch by changing one line!
-
-    // Option 1: Sled backend (high-performance)
-    let store = NetabaseStore::<BlogDefinition, _>::sled("./my_db")?;
-
-    // Option 2: Redb backend (memory-efficient, ACID)
-    // let store = NetabaseStore::<BlogDefinition, _>::redb("./my_db.redb")?;
-
-    // Option 3: Temporary store for testing
-    // let store = NetabaseStore::<BlogDefinition, _>::temp()?;
-
-    // Open a tree for users - works identically across all backends
-    let user_tree = store.open_tree::<User>();
-
-    // Insert a user
-    let user = User {
-        id: 1,
-        username: "alice".to_string(),
-        email: "alice@example.com".to_string(),
-    };
-    user_tree.put(user.clone())?;
-
-    // Get by primary key - use the generated type
-    let retrieved = user_tree.get(UserPrimaryKey(1))?.unwrap();
-    assert_eq!(retrieved.username, "alice");
-
-    // Alternative: use primary_key() method
-    let retrieved2 = user_tree.get(user.primary_key())?.unwrap();
-    assert_eq!(retrieved2.username, "alice");
-
-    // Query by secondary key
-    let users_by_email = user_tree.get_by_secondary_key(
-        UserSecondaryKeys::Email(UserEmailSecondaryKey("alice@example.com".to_string()))
-    )?;
-    assert_eq!(users_by_email.len(), 1);
-
-    // Iterate over all users
-    for result in user_tree.iter() {
-        let (_key, user) = result?;
-        println!("User: {} - {}", user.username, user.email);
+    // Step 3: Create records in a write transaction
+    {
+        let txn = store.begin_write()?;
+        
+        let user = blog::User {
+            id: 1,
+            username: "alice".to_string(),
+            email: "alice@example.com".to_string(),
+        };
+        
+        txn.create(&user)?;
+        
+        let post = blog::Post {
+            id: 1,
+            title: "Hello World".to_string(),
+            content: "My first post!".to_string(),
+            author_id: 1,
+        };
+        
+        txn.create(&post)?;
+        txn.commit()?;
     }
 
-    // Access backend-specific features when needed
-    store.flush()?; // Sled-specific method
+    // Step 4: Query records in a read transaction
+    {
+        let txn = store.begin_read()?;
+        
+        // Read by primary key
+        let user: Option<blog::User> = txn.read(&1u64)?;
+        println!("User: {:?}", user);
+        
+        // Read by secondary key (email)
+        let users_by_email = txn.read_by_secondary::<blog::User, _>(&"alice@example.com")?;
+        println!("Found {} users with that email", users_by_email.len());
+        
+        // Query posts by author
+        let posts = txn.read_by_secondary::<blog::Post, _>(&1u64)?;
+        println!("User has {} posts", posts.len());
+    }
 
     Ok(())
 }
 ```
 
-### 3. Direct Backend Usage (Advanced)
+## Core Concepts
 
-You can also use backends directly for backend-specific features:
+### Models
 
-```rust
-use netabase_store::databases::sled_store::SledStore;
-use netabase_store::databases::redb_store::RedbStore;
+Models are your data structures, defined as Rust structs with the `#[derive(NetabaseModel)]` attribute. Every model must:
 
-// Direct Sled usage
-let sled_store = SledStore::<BlogDefinition>::temp()?;
-let user_tree = sled_store.open_tree::<User>();
-
-// Direct Redb usage
-let redb_store = RedbStore::<BlogDefinition>::new("my_database.redb")?;
-let user_tree = redb_store.open_tree::<User>();
-
-// Both have identical APIs via NetabaseTreeSync trait
-```
-
-### 4. Use with IndexedDB (WASM)
+1. Derive `NetabaseModel`, `Clone`, `bincode::Encode`, and `bincode::Decode`
+2. Have exactly **one** field marked with `#[primary]`
+3. Optionally have fields marked with `#[secondary]` for indexed lookups
 
 ```rust
-use netabase_store::databases::indexeddb_store::IndexedDBStore;
-use netabase_store::traits::tree::NetabaseTreeAsync;
-
-#[cfg(target_arch = "wasm32")]
-async fn wasm_example() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a store in the browser
-    let store = IndexedDBStore::<BlogDefinition>::new("my_database").await?;
-
-    // Note: WASM uses async API
-    let user_tree = store.open_tree::<User>();
-
-    let user = User {
-        id: 1,
-        username: "charlie".to_string(),
-        email: "charlie@example.com".to_string(),
-    };
-
-    // All operations are async
-    user_tree.put(user.clone()).await?;
-    let retrieved = user_tree.get(user.primary_key()).await?;
-
-    Ok(())
+#[derive(NetabaseModel, Clone, Encode, Decode)]
+pub struct Product {
+    #[primary]
+    pub sku: String,           // Primary key - must be unique
+    
+    pub name: String,
+    pub price: u64,
+    
+    #[secondary]
+    pub category: String,      // Indexed for fast lookups
+    
+    #[secondary]
+    pub manufacturer: String,  // Multiple secondary indexes allowed
 }
 ```
 
-### Backend Comparison & Selection Guide
+### Definitions
 
-All backends share the same core API through traits, but have different characteristics:
-
-#### 🔹 **Sled** (Recommended for Most Cases)
-- **Type**: Native, persistent, sync
-- **Use Cases**: General-purpose applications, desktop apps, servers
-- **Strengths**: 
-  - Excellent write performance
-  - Crash-safe with recovery
-  - Mature and battle-tested
-  - Simple file-based storage
-- **API Example**: 
-  ```rust
-  let store = NetabaseStore::<BlogDefinition, _>::sled("./my_db")?;
-  let tree = store.open_tree::<User>();
-  tree.put(user)?; // Synchronous operations
-  ```
-
-#### 🔹 **Redb** (Optimized for Reads)
-- **Type**: Native, persistent, sync
-- **Use Cases**: Read-heavy workloads, embedded databases
-- **Strengths**:
-  - Zero-copy reads (fastest read performance)
-  - Memory-efficient
-  - ACID compliant
-  - Smaller file size than Sled
-- **API Example**:
-  ```rust
-  let store = NetabaseStore::<BlogDefinition, _>::redb("./my_db.redb")?;
-  let tree = store.open_tree::<User>();
-  tree.put(user)?; // Synchronous operations
-  ```
-
-#### 🔹 **RedbZeroCopy** (Advanced, Explicit Transactions)
-- **Type**: Native, persistent, explicit transactions
-- **Use Cases**: Maximum performance, explicit transaction control
-- **Strengths**:
-  - Zero-copy reads
-  - Explicit transaction API for fine-grained control
-  - Best performance for bulk operations
-- **API Difference**: Requires explicit transaction management
-  ```rust
-  use netabase_store::databases::redb_zerocopy::RedbStoreZeroCopy;
-  let store = RedbStoreZeroCopy::<BlogDefinition>::new("./my_db.redb")?;
-  
-  // Must use explicit transactions
-  let mut txn = store.begin_write()?;
-  let mut tree = txn.open_tree::<User>()?;
-  tree.put(user)?;
-  drop(tree);
-  txn.commit()?; // Must explicitly commit
-  ```
-
-
-
-#### 🔹 **IndexedDB** (Browser/WASM)
-- **Type**: WASM, persistent, async
-- **Use Cases**: Web applications, browser-based storage
-- **Strengths**:
-  - Native browser storage
-  - Persistent across sessions
-  - Standard web API
-- **API Difference**: All operations are async
-  ```rust
-  let store = IndexedDBStore::<BlogDefinition>::new("my_db").await?;
-  let tree = store.open_tree::<User>();
-  tree.put(user).await?; // Note: async operations
-  let result = tree.get(user.primary_key()).await?;
-  ```
-
-#### Quick Selection Guide
-
-| Backend | Persistence | Async | Best For | Avoid If |
-|---------|-------------|-------|----------|----------|
-| **Sled** | ✅ Disk | ❌ Sync | General purpose, high writes | WASM target |
-| **Redb** | ✅ Disk | ❌ Sync | Read-heavy, low memory | Need fastest writes |
-| **RedbZeroCopy** | ✅ Disk | ❌ Sync | Bulk ops, transaction control | Want simple API |
-| **IndexedDB** | ✅ Browser | ✅ Async | Web/WASM apps | Native targets |
-
-**Performance Notes**:
-- All backends support batch operations (10-100x faster for bulk inserts)
-- All backends support secondary key queries
-- All backends (except RedbZeroCopy) support the transaction API: `store.read()` and `store.write()`
-- Sled and Redb have similar performance, with Redb slightly faster for reads
-- For testing, use temp() methods for fast, isolated tests
-
-**API Compatibility**:
-- ✅ All sync backends (Sled, Redb) have identical APIs
-- ✅ RedbZeroCopy requires explicit transaction management
-- ⚠️ IndexedDB uses async (`.await`) for all operations
-- ✅ All backends support the same data models and secondary keys
-
-## Advanced Usage
-
-### Configuration API
-
-The new unified configuration system provides consistent backend initialization across all database types:
-
-#### FileConfig - For File-Based Backends
+A definition is a module that groups related models together, creating a type-safe database schema:
 
 ```rust
-use netabase_store::config::FileConfig;
-use netabase_store::traits::backend_store::BackendStore;
-use netabase_store::databases::sled_store::SledStore;
-
-// Method 1: Builder pattern (recommended)
-let config = FileConfig::builder()
-    .path("app_data.db".into())
-    .cache_size_mb(1024)
-    .truncate(true)
-    .build();
-
-let store = <SledStore<BlogDefinition> as BackendStore<BlogDefinition>>::new(config)?;
-
-// Method 2: Simple constructor
-let config = FileConfig::new("app_data.db");
-let store = <SledStore<BlogDefinition> as BackendStore<BlogDefinition>>::open(config)?;
-
-// Method 3: Temporary database
-let store = <SledStore<BlogDefinition> as BackendStore<BlogDefinition>>::temp()?;
-```
-
-#### Switching Backends with Same Config
-
-The power of the configuration API is that you can switch backends without changing your code:
-
-```rust
-use netabase_store::config::FileConfig;
-use netabase_store::traits::backend_store::BackendStore;
-
-let config = FileConfig::builder()
-    .path("my_app.db".into())
-    .cache_size_mb(512)
-    .build();
-
-// Try different backends - same config!
-#[cfg(feature = "sled")]
-let store = <SledStore<BlogDefinition> as BackendStore<BlogDefinition>>::new(config.clone())?;
-
-#[cfg(feature = "redb")]
-let store = <RedbStore<BlogDefinition> as BackendStore<BlogDefinition>>::new(config.clone())?;
-
-#[cfg(feature = "redb-zerocopy")]
-let store = <RedbStoreZeroCopy<BlogDefinition> as BackendStore<BlogDefinition>>::new(config)?;
-
-// All have the same API from this point on!
-let user_tree = store.open_tree::<User>();
-```
-
-#### Configuration Options Reference
-
-**FileConfig** (for Sled, Redb, RedbZeroCopy):
-- `path: PathBuf` - Database file/directory path
-- `cache_size_mb: usize` - Cache size in megabytes (default: 256)
-- `create_if_missing: bool` - Create if doesn't exist (default: true)
-- `truncate: bool` - Delete existing data (default: false)
-- `read_only: bool` - Open read-only (default: false)
-- `use_fsync: bool` - Fsync for durability (default: true)
-
-
-
-**IndexedDBConfig** (for WASM):
-- `database_name: String` - IndexedDB database name
-- `version: u32` - Schema version (default: 1)
-
-### Bulk Operations with Transactions
-
-For high-performance bulk operations, use the **transaction API** (10-100x faster than individual operations):
-
-```rust
-use netabase_store::NetabaseStore;
-
-let store = NetabaseStore::<BlogDefinition, _>::sled("./my_db")?;
-
-// Create a write transaction for bulk operations
-// NOTE: write() returns TxnGuard directly, not a Result
-let mut txn = store.write();
-let mut user_tree = txn.open_tree::<User>();
-
-// Bulk insert - 8-9x faster than individual puts!
-let users: Vec<User> = (0..1000)
-    .map(|i| User {
-        id: i,
-        username: format!("user{}", i),
-        email: format!("user{}@example.com", i),
-    })
-    .collect();
-
-// All inserts in a single transaction
-user_tree.put_many(users)?;
-
-// Bulk read within transaction
-let keys: Vec<UserPrimaryKey> = (0..100).map(UserPrimaryKey).collect();
-let users: Vec<Option<User>> = user_tree.get_many(keys)?;
-
-// Commit all changes atomically
-txn.commit()?;
-```
-
-**Transaction Methods:**
-- `put_many(Vec<M>)` - Insert multiple models in one transaction
-- `get_many(Vec<M::PrimaryKey>)` - Read multiple models in one transaction
-
-**Backend Support:**
-- **Sled**: Full support via transactions and batch API
-- **Redb**: Full support via transactions and batch API  
-- Both backends provide identical API and performance benefits
-
-For more examples, see `examples/batch_operations_all_backends.rs`
-
-**Or use the batch API for more control:**
-
-```rust
-use netabase_store::traits::batch::Batchable;
-
-// Create a batch
-let mut batch = user_tree.create_batch()?;
-
-// Add many operations
-for i in 0..1000 {
-    batch.put(User { /* ... */ })?;
+#[netabase_definition]
+mod ecommerce {
+    use super::*;
+    
+    #[derive(NetabaseModel, Clone, Encode, Decode)]
+    pub struct Product { /* ... */ }
+    
+    #[derive(NetabaseModel, Clone, Encode, Decode)]
+    pub struct Order { /* ... */ }
+    
+    #[derive(NetabaseModel, Clone, Encode, Decode)]
+    pub struct Customer { /* ... */ }
 }
 
-// Commit atomically - all or nothing
-batch.commit()?;
+// This generates:
+// - ecommerce::Ecommerce (the definition type)
+// - ecommerce::Product, ecommerce::Order, ecommerce::Customer (your models)
 ```
 
-The batch API provides fine-grained control and is supported on both sync backends (Sled, Redb).
+### Stores and Backends
 
-### Transactions (New!)
+Netabase Store supports multiple storage backends with a unified API:
 
-For maximum performance and atomicity, use the transaction API to reuse a single transaction across multiple operations:
+| Backend | Platform | Use Case | Features |
+|---------|----------|----------|----------|
+| **Redb** | Native | Production databases | ACID, MVCC, zero-copy reads |
+| **Sled** | Native | High-write workloads | Embedded B-tree, fast writes |
+| **IndexedDB** | WASM | Browser storage | Async API, persistent |
+
+Creating a store:
 
 ```rust
-use netabase_store::NetabaseStore;
+use netabase_store::databases::redb::RedbStore;
 
-let store = NetabaseStore::<BlogDefinition, _>::sled("./my_db")?;
+// Redb backend
+let store = RedbStore::<MyDefinition>::open("data.db")?;
 
-// Read-only transaction - multiple concurrent reads allowed
-// NOTE: read() and write() return guards directly, not Results
-let txn = store.read();
-let user_tree = txn.open_tree::<User>();
-let user = user_tree.get(UserPrimaryKey(1))?;
-// Transaction auto-closes on drop
+// Sled backend
+use netabase_store::databases::sled::SledStore;
+let store = SledStore::<MyDefinition>::open("data_dir")?;
 
-// Read-write transaction - exclusive access, atomic commit
-let mut txn = store.write();
-let mut user_tree = txn.open_tree::<User>();
+// Temporary database (for testing)
+let store = RedbStore::<MyDefinition>::temporary()?;
+```
 
-// All operations share the same transaction
-for i in 0..1000 {
-    let user = User {
-        id: i,
-        username: format!("user{}", i),
-        email: format!("user{}@example.com", i),
-    };
-    user_tree.put(user)?;
+## Complete Feature Guide
+
+### Defining Models
+
+#### Basic Model Structure
+
+```rust
+#[derive(NetabaseModel, Clone, Encode, Decode)]
+pub struct User {
+    #[primary]
+    pub id: u64,        // Primary key - any type that is Ord + Clone + Encode + Decode
+    
+    pub username: String,
+    pub email: String,
+    pub created_at: u64,
 }
-
-// Bulk helpers also work within transactions
-user_tree.put_many(more_users)?;
-
-// Commit all changes atomically
-txn.commit()?;
-// Or drop without committing to rollback
 ```
 
-**Transaction Benefits:**
-- **10-100x Faster**: Single transaction for many operations (eliminates per-operation overhead)
-- **Type-Safe**: Compile-time enforcement of read-only vs read-write access
-- **Zero-Cost**: Phantom types compile away completely
-- **ACID**: Full atomicity for write transactions (Redb)
+#### Supported Primary Key Types
 
-**Compile-Time Safety:**
 ```rust
-let txn = store.read();  // ReadOnly transaction
-let tree = txn.open_tree::<User>();
-tree.put(user)?;  // ❌ Compile error: put() not available on ReadOnly!
+// Numeric types
+#[primary] pub id: u64;
+#[primary] pub id: i32;
+#[primary] pub id: u128;
+
+// String types
+#[primary] pub uuid: String;
+#[primary] pub key: &'static str;
+
+// Tuples (for composite keys)
+#[primary] pub id: (u64, String);
+#[primary] pub composite: (String, u32, bool);
+
+// Custom types (must implement Ord + Clone + Encode + Decode)
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
+pub struct CustomId(u64);
+
+#[primary] pub id: CustomId;
 ```
 
-**Backend Support Notes:**
-- **Sled, Redb**: Full support for `store.read()` and `store.write()` transaction API
-- **RedbZeroCopy**: Uses explicit `store.begin_write()` and `txn.commit()` pattern (different API)
-- **IndexedDB**: Async operations, transactions handled internally by browser
-- See `examples/transactions.rs` for detailed examples
-
-### Secondary Keys
-
-Secondary keys enable efficient lookups on non-primary fields:
+#### Field Attributes
 
 ```rust
-#[derive(NetabaseModel, Clone, bincode::Encode, bincode::Decode)]
-#[netabase(BlogDefinition)]
+#[derive(NetabaseModel, Clone, Encode, Decode)]
 pub struct Article {
-    #[primary_key]
+    // Primary key - exactly one required
+    #[primary]
     pub id: u64,
-    pub title: String,
-    #[secondary_key]
+    
+    // Secondary indexes - create indexed lookups (multiple allowed)
+    #[secondary]
     pub category: String,
-    #[secondary_key]
-    pub published: bool,
+    
+    #[secondary]
+    pub author_id: u64,
+    
+    #[secondary]
+    pub published_date: u64,
+    
+    // Regular fields - no special indexing
+    pub title: String,
+    pub content: String,
+    pub views: u32,
+}
+```
+
+### Primary and Secondary Keys
+
+#### Primary Keys
+
+Every model **must** have exactly one primary key:
+
+```rust
+// ✅ CORRECT - One primary key
+#[derive(NetabaseModel, Clone, Encode, Decode)]
+pub struct User {
+    #[primary]
+    pub id: u64,
+    pub name: String,
 }
 
-// Query by single secondary key
-let tech_articles = article_tree
-    .get_by_secondary_key(
-        ArticleSecondaryKeys::Category(
-            ArticleCategorySecondaryKey("tech".to_string())
-        )
-    )?;
-
-// Bulk query multiple secondary keys (2-3x faster!)
-let keys = vec![
-    ArticleSecondaryKeys::Category(ArticleCategorySecondaryKey("tech".to_string())),
-    ArticleSecondaryKeys::Category(ArticleCategorySecondaryKey("science".to_string())),
-];
-let results: Vec<Vec<Article>> = article_tree.get_many_by_secondary_keys(keys)?;
-// results[0] = tech articles, results[1] = science articles
-```
-
-### Multiple Models in One Store
-
-```rust
-use netabase_store::NetabaseStore;
-
-let store = NetabaseStore::<BlogDefinition, _>::sled("blog_db")?;
-
-// Different trees for different models
-let user_tree = store.open_tree::<User>();
-let post_tree = store.open_tree::<Post>();
-
-// Each tree is independent but shares the same underlying database
-user_tree.put(user)?;
-post_tree.put(post)?;
-```
-
-### Temporary Store for Testing
-
-```rust
-use netabase_store::NetabaseStore;
-
-// Perfect for unit tests - no I/O, no cleanup needed
-let store = NetabaseStore::<BlogDefinition, _>::temp()?;
-let user_tree = store.open_tree::<User>();
-
-user_tree.put(user)?;
-```
-
-## Implementing a backend
-
-It is *technically* possible to implement a backend of your own, but much of this implementation needed to be generated with macros, with a few implementation specific quirks.
-This makes it a bit hard for me to track *exactly how* to create reproducable instructions, but you can do one of 2 things:
-1. Read the `netabase_macros` to see what gents generated and how things string up
-2. Expanding the macro implementations to see how the backend implementations are generated.
-But if you are looking to wrap your own backend, or for a simpler model, [`kivis`](https://crates.io/crates/kivis) or [`native_model`](https://crates.io/crates/native_model) are probably better suited.
-
-## Performance
-
-Netabase Store is designed for high performance while maintaining type safety. The library provides multiple APIs optimized for different use cases, with comprehensive benchmarking and profiling support.
-
-### API Options for Performance
-
-The library offers three APIs with different performance characteristics:
-
-1. **Standard Wrapper API**: Simple, ergonomic API with auto-transaction per operation
-2. **Bulk Methods**: `put_many()`, `get_many()`, `get_many_by_secondary_keys()` - single transaction for multiple items
-3. **ZeroCopy API**: Explicit transaction management for maximum control
-
-### Benchmark Results
-
-Comprehensive benchmarks comparing all implementations across multiple dataset sizes (10, 100, 500, 1000, 5000 items):
-
-#### Insert Performance (1000 items)
-
-| Implementation | Time | vs Raw | Notes |
-|----------------|------|--------|-------|
-| Raw Redb (baseline) | 1.42 ms | 0% | Single transaction, manual index management |
-| Wrapper Redb (bulk) | 3.10 ms | +118% | `put_many()` - single transaction |
-| Wrapper Redb (loop) | 27.3 ms | +1,822% | Individual `put()` calls - creates N transactions |
-| ZeroCopy (bulk) | 3.51 ms | +147% | `put_many()` with explicit transaction |
-| ZeroCopy (loop) | 4.34 ms | +206% | Loop with single explicit transaction |
-
-**Key Insights:**
-- **Bulk methods provide 8-9x speedup** over loop-based insertion (27.3ms → 3.10ms)
-- Bulk wrapper API approaches raw performance (118% overhead vs 1,822% for loops)
-- Transaction overhead dominates when creating N transactions vs 1 transaction
-
-#### Read Performance (1000 items)
-
-| Implementation | Time | vs Raw | Notes |
-|----------------|------|--------|-------|
-| Raw Redb (baseline) | 164 µs | 0% | Single transaction |
-| Wrapper Redb (bulk) | 382 µs | +133% | `get_many()` - single transaction |
-| Wrapper Redb (loop) | 895 µs | +446% | Individual `get()` calls - creates N transactions |
-| ZeroCopy (single txn) | 692 µs | +322% | Explicit read transaction |
-
-**Key Insights:**
-- **Bulk `get_many()` provides 2.3x speedup** over individual gets (895µs → 382µs)
-- Transaction reuse is critical for read performance
-- Even bulk methods have overhead due to transaction and deserialization costs
-
-#### Secondary Key Queries (10 queries)
-
-| Implementation | Time | vs Raw | Notes |
-|----------------|------|--------|-------|
-| Raw Redb (baseline) | 291 µs | 0% | 10 transactions, manual index traversal |
-| Wrapper Redb (bulk) | 470 µs | +61% | `get_many_by_secondary_keys()` - single transaction |
-| Wrapper Redb (loop) | 1.02 ms | +248% | 10 separate `get_by_secondary_key()` calls |
-| ZeroCopy (single txn) | 5.41 µs | **-98%** | Single transaction, optimized index access |
-
-**Key Insights:**
-- **ZeroCopy API is 54x faster** than raw redb for secondary queries (291µs → 5.4µs)
-- Bulk secondary query method provides 2.2x speedup over loops
-- Single transaction + efficient index access = dramatic performance gains
-
-### Performance Optimization Guide
-
-#### 1. Use Bulk Methods for Standard API (8-9x faster)
-
-```rust
-// ❌ Slow: Creates 1000 transactions
-for user in users {
-    tree.put(user)?;  // Each call = new transaction
+// ❌ ERROR - No primary key
+#[derive(NetabaseModel, Clone, Encode, Decode)]
+pub struct InvalidModel {
+    pub id: u64,  // Missing #[primary]
+    pub name: String,
 }
 
-// ✅ Fast: Single transaction
-tree.put_many(users)?;  // 8-9x faster!
+// ❌ ERROR - Multiple primary keys
+#[derive(NetabaseModel, Clone, Encode, Decode)]
+pub struct InvalidModel {
+    #[primary]
+    pub id: u64,
+    #[primary]  // Error: only one primary key allowed
+    pub uuid: String,
+}
 ```
 
-**Available Bulk Methods:**
-- `put_many(Vec<M>)` - Bulk insert
-- `get_many(Vec<M::Keys>)` - Bulk read
-- `get_many_by_secondary_keys(Vec<SecondaryKey>)` - Bulk secondary queries
+#### Secondary Keys (Indexes)
 
-#### 2. Use Explicit Transactions for Maximum Control
+Secondary keys create indexes for fast lookups:
 
 ```rust
-// For write-heavy workloads
-// NOTE: write() returns TxnGuard directly, not a Result
-let mut txn = store.write();
-let mut tree = txn.open_tree::<User>();
-
-for user in users {
-    tree.put(user)?;  // All share same transaction
+#[netabase_definition]
+mod library {
+    use super::*;
+    
+    #[derive(NetabaseModel, Clone, Encode, Decode)]
+    pub struct Book {
+        #[primary]
+        pub isbn: String,
+        
+        pub title: String,
+        
+        #[secondary]
+        pub author: String,      // Index: find books by author
+        
+        #[secondary]
+        pub genre: String,       // Index: find books by genre
+        
+        #[secondary]
+        pub year: u32,           // Index: find books by year
+        
+        pub pages: u32,
+        pub available: bool,
+    }
 }
 
-txn.commit()?;  // Single atomic commit
+// Usage:
+let txn = store.begin_read()?;
+
+// Query by secondary key
+let scifi_books = txn.read_by_secondary::<library::Book, _>(&"Science Fiction")?;
+let books_2024 = txn.read_by_secondary::<library::Book, _>(&2024u32)?;
+let asimov_books = txn.read_by_secondary::<library::Book, _>(&"Isaac Asimov")?;
 ```
 
-#### 3. Choose the Right API for Your Use Case
+### Database Operations
 
-| Use Case | Recommended API | Reason |
-|----------|----------------|--------|
-| Simple CRUD, few operations | Standard wrapper | Simplest API, auto-commit |
-| Bulk inserts/reads (100+ items) | Bulk methods | 8-9x faster than loops |
-| Complex transactions | Explicit transactions | Full control, atomic commits |
-| Read-heavy queries | ZeroCopy API | Up to 54x faster for secondary queries |
+#### Create (Insert)
 
-### Running Benchmarks
+```rust
+let txn = store.begin_write()?;
 
-```bash
-# Cross-store comparison (all backends, multiple sizes)
-cargo bench --bench cross_store_comparison --features native
+let user = User {
+    id: 1,
+    username: "alice".to_string(),
+    email: "alice@example.com".to_string(),
+    created_at: 1234567890,
+};
 
-# Generate visualizations
-uv run scripts/generate_benchmark_charts.py
+// Create record
+txn.create(&user)?;
 
-# View results
-open docs/benchmarks/insert_comparison_bars.png
-open docs/benchmarks/overhead_percentages.png
-open docs/benchmarks/bulk_api_speedup.png
+// Attempting to create duplicate primary key will fail
+let duplicate = User { id: 1, /* ... */ };
+txn.create(&duplicate)?;  // Error: key already exists
+
+txn.commit()?;
 ```
 
-### Backend Comparison
+#### Read (Query)
 
-#### Redb
-- **Best for**: Write-heavy workloads, ACID guarantees
-- **Wrapper overhead**: 118-133% for bulk operations
-- **Strengths**: Excellent write performance, full ACID compliance, efficient storage
-- **Use when**: Data integrity is critical, write performance matters
+```rust
+let txn = store.begin_read()?;
 
-#### Sled
-- **Best for**: Read-heavy workloads
-- **Wrapper overhead**: ~20% for read operations
-- **Strengths**: Very low read overhead, battle-tested
-- **Use when**: Read performance is critical, workload is read-heavy
+// Read by primary key - returns Option<T>
+let user: Option<User> = txn.read(&1u64)?;
 
-### Technical Notes
+match user {
+    Some(u) => println!("Found user: {}", u.username),
+    None => println!("User not found"),
+}
 
-#### Type Safety vs Performance
+// Read by secondary key - returns Vec<T>
+let users: Vec<User> = txn.read_by_secondary::<User, _>(&"alice@example.com")?;
 
-The wrapper APIs prioritize type safety and ergonomics. For applications where the overhead is significant:
-1. **Use bulk methods first** - often solves the problem
-2. **Use explicit transactions** - full control with same safety
-3. **Profile your workload** - measure before optimizing
-4. **Consider ZeroCopy API** - for specialized high-performance scenarios
-
-#### Serialization Overhead
-
-The read-path overhead in Redb comes from type system limitations with Generic Associated Types (GATs). We prioritize safety over unsafe transmutes. For applications where this matters:
-- Use bulk methods to amortize overhead
-- Use explicit transactions for better performance
-- Consider Sled backend for read-heavy workloads
-
-See benchmark results and visualizations in `docs/benchmarks/` for detailed performance analysis.
-
-## Testing
-
-```bash
-# Run all tests
-cargo test --all-features
-
-# Run native tests only
-cargo test --features native
-
-# Run WASM tests (requires wasm-pack and Firefox)
-wasm-pack test --headless --firefox --features wasm
+// Read all records of a type
+let all_users: Vec<User> = txn.read_all::<User>()?;
 ```
 
-## Architecture
+#### Update (Modify)
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for a deep dive into the library's design.
+```rust
+let txn = store.begin_write()?;
 
-### High-Level Overview
+// Read existing record
+let mut user: User = txn.read(&1u64)?.expect("User not found");
 
-```
-┌───────────────────────────────────────────────────┐
-│         Your Application Code                     │
-│      (Type-safe models with macros)              │
-└───────────────────────────────────────────────────┘
-                      │
-                      ↓
-┌───────────────────────────────────────────────────┐
-│         NetabaseStore<D, Backend>                 │
-│    (Unified API layer - Recommended)             │
-└───────────────────────────────────────────────────┘
-                      │
-        ┌─────────────┼─────────────┐
-        ↓             ↓             ↓
-┌─────────────┐ ┌─────────────┐ ┌─────────────┐
-│  SledStore  │ │  RedbStore  │ │IndexedDBStore│
-│   <D>       │ │   <D>       │ │    <D>       │
-└─────────────┘ └─────────────┘ └─────────────┘
-        │             │             │
-        ↓             ↓             ↓
-┌─────────────────────────────────────────────────┐
-│         Trait Layer                             │
-│  (NetabaseTreeSync, NetabaseTreeAsync)         │
-│  (OpenTree, Batchable, StoreOps)               │
-└─────────────────────────────────────────────────┘
-        │             │             │
-        ↓             ↓             ↓
-    ┌─────┐      ┌──────┐     ┌─────────┐
-    │ Sled│      │ Redb │     │IndexedDB│
-    └─────┘      └──────┘     └─────────┘
-    Native       Native        WASM
+// Modify fields
+user.username = "alice_updated".to_string();
+user.email = "new_email@example.com".to_string();
+
+// Save changes
+txn.update(&user)?;
+
+txn.commit()?;
 ```
 
-## Roadmap
+#### Delete (Remove)
 
-### For 1.0.0
+```rust
+let txn = store.begin_write()?;
 
-- [x] Transaction support across multiple operations (**COMPLETED**)
-- [ ] Zero-copy reads for redb backend (via `redb-zerocopy` feature) - **Phase 1 Complete**
-- [ ] Allow modules to define more than one definition for flexible organization
-- [ ] Migration utilities for schema changes
-- [ ] Query builder for complex queries
-- [ ] Range queries on ordered keys
-- [ ] Compression support
-- [ ] Encryption at rest
-- [ ] Improved documentation and examples
+// Delete by primary key
+txn.delete::<User>(&1u64)?;
 
-### Future Plans
+// Attempting to delete non-existent key is a no-op (succeeds)
+txn.delete::<User>(&999u64)?;  // OK - does nothing
 
-- [ ] Distributed systems support with automatic sync
-- [ ] CRDT-based conflict resolution
-- [ ] WebRTC backend for peer-to-peer storage
-- [ ] SQL-like query language
-- [ ] GraphQL integration
+txn.commit()?;
+```
+
+#### Batch Operations
+
+```rust
+let txn = store.begin_write()?;
+
+// Batch create
+for i in 1..=100 {
+    let user = User {
+        id: i,
+        username: format!("user{}", i),
+        email: format!("user{}@example.com", i),
+        created_at: i * 1000,
+    };
+    txn.create(&user)?;
+}
+
+// Batch update
+for i in 1..=50 {
+    let mut user: User = txn.read(&i)?.unwrap();
+    user.username = format!("updated_{}", user.username);
+    txn.update(&user)?;
+}
+
+// Batch delete
+for i in 51..=100 {
+    txn.delete::<User>(&i)?;
+}
+
+txn.commit()?;
+```
+
+### Transactions
+
+#### Read Transactions
+
+Read transactions provide a consistent snapshot view:
+
+```rust
+// Start read transaction
+let txn = store.begin_read()?;
+
+// Multiple reads see consistent state
+let user1 = txn.read::<User>(&1)?;
+let user2 = txn.read::<User>(&2)?;
+let all_posts = txn.read_all::<Post>()?;
+
+// Read transactions don't need explicit commit
+// They automatically close when dropped
+```
+
+#### Write Transactions
+
+Write transactions are ACID-compliant:
+
+```rust
+let txn = store.begin_write()?;
+
+// Multiple operations
+txn.create(&user1)?;
+txn.create(&user2)?;
+txn.update(&user3)?;
+txn.delete::<Post>(&123)?;
+
+// Commit to persist all changes atomically
+txn.commit()?;
+
+// If commit() is not called, all changes are rolled back when txn drops
+```
+
+#### Transaction Isolation
+
+```rust
+// Create initial data
+{
+    let txn = store.begin_write()?;
+    txn.create(&User { id: 1, username: "alice".into(), /* ... */ })?;
+    txn.commit()?;
+}
+
+// Start a write transaction but don't commit yet
+let write_txn = store.begin_write()?;
+let mut user = write_txn.read::<User>(&1)?.unwrap();
+user.username = "alice_modified".into();
+write_txn.update(&user)?;
+// Not committed yet
+
+// Read transactions see the old committed state
+{
+    let read_txn = store.begin_read()?;
+    let user = read_txn.read::<User>(&1)?.unwrap();
+    assert_eq!(user.username, "alice");  // Sees old value
+}
+
+// Commit the write
+write_txn.commit()?;
+
+// Now reads see the new state
+{
+    let read_txn = store.begin_read()?;
+    let user = read_txn.read::<User>(&1)?.unwrap();
+    assert_eq!(user.username, "alice_modified");  // Sees new value
+}
+```
+
+#### Transaction Rollback
+
+```rust
+let txn = store.begin_write()?;
+
+txn.create(&user1)?;
+txn.create(&user2)?;
+
+// Oops, error occurred
+if some_error_condition {
+    // Don't call commit() - changes are automatically rolled back
+    drop(txn);  // Explicit drop (optional - happens automatically)
+    return Err("Operation failed".into());
+}
+
+txn.commit()?;  // Only commits if we reach here
+```
+
+### Queries and Pagination
+
+#### Query Configuration
+
+The `QueryConfig` type provides a builder API for complex queries:
+
+```rust
+use netabase_store::query::QueryConfig;
+
+let txn = store.begin_read()?;
+
+// Basic query - fetch all
+let config = QueryConfig::all();
+let results = txn.query::<User>(config)?;
+
+// With limit
+let config = QueryConfig::default().with_limit(10);
+let results = txn.query::<User>(config)?;
+
+// With pagination
+let config = QueryConfig::default()
+    .with_limit(20)
+    .with_offset(40);  // Skip first 40, take next 20
+let results = txn.query::<User>(config)?;
+
+// Count only (no data fetching)
+let config = QueryConfig::default().count_only();
+let count = txn.query::<User>(config)?.count().unwrap();
+
+// Reversed order
+let config = QueryConfig::default().reversed();
+let results = txn.query::<User>(config)?;
+
+// Combined
+let config = QueryConfig::default()
+    .with_limit(50)
+    .with_offset(100)
+    .reversed()
+    .no_blobs();  // Exclude large fields
+let results = txn.query::<User>(config)?;
+```
+
+#### Range Queries
+
+```rust
+// Query by primary key range
+let config = QueryConfig::new(100u64..200u64);
+let users = txn.query::<User>(config)?;
+
+// Open-ended ranges
+let config = QueryConfig::new(100u64..);  // From 100 to end
+let config = QueryConfig::new(..200u64);  // From start to 200
+
+// Inspection helpers
+let config = QueryConfig::inspect_range(0u64..10u64);  // Includes all data
+let config = QueryConfig::dump_all();  // Dump entire database
+let config = QueryConfig::first();  // Get just first record
+```
+
+#### Query Results
+
+```rust
+use netabase_store::query::QueryResult;
+
+let result = txn.query::<User>(config)?;
+
+match result {
+    QueryResult::Single(Some(user)) => {
+        println!("Found one user: {:?}", user);
+    }
+    QueryResult::Single(None) => {
+        println!("No user found");
+    }
+    QueryResult::Multiple(users) => {
+        println!("Found {} users", users.len());
+        for user in users {
+            println!("  - {}", user.username);
+        }
+    }
+    QueryResult::Count(n) => {
+        println!("Total count: {}", n);
+    }
+}
+
+// Convenience methods
+let vec = result.into_vec();  // Convert to Vec<T>
+let len = result.len();       // Get count
+let is_empty = result.is_empty();
+
+// For testing/assertions
+let single = result.unwrap_single();  // Panics if not Single(Some(_))
+let single = result.expect_single("should have value");
+let single_ref = result.as_single();  // Returns Option<&T>
+let multi_ref = result.as_multiple();  // Returns Option<&Vec<T>>
+```
+
+### Model Migration
+
+Netabase Store provides automatic schema migration when your models evolve.
+
+#### Versioning Models
+
+Mark model versions with the `#[netabase_version]` attribute:
+
+```rust
+#[netabase_definition]
+mod users {
+    use super::*;
+
+    // Version 1 - initial schema
+    #[derive(NetabaseModel, Clone, Encode, Decode)]
+    #[netabase_version(family = "User", version = 1)]
+    pub struct UserV1 {
+        #[primary]
+        pub id: u64,
+        pub name: String,
+    }
+
+    // Version 2 - added email field
+    #[derive(NetabaseModel, Clone, Encode, Decode)]
+    #[netabase_version(family = "User", version = 2)]
+    pub struct UserV2 {
+        #[primary]
+        pub id: u64,
+        pub name: String,
+        pub email: String,
+    }
+
+    // Version 3 - current version (added age)
+    #[derive(NetabaseModel, Clone, Encode, Decode)]
+    #[netabase_version(family = "User", version = 3, current)]
+    pub struct User {
+        #[primary]
+        pub id: u64,
+        pub name: String,
+        pub email: String,
+        pub age: u32,
+    }
+}
+
+// Define migration logic
+impl From<users::UserV1> for users::UserV2 {
+    fn from(old: users::UserV1) -> Self {
+        users::UserV2 {
+            id: old.id,
+            name: old.name,
+            email: String::from("unknown@example.com"),  // Default value
+        }
+    }
+}
+
+impl From<users::UserV2> for users::User {
+    fn from(old: users::UserV2) -> Self {
+        users::User {
+            id: old.id,
+            name: old.name,
+            email: old.email,
+            age: 0,  // Default value
+        }
+    }
+}
+```
+
+#### Automatic Migration on Read
+
+When you read old versioned data, it automatically migrates:
+
+```rust
+// Old database has V1 data
+let store = RedbStore::<users::Users>::open("old_database.db")?;
+
+let txn = store.begin_read()?;
+
+// Automatically migrates V1 → V2 → V3
+let user: users::User = txn.read(&1u64)?.expect("User not found");
+// user now has all V3 fields with appropriate defaults
+```
+
+#### Version Attributes
+
+```rust
+// Basic version
+#[netabase_version(family = "Product", version = 1)]
+
+// Mark as current version
+#[netabase_version(family = "Product", version = 2, current)]
+
+// Allow downgrade (for P2P compatibility)
+#[netabase_version(family = "Product", version = 1, supports_downgrade)]
+```
+
+#### Migration Context
+
+Control migration behavior:
+
+```rust
+use netabase_store::traits::migration::{VersionContext, VersionedDecode};
+
+// Automatic migration (default)
+let ctx = VersionContext::new(3).with_auto_migrate(true);
+
+// Strict mode - fail on version mismatch
+let ctx = VersionContext::strict(3);
+
+// Custom decoding with context
+let user = users::User::decode_versioned(&data, &ctx)?;
+```
+
+### Backend-Specific Features
+
+#### Redb Backend
+
+```rust
+use netabase_store::databases::redb::RedbStore;
+
+let store = RedbStore::<MyDef>::open("data.db")?;
+
+// Compact database to reclaim space
+store.compact()?;
+
+// Check database integrity
+store.check_integrity()?;
+
+// Get database statistics
+let stats = store.stats()?;
+println!("Number of tables: {}", stats.tree_count);
+println!("Database size: {} bytes", stats.size_bytes);
+```
+
+#### Sled Backend
+
+```rust
+use netabase_store::databases::sled::SledStore;
+
+let store = SledStore::<MyDef>::open("data_dir")?;
+
+// Flush to disk immediately
+store.flush()?;
+
+// Get size on disk
+let size = store.size_on_disk()?;
+println!("Database uses {} bytes", size);
+
+// Configure cache size
+let config = sled::Config::new()
+    .cache_capacity(1024 * 1024 * 100)  // 100 MB cache
+    .path("data_dir");
+let store = SledStore::<MyDef>::with_config(config)?;
+```
+
+#### IndexedDB Backend (WASM)
+
+```rust
+#[cfg(target_arch = "wasm32")]
+use netabase_store::databases::indexeddb::IndexedDbStore;
+
+// Async API for WASM
+let store = IndexedDbStore::<MyDef>::open("my_db").await?;
+
+let txn = store.begin_write().await?;
+txn.create(&user).await?;
+txn.commit().await?;
+```
+
+## Advanced Topics
+
+### Version Migration
+
+See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) for comprehensive migration documentation.
+
+Key features:
+- Automatic chain migration (V1 → V2 → V3)
+- Version header wire format
+- Database migration utilities
+- P2P schema comparison
+
+### Batch Operations
+
+For high-throughput scenarios:
+
+```rust
+let txn = store.begin_write()?;
+
+// Insert 10,000 records
+for i in 0..10_000 {
+    let record = MyModel {
+        id: i,
+        data: format!("Record {}", i),
+    };
+    txn.create(&record)?;
+}
+
+txn.commit()?;  // Single commit for all operations
+```
+
+### Custom Serialization
+
+Netabase uses bincode for serialization. You can customize it:
+
+```rust
+use bincode::{Encode, Decode, config};
+
+#[derive(Encode, Decode)]
+struct CustomType {
+    data: Vec<u8>,
+}
+
+// Use custom bincode configuration
+let config = config::standard()
+    .with_big_endian()
+    .with_fixed_int_encoding();
+
+let bytes = bincode::encode_to_vec(&value, config)?;
+```
+
+### Performance Tuning
+
+#### Redb Performance
+
+```rust
+// Use read transactions for read-only operations
+let txn = store.begin_read()?;  // Faster, allows concurrent reads
+
+// Batch writes in single transaction
+let txn = store.begin_write()?;
+for item in items {
+    txn.create(&item)?;
+}
+txn.commit()?;  // One commit is faster than many small commits
+```
+
+#### Sled Performance
+
+```rust
+use sled::Config;
+
+let config = Config::new()
+    .path("data")
+    .cache_capacity(1024 * 1024 * 1024)  // 1 GB cache
+    .flush_every_ms(Some(1000))  // Flush every second
+    .mode(sled::Mode::HighThroughput);
+
+let store = SledStore::<MyDef>::with_config(config)?;
+```
 
 ## Examples
 
-See the [`test_netabase_store_usage`](../test_netabase_store_usage) crate for a complete working example.
+### Complete E-Commerce Example
 
-### Core Examples
-- `examples/basic_store.rs` - Basic CRUD operations with Sled
-- `examples/unified_api.rs` - Working with the NetabaseStore unified API
-- `examples/config_api_showcase.rs` - Configuration system and backend switching
+```rust
+use netabase_store::{netabase_definition, NetabaseModel};
+use netabase_store::databases::redb::RedbStore;
+use netabase_store::traits::database::transaction::{
+    NetabaseRwTransaction, NetabaseRoTransaction
+};
+use bincode::{Encode, Decode};
 
+#[netabase_definition]
+mod shop {
+    use super::*;
 
+    #[derive(Debug, Clone, NetabaseModel, Encode, Decode)]
+    pub struct Customer {
+        #[primary]
+        pub id: u64,
+        pub name: String,
+        #[secondary]
+        pub email: String,
+        pub created_at: u64,
+    }
 
-### Single-Backend Examples
-- `examples/batch_operations.rs` - Batch operations (Sled-focused)
-- `examples/transactions.rs` - Transaction API (Sled-focused)
-- `examples/redb_basic.rs` - Redb-specific features
-- `examples/redb_zerocopy.rs` - RedbZeroCopy explicit transaction API
-- `examples/subscription_demo.rs` - Change notification system
-- `examples/subscription_streams.rs` - Advanced streaming examples
+    #[derive(Debug, Clone, NetabaseModel, Encode, Decode)]
+    pub struct Product {
+        #[primary]
+        pub sku: String,
+        pub name: String,
+        pub price: u64,
+        #[secondary]
+        pub category: String,
+        pub stock: u32,
+    }
 
-### Test Examples
-- `tests/backend_crud_tests.rs` - Comprehensive CRUD tests for all backends
-- `tests/wasm_tests.rs` - WASM/IndexedDB usage patterns
-- `tests/comprehensive_store_tests.rs` - Full test suite
+    #[derive(Debug, Clone, NetabaseModel, Encode, Decode)]
+    pub struct Order {
+        #[primary]
+        pub id: u64,
+        #[secondary]
+        pub customer_id: u64,
+        pub product_sku: String,
+        pub quantity: u32,
+        pub total_price: u64,
+        pub timestamp: u64,
+    }
+}
 
-### Running Examples
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let store = RedbStore::<shop::Shop>::open("shop.db")?;
 
-```bash
-# Run multi-backend examples (automatically includes available backends)
-cargo run --example batch_operations_all_backends --features native
-cargo run --example transactions_all_backends --features native
+    // Add customers
+    {
+        let txn = store.begin_write()?;
+        
+        txn.create(&shop::Customer {
+            id: 1,
+            name: "Alice Johnson".into(),
+            email: "alice@example.com".into(),
+            created_at: 1704153600,
+        })?;
+        
+        txn.commit()?;
+    }
 
-# Run with specific backends
-cargo run --example batch_operations_all_backends --features "sled,redb"
-cargo run --example transactions_all_backends --features "sled"
+    // Add products
+    {
+        let txn = store.begin_write()?;
+        
+        txn.create(&shop::Product {
+            sku: "LAPTOP-001".into(),
+            name: "Professional Laptop".into(),
+            price: 129999,
+            category: "Electronics".into(),
+            stock: 50,
+        })?;
+        
+        txn.create(&shop::Product {
+            sku: "MOUSE-001".into(),
+            name: "Wireless Mouse".into(),
+            price: 2999,
+            category: "Accessories".into(),
+            stock: 200,
+        })?;
+        
+        txn.commit()?;
+    }
 
-# Run single-backend examples
-cargo run --example basic_store --features native
-cargo run --example redb_zerocopy --features redb-zerocopy
+    // Place an order
+    {
+        let txn = store.begin_write()?;
+        
+        // Check stock
+        let mut product: shop::Product = txn.read(&"LAPTOP-001".to_string())?
+            .expect("Product not found");
+        
+        if product.stock < 1 {
+            return Err("Out of stock".into());
+        }
+        
+        // Create order
+        txn.create(&shop::Order {
+            id: 1,
+            customer_id: 1,
+            product_sku: "LAPTOP-001".into(),
+            quantity: 1,
+            total_price: product.price,
+            timestamp: 1704240000,
+        })?;
+        
+        // Update stock
+        product.stock -= 1;
+        txn.update(&product)?;
+        
+        txn.commit()?;
+    }
+
+    // Query customer orders
+    {
+        let txn = store.begin_read()?;
+        
+        let customer_orders = txn.read_by_secondary::<shop::Order, _>(&1u64)?;
+        println!("Customer has {} orders", customer_orders.len());
+        
+        for order in customer_orders {
+            let product: shop::Product = txn.read(&order.product_sku)?
+                .expect("Product not found");
+            println!("  - {} x {} = ${}", 
+                order.quantity, 
+                product.name, 
+                order.total_price as f64 / 100.0
+            );
+        }
+    }
+
+    // Find all electronics
+    {
+        let txn = store.begin_read()?;
+        
+        let electronics = txn.read_by_secondary::<shop::Product, _>(&"Electronics")?;
+        println!("\nElectronics catalog:");
+        for product in electronics {
+            println!("  - {}: ${} ({} in stock)",
+                product.name,
+                product.price as f64 / 100.0,
+                product.stock
+            );
+        }
+    }
+
+    Ok(())
+}
 ```
 
-**Note**: Examples work with both Sled and Redb backends. Switch backends by changing the initialization method.
+### Migration Example
 
-## Why Netabase Store?
+See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) and [tests/migration_comprehensive.rs](tests/migration_comprehensive.rs).
 
-I was mostly trying to abstract a persisten backend for [`libp2p::kad::store`](https://docs.rs/libp2p/latest/libp2p/kad/store/trait.RecordStore.html), and got carried away.
+### More Examples
 
-## Contributing
+Check the [examples/](examples/) directory:
+- `basic_store.rs` - Basic CRUD operations
+- `batch_operations.rs` - Batch inserts and updates
+- `secondary_indexes.rs` - Using secondary key queries
+- `redb_basic.rs` - Redb-specific features
+- `wasm_example.rs` - WASM/IndexedDB usage
 
-Contributions are welcome! Feel free to leave a PR.
+## API Reference
+
+### Core Traits
+
+#### `NetabaseModel`
+
+Derive macro for model structs:
+
+```rust
+#[derive(NetabaseModel, Clone, Encode, Decode)]
+pub struct MyModel {
+    #[primary]
+    pub id: u64,
+    pub data: String,
+}
+```
+
+#### `NetabaseRwTransaction`
+
+Write transaction operations:
+
+```rust
+trait NetabaseRwTransaction {
+    fn create<M: NetabaseModel>(&self, model: &M) -> Result<()>;
+    fn read<M: NetabaseModel>(&self, key: &M::Key) -> Result<Option<M>>;
+    fn update<M: NetabaseModel>(&self, model: &M) -> Result<()>;
+    fn delete<M: NetabaseModel>(&self, key: &M::Key) -> Result<()>;
+    fn commit(self) -> Result<()>;
+}
+```
+
+#### `NetabaseRoTransaction`
+
+Read-only transaction operations:
+
+```rust
+trait NetabaseRoTransaction {
+    fn read<M: NetabaseModel>(&self, key: &M::Key) -> Result<Option<M>>;
+    fn read_by_secondary<M, K>(&self, key: &K) -> Result<Vec<M>>;
+    fn read_all<M: NetabaseModel>(&self) -> Result<Vec<M>>;
+    fn query<M: NetabaseModel>(&self, config: QueryConfig) -> Result<QueryResult<M>>;
+}
+```
+
+### QueryConfig API
+
+```rust
+impl QueryConfig {
+    // Constructors
+    fn default() -> Self;
+    fn new<R>(range: R) -> QueryConfig<R>;
+    fn all() -> QueryConfig<RangeFull>;
+    fn first() -> QueryConfig<RangeFull>;
+    fn dump_all() -> QueryConfig<RangeFull>;
+    fn inspect_range<R>(range: R) -> QueryConfig<R>;
+    
+    // Builders
+    fn with_limit(self, limit: usize) -> Self;
+    fn with_offset(self, offset: usize) -> Self;
+    fn with_range<NewR>(self, range: NewR) -> QueryConfig<NewR>;
+    fn reversed(self) -> Self;
+    fn count_only(self) -> Self;
+    fn no_blobs(self) -> Self;
+    fn with_blobs(self, include: bool) -> Self;
+    fn with_hydration(self, depth: usize) -> Self;
+    fn no_hydration(self) -> Self;
+}
+```
+
+### QueryResult API
+
+```rust
+impl<T> QueryResult<T> {
+    fn into_vec(self) -> Vec<T>;
+    fn len(&self) -> usize;
+    fn is_empty(&self) -> bool;
+    fn count(&self) -> Option<u64>;
+    
+    // For testing
+    fn unwrap_single(self) -> T;
+    fn expect_single(self, msg: &str) -> T;
+    fn as_single(&self) -> Option<&T>;
+    fn as_multiple(&self) -> Option<&Vec<T>>;
+}
+```
+
+## Testing
+
+Run all tests:
+
+```bash
+# All tests
+cargo test
+
+# Integration tests only
+cargo test --test '*'
+
+# Doctests only
+cargo test --doc
+
+# Specific test file
+cargo test --test migration_comprehensive
+
+# With output
+cargo test -- --nocapture
+```
 
 ## License
 
-This project is licensed under the GPL-3.0-only License - see the LICENSE file for details.
+Licensed under either of:
 
-## Links
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT License ([LICENSE-MIT](LICENSE-MIT))
 
-- [Documentation](https://docs.rs/netabase_store)
-- [Crates.io](https://crates.io/crates/netabase_store)
-- [Repository](https://github.com/newsnet-africa/netabase_store)
-- [Issue Tracker](https://github.com/newsnet-africa/netabase_store/issues)
+at your option.
 
-## Acknowledgments
+## Contributing
 
-Built with:
-- [Sled](https://github.com/spacejam/sled) - Embedded database
-- [Redb](https://github.com/cberner/redb) - Embedded database
-- [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) - Browser storage
-- [Bincode](https://github.com/bincode-org/bincode) - Binary serialization
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## Documentation
+
+- [Getting Started Guide](GETTING_STARTED.md)
+- [Migration Guide](MIGRATION_GUIDE.md)
+- [Architecture Overview](docs/ARCHITECTURE.md)
+- [API Documentation](https://docs.rs/netabase_store)
+- [Test Coverage Report](TEST_COVERAGE.md)
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
