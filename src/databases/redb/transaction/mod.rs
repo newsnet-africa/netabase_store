@@ -3,7 +3,7 @@ pub mod tables;
 pub mod wrappers;
 pub mod options;
 
-use redb::{ReadableDatabase, TransactionError};
+use redb::TransactionError;
 use strum::IntoDiscriminant;
 
 use crate::{
@@ -499,21 +499,21 @@ where
     type ReadTransaction = NetabaseRedbReadTransaction<'db, D>;
     type WriteTransaction = NetabaseRedbWriteTransaction<'db, D>;
 
-    fn create(&self, definition: &D) -> NetabaseResult<()> {
+    fn create(&self, _definition: &D) -> NetabaseResult<()> {
         todo!("NBTransaction::create - convert D to specific model M, call create_redb")
     }
 
-    fn read(&self, key: &D::DefKeys) -> NetabaseResult<Option<D>> {
+    fn read(&self, _key: &D::DefKeys) -> NetabaseResult<Option<D>> {
         todo!(
             "NBTransaction::read - extract primary key from DefKeys, call read_redb, convert back to D"
         )
     }
 
-    fn update(&self, definition: &D) -> NetabaseResult<()> {
+    fn update(&self, _definition: &D) -> NetabaseResult<()> {
         todo!("NBTransaction::update - convert D to specific model M, call update_redb")
     }
 
-    fn delete(&self, key: &D::DefKeys) -> NetabaseResult<()> {
+    fn delete(&self, _key: &D::DefKeys) -> NetabaseResult<()> {
         todo!("NBTransaction::delete - extract primary key from DefKeys, call delete_redb")
     }
 
