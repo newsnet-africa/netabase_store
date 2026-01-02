@@ -211,10 +211,6 @@ use netabase_store::databases::redb::RedbStore;
 // Redb backend
 let store = RedbStore::<MyDefinition>::open("data.db")?;
 
-// Sled backend
-use netabase_store::databases::sled::SledStore;
-let store = SledStore::<MyDefinition>::open("data_dir")?;
-
 // Temporary database (for testing)
 let store = RedbStore::<MyDefinition>::temporary()?;
 ```
