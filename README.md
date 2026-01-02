@@ -784,25 +784,14 @@ println!("Number of tables: {}", stats.tree_count);
 println!("Database size: {} bytes", stats.size_bytes);
 ```
 
-#### Sled Backend
+## Planned Features
 
-```rust
-use netabase_store::databases::sled::SledStore;
+### Sled Backend
 
-let store = SledStore::<MyDef>::open("data_dir")?;
-
-// Flush to disk immediately
-store.flush()?;
-
-// Get size on disk
-let size = store.size_on_disk()?;
-println!("Database uses {} bytes", size);
-
-// Configure cache size
-let config = sled::Config::new()
-    .cache_capacity(1024 * 1024 * 100)  // 100 MB cache
-    .path("data_dir");
-let store = SledStore::<MyDef>::with_config(config)?;
+Support for a Sled-backed store is planned but not yet implemented in this crate.
+This section is kept to indicate future directions and should not be used as
+working example code until the Sled backend is officially released and
+documented in the API reference.
 ```
 
 #### IndexedDB Backend (WASM, planned)
