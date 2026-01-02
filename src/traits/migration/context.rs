@@ -23,6 +23,28 @@ use bincode::error::DecodeError;
 /// The deserializer reads the version, and if it differs from the expected
 /// version, it deserializes into the appropriate old type and applies the
 /// migration chain.
+///
+/// # Example
+///
+/// ```
+/// use netabase_store::traits::migration::VersionContext;
+///
+/// // Default context: auto-migrates, not strict
+/// let ctx = VersionContext::default();
+/// assert!(ctx.auto_migrate);
+/// assert!(!ctx.strict);
+///
+/// // Strict context: fails on version mismatch
+/// let strict = VersionContext::strict(3);
+/// assert_eq!(strict.expected_version, 3);
+/// assert!(!strict.auto_migrate);
+/// assert!(strict.strict);
+///
+/// // Custom context
+/// let custom = VersionContext::new(2).with_auto_migrate(false);
+/// assert_eq!(custom.expected_version, 2);
+/// assert!(!custom.auto_migrate);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VersionContext {
     /// The expected (current) version for this model family.
@@ -121,6 +143,43 @@ pub trait VersionedEncode: Sized {
 }
 
 /// Header prepended to versioned data.
+///
+/// The version header uses a magic byte sequence "NV" followed by a 4-byte
+/// version number to identify versioned data and enable format detection.
+///
+/// # Wire Format
+///
+/// ```text
+/// +--------+--------+---------+---------+---------+---------+
+/// | Magic1 | Magic2 | Ver[0]  | Ver[1]  | Ver[2]  | Ver[3]  |
+/// | 'N'    | 'V'    | u32 little-endian              |
+/// +--------+--------+---------+---------+---------+---------+
+///   1 byte   1 byte   4 bytes total = 6 bytes header
+/// ```
+///
+/// # Example
+///
+/// ```
+/// use netabase_store::traits::migration::VersionHeader;
+///
+/// // Create and serialize a header
+/// let header = VersionHeader::new(42);
+/// assert_eq!(header.version, 42);
+/// let bytes = header.to_bytes();
+/// assert_eq!(bytes.len(), 6);
+/// assert_eq!(bytes[0], b'N');
+/// assert_eq!(bytes[1], b'V');
+///
+/// // Parse from bytes
+/// let parsed = VersionHeader::from_bytes(&bytes).unwrap();
+/// assert_eq!(parsed.version, 42);
+///
+/// // Check if data is versioned
+/// assert!(VersionHeader::is_versioned(&bytes));
+///
+/// let unversioned = vec![0u8, 1, 2, 3];
+/// assert!(!VersionHeader::is_versioned(&unversioned));
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub struct VersionHeader {

@@ -12,6 +12,51 @@
 /// optimize chained conversions through monomorphization. For example, a chain
 /// `V1 -> V2 -> V3` will be optimized to a direct `V1 -> V3` conversion in
 /// release builds with LTO enabled.
+///
+/// # Example
+///
+/// ```
+/// use netabase_store::traits::migration::MigrateFrom;
+///
+/// struct UserV1 {
+///     id: u64,
+///     name: String,
+/// }
+///
+/// struct UserV2 {
+///     id: u64,
+///     name: String,
+///     email: String,
+/// }
+///
+/// // Manual implementation
+/// impl MigrateFrom<UserV1> for UserV2 {
+///     fn migrate_from(old: UserV1) -> Self {
+///         UserV2 {
+///             id: old.id,
+///             name: old.name,
+///             email: String::from("unknown@example.com"),
+///         }
+///     }
+/// }
+///
+/// // Or use From which auto-implements MigrateFrom
+/// impl From<UserV1> for UserV2 {
+///     fn from(old: UserV1) -> Self {
+///         UserV2 {
+///             id: old.id,
+///             name: old.name,
+///             email: String::from("unknown@example.com"),
+///         }
+///     }
+/// }
+///
+/// let v1 = UserV1 { id: 1, name: "Alice".to_string() };
+/// let v2 = UserV2::migrate_from(v1);
+/// assert_eq!(v2.id, 1);
+/// assert_eq!(v2.name, "Alice");
+/// assert_eq!(v2.email, "unknown@example.com");
+/// ```
 pub trait MigrateFrom<OldVersion>: Sized {
     /// Convert from an older version to this version.
     fn migrate_from(old: OldVersion) -> Self;
@@ -26,6 +71,49 @@ pub trait MigrateFrom<OldVersion>: Sized {
 ///
 /// Downgrading may result in data loss if the new version has fields that
 /// don't exist in the old version. Document any data loss in your implementation.
+///
+/// # Example
+///
+/// ```
+/// use netabase_store::traits::migration::MigrateTo;
+///
+/// #[derive(Clone)]
+/// struct UserV1 {
+///     id: u64,
+///     name: String,
+/// }
+///
+/// #[derive(Clone)]
+/// struct UserV2 {
+///     id: u64,
+///     name: String,
+///     email: String,
+/// }
+///
+/// impl MigrateTo<UserV1> for UserV2 {
+///     fn migrate_to(&self) -> UserV1 {
+///         UserV1 {
+///             id: self.id,
+///             name: self.name.clone(),
+///             // email field is lost during downgrade
+///         }
+///     }
+///
+///     fn would_lose_data(&self) -> bool {
+///         !self.email.is_empty()
+///     }
+/// }
+///
+/// let v2 = UserV2 {
+///     id: 1,
+///     name: "Bob".to_string(),
+///     email: "bob@example.com".to_string(),
+/// };
+///
+/// assert!(v2.would_lose_data());
+/// let v1 = v2.migrate_to();
+/// assert_eq!(v1.name, "Bob");
+/// ```
 pub trait MigrateTo<NewerVersion>: Sized {
     /// Convert this version to an older version.
     ///
