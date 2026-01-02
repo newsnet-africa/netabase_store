@@ -1,6 +1,9 @@
-use syn::{Field, Ident, Path, Type, Result};
-use crate::utils::attributes::{has_attribute, find_attribute, parse_link_attribute, parse_subscribe_attribute};
+use crate::utils::attributes::{
+    VersionAttributeConfig, find_attribute, get_version_info, has_attribute, parse_link_attribute,
+    parse_subscribe_attribute,
+};
 use crate::utils::errors;
+use syn::{Field, Ident, Path, Result, Type};
 
 /// Information about a field's key type
 #[derive(Debug, Clone)]
@@ -26,6 +29,30 @@ pub struct SubscriptionInfo {
     pub topics: Vec<Path>,
 }
 
+/// Version information collected from #[netabase_version] attribute.
+#[derive(Debug, Clone)]
+pub struct ModelVersionInfo {
+    /// The model family name (groups versions together).
+    pub family: String,
+    /// The version number.
+    pub version: u32,
+    /// Whether this is explicitly marked as the current version.
+    pub is_current: Option<bool>,
+    /// Whether this version supports downgrade (implements MigrateTo).
+    pub supports_downgrade: bool,
+}
+
+impl From<VersionAttributeConfig> for ModelVersionInfo {
+    fn from(config: VersionAttributeConfig) -> Self {
+        Self {
+            family: config.family,
+            version: config.version,
+            is_current: config.is_current,
+            supports_downgrade: config.supports_downgrade,
+        }
+    }
+}
+
 /// Visitor that collects information about model fields
 #[derive(Debug, Clone)]
 pub struct ModelFieldVisitor {
@@ -36,6 +63,8 @@ pub struct ModelFieldVisitor {
     pub blob_fields: Vec<FieldInfo>,
     pub regular_fields: Vec<FieldInfo>,
     pub subscriptions: Option<SubscriptionInfo>,
+    /// Version information if this model is versioned.
+    pub version_info: Option<ModelVersionInfo>,
 }
 
 impl ModelFieldVisitor {
@@ -48,14 +77,16 @@ impl ModelFieldVisitor {
             blob_fields: Vec::new(),
             regular_fields: Vec::new(),
             subscriptions: None,
+            version_info: None,
         }
     }
 
     /// Visit a field and collect its information
     pub fn visit_field(&mut self, field: &Field) -> Result<()> {
-        let field_name = field.ident.as_ref().ok_or_else(|| {
-            syn::Error::new_spanned(field, "Tuple structs are not supported")
-        })?;
+        let field_name = field
+            .ident
+            .as_ref()
+            .ok_or_else(|| syn::Error::new_spanned(field, "Tuple structs are not supported"))?;
 
         let has_primary = has_attribute(&field.attrs, "primary_key");
         let has_secondary = has_attribute(&field.attrs, "secondary_key");
@@ -71,7 +102,7 @@ impl ModelFieldVisitor {
         if attr_count > 1 {
             return Err(errors::duplicate_field_attribute(
                 field.ident.as_ref().unwrap().span(),
-                "multiple key attributes on single field"
+                "multiple key attributes on single field",
             ));
         }
 
@@ -154,6 +185,11 @@ impl ModelFieldVisitor {
         if let Some(subscribe_attr) = find_attribute(attrs, "subscribe") {
             let topics = parse_subscribe_attribute(subscribe_attr)?;
             self.subscriptions = Some(SubscriptionInfo { topics });
+        }
+
+        // Parse version attribute if present
+        if let Some(version_config) = get_version_info(attrs)? {
+            self.version_info = Some(ModelVersionInfo::from(version_config));
         }
 
         Ok(())

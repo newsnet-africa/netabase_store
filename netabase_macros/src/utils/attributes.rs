@@ -256,3 +256,125 @@ pub fn parse_global_attribute(attr: &Attribute) -> Result<Path> {
 pub fn remove_attribute(attrs: &mut Vec<Attribute>, name: &str) {
     attrs.retain(|attr| !is_attribute(attr, name));
 }
+
+/// Version information parsed from #[netabase_version(...)] attribute.
+#[derive(Debug, Clone)]
+pub struct VersionAttributeConfig {
+    /// The model family name (groups versions together).
+    pub family: String,
+    /// The version number.
+    pub version: u32,
+    /// Whether this is explicitly marked as the current version.
+    pub is_current: Option<bool>,
+    /// Whether this version supports downgrade (implements MigrateTo).
+    pub supports_downgrade: bool,
+}
+
+/// Parse #[netabase_version(family = "User", version = 2)] attribute.
+///
+/// # Supported forms:
+/// - `#[netabase_version(family = "User", version = 2)]`
+/// - `#[netabase_version(family = "User", version = 2, current)]`
+/// - `#[netabase_version(family = "User", version = 2, supports_downgrade)]`
+pub fn parse_version_attribute(attr: &Attribute) -> Result<VersionAttributeConfig> {
+    use syn::Token;
+    use syn::parse::Parse;
+
+    struct VersionAttr {
+        family: String,
+        version: u32,
+        is_current: Option<bool>,
+        supports_downgrade: bool,
+    }
+
+    impl Parse for VersionAttr {
+        fn parse(input: syn::parse::ParseStream) -> Result<Self> {
+            let mut family = None;
+            let mut version = None;
+            let mut is_current = None;
+            let mut supports_downgrade = false;
+
+            while !input.is_empty() {
+                let ident: syn::Ident = input.parse()?;
+
+                if ident == "family" {
+                    let _eq: Token![=] = input.parse()?;
+                    let lit: syn::LitStr = input.parse()?;
+                    family = Some(lit.value());
+                } else if ident == "version" {
+                    let _eq: Token![=] = input.parse()?;
+                    let lit: syn::LitInt = input.parse()?;
+                    version = Some(lit.base10_parse::<u32>()?);
+                } else if ident == "current" {
+                    is_current = Some(true);
+                } else if ident == "supports_downgrade" {
+                    supports_downgrade = true;
+                } else {
+                    return Err(Error::new(
+                        ident.span(),
+                        format!(
+                            "unexpected attribute key '{}', expected 'family', 'version', 'current', or 'supports_downgrade'",
+                            ident
+                        ),
+                    ));
+                }
+
+                // Consume optional comma
+                if input.peek(Token![,]) {
+                    let _comma: Token![,] = input.parse()?;
+                }
+            }
+
+            let family = family.ok_or_else(|| {
+                Error::new(
+                    input.span(),
+                    "missing 'family' in netabase_version attribute",
+                )
+            })?;
+            let version = version.ok_or_else(|| {
+                Error::new(
+                    input.span(),
+                    "missing 'version' in netabase_version attribute",
+                )
+            })?;
+
+            Ok(VersionAttr {
+                family,
+                version,
+                is_current,
+                supports_downgrade,
+            })
+        }
+    }
+
+    let meta = &attr.meta;
+
+    if let Meta::List(meta_list) = meta {
+        let args: VersionAttr = syn::parse2(meta_list.tokens.clone())?;
+        Ok(VersionAttributeConfig {
+            family: args.family,
+            version: args.version,
+            is_current: args.is_current,
+            supports_downgrade: args.supports_downgrade,
+        })
+    } else {
+        Err(Error::new_spanned(
+            attr,
+            "netabase_version must be in the form #[netabase_version(family = \"Name\", version = N)]",
+        ))
+    }
+}
+
+/// Check if a model has version information.
+pub fn has_version_attribute(attrs: &[Attribute]) -> bool {
+    has_attribute(attrs, "netabase_version")
+}
+
+/// Get version info from attributes if present.
+pub fn get_version_info(attrs: &[Attribute]) -> Result<Option<VersionAttributeConfig>> {
+    if let Some(attr) = find_attribute(attrs, "netabase_version") {
+        Ok(Some(parse_version_attribute(attr)?))
+    } else {
+        Ok(None)
+    }
+}

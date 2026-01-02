@@ -31,6 +31,15 @@ pub enum NetabaseError {
     #[error("Redb Set Durability Error: {0}")]
     RedbSetDurabilityError(#[from] redb::SetDurabilityError),
 
+    #[error("Migration Error: {0}")]
+    MigrationError(String),
+
+    #[error("Schema Version Mismatch: expected {expected}, found {found}")]
+    SchemaVersionMismatch { expected: u32, found: u32 },
+
+    #[error("Schema Conflict: {0}")]
+    SchemaConflict(String),
+
     #[error("Unknown Error")]
     Other,
 }
