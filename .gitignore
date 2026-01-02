@@ -1,6 +1,8 @@
-*/target/*
-target
-*_database
-*_data
-*.db
-Cargo.lock
+/target
+
+
+# Added by cargo
+#
+# already existing elements were commented out
+
+#/target

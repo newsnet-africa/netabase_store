@@ -1,0 +1,183 @@
+name = "Definition"
+subscriptions = [
+    "Topic1",
+    "Topic2",
+    "Topic3",
+    "Topic4",
+]
+
+[[models]]
+name = "User"
+subscriptions = [
+    "Topic1",
+    "Topic2",
+]
+
+[[models.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[models.fields]]
+name = "name"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "age"
+type_name = "u8"
+kind = "Secondary"
+
+[[models.fields]]
+name = "partner"
+type_name = "String"
+kind = "Relational"
+
+[models.fields.details]
+definition = "Definition"
+model = "User"
+
+[[models.fields]]
+name = "category"
+type_name = "String"
+kind = "Relational"
+
+[models.fields.details]
+definition = "DefinitionTwo"
+model = "Category"
+
+[[models.fields]]
+name = "bio"
+type_name = "LargeUserFile"
+kind = "Blob"
+
+[[models.fields]]
+name = "another"
+type_name = "AnotherLargeUserFile"
+kind = "Blob"
+
+[[models]]
+name = "Post"
+subscriptions = [
+    "Topic3",
+    "Topic4",
+]
+
+[[models.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[models.fields]]
+name = "title"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "author_id"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "content"
+type_name = "String"
+kind = "Regular"
+
+[[models.fields]]
+name = "published"
+type_name = "bool"
+kind = "Regular"
+
+[[models]]
+name = "HeavyModel"
+subscriptions = [
+    "Topic1",
+    "Topic2",
+    "Topic3",
+    "Topic4",
+]
+
+[[models.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[models.fields]]
+name = "category_label"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "score"
+type_name = "u64"
+kind = "Secondary"
+
+[[models.fields]]
+name = "creator"
+type_name = "String"
+kind = "Relational"
+
+[models.fields.details]
+definition = "Definition"
+model = "User"
+
+[[models.fields]]
+name = "related_heavy"
+type_name = "String"
+kind = "Relational"
+
+[models.fields.details]
+definition = "Definition"
+model = "HeavyModel"
+
+[[models.fields]]
+name = "attachment"
+type_name = "HeavyAttachment"
+kind = "Blob"
+
+[[models.fields]]
+name = "name"
+type_name = "String"
+kind = "Regular"
+
+[[models.fields]]
+name = "title"
+type_name = "String"
+kind = "Regular"
+
+[[models.fields]]
+name = "matrix"
+type_name = "Vec < u64 >"
+kind = "Regular"
+
+[[structs]]
+name = "LargeUserFile"
+is_tuple = false
+
+[[structs.fields]]
+name = "data"
+type_name = "Vec < u8 >"
+
+[[structs.fields]]
+name = "metadata"
+type_name = "String"
+
+[[structs]]
+name = "AnotherLargeUserFile"
+is_tuple = true
+
+[[structs.fields]]
+name = ""
+type_name = "Vec < u8 >"
+
+[[structs]]
+name = "HeavyAttachment"
+is_tuple = false
+
+[[structs.fields]]
+name = "mime_type"
+type_name = "String"
+
+[[structs.fields]]
+name = "data"
+type_name = "Vec < u8 >"
