@@ -1,3 +1,4 @@
+schema_format_version = 2
 name = "Definition"
 subscriptions = [
     "Topic1",
@@ -12,6 +13,7 @@ subscriptions = [
     "Topic1",
     "Topic2",
 ]
+is_current = false
 
 [[models.fields]]
 name = "id"
@@ -62,6 +64,7 @@ subscriptions = [
     "Topic3",
     "Topic4",
 ]
+is_current = false
 
 [[models.fields]]
 name = "id"
@@ -96,6 +99,7 @@ subscriptions = [
     "Topic3",
     "Topic4",
 ]
+is_current = false
 
 [[models.fields]]
 name = "id"

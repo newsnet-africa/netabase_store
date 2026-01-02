@@ -1,9 +1,11 @@
+schema_format_version = 2
 name = "DefinitionTwo"
 subscriptions = ["General"]
 
 [[models]]
 name = "Category"
 subscriptions = ["General"]
+is_current = false
 
 [[models.fields]]
 name = "id"
