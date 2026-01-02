@@ -1,9 +1,11 @@
-pub mod wrapper_types;
 pub mod key_enums;
-pub mod traits;
+pub mod migration;
 pub mod serialization;
+pub mod traits;
+pub mod wrapper_types;
 
-pub use wrapper_types::WrapperTypeGenerator;
 pub use key_enums::KeyEnumGenerator;
-pub use traits::TraitGenerator;
+pub use migration::MigrationGenerator;
 pub use serialization::SerializationGenerator;
+pub use traits::TraitGenerator;
+pub use wrapper_types::WrapperTypeGenerator;

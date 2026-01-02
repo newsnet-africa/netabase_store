@@ -5,7 +5,9 @@ use std::path::PathBuf;
 use syn::{ItemMod, Result, parse2, visit_mut::VisitMut};
 
 use crate::generators::definition::{DefinitionEnumGenerator, DefinitionTraitGenerator};
-use crate::generators::model::{KeyEnumGenerator, SerializationGenerator, WrapperTypeGenerator};
+use crate::generators::model::{
+    KeyEnumGenerator, MigrationGenerator, SerializationGenerator, WrapperTypeGenerator,
+};
 use crate::generators::structure::StructureGenerator;
 use crate::utils::attributes::{parse_definition_attribute_from_tokens, remove_attribute};
 use crate::utils::naming::path_last_segment;
@@ -75,6 +77,9 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
     );
     visitor.visit_module(&module)?;
 
+    // Group models by family for versioning support
+    visitor.group_model_families();
+
     // 2. Generate Definition-level code
     let enum_generator = DefinitionEnumGenerator::new(&visitor);
     let definition_enum = enum_generator.generate_definition_enum();
@@ -111,6 +116,13 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
         model_generated_code.push(blob_traits);
     }
 
+    // 3.5. Generate Migration-related code if we have versioned models
+    let mut migration_code = TokenStream::new();
+    if visitor.has_versioned_models() {
+        let migration_gen = MigrationGenerator::new(&visitor);
+        migration_code = migration_gen.generate();
+    }
+
     // 4. Mutate the module content (Transform structs)
     let mut mutator = ModelMutator::new(definition_name.clone());
     mutator.visit_item_mod_mut(&mut module);
@@ -142,6 +154,14 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
                 syn::Error::new(e.span(), format!("Failed to parse model items: {}", e))
             })?;
             items.extend(file.items.into_iter().map(syn::Item::from));
+        }
+
+        // Add migration-related items if we have versioned models
+        if !migration_code.is_empty() {
+            let migration_file: syn::File = parse2(migration_code).map_err(|e| {
+                syn::Error::new(e.span(), format!("Failed to parse migration items: {}", e))
+            })?;
+            items.extend(migration_file.items.into_iter().map(syn::Item::from));
         }
     }
 

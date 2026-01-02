@@ -531,6 +531,20 @@ impl<'a> DefinitionTraitGenerator<'a> {
         let model_schemas: Vec<_> = self.visitor.models.iter().map(|model_info| {
             let model_name_str = model_info.name.to_string();
             let visitor = &model_info.visitor;
+            
+            // Version info
+            let (family_expr, version_expr, is_current_expr) = if let Some(ver_info) = model_info.version_info() {
+                let family = &ver_info.family;
+                let version = ver_info.version;
+                let is_current = ver_info.is_current.unwrap_or(false);
+                (
+                    quote! { Some(#family.to_string()) },
+                    quote! { Some(#version) },
+                    quote! { #is_current },
+                )
+            } else {
+                (quote! { None }, quote! { None }, quote! { false })
+            };
 
             let mut field_schemas = Vec::new();
 
@@ -602,6 +616,9 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     subscriptions: vec![
                         #(#model_subs),*
                     ],
+                    family: #family_expr,
+                    version: #version_expr,
+                    is_current: #is_current_expr,
                 }
             }
         }).collect();
@@ -634,9 +651,100 @@ impl<'a> DefinitionTraitGenerator<'a> {
                 }
             }
         }).collect();
+        
+        // Generate model history for versioned models
+        let model_history_schemas: Vec<_> = self.visitor.model_families.values()
+            .filter(|family| family.versions.first().map(|m| m.version_info().is_some()).unwrap_or(false))
+            .map(|family| {
+                let family_str = &family.family;
+                let current_version = family.current_version;
+                
+                let version_schemas: Vec<_> = family.versions.iter().map(|model_info| {
+                    let struct_name = model_info.name.to_string();
+                    let version = model_info.version();
+                    let visitor = &model_info.visitor;
+                    let supports_downgrade = model_info.version_info()
+                        .map(|v| v.supports_downgrade)
+                        .unwrap_or(false);
+                    
+                    // Compute hash for this version
+                    let version_hash = self.compute_model_hash(model_info);
+                    
+                    let mut field_schemas = Vec::new();
+                    
+                    let mut add_field = |info: &crate::visitors::model::field::FieldInfo, key_type_expr: TokenStream| {
+                        let f_name = info.name.to_string();
+                        let ty = &info.ty;
+                        let type_name = quote! { #ty }.to_string();
+                        field_schemas.push(quote! {
+                            netabase_store::traits::registery::definition::schema::FieldSchema {
+                                name: #f_name.to_string(),
+                                type_name: #type_name.to_string(),
+                                key_type: #key_type_expr,
+                            }
+                        });
+                    };
+                    
+                    if let Some(pk) = &visitor.primary_key {
+                        add_field(pk, quote! { netabase_store::traits::registery::definition::schema::KeyTypeSchema::Primary });
+                    }
+                    for sk in &visitor.secondary_keys {
+                        add_field(sk, quote! { netabase_store::traits::registery::definition::schema::KeyTypeSchema::Secondary });
+                    }
+                    for rk in &visitor.relational_keys {
+                        match &rk.key_type {
+                            crate::visitors::model::field::FieldKeyType::Relational { definition, model } => {
+                                let def_s = path_last_segment(definition).unwrap().to_string();
+                                let mod_s = path_last_segment(model).unwrap().to_string();
+                                add_field(rk, quote! {
+                                    netabase_store::traits::registery::definition::schema::KeyTypeSchema::Relational {
+                                        definition: #def_s.to_string(),
+                                        model: #mod_s.to_string(),
+                                    }
+                                });
+                            },
+                            _ => panic!("Expected Relational key type"),
+                        }
+                    }
+                    for bk in &visitor.blob_fields {
+                        add_field(bk, quote! { netabase_store::traits::registery::definition::schema::KeyTypeSchema::Blob });
+                    }
+                    for rk in &visitor.regular_fields {
+                        add_field(rk, quote! { netabase_store::traits::registery::definition::schema::KeyTypeSchema::Regular });
+                    }
+                    
+                    let model_subs: Vec<_> = visitor.subscriptions.as_ref().map(|s| &s.topics).unwrap_or(&Vec::new())
+                        .iter()
+                        .map(|t| {
+                            let s = path_last_segment(t).unwrap().to_string();
+                            quote! { #s.to_string() }
+                        })
+                        .collect();
+                    
+                    quote! {
+                        netabase_store::traits::registery::definition::schema::VersionedModelSchema {
+                            version: #version,
+                            struct_name: #struct_name.to_string(),
+                            fields: vec![#(#field_schemas),*],
+                            subscriptions: vec![#(#model_subs),*],
+                            version_hash: #version_hash,
+                            supports_downgrade: #supports_downgrade,
+                        }
+                    }
+                }).collect();
+                
+                quote! {
+                    netabase_store::traits::registery::definition::schema::ModelVersionHistory {
+                        family: #family_str.to_string(),
+                        current_version: #current_version,
+                        versions: vec![#(#version_schemas),*],
+                    }
+                }
+            }).collect();
 
         quote! {
             netabase_store::traits::registery::definition::schema::DefinitionSchema {
+                schema_format_version: netabase_store::traits::registery::definition::schema::SCHEMA_FORMAT_VERSION,
                 name: #def_name_str.to_string(),
                 models: vec![
                     #(#model_schemas),*
@@ -647,7 +755,40 @@ impl<'a> DefinitionTraitGenerator<'a> {
                 subscriptions: vec![
                     #(#sub_strs),*
                 ],
+                model_history: vec![
+                    #(#model_history_schemas),*
+                ],
+                schema_hash: None, // Will be computed at runtime if needed
             }
         }
+    }
+    
+    /// Compute a hash for a model based on its field structure.
+    fn compute_model_hash(&self, model: &ModelInfo) -> u64 {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        let mut hasher = DefaultHasher::new();
+        model.name.to_string().hash(&mut hasher);
+        model.version().hash(&mut hasher);
+        
+        let visitor = &model.visitor;
+        if let Some(ref pk) = visitor.primary_key {
+            pk.name.to_string().hash(&mut hasher);
+        }
+        for field in &visitor.secondary_keys {
+            field.name.to_string().hash(&mut hasher);
+        }
+        for field in &visitor.relational_keys {
+            field.name.to_string().hash(&mut hasher);
+        }
+        for field in &visitor.blob_fields {
+            field.name.to_string().hash(&mut hasher);
+        }
+        for field in &visitor.regular_fields {
+            field.name.to_string().hash(&mut hasher);
+        }
+        
+        hasher.finish()
     }
 }
