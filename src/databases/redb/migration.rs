@@ -228,7 +228,10 @@ where
 pub fn migrate_record_bytes<Chain: MigrationChainExecutor>(
     data: &[u8],
     source_version: u32,
-) -> Result<Vec<u8>, MigrationError> {
+) -> Result<Vec<u8>, MigrationError>
+where
+    Chain::Current: bincode::Encode,
+{
     // Deserialize, migrate, re-serialize
     let migrated = Chain::migrate_bytes(source_version, data)?;
 
