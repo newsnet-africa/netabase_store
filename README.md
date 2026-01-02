@@ -805,20 +805,13 @@ let config = sled::Config::new()
 let store = SledStore::<MyDef>::with_config(config)?;
 ```
 
-#### IndexedDB Backend (WASM)
+#### IndexedDB Backend (WASM, planned)
 
-```rust
-#[cfg(target_arch = "wasm32")]
-use netabase_store::databases::indexeddb::IndexedDbStore;
-
-// Async API for WASM
-let store = IndexedDbStore::<MyDef>::open("my_db").await?;
-
-let txn = store.begin_write().await?;
-txn.create(&user).await?;
-txn.commit().await?;
-```
-
+> IndexedDB support for WASM is **planned but not yet implemented**.
+> The `IndexedDbStore` type and APIs shown here are not available in current
+> releases and are provided only as an illustration of the intended design.
+> Do not rely on this backend in production; refer to redb or sled backends
+> for currently supported storage options.
 ## Advanced Topics
 
 ### Version Migration
