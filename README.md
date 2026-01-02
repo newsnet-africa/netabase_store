@@ -780,23 +780,6 @@ println!("Number of tables: {}", stats.tree_count);
 println!("Database size: {} bytes", stats.size_bytes);
 ```
 
-## Planned Features
-
-### Sled Backend
-
-Support for a Sled-backed store is planned but not yet implemented in this crate.
-This section is kept to indicate future directions and should not be used as
-working example code until the Sled backend is officially released and
-documented in the API reference.
-```
-
-#### IndexedDB Backend (WASM, planned)
-
-> IndexedDB support for WASM is **planned but not yet implemented**.
-> The `IndexedDbStore` type and APIs shown here are not available in current
-> releases and are provided only as an illustration of the intended design.
-> Do not rely on this backend in production; refer to redb or sled backends
-> for currently supported storage options.
 ## Advanced Topics
 
 ### Version Migration
