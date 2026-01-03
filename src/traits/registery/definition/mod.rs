@@ -24,16 +24,16 @@
 //! ```rust
 //! use serde::{Serialize, Deserialize};
 //!
-//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
-//! struct User {
-//!     #[primary_key]
-//!     id: String,
-//!     name: String,
-//! }
-//!
 //! #[netabase_macros::netabase_definition(Employee)]
 //! mod employee {
 //!     use super::*;
+//!
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: String,
+//!         pub name: String,
+//!     }
 //! }
 //!
 //! // Generated code provides:
@@ -82,16 +82,16 @@
 //! ```rust
 //! use serde::{Serialize, Deserialize};
 //!
-//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
-//! struct User {
-//!     #[primary_key]
-//!     id: String,
-//!     name: String,
-//! }
-//!
 //! #[netabase_macros::netabase_definition(UserDef)]
 //! mod user_definition {
 //!     use super::*;
+//!
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: String,
+//!         pub name: String,
+//!     }
 //! }
 //! ```
 //!

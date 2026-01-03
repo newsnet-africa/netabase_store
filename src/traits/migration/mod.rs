@@ -16,40 +16,45 @@
 //! use netabase_store::prelude::*;
 //! use serde::{Serialize, Deserialize};
 //!
-//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
-//! #[netabase_version(family = "User", version = 1)]
-//! pub struct UserV1 {
-//!     #[primary_key]
-//!     pub id: String,
-//!     pub name: String,
-//! }
+//! #[netabase_macros::netabase_definition(UserDef)]
+//! mod user_def {
+//!     use super::*;
 //!
-//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
-//! #[netabase_version(family = "User", version = 2)]
-//! pub struct UserV2 {
-//!     #[primary_key]
-//!     pub id: String,
-//!     pub first_name: String,
-//!     pub last_name: String,
-//! }
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     #[netabase_version(family = "User", version = 1)]
+//!     pub struct UserV1 {
+//!         #[primary_key]
+//!         pub id: String,
+//!         pub name: String,
+//!     }
 //!
-//! impl MigrateFrom<UserV1> for UserV2 {
-//!     fn migrate_from(old: UserV1) -> Self {
-//!         let parts: Vec<&str> = old.name.split_whitespace().collect();
-//!         UserV2 {
-//!             id: old.id,
-//!             first_name: parts.first().map(|s| s.to_string()).unwrap_or_default(),
-//!             last_name: parts.get(1).map(|s| s.to_string()).unwrap_or_default(),
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     #[netabase_version(family = "User", version = 2)]
+//!     pub struct UserV2 {
+//!         #[primary_key]
+//!         pub id: String,
+//!         pub first_name: String,
+//!         pub last_name: String,
+//!     }
+//!
+//!     impl MigrateFrom<UserV1> for UserV2 {
+//!         fn migrate_from(old: UserV1) -> Self {
+//!             let parts: Vec<&str> = old.name.split_whitespace().collect();
+//!             UserV2 {
+//!                 id: old.id,
+//!                 first_name: parts.first().map(|s| s.to_string()).unwrap_or_default(),
+//!                 last_name: parts.get(1).map(|s| s.to_string()).unwrap_or_default(),
+//!             }
 //!         }
 //!     }
-//! }
 //!
-//! // For P2P downgrade (optional - implement when sending to older nodes)
-//! impl MigrateTo<UserV1> for UserV2 {
-//!     fn migrate_to(&self) -> UserV1 {
-//!         UserV1 {
-//!             id: self.id.clone(),
-//!             name: format!("{} {}", self.first_name, self.last_name),
+//!     // For P2P downgrade (optional - implement when sending to older nodes)
+//!     impl MigrateTo<UserV1> for UserV2 {
+//!         fn migrate_to(&self) -> UserV1 {
+//!             UserV1 {
+//!                 id: self.id.clone(),
+//!                 name: format!("{} {}", self.first_name, self.last_name),
+//!             }
 //!         }
 //!     }
 //! }
