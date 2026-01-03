@@ -1,7 +1,38 @@
+//! Error types for Netabase operations.
+//!
+//! This module defines the error types that can occur during database operations.
+//! All errors use the `thiserror` crate for ergonomic error handling.
+//!
+//! # Examples
+//!
+//! ```
+//! use netabase_store::errors::{NetabaseError, NetabaseResult};
+//!
+//! fn example_operation() -> NetabaseResult<()> {
+//!     // Operations that might fail
+//!     Ok(())
+//! }
+//!
+//! match example_operation() {
+//!     Ok(_) => println!("Success"),
+//!     Err(NetabaseError::SchemaVersionMismatch { expected, found }) => {
+//!         println!("Schema mismatch: expected v{}, found v{}", expected, found);
+//!     }
+//!     Err(e) => println!("Error: {}", e),
+//! }
+//! ```
+
 use thiserror::Error;
 
+/// Result type alias for Netabase operations.
+///
+/// This is a convenience type that uses `NetabaseError` as the error type.
 pub type NetabaseResult<T> = Result<T, NetabaseError>;
 
+/// Error types that can occur during Netabase operations.
+///
+/// This enum wraps various error types from the underlying database (redb)
+/// and adds Netabase-specific errors for migration, schema, and transaction handling.
 #[derive(Error, Debug)]
 pub enum NetabaseError {
     #[error("Redb General Error: {0}")]

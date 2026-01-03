@@ -22,6 +22,9 @@
 //!
 //! # Example
 //!
+//! See [tests/repository_comprehensive.rs](../../../tests/repository_comprehensive.rs)
+//! for complete working examples of repository creation and usage.
+//!
 //! ```rust,ignore
 //! use netabase_store::databases::redb::RedbRepositoryStore;
 //!
@@ -94,6 +97,8 @@ impl<R: RedbRepositoryDefinitions> RedbRepositoryStore<R> {
     /// * `path` - Path to the repository folder
     ///
     /// # Example
+    ///
+    /// See [tests/repository_comprehensive.rs](../../../tests/repository_comprehensive.rs).
     ///
     /// ```rust,ignore
     /// let store = RedbRepositoryStore::<MyRepo>::new("./my_repo")?;

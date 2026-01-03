@@ -126,6 +126,20 @@ where
     /// 
     /// # Returns
     /// A vector of blob items associated with the given key
+    ///
+    /// # Example
+    /// 
+    /// See [BLOB_QUERY_METHODS.md](../../../BLOB_QUERY_METHODS.md) for complete examples.
+    /// 
+    /// ```rust,ignore
+    /// // In a transaction with opened tables
+    /// let blob_key = user.get_blob_keys()[0];  // Get blob key from model
+    /// let items = User::read_blob_items(&blob_key, &tables)?;
+    /// for item in items {
+    ///     // Process blob item
+    ///     println!("Blob chunk: {:?}", item);
+    /// }
+    /// ```
     fn read_blob_items<'a, 'txn>(
         blob_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Blob,
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
@@ -145,6 +159,22 @@ where
     /// 
     /// # Returns
     /// A vector of all blob keys in that table
+    ///
+    /// # Example
+    ///
+    /// See [BLOB_QUERY_METHODS.md](../../../BLOB_QUERY_METHODS.md) for complete examples.
+    ///
+    /// ```rust,ignore
+    /// // List all keys in the first blob table
+    /// let all_keys = User::list_blob_keys(0, &tables)?;
+    /// println!("Found {} blob keys", all_keys.len());
+    /// 
+    /// // Shard the keys across workers
+    /// for (i, key) in all_keys.iter().enumerate() {
+    ///     let worker_id = i % num_workers;
+    ///     send_to_worker(worker_id, key);
+    /// }
+    /// ```
     fn list_blob_keys<'a, 'txn>(
         table_index: usize,
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
@@ -156,6 +186,20 @@ where
     /// Count total blob entries across all blob tables.
     /// 
     /// Useful for storage metrics and load balancing in sharded systems.
+    ///
+    /// # Example
+    ///
+    /// See [BLOB_QUERY_METHODS.md](../../../BLOB_QUERY_METHODS.md) for complete examples.
+    ///
+    /// ```rust,ignore
+    /// let total_blobs = User::count_blob_entries(&tables)?;
+    /// println!("Total blob storage entries: {}", total_blobs);
+    /// 
+    /// // Check if rebalancing is needed
+    /// if total_blobs > THRESHOLD {
+    ///     trigger_rebalancing();
+    /// }
+    /// ```
     fn count_blob_entries<'txn>(
         tables: &ModelOpenTables<'txn, 'db, D, Self>,
     ) -> NetabaseResult<u64>;
@@ -164,6 +208,17 @@ where
     /// 
     /// Returns a vector of (table_name, entry_count) tuples.
     /// Useful for monitoring and debugging blob storage distribution.
+    ///
+    /// # Example
+    ///
+    /// See [BLOB_QUERY_METHODS.md](../../../BLOB_QUERY_METHODS.md) for complete examples.
+    ///
+    /// ```rust,ignore
+    /// let stats = User::blob_table_stats(&tables)?;
+    /// for (table_name, count) in stats {
+    ///     println!("Table '{}': {} entries", table_name, count);
+    /// }
+    /// ```
     fn blob_table_stats<'txn>(
         tables: &ModelOpenTables<'txn, 'db, D, Self>,
     ) -> NetabaseResult<Vec<(String, u64)>>;
