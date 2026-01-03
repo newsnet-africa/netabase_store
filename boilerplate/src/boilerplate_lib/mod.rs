@@ -98,6 +98,7 @@ pub mod definition {
         pub data: Vec<u8>,
     }
 
+    // Version 1 of User model - original version with single 'name' field
     #[derive(
         netabase_macros::NetabaseModel,
         Debug,
@@ -112,13 +113,48 @@ pub mod definition {
         PartialOrd,
         Ord,
     )]
+    #[netabase_version(family = "User", version = 1)]
+    #[subscribe(Topic1, Topic2)]
+    pub struct UserV1 {
+        #[primary_key]
+        pub id: String,
+
+        #[secondary_key]
+        pub name: String,
+
+        #[secondary_key]
+        pub age: u8,
+
+        #[link(DefinitionTwo, Category)]
+        pub category: String,
+    }
+
+    // Version 2 of User model - current version with split name fields and blob support
+    #[derive(
+        netabase_macros::NetabaseModel,
+        Debug,
+        Clone,
+        Encode,
+        Decode,
+        Serialize,
+        Deserialize,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+    )]
+    #[netabase_version(family = "User", version = 2, current)]
     #[subscribe(Topic1, Topic2)]
     pub struct User {
         #[primary_key]
         pub id: String,
 
         #[secondary_key]
-        pub name: String,
+        pub first_name: String,
+
+        #[secondary_key]
+        pub last_name: String,
 
         #[secondary_key]
         pub age: u8,
@@ -136,6 +172,37 @@ pub mod definition {
         pub another: AnotherLargeUserFile,
     }
 
+    // Migration from V1 to V2
+    impl netabase_store::traits::migration::MigrateFrom<UserV1> for User {
+        fn migrate_from(old: UserV1) -> Self {
+            // Split the single name field into first_name and last_name
+            let parts: Vec<&str> = old.name.split_whitespace().collect();
+            User {
+                id: old.id,
+                first_name: parts.first().map(|s| s.to_string()).unwrap_or_default(),
+                last_name: parts.get(1).map(|s| s.to_string()).unwrap_or_default(),
+                age: old.age,
+                partner: String::new(), // New field - default to empty
+                category: old.category,
+                bio: LargeUserFile::default(),
+                another: AnotherLargeUserFile::default(),
+            }
+        }
+    }
+
+    // Optional: Support downgrade for P2P compatibility
+    impl netabase_store::traits::migration::MigrateTo<UserV1> for User {
+        fn migrate_to(&self) -> UserV1 {
+            UserV1 {
+                id: self.id.clone(),
+                name: format!("{} {}", self.first_name, self.last_name),
+                age: self.age,
+                category: self.category.clone(),
+            }
+        }
+    }
+
+    // Version 1 of Post model - without published flag
     #[derive(
         netabase_macros::NetabaseModel,
         Debug,
@@ -150,6 +217,37 @@ pub mod definition {
         PartialOrd,
         Ord,
     )]
+    #[netabase_version(family = "Post", version = 1)]
+    #[subscribe(Topic3, Topic4)]
+    pub struct PostV1 {
+        #[primary_key]
+        pub id: String,
+
+        #[secondary_key]
+        pub title: String,
+
+        #[secondary_key]
+        pub author_id: String,
+
+        pub content: String,
+    }
+
+    // Version 2 of Post model - current version with published flag and tags
+    #[derive(
+        netabase_macros::NetabaseModel,
+        Debug,
+        Clone,
+        Encode,
+        Decode,
+        Serialize,
+        Deserialize,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+    )]
+    #[netabase_version(family = "Post", version = 2, current, supports_downgrade)]
     #[subscribe(Topic3, Topic4)]
     pub struct Post {
         #[primary_key]
@@ -164,6 +262,34 @@ pub mod definition {
         pub content: String,
 
         pub published: bool,
+
+        pub tags: Vec<String>,
+    }
+
+    // Migration from V1 to V2
+    impl netabase_store::traits::migration::MigrateFrom<PostV1> for Post {
+        fn migrate_from(old: PostV1) -> Self {
+            Post {
+                id: old.id,
+                title: old.title,
+                author_id: old.author_id,
+                content: old.content,
+                published: false, // Default to unpublished
+                tags: vec![],     // Default to no tags
+            }
+        }
+    }
+
+    // Support downgrade for P2P compatibility (marked with supports_downgrade)
+    impl netabase_store::traits::migration::MigrateTo<PostV1> for Post {
+        fn migrate_to(&self) -> PostV1 {
+            PostV1 {
+                id: self.id.clone(),
+                title: self.title.clone(),
+                author_id: self.author_id.clone(),
+                content: self.content.clone(),
+            }
+        }
     }
 
     #[derive(

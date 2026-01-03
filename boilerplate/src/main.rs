@@ -41,7 +41,8 @@ fn main() {
 
     let user = User {
         id: user_id.clone(),
-        name: "Alice".to_string(),
+        first_name: "Alice".to_string(),
+        last_name: "Smith".to_string(),
         age: 30,
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),
@@ -60,6 +61,7 @@ fn main() {
         author_id: "user1".to_string(),
         content: "This is a test post".to_string(),
         published: true,
+        tags: vec!["rust".to_string(), "database".to_string()],
         subscriptions: vec![DefinitionSubscriptions::Topic3],
     };
 
@@ -240,7 +242,8 @@ fn main() {
     // 2. Owned - Fully owns the model, no lifetime constraints
     let owned_user = User {
         id: UserID("user2".to_string()),
-        name: "Bob".to_string(),
+        first_name: "Bob".to_string(),
+        last_name: "Jones".to_string(),
         age: 25,
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),
@@ -261,7 +264,12 @@ fn main() {
     println!("  - is_hydrated: {}", owned.is_hydrated());
     println!("  - is_owned: {}", owned.is_owned());
     println!("  - is_borrowed: {}", owned.is_borrowed());
-    println!("  - model name: {:?}", owned.get_model().map(|u| &u.name));
+    println!(
+        "  - model name: {:?}",
+        owned
+            .get_model()
+            .map(|u| format!("{} {}", u.first_name, u.last_name))
+    );
     println!("  - model age: {:?}", owned.get_model().map(|u| u.age));
 
     // 3. Hydrated - Requires 'data lifetime
@@ -277,7 +285,9 @@ fn main() {
     println!("  - is_borrowed: {}", hydrated.is_borrowed());
     println!(
         "  - model name: {:?}",
-        hydrated.get_model().map(|u| &u.name)
+        hydrated
+            .get_model()
+            .map(|u| format!("{} {}", u.first_name, u.last_name))
     );
 
     // 4. Borrowed (simulated - in real usage from AccessGuard)
@@ -293,7 +303,9 @@ fn main() {
     println!("  - is_borrowed: {}", borrowed.is_borrowed());
     println!(
         "  - model name: {:?}",
-        borrowed.as_borrowed().map(|u| &u.name)
+        borrowed
+            .as_borrowed()
+            .map(|u| format!("{} {}", u.first_name, u.last_name))
     );
 
     // 5. Demonstrate conversions
@@ -308,7 +320,12 @@ fn main() {
     // Extract owned model
     let extracted = owned.into_owned();
     println!("  - Extracted owned model:");
-    println!("    - name: {:?}", extracted.as_ref().map(|u| &u.name));
+    println!(
+        "    - name: {:?}",
+        extracted
+            .as_ref()
+            .map(|u| format!("{} {}", u.first_name, u.last_name))
+    );
     println!("    - age: {:?}", extracted.as_ref().map(|u| u.age));
 
     // Demonstrate ordering: Dehydrated < Owned < Hydrated < Borrowed
@@ -321,7 +338,8 @@ fn main() {
     >::new_dehydrated(UserID("test".to_string()));
     let test_owned_user = User {
         id: UserID("test".to_string()),
-        name: "Test".to_string(),
+        first_name: "Test".to_string(),
+        last_name: "User".to_string(),
         age: 30,
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),
@@ -340,7 +358,8 @@ fn main() {
     >::new_owned(UserID("test".to_string()), test_owned_user);
     let test_user = User {
         id: UserID("test".to_string()),
-        name: "Test".to_string(),
+        first_name: "Test".to_string(),
+        last_name: "User".to_string(),
         age: 30,
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),

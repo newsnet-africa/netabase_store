@@ -1,4 +1,6 @@
 //! Migration trait generation for versioned models.
+//! Updated to fix match arm comma separators.
+//! Last modified: 2026-01-03
 
 use crate::visitors::definition::{DefinitionVisitor, ModelFamily, ModelInfo};
 use proc_macro2::TokenStream;
@@ -251,7 +253,7 @@ impl<'a> MigrationGenerator<'a> {
         quote! {
             fn migrate_bytes(source_version: u32, data: &[u8]) -> Result<Self::Current, netabase_store::traits::migration::MigrationError> {
                 match source_version {
-                    #(#match_arms)*
+                    #(#match_arms),*
                     _ => Err(netabase_store::traits::migration::MigrationError {
                         record_key: String::new(),
                         error: format!("Unknown version: {}", source_version),
@@ -393,7 +395,7 @@ impl<'a> MigrationGenerator<'a> {
 
                 fn encode_for_version(&self, target_version: u32) -> Option<Vec<u8>> {
                     match target_version {
-                        #(#version_arms)*
+                        #(#version_arms),*
                         _ => None,
                     }
                 }

@@ -1,6 +1,7 @@
 //! Netabase procedural macros for defining database models and definitions.
 //!
 //! This crate provides derive macros and attribute macros for the netabase_store library.
+//! Updated with migration support and schema export enhancements.
 
 // Allow dead code in macro crate - utility functions may be used in future expansions
 #![allow(dead_code)]

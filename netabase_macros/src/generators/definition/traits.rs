@@ -1090,11 +1090,36 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     }
                 }).collect();
                 
+                // Generate migration paths by analyzing field changes between versions
+                // Only generate if there are multiple versions
+                let migration_paths: Vec<_> = if family.versions.len() > 1 {
+                    family.versions.windows(2).map(|pair| {
+                        let from_model = &pair[0];
+                        let to_model = &pair[1];
+                        let from_version = from_model.version();
+                        let to_version = to_model.version();
+                        
+                        // For now, just generate empty migration paths
+                        // TODO: Add field change detection
+                        quote! {
+                            netabase_store::traits::registery::definition::schema::MigrationPathSchema {
+                                from_version: #from_version,
+                                to_version: #to_version,
+                                may_lose_data: false,
+                                field_changes: vec![],
+                            }
+                        }
+                    }).collect()
+                } else {
+                    vec![]
+                };
+                
                 quote! {
                     netabase_store::traits::registery::definition::schema::ModelVersionHistory {
                         family: #family_str.to_string(),
                         current_version: #current_version,
                         versions: vec![#(#version_schemas),*],
+                        migration_paths: vec![#(#migration_paths),*],
                     }
                 }
             }).collect();
@@ -1116,6 +1141,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     #(#model_history_schemas),*
                 ],
                 schema_hash: None, // Will be computed at runtime if needed
+                config: None, // Default configuration
             }
         }
     }
