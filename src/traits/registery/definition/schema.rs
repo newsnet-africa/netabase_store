@@ -20,6 +20,33 @@ pub struct DefinitionSchema {
     /// Schema hash for quick P2P comparison.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schema_hash: Option<u64>,
+    /// Configuration options for this definition.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config: Option<DefinitionConfig>,
+}
+
+/// Configuration options for a definition.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DefinitionConfig {
+    /// Retention policy for old model versions (in days).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retention_days: Option<u32>,
+    /// Whether to enable compression for blob fields.
+    #[serde(default)]
+    pub compression_enabled: bool,
+    /// Maximum blob size in bytes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_blob_size: Option<u64>,
+    /// Whether to enable automatic migration.
+    #[serde(default = "default_auto_migration")]
+    pub auto_migration: bool,
+    /// Custom metadata fields.
+    #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub metadata: std::collections::HashMap<String, String>,
+}
+
+fn default_auto_migration() -> bool {
+    true
 }
 
 fn default_schema_format_version() -> u32 {
@@ -35,6 +62,9 @@ pub struct ModelVersionHistory {
     pub current_version: u32,
     /// All known versions with their schema snapshots.
     pub versions: Vec<VersionedModelSchema>,
+    /// Detected migration paths between versions.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub migration_paths: Vec<MigrationPathSchema>,
 }
 
 /// A snapshot of a model at a specific version.
@@ -54,6 +84,13 @@ pub struct VersionedModelSchema {
     /// Whether this version implements MigrateTo (can downgrade).
     #[serde(default)]
     pub supports_downgrade: bool,
+    /// Whether this version implements MigrateFrom the previous version.
+    #[serde(default = "default_true")]
+    pub supports_upgrade: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// Migration path information for schema comparison.
