@@ -19,7 +19,7 @@ impl<'a> TraitGenerator<'a> {
     pub fn generate_model_keys_trait(&self, definition_name: &syn::Ident) -> TokenStream {
         let model_name = &self.visitor.model_name;
         let keys_enum = unified_keys_enum_name(model_name);
-        let id_type = primary_key_type_name(model_name);
+        let id_type = primary_key_type_name_for_model(self.visitor);
 
         let secondary_type = secondary_keys_enum_name(model_name);
         let relational_type = relational_keys_enum_name(model_name);
@@ -28,11 +28,11 @@ impl<'a> TraitGenerator<'a> {
 
         quote! {
             impl netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #model_name> for #keys_enum {
-                type Primary<'a> = #id_type;
-                type Secondary<'a> = #secondary_type;
-                type Relational<'a> = #relational_type;
-                type Subscription<'a> = #subscription_type;
-                type Blob<'a> = #blob_type;
+                type Primary = #id_type;
+                type Secondary = #secondary_type;
+                type Relational = #relational_type;
+                type Subscription = #subscription_type;
+                type Blob = #blob_type;
             }
         }
     }
@@ -41,7 +41,7 @@ impl<'a> TraitGenerator<'a> {
     pub fn generate_netabase_model_trait(&self, definition_name: &syn::Ident) -> TokenStream {
         let model_name = &self.visitor.model_name;
         let keys_enum = unified_keys_enum_name(model_name);
-        let id_type = primary_key_type_name(model_name);
+        let id_type = primary_key_type_name_for_model(self.visitor);
 
         // Generate TREE_NAMES
         let tree_names = self.generate_tree_names(definition_name);

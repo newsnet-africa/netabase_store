@@ -44,7 +44,6 @@ impl<'a> KeyEnumGenerator<'a> {
                 // TreeName discriminant enum
                 #[derive(
                     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
-                    bincode::Encode, bincode::Decode,
                     serde::Serialize, serde::Deserialize,
                     strum::AsRefStr
                 )]
@@ -55,7 +54,6 @@ impl<'a> KeyEnumGenerator<'a> {
                 // Main enum
                 #[derive(
                     Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
-                    bincode::Encode, bincode::Decode,
                     serde::Serialize, serde::Deserialize,
                     Hash
                 )]
@@ -101,7 +99,6 @@ impl<'a> KeyEnumGenerator<'a> {
             // TreeName discriminant enum
             #[derive(
                 Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
-                bincode::Encode, bincode::Decode,
                 serde::Serialize, serde::Deserialize,
                 strum::AsRefStr
             )]
@@ -112,7 +109,6 @@ impl<'a> KeyEnumGenerator<'a> {
             // Main enum
             #[derive(
                 Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
-                bincode::Encode, bincode::Decode,
                 serde::Serialize, serde::Deserialize,
                 Hash
             )]
@@ -144,7 +140,6 @@ impl<'a> KeyEnumGenerator<'a> {
                 // TreeName discriminant enum
                 #[derive(
                     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
-                    bincode::Encode, bincode::Decode,
                     serde::Serialize, serde::Deserialize,
                     strum::AsRefStr
                 )]
@@ -155,7 +150,6 @@ impl<'a> KeyEnumGenerator<'a> {
                 // Main enum
                 #[derive(
                     Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
-                    bincode::Encode, bincode::Decode,
                     serde::Serialize, serde::Deserialize,
                     Hash
                 )]
@@ -201,7 +195,6 @@ impl<'a> KeyEnumGenerator<'a> {
             // TreeName discriminant enum
             #[derive(
                 Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
-                bincode::Encode, bincode::Decode,
                 serde::Serialize, serde::Deserialize,
                 strum::AsRefStr
             )]
@@ -212,7 +205,6 @@ impl<'a> KeyEnumGenerator<'a> {
             // Main enum
             #[derive(
                 Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
-                bincode::Encode, bincode::Decode,
                 serde::Serialize, serde::Deserialize,
                 Hash
             )]
@@ -242,7 +234,7 @@ impl<'a> KeyEnumGenerator<'a> {
         let model_name = &self.visitor.model_name;
         let enum_name = blob_keys_enum_name(model_name);
         let tree_name = tree_name_type(&enum_name);
-        let id_type = primary_key_type_name(model_name);
+        let id_type = primary_key_type_name_for_model(self.visitor);
 
         // If no blob fields, generate an enum with a None variant
         if self.visitor.blob_fields.is_empty() {
@@ -250,7 +242,6 @@ impl<'a> KeyEnumGenerator<'a> {
                 // TreeName discriminant enum
                 #[derive(
                     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
-                    bincode::Encode, bincode::Decode,
                     serde::Serialize, serde::Deserialize,
                     strum::AsRefStr
                 )]
@@ -261,7 +252,6 @@ impl<'a> KeyEnumGenerator<'a> {
                 // Main enum
                 #[derive(
                     Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
-                    bincode::Encode, bincode::Decode,
                     serde::Serialize, serde::Deserialize,
                     Hash
                 )]
@@ -306,7 +296,6 @@ impl<'a> KeyEnumGenerator<'a> {
             // TreeName discriminant enum
             #[derive(
                 Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
-                bincode::Encode, bincode::Decode,
                 serde::Serialize, serde::Deserialize,
                 strum::AsRefStr
             )]
@@ -317,7 +306,6 @@ impl<'a> KeyEnumGenerator<'a> {
             // Main enum
             #[derive(
                 Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
-                bincode::Encode, bincode::Decode,
                 serde::Serialize, serde::Deserialize,
                 Hash
             )]
@@ -347,7 +335,6 @@ impl<'a> KeyEnumGenerator<'a> {
             return quote! {
                 #[derive(
                     Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
-                    bincode::Encode, bincode::Decode,
                     serde::Serialize, serde::Deserialize
                 )]
                 pub struct #enum_name;
@@ -369,7 +356,6 @@ impl<'a> KeyEnumGenerator<'a> {
         quote! {
             #[derive(
                 Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
-                bincode::Encode, bincode::Decode,
                 serde::Serialize, serde::Deserialize
             )]
             pub enum #enum_name {
@@ -381,7 +367,7 @@ impl<'a> KeyEnumGenerator<'a> {
     fn generate_unified_keys_enum(&self) -> TokenStream {
         let model_name = &self.visitor.model_name;
         let enum_name = unified_keys_enum_name(model_name);
-        let id_type = primary_key_type_name(model_name);
+        let id_type = primary_key_type_name_for_model(self.visitor);
 
         let mut variants = vec![quote! { Primary(#id_type) }];
 
@@ -404,7 +390,6 @@ impl<'a> KeyEnumGenerator<'a> {
         quote! {
             #[derive(
                 Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
-                bincode::Encode, bincode::Decode,
                 serde::Serialize, serde::Deserialize,
                 Hash
             )]

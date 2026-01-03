@@ -120,7 +120,8 @@ fn test_definition_stores_independent() -> NetabaseResult<()> {
         let txn = stores.definition.begin_write()?;
         let user = User {
             id: UserID("user1".to_string()),
-            name: "Alice".to_string(),
+            first_name: "Alice".to_string(),
+            last_name: "Test".to_string(),
             age: 30,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("cat1".to_string())),
@@ -138,7 +139,7 @@ fn test_definition_stores_independent() -> NetabaseResult<()> {
         let user = txn.read::<User>(&UserID("user1".to_string()))?;
         assert!(user.is_some());
         let user = user.unwrap();
-        assert_eq!(user.name, "Alice");
+        assert_eq!(user.first_name, "Alice");
         // The category link should be dehydrated (just holds the ID)
         assert_eq!(user.category.get_primary_key().0, "cat1");
     }
@@ -163,7 +164,8 @@ fn test_standalone_definition_store() -> NetabaseResult<()> {
         let txn = store.begin_write()?;
         let user = User {
             id: UserID("standalone_user".to_string()),
-            name: "Bob".to_string(),
+            first_name: "Bob".to_string(),
+            last_name: "Test".to_string(),
             age: 25,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("cat1".to_string())),
@@ -180,7 +182,7 @@ fn test_standalone_definition_store() -> NetabaseResult<()> {
         let txn = store.begin_read()?;
         let user = txn.read::<User>(&UserID("standalone_user".to_string()))?;
         assert!(user.is_some());
-        assert_eq!(user.unwrap().name, "Bob");
+        assert_eq!(user.unwrap().first_name, "Bob");
     }
 
     cleanup_test_db(db_path);

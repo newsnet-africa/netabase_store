@@ -1,6 +1,6 @@
+use crate::visitors::global::GlobalVisitor;
 use proc_macro2::TokenStream;
 use quote::quote;
-use crate::visitors::global::GlobalVisitor;
 
 /// Generator for global enum that wraps all definitions
 pub struct GlobalEnumGenerator<'a> {
@@ -16,7 +16,9 @@ impl<'a> GlobalEnumGenerator<'a> {
     pub fn generate_global_enum(&self) -> TokenStream {
         let global_name = &self.visitor.global_name;
 
-        let variants: Vec<_> = self.visitor.definitions
+        let variants: Vec<_> = self
+            .visitor
+            .definitions
             .iter()
             .map(|def| {
                 let def_name = &def.definition_name;
@@ -28,7 +30,6 @@ impl<'a> GlobalEnumGenerator<'a> {
             #[derive(
                 Clone, Debug,
                 strum::EnumDiscriminants,
-                bincode::Encode, bincode::Decode,
                 serde::Serialize, serde::Deserialize,
                 PartialEq, Eq, PartialOrd, Ord, Hash
             )]

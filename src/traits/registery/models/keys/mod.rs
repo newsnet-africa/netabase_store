@@ -15,18 +15,22 @@ pub mod relational;
 pub mod secondary;
 pub mod subscription;
 
+/// Trait that defines all key types for a model.
+///
+/// The key type traits (NetabaseModelPrimaryKey, etc.) are now simplified
+/// without the K parameter and without lifetimes to avoid early/late-bound lifetime issues.
 pub trait NetabaseModelKeys<D: NetabaseDefinition, M: NetabaseModelMarker<D>>:
     std::marker::Sized
 where
     D::Discriminant: 'static + std::fmt::Debug,
-    for<'a> Self::Primary<'a>: redb::Key,
-    for<'a> Self::Secondary<'a>: redb::Key,
-    for<'a> Self::Relational<'a>: redb::Key,
-    for<'a> Self::Subscription<'a>: redb::Key,
+    Self::Primary: redb::Key + 'static,
+    Self::Secondary: redb::Key + 'static,
+    Self::Relational: redb::Key + 'static,
+    Self::Subscription: redb::Key + 'static,
 {
-    type Primary<'a>: NetabaseModelPrimaryKey<'a, D, M, Self>;
-    type Secondary<'a>: NetabaseModelSecondaryKey<'a, D, M, Self>;
-    type Relational<'a>: NetabaseModelRelationalKey<'a, D, M, Self>; // More flexible, specific foreign types defined elsewhere
-    type Subscription<'a>: NetabaseModelSubscriptionKey<D, M, Self> + 'static;
-    type Blob<'a>: NetabaseModelBlobKey<'a, D, M, Self>;
+    type Primary: NetabaseModelPrimaryKey<D, M>;
+    type Secondary: NetabaseModelSecondaryKey<D, M>;
+    type Relational: NetabaseModelRelationalKey<D, M>;
+    type Subscription: NetabaseModelSubscriptionKey<D, M> + 'static;
+    type Blob: NetabaseModelBlobKey<D, M>;
 }

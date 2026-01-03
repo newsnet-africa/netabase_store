@@ -1,13 +1,13 @@
 use crate::traits::registery::{
-    definition::NetabaseDefinition,
-    models::{keys::NetabaseModelKeys, model::NetabaseModelMarker},
+    definition::NetabaseDefinition, models::model::NetabaseModelMarker,
 };
 
-pub trait NetabaseModelSubscriptionKey<
-    D: NetabaseDefinition,
-    M: NetabaseModelMarker<D>,
-    K: NetabaseModelKeys<D, M>,
->: From<D::SubscriptionKeys> + TryInto<D::SubscriptionKeys>
+/// Marker trait for subscription key types.
+///
+/// This is a simple marker trait without the K parameter to avoid
+/// early/late-bound lifetime issues with GATs.
+pub trait NetabaseModelSubscriptionKey<D: NetabaseDefinition, M: NetabaseModelMarker<D>>:
+    From<D::SubscriptionKeys> + TryInto<D::SubscriptionKeys>
 where
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
     <D as strum::IntoDiscriminant>::Discriminant: 'static,

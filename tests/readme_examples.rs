@@ -27,7 +27,8 @@ fn test_readme_quick_start() -> Result<(), Box<dyn std::error::Error>> {
 
         let user = User {
             id: UserID("user1".into()),
-            name: "alice".into(),
+            first_name: "alice".into(),
+            last_name: "Test".into(),
             age: 30,
             partner: RelationalLink::new_dehydrated(UserID("partner1".into())),
             category: RelationalLink::new_dehydrated(CategoryID("cat1".into())),
@@ -44,6 +45,7 @@ fn test_readme_quick_start() -> Result<(), Box<dyn std::error::Error>> {
             author_id: "user1".into(),
             content: "My first post!".into(),
             published: true,
+            tags: vec![],
             subscriptions: vec![],
         };
 
@@ -58,7 +60,7 @@ fn test_readme_quick_start() -> Result<(), Box<dyn std::error::Error>> {
         // Read by primary key
         let user: Option<User> = txn.read(&UserID("user1".into()))?;
         assert!(user.is_some());
-        assert_eq!(user.as_ref().unwrap().name, "alice");
+        assert_eq!(user.as_ref().unwrap().first_name, "alice");
 
         // Read posts
         let post: Option<Post> = txn.read(&PostID("post1".into()))?;
@@ -84,7 +86,8 @@ fn test_readme_crud_operations() -> Result<(), Box<dyn std::error::Error>> {
 
         let user = User {
             id: UserID("user1".into()),
-            name: "Test User".into(),
+            first_name: "Test User".into(),
+            last_name: "Test".into(),
             age: 25,
             partner: RelationalLink::new_dehydrated(UserID("partner1".into())),
             category: RelationalLink::new_dehydrated(CategoryID("cat1".into())),
@@ -103,7 +106,7 @@ fn test_readme_crud_operations() -> Result<(), Box<dyn std::error::Error>> {
 
         let user: Option<User> = txn.read(&UserID("user1".into()))?;
         assert!(user.is_some());
-        assert_eq!(user.unwrap().name, "Test User");
+        assert_eq!(user.unwrap().first_name, "Test User");
     }
 
     // Update
@@ -111,7 +114,7 @@ fn test_readme_crud_operations() -> Result<(), Box<dyn std::error::Error>> {
         let txn = store.begin_write()?;
 
         let mut user: User = txn.read(&UserID("user1".into()))?.expect("User not found");
-        user.name = "Updated User".into();
+        user.first_name = "Updated User".into();
         user.age = 26;
 
         txn.update(&user)?;
@@ -123,7 +126,7 @@ fn test_readme_crud_operations() -> Result<(), Box<dyn std::error::Error>> {
         let txn = store.begin_read()?;
 
         let user: User = txn.read(&UserID("user1".into()))?.unwrap();
-        assert_eq!(user.name, "Updated User");
+        assert_eq!(user.first_name, "Updated User");
         assert_eq!(user.age, 26);
     }
 

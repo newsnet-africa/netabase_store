@@ -10,7 +10,7 @@
 use proc_macro::TokenStream;
 
 // Force rebuild marker - updated 2026-01-03
-const _BUILD_MARKER: &str = "v0.1.3-migration-fix-004";
+const _BUILD_MARKER: &str = "v0.1.5-all-tests-fixed";
 
 mod generators;
 mod macros;
@@ -19,7 +19,14 @@ mod visitors;
 
 #[proc_macro_derive(
     NetabaseModel,
-    attributes(primary_key, secondary_key, relation, blob, subscribe)
+    attributes(
+        primary_key,
+        secondary_key,
+        relation,
+        blob,
+        subscribe,
+        netabase_version
+    )
 )]
 pub fn netabase_model(input: TokenStream) -> TokenStream {
     macros::netabase_model::netabase_model_derive(input.into())

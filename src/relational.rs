@@ -4,7 +4,6 @@ use crate::traits::registery::{
     repository::{InRepository, NetabaseRepository, RepositoryPermissions},
 };
 use serde::{Serialize, Deserialize};
-use bincode::{Encode, Decode, BorrowDecode};
 use strum::IntoDiscriminant;
 
 pub enum PermissionFlag {
@@ -16,25 +15,25 @@ pub struct RelationPermission<'tree_name, D: NetabaseDefinition, M: NetabaseMode
 where
     D::Discriminant: 'static + std::fmt::Debug,
     M: NetabaseModel<D>,
-    for<'b> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'b>: IntoDiscriminant,
-    for<'b> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'b>: IntoDiscriminant,
-    for<'b> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'b>: IntoDiscriminant,
-    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug;
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: IntoDiscriminant,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: IntoDiscriminant,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: IntoDiscriminant,
+    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug;
 
 pub struct ModelRelationPermissions<'source, 'tree_name, D: NetabaseDefinition, M: NetabaseModel<D>>
 where
     D::Discriminant: 'static + std::fmt::Debug,
     M: NetabaseModel<D>,
-    for<'b> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'b>: IntoDiscriminant,
-    for<'b> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'b>: IntoDiscriminant,
-    for<'b> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'b>: IntoDiscriminant,
-    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: IntoDiscriminant,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: IntoDiscriminant,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: IntoDiscriminant,
+    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
 {
     pub relationa_tree_access: & 'source [RelationPermission<'tree_name, D, M>],
 }
@@ -105,28 +104,28 @@ where
     TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD>,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static,
 {
     /// Dehydrated: Contains only the primary key
     Dehydrated {
-        primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
+        primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary,
         _source: SourceD::DebugName,
         _repo: std::marker::PhantomData<R>,
     },
     /// Owned: Fully owns the related model (no lifetime dependency)
     /// Used when the model is constructed independently and needs to be stored with full ownership
     Owned {
-        primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
+        primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary,
         model: Box<M>,
         _source: SourceD::DebugName,
         _repo: std::marker::PhantomData<R>,
     },
     /// Hydrated: Contains a borrowed reference to the model (application-controlled lifetime)
     Hydrated {
-        primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
+        primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary,
         model: &'data M,
         _source: SourceD::DebugName,
         _repo: std::marker::PhantomData<R>,
@@ -134,7 +133,7 @@ where
     /// Borrowed: Contains both the primary key and a borrowed reference from AccessGuard
     /// Lifetime is tied to database transaction -> table -> AccessGuard chain
     Borrowed {
-        primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
+        primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary,
         model: &'data M,
         _source: SourceD::DebugName,
         _repo: std::marker::PhantomData<R>,
@@ -150,11 +149,11 @@ where
     TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD>,
-    <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: PartialEq,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
+    <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary: PartialEq,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static,
 {
     fn eq(&self, other: &Self) -> bool {
         // All variants compare equal if primary keys match
@@ -183,11 +182,11 @@ where
     TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD>,
-    <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: Eq,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
+    <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary: Eq,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static,
 {}
 
 // Hash implementation
@@ -199,11 +198,11 @@ where
     TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD> + std::hash::Hash,
-    <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: std::hash::Hash,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
+    <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary: std::hash::Hash,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static,
 {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
@@ -238,11 +237,11 @@ where
     TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD> + PartialOrd,
-    <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: PartialOrd,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
+    <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary: PartialOrd,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static,
 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {
@@ -277,11 +276,11 @@ where
     TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD> + Ord,
-    <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: Ord,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
+    <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary: Ord,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static,
 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         match (self, other) {
@@ -316,15 +315,15 @@ where
     TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD>,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static,
 {
     /// Create a new dehydrated relational link with just the primary key
     #[inline]
     pub fn new_dehydrated(
-        primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
+        primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary,
     ) -> Self {
         Self::Dehydrated {
             primary_key,
@@ -336,7 +335,7 @@ where
     /// Create a new hydrated relational link with the model and primary key
     #[inline]
     pub fn new_hydrated(
-        primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
+        primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary,
         model: &'data M,
     ) -> Self {
         Self::Hydrated {
@@ -351,7 +350,7 @@ where
     /// This variant owns the model completely and has no lifetime dependencies
     #[inline]
     pub fn new_owned(
-        primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
+        primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary,
         model: M,
     ) -> Self {
         Self::Owned {
@@ -368,7 +367,7 @@ where
     /// Transaction<'txn> -> Table<'txn> -> AccessGuard<'txn> -> Value<'txn>
     #[inline]
     pub fn new_borrowed(
-        primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>,
+        primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary,
         model: &'data M,
     ) -> Self {
         Self::Borrowed {
@@ -381,7 +380,7 @@ where
 
     /// Get the primary key from the relation
     #[inline]
-    pub fn get_primary_key(&self) -> &<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static> {
+    pub fn get_primary_key(&self) -> &<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary {
         match self {
             Self::Dehydrated { primary_key, .. } => primary_key,
             Self::Owned { primary_key, .. } => primary_key,
@@ -530,40 +529,25 @@ where
     TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD> + Serialize,
-    <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: Serialize,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
+    <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary: Serialize,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
+        // For database storage, we only serialize the primary key.
+        // The model data (if present) is not persisted in the link itself.
+        // When deserializing, we always get a Dehydrated variant.
         match self {
-            Self::Dehydrated { primary_key, .. } => {
-                // Serialize as variant 0
-                serializer.serialize_newtype_variant("RelationalLink", 0, "Dehydrated", primary_key)
-            }
-            Self::Owned { primary_key, model, .. } => {
-                // Owned serializes as variant 1 with both key and model data
-                use serde::ser::SerializeTupleVariant;
-                let mut tv = serializer.serialize_tuple_variant("RelationalLink", 1, "Owned", 2)?;
-                tv.serialize_field(primary_key)?;
-                tv.serialize_field(model.as_ref())?;
-                tv.end()
-            }
-            Self::Hydrated { primary_key, model, .. } => {
-                // Hydrated also serializes as variant 1 with both key and model data
-                use serde::ser::SerializeTupleVariant;
-                let mut tv = serializer.serialize_tuple_variant("RelationalLink", 1, "Hydrated", 2)?;
-                tv.serialize_field(primary_key)?;
-                tv.serialize_field(model)?;
-                tv.end()
-            }
-            Self::Borrowed { primary_key, .. } => {
-                // Borrowed converts to Dehydrated on serialization (can't serialize DB references)
-                serializer.serialize_newtype_variant("RelationalLink", 0, "Dehydrated", primary_key)
+            Self::Dehydrated { primary_key, .. }
+            | Self::Owned { primary_key, .. }
+            | Self::Hydrated { primary_key, .. }
+            | Self::Borrowed { primary_key, .. } => {
+                primary_key.serialize(serializer)
             }
         }
     }
@@ -577,11 +561,11 @@ where
     TargetD: NetabaseDefinition + InRepository<R> + 'static,
     TargetD::Discriminant: std::fmt::Debug,
     M: crate::traits::registery::models::model::NetabaseModel<TargetD>,
-    <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: Deserialize<'de>,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
+    <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary: Deserialize<'de>,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -593,135 +577,6 @@ where
             _source: SourceD::debug_name(),
             _repo: std::marker::PhantomData,
         })
-    }
-}
-
-// Bincode Encode
-impl<'data, R, SourceD, TargetD, M> Encode for RelationalLink<'data, R, SourceD, TargetD, M>
-where
-    R: NetabaseRepository,
-    SourceD: NetabaseDefinition + InRepository<R> + 'static,
-    SourceD::Discriminant: std::fmt::Debug,
-    TargetD: NetabaseDefinition + InRepository<R> + 'static,
-    TargetD::Discriminant: std::fmt::Debug,
-    M: crate::traits::registery::models::model::NetabaseModel<TargetD> + Encode,
-    <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: Encode,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-{
-    fn encode<E: bincode::enc::Encoder>(&self, encoder: &mut E) -> Result<(), bincode::error::EncodeError> {
-        match self {
-            Self::Dehydrated { primary_key, .. } => {
-                0u32.encode(encoder)?;
-                primary_key.encode(encoder)?;
-            }
-            Self::Owned { primary_key, model, .. } => {
-                // Owned encodes as variant 1 with both key and model data
-                1u32.encode(encoder)?;
-                primary_key.encode(encoder)?;
-                model.as_ref().encode(encoder)?;
-            }
-            Self::Hydrated { primary_key, model, .. } => {
-                // Hydrated also encodes as variant 1 with both key and model data
-                1u32.encode(encoder)?;
-                primary_key.encode(encoder)?;
-                model.encode(encoder)?;
-            }
-            Self::Borrowed { primary_key, .. } => {
-                // Borrowed encodes as Dehydrated (variant 0) - can't serialize DB references
-                0u32.encode(encoder)?;
-                primary_key.encode(encoder)?;
-            }
-        }
-        Ok(())
-    }
-}
-
-// Bincode Decode
-impl<'data, R, SourceD, TargetD, M, C> Decode<C> for RelationalLink<'data, R, SourceD, TargetD, M>
-where
-    R: NetabaseRepository,
-    SourceD: NetabaseDefinition + InRepository<R> + 'static,
-    SourceD::Discriminant: std::fmt::Debug,
-    TargetD: NetabaseDefinition + InRepository<R> + 'static,
-    TargetD::Discriminant: std::fmt::Debug,
-    M: crate::traits::registery::models::model::NetabaseModel<TargetD> + Decode<C>,
-    <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: Decode<C>,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-{
-    fn decode<D: bincode::de::Decoder<Context = C>>(decoder: &mut D) -> Result<Self, bincode::error::DecodeError> {
-        let variant = u32::decode(decoder)?;
-        match variant {
-            0 => {
-                // Variant 0: Dehydrated (only key)
-                let primary_key = <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static> as Decode<C>>::decode(decoder)?;
-                Ok(Self::Dehydrated {
-                    primary_key,
-                    _source: SourceD::debug_name(),
-                    _repo: std::marker::PhantomData,
-                })
-            }
-            1 => {
-                // Variant 1: Key + Model data - decode into Owned variant
-                let primary_key = <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static> as Decode<C>>::decode(decoder)?;
-                let model = M::decode(decoder)?;
-                Ok(Self::Owned {
-                    primary_key,
-                    model: Box::new(model),
-                    _source: SourceD::debug_name(),
-                    _repo: std::marker::PhantomData,
-                })
-            }
-            _ => Err(bincode::error::DecodeError::Other("Invalid RelationalLink variant")),
-        }
-    }
-}
-
-// Bincode BorrowDecode
-impl<'de, 'data, R, SourceD, TargetD, M, C> BorrowDecode<'de, C> for RelationalLink<'data, R, SourceD, TargetD, M>
-where
-    R: NetabaseRepository,
-    SourceD: NetabaseDefinition + InRepository<R> + 'static,
-    SourceD::Discriminant: std::fmt::Debug,
-    TargetD: NetabaseDefinition + InRepository<R> + 'static,
-    TargetD::Discriminant: std::fmt::Debug,
-    M: crate::traits::registery::models::model::NetabaseModel<TargetD> + BorrowDecode<'de, C>,
-    <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static>: BorrowDecode<'de, C>,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-    for<'a> <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription<'a> as strum::IntoDiscriminant>::Discriminant: 'static,
-{
-    fn borrow_decode<D: bincode::de::BorrowDecoder<'de, Context = C>>(decoder: &mut D) -> Result<Self, bincode::error::DecodeError> {
-        let variant = u32::decode(decoder)?;
-        match variant {
-            0 => {
-                // Variant 0: Dehydrated (only key)
-                let primary_key = <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static> as BorrowDecode<'de, C>>::borrow_decode(decoder)?;
-                Ok(Self::Dehydrated {
-                    primary_key,
-                    _source: SourceD::debug_name(),
-                    _repo: std::marker::PhantomData,
-                })
-            }
-            1 => {
-                // Variant 1: Key + Model data - decode into Owned variant
-                let primary_key = <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary<'static> as BorrowDecode<'de, C>>::borrow_decode(decoder)?;
-                let model = M::borrow_decode(decoder)?;
-                Ok(Self::Owned {
-                    primary_key,
-                    model: Box::new(model),
-                    _source: SourceD::debug_name(),
-                    _repo: std::marker::PhantomData,
-                })
-            }
-            _ => Err(bincode::error::DecodeError::Other("Invalid RelationalLink variant")),
-        }
     }
 }
 

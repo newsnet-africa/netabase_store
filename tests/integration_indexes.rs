@@ -34,7 +34,8 @@ fn test_secondary_key_indexes_created() -> NetabaseResult<()> {
     for (id, name, age) in &users {
         let user = User {
             id: UserID(id.to_string()),
-            name: name.to_string(),
+            first_name: name.to_string(),
+            last_name: "Test".to_string(),
             age: *age,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -55,7 +56,7 @@ fn test_secondary_key_indexes_created() -> NetabaseResult<()> {
         // Verify user1 exists
         let user1 = User::read_default(&UserID("user1".to_string()), &tables)?;
         assert!(user1.is_some());
-        assert_eq!(user1.unwrap().name, "Alice");
+        assert_eq!(user1.unwrap().first_name, "Alice");
 
         // Verify user2 exists
         let user2 = User::read_default(&UserID("user2".to_string()), &tables)?;
@@ -65,7 +66,7 @@ fn test_secondary_key_indexes_created() -> NetabaseResult<()> {
         // Verify user3 exists
         let user3 = User::read_default(&UserID("user3".to_string()), &tables)?;
         assert!(user3.is_some());
-        assert_eq!(user3.unwrap().name, "Bob");
+        assert_eq!(user3.unwrap().first_name, "Bob");
     }
     txn.commit()?;
 
@@ -87,7 +88,8 @@ fn test_secondary_index_update() -> NetabaseResult<()> {
     // Create user with name "Alice"
     let user = User {
         id: user_id.clone(),
-        name: "Alice".to_string(),
+        first_name: "Alice".to_string(),
+        last_name: "Test".to_string(),
         age: 30,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -103,7 +105,8 @@ fn test_secondary_index_update() -> NetabaseResult<()> {
     // Update to name "Bob"
     let updated_user = User {
         id: user_id.clone(),
-        name: "Bob".to_string(),
+        first_name: "Bob".to_string(),
+        last_name: "Test".to_string(),
         age: 30,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -134,7 +137,7 @@ fn test_secondary_index_update() -> NetabaseResult<()> {
 
         let user = User::read_default(&user_id, &tables)?;
         assert!(user.is_some());
-        assert_eq!(user.unwrap().name, "Bob", "Name should be updated");
+        assert_eq!(user.unwrap().first_name, "Bob", "Name should be updated");
     }
     txn.commit()?;
 
@@ -156,7 +159,8 @@ fn test_relational_key_indexes_created() -> NetabaseResult<()> {
 
     let user1 = User {
         id: user1_id.clone(),
-        name: "User1".to_string(),
+        first_name: "User1".to_string(),
+        last_name: "Test".to_string(),
         age: 30,
         partner: RelationalLink::new_dehydrated(user2_id.clone()),
         category: RelationalLink::new_dehydrated(CategoryID("cat1".to_string())),
@@ -167,7 +171,8 @@ fn test_relational_key_indexes_created() -> NetabaseResult<()> {
 
     let user2 = User {
         id: user2_id.clone(),
-        name: "User2".to_string(),
+        first_name: "User2".to_string(),
+        last_name: "Test".to_string(),
         age: 28,
         partner: RelationalLink::new_dehydrated(user1_id.clone()),
         category: RelationalLink::new_dehydrated(CategoryID("cat1".to_string())),
@@ -216,7 +221,8 @@ fn test_post_author_relationship() -> NetabaseResult<()> {
     let author_id = UserID("author1".to_string());
     let author = User {
         id: author_id.clone(),
-        name: "Author".to_string(),
+        first_name: "Author".to_string(),
+        last_name: "Test".to_string(),
         age: 35,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -240,6 +246,7 @@ fn test_post_author_relationship() -> NetabaseResult<()> {
             author_id: "Some".to_string(),
             content: "".to_string(),
             published: false,
+            tags: vec![],
             subscriptions: vec![],
         };
         txn.create(&post)?;
@@ -280,7 +287,8 @@ fn test_relational_key_update() -> NetabaseResult<()> {
     // Create with old partner
     let user = User {
         id: user_id.clone(),
-        name: "User".to_string(),
+        first_name: "User".to_string(),
+        last_name: "Test".to_string(),
         age: 30,
         partner: RelationalLink::new_dehydrated(old_partner_id.clone()),
         category: RelationalLink::new_dehydrated(CategoryID("cat1".to_string())),
@@ -307,7 +315,8 @@ fn test_relational_key_update() -> NetabaseResult<()> {
     // Update to new partner
     let updated_user = User {
         id: user_id.clone(),
-        name: "User".to_string(),
+        first_name: "User".to_string(),
+        last_name: "Test".to_string(),
         age: 30,
         partner: RelationalLink::new_dehydrated(new_partner_id.clone()),
         category: RelationalLink::new_dehydrated(CategoryID("cat2".to_string())),
@@ -367,7 +376,8 @@ fn test_subscription_indexes_created() -> NetabaseResult<()> {
     // Create users with different subscriptions
     let user1 = User {
         id: UserID("sub_user1".to_string()),
-        name: "User1".to_string(),
+        first_name: "User1".to_string(),
+        last_name: "Test".to_string(),
         age: 30,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -381,7 +391,8 @@ fn test_subscription_indexes_created() -> NetabaseResult<()> {
 
     let user2 = User {
         id: UserID("sub_user2".to_string()),
-        name: "User2".to_string(),
+        first_name: "User2".to_string(),
+        last_name: "Test".to_string(),
         age: 25,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -428,7 +439,8 @@ fn test_subscription_update() -> NetabaseResult<()> {
     // Create with Topic1 subscription
     let user = User {
         id: user_id.clone(),
-        name: "User".to_string(),
+        first_name: "User".to_string(),
+        last_name: "Test".to_string(),
         age: 30,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -444,7 +456,8 @@ fn test_subscription_update() -> NetabaseResult<()> {
     // Update to Topic2 subscription
     let updated_user = User {
         id: user_id.clone(),
-        name: "User".to_string(),
+        first_name: "User".to_string(),
+        last_name: "Test".to_string(),
         age: 30,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -501,7 +514,8 @@ fn test_delete_cleans_all_indexes() -> NetabaseResult<()> {
     // Create user with all index types
     let user = User {
         id: user_id.clone(),
-        name: "Delete Me".to_string(),
+        first_name: "Delete Me".to_string(),
+        last_name: "Test".to_string(),
         age: 40,
         partner: RelationalLink::new_dehydrated(UserID("partner".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("cat".to_string())),

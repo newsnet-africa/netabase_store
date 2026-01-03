@@ -7,7 +7,7 @@ use netabase_store_examples::boilerplate_lib::Definition;
 fn test_schema_export_includes_migration_data() {
     // Export schema to TOML
     let schema = Definition::schema();
-    let toml_str = schema.to_toml().expect("Failed to export schema");
+    let toml_str = schema.to_toml();
 
     println!("Exported TOML schema:");
     println!("{}", toml_str);

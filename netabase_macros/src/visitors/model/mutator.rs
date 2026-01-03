@@ -8,6 +8,7 @@ use syn::{Field, Ident, ItemStruct, parse_quote, visit_mut::VisitMut};
 pub struct ModelMutator {
     pub definition_name: Ident,
     pub current_model_name: Option<Ident>,
+    pub current_model_family: Option<String>,
 }
 
 impl ModelMutator {
@@ -15,6 +16,7 @@ impl ModelMutator {
         Self {
             definition_name,
             current_model_name: None,
+            current_model_family: None,
         }
     }
 }
@@ -37,6 +39,16 @@ impl VisitMut for ModelMutator {
 
         self.current_model_name = Some(item_struct.ident.clone());
         let _model_name = item_struct.ident.clone();
+
+        // Extract family name from netabase_version attribute if present
+        self.current_model_family = None;
+        if let Some(version_attr) = find_attribute(&item_struct.attrs, "netabase_version") {
+            if let Ok(version_config) =
+                crate::utils::attributes::parse_version_attribute(version_attr)
+            {
+                self.current_model_family = Some(version_config.family);
+            }
+        }
 
         // Check for subscriptions before removing attributes
         let mut subscriptions_field = None;
@@ -117,6 +129,7 @@ impl VisitMut for ModelMutator {
         }
 
         self.current_model_name = None;
+        self.current_model_family = None;
     }
 
     fn visit_field_mut(&mut self, field: &mut Field) {
@@ -131,9 +144,15 @@ impl VisitMut for ModelMutator {
         let has_blob = has_attribute(&field.attrs, "blob");
 
         if has_primary {
-            // Change type to ModelID
-            let id_type = primary_key_type_name(model_name);
+            // Change type to ModelID (use family name for versioned models)
+            let id_type = if let Some(ref family) = self.current_model_family {
+                let family_ident = Ident::new(family, model_name.span());
+                primary_key_type_name(&family_ident)
+            } else {
+                primary_key_type_name(model_name)
+            };
             field.ty = parse_quote! { #id_type };
+            remove_attribute(&mut field.attrs, "primary_key");
             remove_attribute(&mut field.attrs, "primary_key");
         } else if has_secondary {
             // Wait, for secondary keys, the struct field usually KEEPS the original type (e.g. String)

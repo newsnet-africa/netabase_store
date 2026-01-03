@@ -80,7 +80,8 @@ fn generate_random_user(rng: &mut impl Rng) -> User {
 
     User {
         id: user_id,
-        name,
+        first_name: name,
+        last_name: "Test".to_string(),
         age,
         partner,
         category,

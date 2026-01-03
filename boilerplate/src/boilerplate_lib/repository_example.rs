@@ -15,7 +15,6 @@
 //! └── Reports (Report)
 //! ```
 
-use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 // ============================================================================
@@ -31,8 +30,6 @@ pub mod employee {
         netabase_macros::NetabaseModel,
         Debug,
         Clone,
-        Encode,
-        Decode,
         Serialize,
         Deserialize,
         PartialEq,
@@ -59,8 +56,6 @@ pub mod employee {
         netabase_macros::NetabaseModel,
         Debug,
         Clone,
-        Encode,
-        Decode,
         Serialize,
         Deserialize,
         PartialEq,
@@ -98,8 +93,6 @@ pub mod inventory {
         netabase_macros::NetabaseModel,
         Debug,
         Clone,
-        Encode,
-        Decode,
         Serialize,
         Deserialize,
         PartialEq,
@@ -142,8 +135,6 @@ pub mod reports {
         netabase_macros::NetabaseModel,
         Debug,
         Clone,
-        Encode,
-        Decode,
         Serialize,
         Deserialize,
         PartialEq,

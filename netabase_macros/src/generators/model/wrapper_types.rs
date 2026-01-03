@@ -7,19 +7,34 @@ use syn::{Ident, Type};
 /// Generator for wrapper types (ID type and field wrapper types)
 pub struct WrapperTypeGenerator<'a> {
     visitor: &'a ModelFieldVisitor,
+    /// Flag to control whether to generate ID type for this model
+    generate_id: bool,
 }
 
 impl<'a> WrapperTypeGenerator<'a> {
     pub fn new(visitor: &'a ModelFieldVisitor) -> Self {
-        Self { visitor }
+        Self {
+            visitor,
+            generate_id: true,
+        }
+    }
+
+    /// Create a new generator with explicit control over ID generation
+    pub fn with_id_generation(visitor: &'a ModelFieldVisitor, generate_id: bool) -> Self {
+        Self {
+            visitor,
+            generate_id,
+        }
     }
 
     /// Generate all wrapper types for the model
     pub fn generate(&self) -> TokenStream {
         let mut output = TokenStream::new();
 
-        // Generate primary key type
-        output.extend(self.generate_primary_key_type());
+        // Generate primary key type if flagged to do so
+        if self.generate_id {
+            output.extend(self.generate_primary_key_type());
+        }
 
         // Generate secondary key wrapper types
         for field in &self.visitor.secondary_keys {
@@ -37,8 +52,8 @@ impl<'a> WrapperTypeGenerator<'a> {
     }
 
     fn generate_primary_key_type(&self) -> TokenStream {
-        let model_name = &self.visitor.model_name;
-        let id_type_name = primary_key_type_name(model_name);
+        // Use family name for ID type if this is a versioned model
+        let id_type_name = primary_key_type_name_for_model(self.visitor);
 
         let pk_field = self.visitor.primary_key.as_ref().unwrap();
         let inner_type = &pk_field.ty;
@@ -46,7 +61,6 @@ impl<'a> WrapperTypeGenerator<'a> {
         quote! {
             #[derive(
                 Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
-                bincode::Encode, bincode::Decode,
                 serde::Serialize, serde::Deserialize,
                 Hash, derive_more::Display
             )]
@@ -61,7 +75,6 @@ impl<'a> WrapperTypeGenerator<'a> {
         quote! {
             #[derive(
                 Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
-                bincode::Encode, bincode::Decode,
                 serde::Serialize, serde::Deserialize,
                 Hash, derive_more::Display
             )]
@@ -85,7 +98,6 @@ impl<'a> WrapperTypeGenerator<'a> {
         quote! {
             #[derive(
                 Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
-                bincode::Encode, bincode::Decode,
                 serde::Serialize, serde::Deserialize,
                 Hash, derive_more::Display
             )]

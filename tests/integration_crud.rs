@@ -24,7 +24,8 @@ fn test_create_and_verify() -> NetabaseResult<()> {
     let user_id = UserID("test_user_1".to_string());
     let user = User {
         id: user_id.clone(),
-        name: "Alice".to_string(),
+        first_name: "Alice".to_string(),
+        last_name: "Test".to_string(),
         age: 30,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -53,7 +54,7 @@ fn test_create_and_verify() -> NetabaseResult<()> {
 
         // Verify all fields match
         assert_eq!(read_user.id.0, "test_user_1", "User ID should match");
-        assert_eq!(read_user.name, "Alice", "User name should match");
+        assert_eq!(read_user.first_name, "Alice", "User name should match");
         assert_eq!(read_user.age, 30, "User age should match");
         assert_eq!(
             read_user.subscriptions.len(),
@@ -80,7 +81,8 @@ fn test_create_duplicate_should_overwrite() -> NetabaseResult<()> {
     // Create first version
     let user_v1 = User {
         id: user_id.clone(),
-        name: "Version 1".to_string(),
+        first_name: "Version 1".to_string(),
+        last_name: "Test".to_string(),
         age: 25,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -96,7 +98,8 @@ fn test_create_duplicate_should_overwrite() -> NetabaseResult<()> {
     // Create second version with same ID
     let user_v2 = User {
         id: user_id.clone(),
-        name: "Version 2".to_string(),
+        first_name: "Version 2".to_string(),
+        last_name: "Test".to_string(),
         age: 30,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -119,7 +122,10 @@ fn test_create_duplicate_should_overwrite() -> NetabaseResult<()> {
         assert!(read_user.is_some());
 
         let read_user = read_user.unwrap();
-        assert_eq!(read_user.name, "Version 2", "Should have latest version");
+        assert_eq!(
+            read_user.first_name, "Version 2",
+            "Should have latest version"
+        );
         assert_eq!(read_user.age, 30, "Should have latest age");
     }
     txn.commit()?;
@@ -157,7 +163,8 @@ fn test_update_and_verify() -> NetabaseResult<()> {
     // Create initial user
     let user = User {
         id: user_id.clone(),
-        name: "Original".to_string(),
+        first_name: "Original".to_string(),
+        last_name: "Test".to_string(),
         age: 25,
         partner: RelationalLink::new_dehydrated(UserID("partner_old".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("cat_old".to_string())),
@@ -178,14 +185,15 @@ fn test_update_and_verify() -> NetabaseResult<()> {
 
         let read = User::read_default(&user_id, &tables)?;
         assert!(read.is_some());
-        assert_eq!(read.unwrap().name, "Original");
+        assert_eq!(read.unwrap().first_name, "Original");
     }
     txn.commit()?;
 
     // Update user
     let updated_user = User {
         id: user_id.clone(),
-        name: "Updated".to_string(),
+        first_name: "Updated".to_string(),
+        last_name: "Test".to_string(),
         age: 26,
         partner: RelationalLink::new_dehydrated(UserID("partner_new".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("cat_new".to_string())),
@@ -218,7 +226,7 @@ fn test_update_and_verify() -> NetabaseResult<()> {
         assert!(read.is_some(), "User should still exist after update");
 
         let read = read.unwrap();
-        assert_eq!(read.name, "Updated", "Name should be updated");
+        assert_eq!(read.first_name, "Updated", "Name should be updated");
         assert_eq!(read.age, 26, "Age should be updated");
         assert_eq!(read.subscriptions.len(), 1);
         assert!(matches!(
@@ -240,7 +248,8 @@ fn test_update_nonexistent_should_fail() -> NetabaseResult<()> {
     let user_id = UserID("does_not_exist".to_string());
     let user = User {
         id: user_id.clone(),
-        name: "Test".to_string(),
+        first_name: "Test".to_string(),
+        last_name: "Test".to_string(),
         age: 30,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -280,7 +289,8 @@ fn test_delete_and_verify() -> NetabaseResult<()> {
     // Create user
     let user = User {
         id: user_id.clone(),
-        name: "To Delete".to_string(),
+        first_name: "To Delete".to_string(),
+        last_name: "Test".to_string(),
         age: 40,
         partner: RelationalLink::new_dehydrated(UserID("partner".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("cat".to_string())),
@@ -380,7 +390,8 @@ fn test_multiple_creates_and_verify_all() -> NetabaseResult<()> {
     for (id, name, age) in &users {
         let user = User {
             id: UserID(id.to_string()),
-            name: name.to_string(),
+            first_name: name.to_string(),
+            last_name: "Test".to_string(),
             age: *age,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -403,7 +414,11 @@ fn test_multiple_creates_and_verify_all() -> NetabaseResult<()> {
 
             assert!(read.is_some(), "User {} should exist", id);
             let read = read.unwrap();
-            assert_eq!(read.name, *expected_name, "User {} name should match", id);
+            assert_eq!(
+                read.first_name, *expected_name,
+                "User {} name should match",
+                id
+            );
             assert_eq!(read.age, *expected_age, "User {} age should match", id);
         }
     }
@@ -420,7 +435,8 @@ fn test_transaction_rollback_on_drop() -> NetabaseResult<()> {
     let user_id = UserID("rollback_user".to_string());
     let user = User {
         id: user_id.clone(),
-        name: "Should Not Persist".to_string(),
+        first_name: "Should Not Persist".to_string(),
+        last_name: "Test".to_string(),
         age: 30,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),

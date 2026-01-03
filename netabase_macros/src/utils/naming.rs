@@ -8,6 +8,19 @@ pub fn primary_key_type_name(model_name: &Ident) -> Ident {
     quote::format_ident!("{}ID", model_name)
 }
 
+/// Generate the primary key type name for a model, using family name for versioned models
+/// This ensures all versions in a family share the same ID type
+pub fn primary_key_type_name_for_model(
+    visitor: &crate::visitors::model::field::ModelFieldVisitor,
+) -> Ident {
+    if let Some(version_info) = &visitor.version_info {
+        let family_ident = Ident::new(&version_info.family, visitor.model_name.span());
+        primary_key_type_name(&family_ident)
+    } else {
+        primary_key_type_name(&visitor.model_name)
+    }
+}
+
 /// Generate wrapper type name for a field (e.g., User.name -> UserName)
 pub fn field_wrapper_name(model_name: &Ident, field_name: &Ident) -> Ident {
     let field_pascal = to_pascal_case(&field_name.to_string());

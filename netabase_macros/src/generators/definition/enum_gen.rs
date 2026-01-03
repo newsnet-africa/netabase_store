@@ -37,7 +37,6 @@ impl<'a> DefinitionEnumGenerator<'a> {
             // Main definition enum
             #[derive(
                 Clone, Debug,
-                bincode::Encode, bincode::Decode,
                 serde::Serialize, serde::Deserialize,
                 PartialEq, Eq, PartialOrd, Ord, Hash,
                 derive_more::From, derive_more::TryInto,
@@ -46,7 +45,6 @@ impl<'a> DefinitionEnumGenerator<'a> {
             #[strum_discriminants(name(#tree_name))]
             #[strum_discriminants(derive(
                 strum::AsRefStr,
-                bincode::Encode, bincode::Decode,
                 serde::Serialize, serde::Deserialize
             ))]
             pub enum #definition_name {
@@ -79,7 +77,6 @@ impl<'a> DefinitionEnumGenerator<'a> {
         quote! {
             #[derive(
                 Clone, Debug,
-                bincode::Encode, bincode::Decode,
                 serde::Serialize, serde::Deserialize,
                 PartialEq, Eq, PartialOrd, Ord, Hash
             )]
@@ -106,7 +103,6 @@ impl<'a> DefinitionEnumGenerator<'a> {
             return quote! {
                 #[derive(
                     Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
-                    bincode::Encode, bincode::Decode,
                     serde::Serialize, serde::Deserialize,
                     Hash,
                     strum::EnumDiscriminants
@@ -130,7 +126,6 @@ impl<'a> DefinitionEnumGenerator<'a> {
         quote! {
             #[derive(
                 Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
-                bincode::Encode, bincode::Decode,
                 serde::Serialize, serde::Deserialize,
                 Hash,
                 strum::EnumDiscriminants
@@ -150,9 +145,7 @@ impl<'a> DefinitionEnumGenerator<'a> {
                 where
                     Self: 'a,
                 {
-                    bincode::decode_from_slice(data, bincode::config::standard())
-                        .unwrap()
-                        .0
+                    postcard::from_bytes(data).unwrap()
                 }
 
                 fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
@@ -160,7 +153,7 @@ impl<'a> DefinitionEnumGenerator<'a> {
                     Self: 'a,
                 {
                     std::borrow::Cow::Owned(
-                        bincode::encode_to_vec(value, bincode::config::standard()).unwrap()
+                        postcard::to_allocvec(value).unwrap()
                     )
                 }
 
@@ -259,17 +252,17 @@ impl<'a> DefinitionEnumGenerator<'a> {
                 fn get_model_tree<M: netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>(&self) -> Option<M>
                 where
                     for<'a> Self: From<netabase_store::traits::registery::models::treenames::ModelTreeNames<'a, Self, M>>,
-                    for<'a> <<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Secondary<'a>:
+                    <<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Secondary:
                         strum::IntoDiscriminant,
-                    for<'a> <<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Relational<'a>:
+                    <<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Relational:
                         strum::IntoDiscriminant,
-                    for<'a> <<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Subscription<'a>:
+                    <<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Subscription:
                         strum::IntoDiscriminant,
-                    for<'a> <<<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Secondary<'a> as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-                    for<'a> <<<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Relational<'a> as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-                    for<'a> <<<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Subscription<'a> as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-                    for<'a> <<<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Blob<'a> as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-                    <<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Subscription<'static>: 'static
+                    <<<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+                    <<<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+                    <<<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+                    <<<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+                    <<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Subscription: 'static
                 {
                     None
                 }

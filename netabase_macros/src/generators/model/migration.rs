@@ -178,6 +178,7 @@ impl<'a> MigrationGenerator<'a> {
 
         quote! {
             /// Migration chain executor for the model family.
+            #[allow(non_camel_case_types)]
             pub struct #chain_struct_name;
 
             impl netabase_store::traits::migration::MigrationChainExecutor for #chain_struct_name {
@@ -223,13 +224,12 @@ impl<'a> MigrationGenerator<'a> {
                 // Current version - just decode
                 match_arms.push(quote! {
                     #version => {
-                        let decoded: #source_name = bincode::decode_from_slice(data, bincode::config::standard())
+                        let decoded: #source_name = postcard::from_bytes(data)
                             .map_err(|e| netabase_store::traits::migration::MigrationError {
                                 record_key: String::new(),
                                 error: e.to_string(),
                                 at_version: #version,
-                            })?
-                            .0;
+                            })?;
                         Ok(decoded)
                     }
                 });
@@ -238,13 +238,12 @@ impl<'a> MigrationGenerator<'a> {
                 let chain = self.generate_migration_chain_call(family, i);
                 match_arms.push(quote! {
                     #version => {
-                        let decoded: #source_name = bincode::decode_from_slice(data, bincode::config::standard())
+                        let decoded: #source_name = postcard::from_bytes(data)
                             .map_err(|e| netabase_store::traits::migration::MigrationError {
                                 record_key: String::new(),
                                 error: e.to_string(),
                                 at_version: #version,
-                            })?
-                            .0;
+                            })?;
                         Ok(#chain)
                     }
                 });
@@ -254,7 +253,7 @@ impl<'a> MigrationGenerator<'a> {
         quote! {
             fn migrate_bytes(source_version: u32, data: &[u8]) -> Result<Self::Current, netabase_store::traits::migration::MigrationError> {
                 match source_version {
-                    #(#match_arms),*
+                    #(#match_arms,)*
                     _ => Err(netabase_store::traits::migration::MigrationError {
                         record_key: String::new(),
                         error: format!("Unknown version: {}", source_version),
@@ -309,30 +308,29 @@ impl<'a> MigrationGenerator<'a> {
 
         quote! {
             impl netabase_store::traits::migration::VersionedDecode for #model_name {
-                fn decode_versioned(data: &[u8], ctx: &netabase_store::traits::migration::VersionContext) -> Result<Self, bincode::error::DecodeError> {
+                fn decode_versioned(data: &[u8], ctx: &netabase_store::traits::migration::VersionContext) -> Result<Self, postcard::Error> {
                     use netabase_store::traits::migration::VersionHeader;
+                    use netabase_store::traits::migration::MigrationChainExecutor;
 
                     if VersionHeader::is_versioned(data) {
                         let header = VersionHeader::from_bytes(data)
-                            .ok_or_else(|| bincode::error::DecodeError::Other("Invalid version header"))?;
+                            .ok_or_else(|| postcard::Error::DeserializeBadEncoding)?;
 
                         if header.version == #current_version {
                             // Same version - decode directly
                             let payload = &data[VersionHeader::SIZE..];
-                            bincode::decode_from_slice(payload, bincode::config::standard())
-                                .map(|(v, _)| v)
+                            postcard::from_bytes(payload)
                         } else if ctx.auto_migrate {
                             // Different version - need migration
                             let payload = &data[VersionHeader::SIZE..];
                             #chain_struct_name::migrate_bytes(header.version, payload)
-                                .map_err(|_e| bincode::error::DecodeError::Other("Migration failed"))
+                                .map_err(|_e| postcard::Error::DeserializeBadEncoding)
                         } else if ctx.strict {
-                            Err(bincode::error::DecodeError::Other("Version mismatch in strict mode"))
+                            Err(postcard::Error::DeserializeBadEncoding)
                         } else {
                             // Try to decode anyway
                             let payload = &data[VersionHeader::SIZE..];
-                            bincode::decode_from_slice(payload, bincode::config::standard())
-                                .map(|(v, _)| v)
+                            postcard::from_bytes(payload)
                         }
                     } else {
                         // Legacy unversioned format
@@ -340,9 +338,8 @@ impl<'a> MigrationGenerator<'a> {
                     }
                 }
 
-                fn decode_unversioned(data: &[u8]) -> Result<Self, bincode::error::DecodeError> {
-                    bincode::decode_from_slice(data, bincode::config::standard())
-                        .map(|(v, _)| v)
+                fn decode_unversioned(data: &[u8]) -> Result<Self, postcard::Error> {
+                    postcard::from_bytes(data)
                 }
             }
         }
@@ -377,7 +374,7 @@ impl<'a> MigrationGenerator<'a> {
                     #version => {
                         let downgraded: #target_name = <Self as netabase_store::traits::migration::MigrateTo<#target_name>>::migrate_to(self);
                         let mut output = netabase_store::traits::migration::VersionHeader::new(#version).to_bytes().to_vec();
-                        output.extend(bincode::encode_to_vec(&downgraded, bincode::config::standard()).unwrap());
+                        output.extend(postcard::to_allocvec(&downgraded).unwrap());
                         Some(output)
                     }
                 });
@@ -390,13 +387,13 @@ impl<'a> MigrationGenerator<'a> {
                     use netabase_store::traits::migration::VersionHeader;
 
                     let mut output = VersionHeader::new(#current_version).to_bytes().to_vec();
-                    output.extend(bincode::encode_to_vec(self, bincode::config::standard()).unwrap());
+                    output.extend(postcard::to_allocvec(self).unwrap());
                     output
                 }
 
                 fn encode_for_version(&self, target_version: u32) -> Option<Vec<u8>> {
                     match target_version {
-                        #(#version_arms),*
+                        #(#version_arms,)*
                         _ => None,
                     }
                 }
