@@ -76,16 +76,26 @@ pub fn table_name(
     key_type: &str,
     key_name: &str,
 ) -> String {
-    format!("{}:{}:{}:{}", definition_name, model_name, key_type, key_name)
+    format!(
+        "{}:{}:{}:{}",
+        definition_name, model_name, key_type, key_name
+    )
 }
 
-/// Generate subscription table name
-pub fn subscription_table_name(definition_name: &str, subscription_name: &str) -> String {
-    format!("{}:Subscription:{}", definition_name, subscription_name)
+/// Generate subscription table name (per-model, not aggregated at definition level)
+pub fn subscription_table_name(
+    definition_name: &str,
+    model_name: &str,
+    subscription_name: &str,
+) -> String {
+    format!(
+        "{}:{}:Subscription:{}",
+        definition_name, model_name, subscription_name
+    )
 }
 
 /// Convert snake_case to PascalCase
-fn to_pascal_case(s: &str) -> String {
+pub fn to_pascal_case(s: &str) -> String {
     s.split('_')
         .map(|word| {
             let mut chars = word.chars();

@@ -126,4 +126,19 @@ where
         db: &redb::Database,
         options: &MigrationOptions,
     ) -> NetabaseResult<MigrationResult>;
+
+    /// Initialize all tables for this definition.
+    ///
+    /// This creates all main, secondary, relational, subscription, and blob tables
+    /// for every model in the definition. This should be called when creating a new
+    /// database to ensure all tables exist before any read operations.
+    ///
+    /// # Arguments
+    ///
+    /// * `db` - The redb database handle
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` if all tables were created successfully.
+    fn init_tables(db: &redb::Database) -> NetabaseResult<()>;
 }

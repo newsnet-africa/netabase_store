@@ -138,26 +138,10 @@ where
 
 use crate::traits::database::store::NBStore;
 
-/// Compute the schema file path from a database path.
-///
-/// If the database path is a file (e.g., `/path/to/db.redb`), the schema file
-/// is stored as a sibling file with `.netabase_schema.toml` extension
-/// (e.g., `/path/to/db.netabase_schema.toml`).
-///
-/// If the database path is a directory, the schema file is stored inside it.
-fn schema_path_for_db(db_path: &Path) -> std::path::PathBuf {
-    // Check if path has a file extension (likely a file, not a directory)
-    if db_path.extension().is_some() {
-        // Store as sibling file: /path/to/db.redb -> /path/to/db.netabase_schema.toml
-        let mut schema_path = db_path.to_path_buf();
-        let stem = db_path.file_stem().and_then(|s| s.to_str()).unwrap_or("db");
-        schema_path.set_file_name(format!("{}.netabase_schema.toml", stem));
-        schema_path
-    } else {
-        // Store inside directory: /path/to/db/ -> /path/to/db/.netabase_schema.toml
-        db_path.join(".netabase_schema.toml")
-    }
-}
+/// The name of the main database file inside a netabase folder.
+const DB_FILE_NAME: &str = "data.redb";
+/// The name of the schema file inside a netabase folder.
+const SCHEMA_FILE_NAME: &str = "schema.toml";
 
 impl<D: RedbDefinition> NBStore<D> for RedbStore<D>
 where
@@ -166,29 +150,40 @@ where
     D: Clone,
 {
     /// Create a new RedbStore
+    ///
+    /// The path provided is treated as a folder that will contain:
+    /// - `data.redb` - The main database file
+    /// - `schema.toml` - The schema definition file
+    /// - Additional metadata files can be added in the future
+    ///
+    /// If the folder doesn't exist, it will be created along with all parent directories.
     fn new<P: AsRef<Path>>(path: P) -> NetabaseResult<Self>
     where
         D::TreeNames: Default,
     {
-        let path_ref = path.as_ref();
+        let folder_path = path.as_ref();
 
-        // Ensure parent directory exists
-        if let Some(parent) = path_ref.parent() {
-            if !parent.exists() {
-                std::fs::create_dir_all(parent).map_err(|e| {
-                    NetabaseError::IoError(format!(
-                        "Failed to create parent directory {:?}: {}",
-                        parent, e
-                    ))
-                })?;
-            }
+        // Create the database folder and all parent directories
+        if !folder_path.exists() {
+            std::fs::create_dir_all(folder_path).map_err(|e| {
+                NetabaseError::IoError(format!(
+                    "Failed to create database folder {:?}: {}",
+                    folder_path, e
+                ))
+            })?;
         }
 
+        // Database file inside the folder
+        let db_path = folder_path.join(DB_FILE_NAME);
         let db =
-            redb::Database::create(path_ref).map_err(|e| NetabaseError::RedbError(e.into()))?;
+            redb::Database::create(&db_path).map_err(|e| NetabaseError::RedbError(e.into()))?;
 
-        // Compute schema path (sibling file for .redb files, inside for directories)
-        let schema_path = schema_path_for_db(path_ref);
+        // Initialize all tables for the definition
+        // This ensures tables exist before any read operations
+        D::init_tables(&db)?;
+
+        // Schema file inside the folder
+        let schema_path = folder_path.join(SCHEMA_FILE_NAME);
 
         // Try to read existing schema
         let stored_schema = if schema_path.exists() {
