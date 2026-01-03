@@ -49,7 +49,7 @@ use netabase_store_examples::{
 ///
 /// ## User-Facing API Demonstrated
 /// - `store.begin_write()` / `store.begin_read()` - Start read or write transactions
-/// - `txn.create_redb(&model)` - Insert a model into the database
+/// - `txn.create(&model)` - Insert a model into the database
 /// - `txn.commit()` - Commit changes atomically
 /// - `User::read_default(&id, &tables)` - Read a model by primary key
 #[test]
@@ -87,7 +87,7 @@ fn test_crud_create_single_model() -> NetabaseResult<()> {
 
     // Create the model in a write transaction
     let txn = store.begin_write()?;
-    txn.create_redb(&user)?;
+    txn.create(&user)?;
     txn.commit()?;
 
     println!("User created and committed");
@@ -194,7 +194,7 @@ fn test_crud_create_single_model() -> NetabaseResult<()> {
 /// 5. Ensure all modified fields changed and unmodified fields stayed the same
 ///
 /// ## User-Facing API Demonstrated
-/// - `txn.update_redb(&model)` - Update an existing model
+/// - `txn.update(&model)` - Update an existing model
 /// - Demonstrates that primary key must match for update to work
 #[test]
 fn test_crud_update_model_full_verification() -> NetabaseResult<()> {
@@ -220,7 +220,7 @@ fn test_crud_update_model_full_verification() -> NetabaseResult<()> {
 
     println!("Creating initial user version");
     let txn = store.begin_write()?;
-    txn.create_redb(&user_v1)?;
+    txn.create(&user_v1)?;
     txn.commit()?;
 
     // Verify initial state
@@ -259,7 +259,7 @@ fn test_crud_update_model_full_verification() -> NetabaseResult<()> {
 
     println!("Updating user to version 2");
     let txn = store.begin_write()?;
-    txn.update_redb(&user_v2)?;
+    txn.update(&user_v2)?;
     txn.commit()?;
 
     // Verify updated state
@@ -331,7 +331,7 @@ fn test_crud_update_model_full_verification() -> NetabaseResult<()> {
 /// 5. Verify count decreases appropriately
 ///
 /// ## User-Facing API Demonstrated
-/// - `txn.delete_redb(&id)` - Delete a model by primary key
+/// - `txn.delete(&id)` - Delete a model by primary key
 /// - `User::count_entries(&tables)` - Count total entries
 #[test]
 fn test_crud_delete_model_state_verification() -> NetabaseResult<()> {
@@ -367,8 +367,8 @@ fn test_crud_delete_model_state_verification() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    txn.create_redb(&user1)?;
-    txn.create_redb(&user2)?;
+    txn.create(&user1)?;
+    txn.create(&user2)?;
     txn.commit()?;
 
     // Verify both users exist
@@ -394,7 +394,7 @@ fn test_crud_delete_model_state_verification() -> NetabaseResult<()> {
     // Delete user1
     println!("Deleting user1");
     let txn = store.begin_write()?;
-    txn.delete_redb::<User>(&user1_id)?;
+    txn.delete::<User>(&user1_id)?;
     txn.commit()?;
 
     // Verify user1 deleted, user2 remains
@@ -894,8 +894,8 @@ fn test_count_entries_accurate() -> NetabaseResult<()> {
     // Delete 2 users
     println!("Deleting 2 users");
     let txn = store.begin_write()?;
-    txn.delete_redb::<User>(&UserID("count_user_0".to_string()))?;
-    txn.delete_redb::<User>(&UserID("count_user_1".to_string()))?;
+    txn.delete::<User>(&UserID("count_user_0".to_string()))?;
+    txn.delete::<User>(&UserID("count_user_1".to_string()))?;
     txn.commit()?;
 
     // Count: 3
@@ -1405,7 +1405,7 @@ fn test_delete_nonexistent_model() -> NetabaseResult<()> {
 
     println!("Attempting to delete non-existent model");
     let txn = store.begin_write()?;
-    let result = txn.delete_redb::<User>(&nonexistent_id);
+    let result = txn.delete::<User>(&nonexistent_id);
     txn.commit()?;
 
     // Should not error
