@@ -108,6 +108,65 @@ where
         D::SubscriptionKeys: redb::Key + 'static,
         <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: Clone,
         for<'v> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: redb::Value<SelfType<'v> = <Self::Keys as NetabaseModelKeys<D, Self>>::Primary>;
+
+    // =========================================================================
+    // Blob Query Methods (Read-Only)
+    // =========================================================================
+    // These methods enable parallel fetching and sharded storage patterns
+    // for decentralized networks.
+
+    /// Read all blob items for a specific blob key.
+    /// 
+    /// This is useful for fetching blob data independently of the main model,
+    /// enabling parallel fetching in decentralized networks.
+    /// 
+    /// # Arguments
+    /// * `blob_key` - The blob key to query
+    /// * `tables` - The opened model tables (read-only access is sufficient)
+    /// 
+    /// # Returns
+    /// A vector of blob items associated with the given key
+    fn read_blob_items<'a, 'txn>(
+        blob_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Blob,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Vec<<<Self::Keys as NetabaseModelKeys<D, Self>>::Blob as NetabaseModelBlobKey<D, Self>>::BlobItem>>
+    where
+        'db: 'txn,
+        <<Self::Keys as NetabaseModelKeys<D, Self>>::Blob as NetabaseModelBlobKey<D, Self>>::BlobItem: Clone;
+
+    /// List all blob keys in a specific blob table.
+    /// 
+    /// Useful for discovering what blobs exist, enabling sharded storage
+    /// where different nodes may store different blob keys.
+    /// 
+    /// # Arguments
+    /// * `table_index` - Index of the blob table (corresponds to blob field order)
+    /// * `tables` - The opened model tables
+    /// 
+    /// # Returns
+    /// A vector of all blob keys in that table
+    fn list_blob_keys<'a, 'txn>(
+        table_index: usize,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Blob>>
+    where
+        'db: 'txn,
+        <Self::Keys as NetabaseModelKeys<D, Self>>::Blob: Clone;
+
+    /// Count total blob entries across all blob tables.
+    /// 
+    /// Useful for storage metrics and load balancing in sharded systems.
+    fn count_blob_entries<'txn>(
+        tables: &ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<u64>;
+
+    /// Get blob table metadata (table name and entry count) for each blob field.
+    /// 
+    /// Returns a vector of (table_name, entry_count) tuples.
+    /// Useful for monitoring and debugging blob storage distribution.
+    fn blob_table_stats<'txn>(
+        tables: &ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Vec<(String, u64)>>;
 }
 
 impl<'db, D, M> RedbModelCrud<'db, D> for M
@@ -140,8 +199,10 @@ where
     for<'a> &'a <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary as redb::Value>::SelfType<'a>>,
     <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: redb::Key + 'static,
     for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as redb::Value>::SelfType<'a>>,
+    for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: redb::Value<SelfType<'a> = <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob>,
     <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: redb::Key + 'static,
-    for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem as redb::Value>::SelfType<'a>>
+    for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem as redb::Value>::SelfType<'a>>,
+    for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: redb::Value<SelfType<'a> = <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem>,
 {
     fn create_entry<'txn>(
         &'db self,
@@ -652,5 +713,153 @@ where
         
         // No subscribers found for this topic
         Ok(Vec::new())
+    }
+
+    // =========================================================================
+    // Blob Query Methods Implementation
+    // =========================================================================
+
+    fn read_blob_items<'a, 'txn>(
+        blob_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Blob,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Vec<<<Self::Keys as NetabaseModelKeys<D, Self>>::Blob as NetabaseModelBlobKey<D, Self>>::BlobItem>>
+    where
+        'db: 'txn,
+        <<Self::Keys as NetabaseModelKeys<D, Self>>::Blob as NetabaseModelBlobKey<D, Self>>::BlobItem: Clone,
+    {
+        use redb::ReadableMultimapTable;
+        
+        let mut result = Vec::new();
+        
+        // Search all blob tables for matching key
+        for (table_perm, _table_name) in &tables.blob {
+            match table_perm {
+                TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
+                    if let Ok(values) = table.get(blob_key.borrow()) {
+                        for item in values {
+                            if let Ok(guard) = item {
+                                result.push(guard.value());
+                            }
+                        }
+                    }
+                }
+                TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    if let Ok(values) = table.get(blob_key.borrow()) {
+                        for item in values {
+                            if let Ok(guard) = item {
+                                result.push(guard.value());
+                            }
+                        }
+                    }
+                }
+                TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    if let Ok(values) = table.get(blob_key.borrow()) {
+                        for item in values {
+                            if let Ok(guard) = item {
+                                result.push(guard.value());
+                            }
+                        }
+                    }
+                }
+                _ => continue,
+            }
+        }
+        
+        Ok(result)
+    }
+
+    fn list_blob_keys<'a, 'txn>(
+        table_index: usize,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Blob>>
+    where
+        'db: 'txn,
+        <Self::Keys as NetabaseModelKeys<D, Self>>::Blob: Clone,
+    {
+        use redb::ReadableMultimapTable;
+        
+        if table_index >= tables.blob.len() {
+            return Err(NetabaseError::Other);
+        }
+        
+        let (table_perm, _table_name) = &tables.blob[table_index];
+        let mut result = Vec::new();
+        
+        // Note: This may return duplicate keys since it's a multimap.
+        // For unique keys, caller should deduplicate.
+        match table_perm {
+            TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
+                let iter = table.iter().map_err(|e| NetabaseError::RedbError(e.into()))?;
+                for item in iter {
+                    let (key_guard, _value_guard) = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                    result.push(key_guard.value());
+                }
+            }
+            TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                let iter = table.iter().map_err(|e| NetabaseError::RedbError(e.into()))?;
+                for item in iter {
+                    let (key_guard, _value_guard) = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                    result.push(key_guard.value());
+                }
+            }
+            TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
+                let iter = table.iter().map_err(|e| NetabaseError::RedbError(e.into()))?;
+                for item in iter {
+                    let (key_guard, _value_guard) = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                    result.push(key_guard.value());
+                }
+            }
+            _ => return Err(NetabaseError::Other),
+        }
+        
+        Ok(result)
+    }
+
+    fn count_blob_entries<'txn>(
+        tables: &ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<u64> {
+        let mut total = 0u64;
+        
+        for (table_perm, _table_name) in &tables.blob {
+            let count = match table_perm {
+                TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
+                    table.len().map_err(|e| NetabaseError::RedbError(e.into()))?
+                }
+                TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    table.len().map_err(|e| NetabaseError::RedbError(e.into()))?
+                }
+                TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    table.len().map_err(|e| NetabaseError::RedbError(e.into()))?
+                }
+                _ => continue,
+            };
+            total += count;
+        }
+        
+        Ok(total)
+    }
+
+    fn blob_table_stats<'txn>(
+        tables: &ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Vec<(String, u64)>> {
+        let mut stats = Vec::with_capacity(tables.blob.len());
+        
+        for (table_perm, table_name) in &tables.blob {
+            let count = match table_perm {
+                TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
+                    table.len().map_err(|e| NetabaseError::RedbError(e.into()))?
+                }
+                TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    table.len().map_err(|e| NetabaseError::RedbError(e.into()))?
+                }
+                TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    table.len().map_err(|e| NetabaseError::RedbError(e.into()))?
+                }
+                _ => continue,
+            };
+            stats.push((table_name.to_string(), count));
+        }
+        
+        Ok(stats)
     }
 }
