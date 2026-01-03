@@ -1,6 +1,7 @@
 //! Migration trait generation for versioned models.
 //! Updated to fix match arm comma separators.
 //! Last modified: 2026-01-03
+//! Rebuild trigger: 003
 
 use crate::visitors::definition::{DefinitionVisitor, ModelFamily, ModelInfo};
 use proc_macro2::TokenStream;

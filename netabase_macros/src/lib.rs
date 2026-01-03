@@ -2,11 +2,15 @@
 //!
 //! This crate provides derive macros and attribute macros for the netabase_store library.
 //! Updated with migration support and schema export enhancements.
+//! Build timestamp: 2026-01-03
 
 // Allow dead code in macro crate - utility functions may be used in future expansions
 #![allow(dead_code)]
 
 use proc_macro::TokenStream;
+
+// Force rebuild marker - updated 2026-01-03
+const _BUILD_MARKER: &str = "v0.1.3-migration-fix-004";
 
 mod generators;
 mod macros;
