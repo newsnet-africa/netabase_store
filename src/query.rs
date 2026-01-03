@@ -185,34 +185,6 @@ impl<R> QueryConfig<R> {
         self
     }
 
-    /// Create a simple config for full table scan.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use netabase_store::query::QueryConfig;
-    ///
-    /// let config = QueryConfig::all();
-    /// // Returns a config that fetches all records
-    /// ```
-    pub fn all() -> QueryConfig<std::ops::RangeFull> {
-        QueryConfig::default()
-    }
-
-    /// Create a config for inspecting a specific range.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use netabase_store::query::QueryConfig;
-    ///
-    /// let config = QueryConfig::inspect_range(0u64..10u64);
-    /// // Fetches records in the range with all data
-    /// ```
-    pub fn inspect_range<NewR>(range: NewR) -> QueryConfig<NewR> {
-        QueryConfig::new(range).with_blobs(true).with_hydration(0)
-    }
-
     /// Change the range of this query config.
     ///
     /// # Example
@@ -235,6 +207,23 @@ impl<R> QueryConfig<R> {
             reversed: self.reversed,
         }
     }
+}
+
+/// Factory methods that return concrete types (no generic inference needed)
+impl QueryConfig {
+    /// Create a simple config for full table scan.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use netabase_store::query::QueryConfig;
+    ///
+    /// let config = QueryConfig::all();
+    /// // Returns a config that fetches all records
+    /// ```
+    pub fn all() -> QueryConfig<std::ops::RangeFull> {
+        QueryConfig::<std::ops::RangeFull>::default()
+    }
 
     /// Create a config to dump all records for inspection.
     /// Includes blobs and disables hydration for raw data access.
@@ -249,7 +238,9 @@ impl<R> QueryConfig<R> {
     /// assert_eq!(config.fetch_options.hydration_depth, 0);
     /// ```
     pub fn dump_all() -> QueryConfig<std::ops::RangeFull> {
-        QueryConfig::default().with_blobs(true).with_hydration(0)
+        QueryConfig::<std::ops::RangeFull>::default()
+            .with_blobs(true)
+            .with_hydration(0)
     }
 
     /// Create a config to fetch just the first record.
@@ -263,7 +254,23 @@ impl<R> QueryConfig<R> {
     /// assert_eq!(config.pagination.limit, Some(1));
     /// ```
     pub fn first() -> QueryConfig<std::ops::RangeFull> {
-        QueryConfig::default().with_limit(1)
+        QueryConfig::<std::ops::RangeFull>::default().with_limit(1)
+    }
+
+    /// Create a config for inspecting a specific range.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use netabase_store::query::QueryConfig;
+    ///
+    /// let config = QueryConfig::inspect_range(0u64..10u64);
+    /// // Fetches records in the range with all data
+    /// ```
+    pub fn inspect_range<NewR>(range: NewR) -> QueryConfig<NewR> {
+        QueryConfig::<NewR>::new(range)
+            .with_blobs(true)
+            .with_hydration(0)
     }
 }
 

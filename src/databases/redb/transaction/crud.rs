@@ -13,7 +13,7 @@ use crate::{
     errors::{NetabaseResult, NetabaseError},
 };
 use super::tables::{ModelOpenTables, TablePermission, ReadWriteTableType, TableType};
-use super::options::QueryConfig;
+use super::options::CrudOptions;
 
 /// Trait to handle automatic insertion/update of models into their respective tables
 pub trait RedbModelCrud<'db,  D>: RedbNetbaseModel<'db, D>
@@ -48,7 +48,7 @@ where
     fn read_entry<'txn>(
         key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>,
         tables: &'txn ModelOpenTables<'txn, 'db, D, Self>,
-        config: QueryConfig,
+        config: CrudOptions,
     ) -> NetabaseResult<Option<AccessGuard<'txn, <Self as RedbNetbaseModel<'db, D>>::TableV>>>
     where
     'db: 'txn;
@@ -60,7 +60,7 @@ where
     where
     'db: 'txn,
     {
-        Self::read_entry(key, tables, QueryConfig::default())
+        Self::read_entry(key, tables, CrudOptions::default())
             .map(|opt| opt.map(|g| g.value()))
     }
 
@@ -76,26 +76,40 @@ where
 
     fn list_entries<'a, 'txn>(
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
-        config: QueryConfig,
+        config: CrudOptions,
     ) -> NetabaseResult<Vec<AccessGuard<'a, <Self as RedbNetbaseModel<'db, D>>::TableV>>>;
 
     fn list_default<'a, 'txn>(
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
     ) -> NetabaseResult<Vec<Self>> {
-        Self::list_entries(tables, QueryConfig::default())
+        Self::list_entries(tables, CrudOptions::default())
             .map(|vec| vec.into_iter().map(|g| g.value()).collect())
     }
 
     fn list_range<'a, 'txn, R>(
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
         range: R,
-        config: QueryConfig,
+        config: CrudOptions,
     ) -> NetabaseResult<Vec<AccessGuard<'a, <Self as RedbNetbaseModel<'db, D>>::TableV>>>
     where R: std::ops::RangeBounds<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>> + Clone;
 
     fn count_entries<'txn>(
         tables: &ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<u64>;
+
+    /// Query primary keys by subscription topic.
+    /// 
+    /// Returns a list of primary keys for all models subscribed to the given topic.
+    /// Use the subscription enum variant (e.g., `DefinitionSubscriptions::Topic1`) as the key.
+    fn query_by_subscription<'a, 'txn, S>(
+        subscription_key: &S,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>>>
+    where
+        S: Into<D::SubscriptionKeys> + Clone,
+        D::SubscriptionKeys: redb::Key + 'static,
+        <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>: Clone,
+        for<'v> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>: redb::Value<SelfType<'v> = <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>>;
 }
 
 impl<'db, D, M> RedbModelCrud<'db, D> for M
@@ -218,7 +232,7 @@ where
     fn read_entry<'a, 'txn>(
         key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>,
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
-        _config: QueryConfig,
+        _config: CrudOptions,
     ) -> NetabaseResult<Option<AccessGuard<'a, <Self as RedbNetbaseModel<'db, D>>::TableV>>>
     where
     'db: 'txn
@@ -502,7 +516,7 @@ where
 
     fn list_entries<'a, 'txn>(
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
-        config: QueryConfig,
+        config: CrudOptions,
     ) -> NetabaseResult<Vec<AccessGuard<'a, <Self as RedbNetbaseModel<'db, D>>::TableV>>> {
         Self::list_range(tables, .., config)
     }
@@ -510,7 +524,7 @@ where
     fn list_range<'a, 'txn, R>(
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
         range: R,
-        config: QueryConfig,
+        config: CrudOptions,
     ) -> NetabaseResult<Vec<AccessGuard<'a, <Self as RedbNetbaseModel<'db, D>>::TableV>>>
     where R: std::ops::RangeBounds<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>> + Clone
     {
@@ -576,5 +590,77 @@ where
             },
             _ => Err(NetabaseError::Other),
         }
+    }
+
+    fn query_by_subscription<'a, 'txn, S>(
+        subscription_key: &S,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>>>
+    where
+        S: Into<D::SubscriptionKeys> + Clone,
+        D::SubscriptionKeys: redb::Key + 'static,
+        <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>: Clone,
+        for<'v> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>: redb::Value<SelfType<'v> = <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>>,
+    {
+        use redb::ReadableMultimapTable;
+        
+        let def_key: D::SubscriptionKeys = subscription_key.clone().into();
+        
+        // Find the subscription table that matches this key
+        // Each subscription topic has its own table
+        for (table_perm, _table_name) in &tables.subscription {
+            match table_perm {
+                TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
+                    // Try to get values for this key from this table
+                    match table.get(def_key.borrow()) {
+                        Ok(values) => {
+                            let mut result = Vec::new();
+                            for item in values {
+                                let guard = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                                result.push(guard.value());
+                            }
+                            if !result.is_empty() {
+                                return Ok(result);
+                            }
+                        }
+                        Err(_) => continue, // Key not found in this table, try next
+                    }
+                }
+                TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    match table.get(def_key.borrow()) {
+                        Ok(values) => {
+                            let mut result = Vec::new();
+                            for item in values {
+                                let guard = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                                result.push(guard.value());
+                            }
+                            if !result.is_empty() {
+                                return Ok(result);
+                            }
+                        }
+                        Err(_) => continue,
+                    }
+                }
+                TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    match table.get(def_key.borrow()) {
+                        Ok(values) => {
+                            let mut result = Vec::new();
+                            for item in values {
+                                let guard = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                                result.push(guard.value());
+                            }
+                            if !result.is_empty() {
+                                return Ok(result);
+                            }
+                        }
+                        Err(_) => continue,
+                    }
+                }
+                _ => continue,
+            }
+        }
+        
+        // No subscribers found for this topic
+        Ok(Vec::new())
     }
 }
