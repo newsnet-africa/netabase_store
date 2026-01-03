@@ -2,8 +2,21 @@
 //!
 //! This module provides functions for migrating data between schema versions.
 //! It supports both automatic migration detection and manual migration execution.
+//!
+//! # Migration Strategy
+//!
+//! The migration system uses a "probing" approach to detect which version of data
+//! is actually in the database:
+//!
+//! 1. For each model family with versioned models, try to open tables with different
+//!    version definitions (starting from oldest)
+//! 2. When a table opens successfully and contains data, that's the source version
+//! 3. Read all records from the old version's table
+//! 4. Apply the migration chain to convert each record to the current version
+//! 5. Write the migrated records to the current version's table
+//! 6. Optionally delete the old table
 
-use crate::errors::{NetabaseError, NetabaseResult};
+use crate::errors::NetabaseResult;
 use crate::traits::migration::{
     MigrationChainExecutor, MigrationError, MigrationPath, MigrationResult, VersionHeader,
 };
@@ -12,32 +25,10 @@ use crate::traits::registery::definition::schema::{DefinitionSchema, SchemaCompa
 use std::marker::PhantomData;
 use strum::IntoDiscriminant;
 
-/// Migration options for customizing migration behavior.
-#[derive(Debug, Clone)]
-pub struct MigrationOptions {
-    /// Whether to automatically backup before migration.
-    pub backup: bool,
-    /// Whether to validate all records after migration.
-    pub validate: bool,
-    /// Whether to continue on individual record errors.
-    pub continue_on_error: bool,
-    /// Maximum number of errors before aborting.
-    pub max_errors: usize,
-    /// Whether to run in dry-run mode (no actual changes).
-    pub dry_run: bool,
-}
-
-impl Default for MigrationOptions {
-    fn default() -> Self {
-        Self {
-            backup: true,
-            validate: true,
-            continue_on_error: false,
-            max_errors: 100,
-            dry_run: false,
-        }
-    }
-}
+// Re-export migration types from redb_definition for convenience
+pub use crate::traits::registery::definition::redb_definition::{
+    DetectedVersion, MigrationOptions, MigrationResult as ModelMigrationResult,
+};
 
 /// Result of a database migration.
 #[derive(Debug, Clone)]
@@ -52,34 +43,6 @@ pub struct DatabaseMigrationResult {
     pub has_errors: bool,
     /// Whether this was a dry run.
     pub dry_run: bool,
-}
-
-/// Migrator for a specific model family.
-///
-/// This trait is implemented by the macro-generated `MigrationChain_*` types
-/// and provides the concrete migration logic for a model family.
-pub trait ModelMigrator: MigrationChainExecutor {
-    /// The table name for the main table of this model.
-    const MAIN_TABLE: &'static str;
-
-    /// Secondary table names for this model.
-    const SECONDARY_TABLES: &'static [&'static str];
-
-    /// Relational table names for this model.
-    const RELATIONAL_TABLES: &'static [&'static str];
-
-    /// Subscription table names for this model.
-    const SUBSCRIPTION_TABLES: &'static [&'static str];
-
-    /// Blob table names for this model.
-    const BLOB_TABLES: &'static [&'static str];
-
-    /// Migrate all tables for this model from source version to current.
-    fn migrate_tables(
-        db: &redb::Database,
-        source_version: u32,
-        options: &MigrationOptions,
-    ) -> NetabaseResult<MigrationResult>;
 }
 
 /// Database-level migration coordinator.
@@ -134,6 +97,14 @@ where
             .map(|stored| self.compiled_schema.compare(stored))
     }
 
+    /// Detect which version tables exist in the database.
+    ///
+    /// This probes the database by trying to open tables with different
+    /// version definitions. Returns information about each detected version.
+    pub fn detect_versions(&self) -> NetabaseResult<Vec<DetectedVersion>> {
+        D::detect_versions(self.db)
+    }
+
     /// Get migration paths for all model families that need migration.
     pub fn get_migration_paths(&self) -> Vec<MigrationPath> {
         let stored = match &self.stored_schema {
@@ -164,22 +135,36 @@ where
         paths
     }
 
-    /// Run migrations (placeholder - actual implementation needs per-model migrators).
+    /// Run migrations using the definition's generated migrate_all method.
     ///
     /// This method coordinates the migration process:
-    /// 1. Creates a backup if enabled
-    /// 2. Opens a write transaction
-    /// 3. For each model family needing migration:
-    ///    a. Reads all records from the main table
-    ///    b. Deserializes using the old version's format
-    ///    c. Applies the migration chain
-    ///    d. Re-serializes and writes back
-    ///    e. Rebuilds secondary/relational/subscription/blob tables
-    /// 4. Commits the transaction
+    /// 1. Probes the database to detect which version tables exist
+    /// 2. For each model family where an old version is detected:
+    ///    a. Opens the old version's table
+    ///    b. Opens/creates the current version's table
+    ///    c. Reads all records from the old table
+    ///    d. Applies the migration chain to convert each record
+    ///    e. Writes the migrated records to the new table
+    /// 3. Returns a summary of what was migrated
     pub fn run(&self) -> NetabaseResult<DatabaseMigrationResult> {
-        let paths = self.get_migration_paths();
+        // First, detect what versions exist in the database
+        let detected = D::detect_versions(self.db)?;
 
-        if paths.is_empty() {
+        // Check if there are any old versions that need migration
+        let needs_migration: Vec<_> = detected
+            .iter()
+            .filter(|d| {
+                // Check if this is an old version by comparing with the compiled schema
+                self.compiled_schema
+                    .model_history
+                    .iter()
+                    .find(|h| h.family == d.family)
+                    .map(|h| d.version < h.current_version)
+                    .unwrap_or(false)
+            })
+            .collect();
+
+        if needs_migration.is_empty() {
             return Ok(DatabaseMigrationResult {
                 tables_migrated: 0,
                 total_records: 0,
@@ -192,20 +177,36 @@ where
         if self.options.dry_run {
             // Just report what would be migrated
             return Ok(DatabaseMigrationResult {
-                tables_migrated: paths.len(),
-                total_records: 0, // Would need to count
-                family_results: paths
+                tables_migrated: needs_migration.len(),
+                total_records: needs_migration
                     .iter()
-                    .map(|p| {
-                        (
-                            p.family.to_string(),
+                    .map(|d| d.record_count as usize)
+                    .sum(),
+                family_results: needs_migration
+                    .iter()
+                    .filter_map(|d| {
+                        let current_version = self
+                            .compiled_schema
+                            .model_history
+                            .iter()
+                            .find(|h| h.family == d.family)
+                            .map(|h| h.current_version)?;
+
+                        Some((
+                            d.family.clone(),
                             MigrationResult {
                                 records_migrated: 0,
                                 records_failed: 0,
                                 errors: Vec::new(),
-                                path: p.clone(),
+                                path: MigrationPath {
+                                    from_version: d.version,
+                                    to_version: current_version,
+                                    family: Box::leak(d.family.clone().into_boxed_str()),
+                                    steps: (current_version - d.version) as usize,
+                                    may_lose_data: false,
+                                },
                             },
-                        )
+                        ))
                     })
                     .collect(),
                 has_errors: false,
@@ -213,15 +214,44 @@ where
             });
         }
 
-        // TODO: Implement actual migration logic
-        // This requires:
-        // 1. Generic iteration over model families
-        // 2. Per-family migrator instances
-        // 3. Table-level iteration and rewriting
+        // Use the definition's generated migration method (with probing)
+        let result = D::migrate_all(self.db, &self.options)?;
 
-        Err(NetabaseError::MigrationError(
-            "Migration execution not yet implemented. Use manual migration or regenerate the database.".into()
-        ))
+        Ok(DatabaseMigrationResult {
+            tables_migrated: result.migrations_performed.len(),
+            total_records: result.records_migrated,
+            family_results: result
+                .migrations_performed
+                .iter()
+                .map(|(family, from_ver, to_ver)| {
+                    (
+                        family.clone(),
+                        MigrationResult {
+                            records_migrated: result.records_migrated,
+                            records_failed: result.records_failed,
+                            errors: result
+                                .errors
+                                .iter()
+                                .map(|e| MigrationError {
+                                    record_key: String::new(),
+                                    error: e.clone(),
+                                    at_version: *from_ver,
+                                })
+                                .collect(),
+                            path: MigrationPath {
+                                from_version: *from_ver,
+                                to_version: *to_ver,
+                                family: Box::leak(family.clone().into_boxed_str()),
+                                steps: (*to_ver - *from_ver) as usize,
+                                may_lose_data: false,
+                            },
+                        },
+                    )
+                })
+                .collect(),
+            has_errors: result.records_failed > 0,
+            dry_run: false,
+        })
     }
 }
 

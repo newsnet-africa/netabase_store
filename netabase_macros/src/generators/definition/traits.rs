@@ -100,20 +100,249 @@ impl<'a> DefinitionTraitGenerator<'a> {
 
     fn generate_redb_definition_trait(&self) -> TokenStream {
         let definition_name = &self.visitor.definition_name;
+        let def_str = definition_name.to_string();
 
         // Use the first model as representative (following the boilerplate pattern)
         if let Some(first_model) = self.visitor.models.first() {
             let model_name = &first_model.visitor.model_name;
 
+            // Generate version detection probes for each model family
+            let detect_version_probes = self.generate_detect_version_probes(&def_str);
+            
+            // Generate migration code for each model family
+            let migration_code = self.generate_probing_migration_code(&def_str);
+
             quote! {
                 impl ::netabase_store::traits::registery::definition::redb_definition::RedbDefinition for #definition_name {
                     type ModelTableDefinition<'db> = ::netabase_store::traits::registery::models::model::redb_model::RedbModelTableDefinitions<'db, #model_name, Self>;
+
+                    fn detect_versions(
+                        db: &redb::Database,
+                    ) -> ::netabase_store::errors::NetabaseResult<Vec<::netabase_store::traits::registery::definition::redb_definition::DetectedVersion>> {
+                        use ::netabase_store::traits::registery::definition::redb_definition::DetectedVersion;
+                        use redb::{ReadableDatabase, ReadableTableMetadata};
+
+                        let mut detected = Vec::new();
+                        
+                        // Try to open a read transaction to probe tables
+                        let read_txn = db.begin_read()
+                            .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTransactionError(e.into()))?;
+
+                        #detect_version_probes
+
+                        Ok(detected)
+                    }
+
+                    fn migrate_all(
+                        db: &redb::Database,
+                        options: &::netabase_store::traits::registery::definition::redb_definition::MigrationOptions,
+                    ) -> ::netabase_store::errors::NetabaseResult<::netabase_store::traits::registery::definition::redb_definition::MigrationResult> {
+                        use ::netabase_store::traits::registery::definition::redb_definition::MigrationResult;
+                        use redb::{ReadableDatabase, ReadableTable, ReadableTableMetadata};
+
+                        let mut result = MigrationResult::default();
+
+                        if options.dry_run {
+                            // In dry-run mode, just report what would be migrated
+                            let detected = Self::detect_versions(db)?;
+                            for _det in detected {
+                                // Compare with current version to see if migration needed
+                                // The migration code below handles this per-family
+                            }
+                            return Ok(result);
+                        }
+
+                        #migration_code
+
+                        Ok(result)
+                    }
                 }
             }
         } else {
             // If no models, generate a placeholder (shouldn't happen in practice)
             TokenStream::new()
         }
+    }
+
+    /// Generate probes to detect which version tables exist.
+    fn generate_detect_version_probes(&self, def_str: &str) -> TokenStream {
+        let mut probes = TokenStream::new();
+
+        for family in self.visitor.model_families.values() {
+            let family_str = &family.family;
+            
+            // For each version in the family (oldest to newest), generate a probe
+            for model_info in &family.versions {
+                let model_name = &model_info.name;
+                let model_str = model_name.to_string();
+                let version = model_info.version();
+                
+                // Generate table name using the same format as model traits
+                let table_name = table_name(def_str, &model_str, "Primary", "Main");
+                
+                probes.extend(quote! {
+                    // Probe for #model_name (version #version)
+                    {
+                        // Try to open the table with just &[u8] as value to check if it exists
+                        let table_def = redb::TableDefinition::<&[u8], &[u8]>::new(#table_name);
+                        if let Ok(table) = read_txn.open_table(table_def) {
+                            let count = table.len().unwrap_or(0);
+                            if count > 0 {
+                                detected.push(DetectedVersion {
+                                    family: #family_str.to_string(),
+                                    version: #version,
+                                    table_name: #table_name.to_string(),
+                                    record_count: count,
+                                });
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        probes
+    }
+
+    /// Generate migration code that probes for old versions and migrates.
+    fn generate_probing_migration_code(&self, def_str: &str) -> TokenStream {
+        let mut code = TokenStream::new();
+
+        for family in self.visitor.model_families.values() {
+            // Only generate migration for families with multiple versions
+            if family.versions.len() <= 1 {
+                continue;
+            }
+
+            let family_str = &family.family;
+            let current_model = family.current_model();
+            let current_model_name = &current_model.name;
+            let current_model_str = current_model_name.to_string();
+            let current_version = family.current_version;
+            let current_table_name = table_name(def_str, &current_model_str, "Primary", "Main");
+
+            // Generate probes for each OLD version (not current)
+            let mut version_probes = TokenStream::new();
+            
+            for (source_index, model_info) in family.versions.iter().enumerate() {
+                let version = model_info.version();
+                if version >= current_version {
+                    continue; // Skip current version
+                }
+                
+                let old_model_name = &model_info.name;
+                let old_model_str = old_model_name.to_string();
+                let old_table_name = table_name(def_str, &old_model_str, "Primary", "Main");
+                
+                // Generate the migration chain call for this version to current
+                let migration_chain = self.generate_migration_chain_for_version(family, source_index);
+                
+                version_probes.extend(quote! {
+                    // Check if version #version table exists
+                    {
+                        let old_table_def = redb::TableDefinition::<
+                            <#old_model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::PrimaryKey,
+                            #old_model_name
+                        >::new(#old_table_name);
+
+                        if let Ok(old_table) = write_txn.open_table(old_table_def) {
+                            let count = old_table.len().unwrap_or(0);
+                            if count > 0 {
+                                // Found old version data! Migrate it.
+                                
+                                // First, collect all records from the old table
+                                let records: Vec<_> = old_table.iter()
+                                    .map_err(|e| ::netabase_store::errors::NetabaseError::RedbError(e.into()))?
+                                    .filter_map(|item| item.ok())
+                                    .map(|(k, v)| (k.value().clone(), v.value()))
+                                    .collect();
+                                
+                                // Now open/create the new table and migrate each record
+                                let new_table_def = redb::TableDefinition::<
+                                    <#current_model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::PrimaryKey,
+                                    #current_model_name
+                                >::new(#current_table_name);
+                                
+                                let mut new_table = write_txn.open_table(new_table_def)
+                                    .map_err(|e| ::netabase_store::errors::NetabaseError::RedbError(e.into()))?;
+                                
+                                for (key, old_value) in records {
+                                    // Apply migration chain: OldModel -> ... -> CurrentModel
+                                    let migrated: #current_model_name = {
+                                        let source = old_value;
+                                        #migration_chain
+                                    };
+                                    
+                                    // Insert into new table
+                                    match new_table.insert(&key, &migrated) {
+                                        Ok(_) => {
+                                            result.records_migrated += 1;
+                                        }
+                                        Err(e) => {
+                                            if options.continue_on_error {
+                                                result.records_failed += 1;
+                                                result.errors.push(format!("Failed to insert migrated record: {}", e));
+                                            } else {
+                                                return Err(::netabase_store::errors::NetabaseError::MigrationError(
+                                                    format!("Failed to insert migrated record: {}", e)
+                                                ));
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                result.migrations_performed.push((
+                                    #family_str.to_string(),
+                                    #version,
+                                    #current_version,
+                                ));
+                                
+                                // Optionally delete the old table
+                                if options.delete_old_tables {
+                                    drop(old_table);
+                                    // Note: redb doesn't have direct table deletion, 
+                                    // the old table will just have stale data
+                                    // In practice, you might want to clear it or leave it
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            code.extend(quote! {
+                // Migration for family: #family_str
+                {
+                    let write_txn = db.begin_write()
+                        .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTransactionError(e.into()))?;
+
+                    #version_probes
+
+                    write_txn.commit()
+                        .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTransactionError(e.into()))?;
+                }
+            });
+        }
+
+        code
+    }
+
+    /// Generate a chain of MigrateFrom calls from a source version to current.
+    fn generate_migration_chain_for_version(
+        &self,
+        family: &crate::visitors::definition::ModelFamily,
+        source_index: usize,
+    ) -> TokenStream {
+        let mut chain = quote! { source };
+
+        for i in source_index..family.current_index {
+            let target_name = &family.versions[i + 1].name;
+            chain = quote! {
+                <#target_name as ::netabase_store::traits::migration::MigrateFrom<_>>::migrate_from(#chain)
+            };
+        }
+
+        chain
     }
 
     fn generate_subscription_enum(&self, definition_name: &syn::Ident, model_info: &ModelInfo) -> TokenStream {

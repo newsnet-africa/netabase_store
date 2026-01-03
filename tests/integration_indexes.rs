@@ -42,7 +42,7 @@ fn test_secondary_key_indexes_created() -> NetabaseResult<()> {
             bio: LargeUserFile::default(),
             another: AnotherLargeUserFile(vec![]),
         };
-        txn.create_redb(&user)?;
+        txn.create(&user)?;
     }
     txn.commit()?;
 
@@ -97,7 +97,7 @@ fn test_secondary_index_update() -> NetabaseResult<()> {
     };
 
     let txn = store.begin_write()?;
-    txn.create_redb(&user)?;
+    txn.create(&user)?;
     txn.commit()?;
 
     // Update to name "Bob"
@@ -177,8 +177,8 @@ fn test_relational_key_indexes_created() -> NetabaseResult<()> {
     };
 
     let txn = store.begin_write()?;
-    txn.create_redb(&user1)?;
-    txn.create_redb(&user2)?;
+    txn.create(&user1)?;
+    txn.create(&user2)?;
     txn.commit()?;
 
     // VERIFY: Both users exist with correct partner references
@@ -226,7 +226,7 @@ fn test_post_author_relationship() -> NetabaseResult<()> {
     };
 
     let txn = store.begin_write()?;
-    txn.create_redb(&author)?;
+    txn.create(&author)?;
     txn.commit()?;
 
     // Create posts by this author
@@ -242,7 +242,7 @@ fn test_post_author_relationship() -> NetabaseResult<()> {
             published: false,
             subscriptions: vec![],
         };
-        txn.create_redb(&post)?;
+        txn.create(&post)?;
     }
     txn.commit()?;
 
@@ -290,7 +290,7 @@ fn test_relational_key_update() -> NetabaseResult<()> {
     };
 
     let txn = store.begin_write()?;
-    txn.create_redb(&user)?;
+    txn.create(&user)?;
     txn.commit()?;
 
     // VERIFY: Has old partner
@@ -391,8 +391,8 @@ fn test_subscription_indexes_created() -> NetabaseResult<()> {
     };
 
     let txn = store.begin_write()?;
-    txn.create_redb(&user1)?;
-    txn.create_redb(&user2)?;
+    txn.create(&user1)?;
+    txn.create(&user2)?;
     txn.commit()?;
 
     // VERIFY: Users exist with correct subscriptions
@@ -438,7 +438,7 @@ fn test_subscription_update() -> NetabaseResult<()> {
     };
 
     let txn = store.begin_write()?;
-    txn.create_redb(&user)?;
+    txn.create(&user)?;
     txn.commit()?;
 
     // Update to Topic2 subscription
@@ -514,7 +514,7 @@ fn test_delete_cleans_all_indexes() -> NetabaseResult<()> {
     };
 
     let txn = store.begin_write()?;
-    txn.create_redb(&user)?;
+    txn.create(&user)?;
     txn.commit()?;
 
     // VERIFY: User exists
