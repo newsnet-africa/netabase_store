@@ -50,6 +50,8 @@ pub struct RepositoryVisitor {
     pub cycles: Vec<CycleInfo>,
     /// Missing definitions required by relational links
     pub missing_definitions: Vec<(syn::Ident, syn::Ident)>, // (source_def, target_def)
+    /// External definitions explicitly listed in the repository attribute
+    pub external_definitions: Vec<syn::Ident>,
 }
 
 impl RepositoryVisitor {
@@ -61,6 +63,25 @@ impl RepositoryVisitor {
             escaped_links: Vec::new(),
             cycles: Vec::new(),
             missing_definitions: Vec::new(),
+            external_definitions: Vec::new(),
+        }
+    }
+
+    /// Add external definitions from attribute
+    pub fn add_external_definitions(&mut self, defs: Vec<syn::Ident>) {
+        for def in defs {
+            self.all_definition_names.insert(def.to_string());
+            // Create a minimal definition info for external definitions
+            self.definitions.push(RepositoryDefinitionInfo {
+                name: def.clone(),
+                visitor: crate::visitors::definition::DefinitionVisitor::new(
+                    def.clone(),
+                    vec![],
+                    vec![],
+                ),
+                link_targets: vec![],
+            });
+            self.external_definitions.push(def);
         }
     }
 

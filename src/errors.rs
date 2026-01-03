@@ -43,6 +43,12 @@ pub enum NetabaseError {
     #[error("IO Error: {0}")]
     IoError(String),
 
+    #[error("Transaction Error: {0}")]
+    TransactionError(String),
+
+    #[error("Definition Not Found: {0}")]
+    DefinitionNotFound(String),
+
     #[error("Unknown Error")]
     Other,
 }

@@ -136,13 +136,22 @@ impl<'a> DiscriminantGenerator<'a> {
         let repo_name = &self.visitor.repository_name;
         let enum_name = format_ident!("{}Definition", repo_name);
 
+        // Check if using external definitions (need super:: prefix)
+        let is_external = !self.visitor.external_definitions.is_empty();
+
         let variants: Vec<_> = self
             .visitor
             .definitions
             .iter()
             .map(|def| {
                 let name = &def.name;
-                quote! { #name(#name) }
+                // Use super:: prefix for external definitions in the type
+                let def_path = if is_external {
+                    quote! { super::#name }
+                } else {
+                    quote! { #name }
+                };
+                quote! { #name(#def_path) }
             })
             .collect();
 
@@ -166,10 +175,16 @@ impl<'a> DiscriminantGenerator<'a> {
             .iter()
             .map(|def| {
                 let def_name = &def.name;
+                // Use super:: prefix for external definitions
+                let def_path = if is_external {
+                    quote! { super::#def_name }
+                } else {
+                    quote! { #def_name }
+                };
                 quote! {
-                    impl From<#def_name> for #enum_name {
+                    impl From<#def_path> for #enum_name {
                         #[inline]
-                        fn from(value: #def_name) -> Self {
+                        fn from(value: #def_path) -> Self {
                             #enum_name::#def_name(value)
                         }
                     }

@@ -1,4 +1,5 @@
 pub mod migration;
+pub mod repository;
 pub mod transaction;
 
 use crate::errors::{NetabaseError, NetabaseResult};

@@ -42,12 +42,21 @@ impl<'a> RepositoryTraitGenerator<'a> {
         let repo_name = &self.visitor.repository_name;
         let discriminant_name = format_ident!("{}DefinitionDiscriminant", repo_name);
 
+        // Check if using external definitions (need super:: prefix)
+        let is_external = !self.visitor.external_definitions.is_empty();
+
         let impls: Vec<_> = self.visitor.definitions
             .iter()
             .map(|def| {
                 let def_name = &def.name;
+                // Use super:: prefix for external definitions
+                let def_path = if is_external {
+                    quote! { super::#def_name }
+                } else {
+                    quote! { #def_name }
+                };
                 quote! {
-                    impl netabase_store::traits::registery::repository::InRepository<#repo_name> for #def_name {
+                    impl netabase_store::traits::registery::repository::InRepository<#repo_name> for #def_path {
                         type RepositoryDiscriminant = #discriminant_name;
 
                         #[inline]

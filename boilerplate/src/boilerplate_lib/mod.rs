@@ -207,6 +207,12 @@ pub mod definition {
     }
 }
 
+// Repository that combines Definition and DefinitionTwo
+// This enables cross-definition RelationalLinks (User -> Category)
+#[netabase_macros::netabase_repository(MainRepository, definitions(Definition, DefinitionTwo))]
+pub mod main_repository {}
+
 // Re-export everything from definitions
 pub use definition::*;
 pub use definition_two::*;
+pub use main_repository::*;
