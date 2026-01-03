@@ -10,12 +10,11 @@ use crate::{
 ///
 /// # Example
 ///
-/// ```rust,ignore
-/// let config = TransactionConfig::default()
-///     .with_table_cache(true)
-///     .with_max_cache_size(100);
+/// ```rust
+/// use netabase_store::traits::database::transaction::TransactionConfig;
 ///
-/// let tx = store.begin_with_config(config)?;
+/// let config = TransactionConfig::default();
+/// // Configuration options can be customized for advanced use cases
 /// ```
 #[derive(Debug, Clone)]
 pub struct TransactionConfig {

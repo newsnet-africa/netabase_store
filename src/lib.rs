@@ -14,39 +14,190 @@
 //!
 //! ## Quick Start
 //!
-//! ```rust,no_run
-//! # use netabase_store::prelude::*;
-//! # use netabase_store::traits::database::store::NBStore;
-//! # use netabase_store_examples::boilerplate_lib::Definition;
-//! # use netabase_store_examples::boilerplate_lib::definition::{User, UserID, LargeUserFile, AnotherLargeUserFile};
-//! # use netabase_store::relational::RelationalLink;
-//! # use netabase_store_examples::boilerplate_lib::CategoryID;
+//! ```rust
+//! use netabase_store::prelude::*;
+//! use netabase_store::traits::database::store::NBStore;
+//! use serde::{Serialize, Deserialize};
+//!
+//! // 1. Define your models with the netabase_model macro
+//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//! struct User {
+//!     #[primary_key]
+//!     id: String,
+//!     name: String,
+//!     #[secondary_key]
+//!     email: String,
+//! }
+//!
+//! // 2. Group models into a definition
+//! #[netabase_macros::netabase_definition(MyApp)]
+//! mod my_models {
+//!     use super::*;
+//! }
+//!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # let db_path = "my.db";
+//! // 3. Create an in-memory database for testing
+//! let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
 //!
-//! // Open a database
-//! let store = RedbStore::<Definition>::new(&db_path)?;
-//!
-//! // Write data
+//! // 4. Write data in a transaction
 //! let txn = store.begin_write()?;
-//! let user = User {
-//!     id: UserID("alice".into()),
-//!     first_name: "Alice".into(),
-//!     last_name: "Smith".into(),
-//!     age: 30,
-//!     partner: RelationalLink::new_dehydrated(UserID("none".into())),
-//!     category: RelationalLink::new_dehydrated(CategoryID("none".into())),
-//!     bio: LargeUserFile::default(),
-//!     another: AnotherLargeUserFile::default(),
-//!     subscriptions: vec![],
-//! };
-//! txn.create(&user)?;
+//! txn.create(&User {
+//!     id: "alice".into(),
+//!     name: "Alice".into(),
+//!     email: "alice@example.com".into(),
+//! })?;
 //! txn.commit()?;
 //!
-//! // Read data
+//! // 5. Read data back
 //! let txn = store.begin_read()?;
-//! let retrieved: Option<User> = txn.read(&UserID("alice".into()))?;
-//! assert!(retrieved.is_some());
+//! let user: Option<User> = txn.read(&UserID("alice".into()))?;
+//! assert_eq!(user.unwrap().name, "Alice");
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Advanced Features
+//!
+//! ### Secondary Index Queries
+//!
+//! ```rust
+//! use netabase_store::prelude::*;
+//! use netabase_store::traits::database::store::NBStore;
+//! use serde::{Serialize, Deserialize};
+//!
+//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//! struct Product {
+//!     #[primary_key]
+//!     sku: String,
+//!     name: String,
+//!     #[secondary_key]
+//!     category: String,
+//!     price: f64,
+//! }
+//!
+//! #[netabase_macros::netabase_definition(Shop)]
+//! mod shop_models {
+//!     use super::*;
+//! }
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let (store, _temp) = RedbStore::<Shop>::new_temporary()?;
+//!
+//! // Query by secondary index
+//! let txn = store.begin_read()?;
+//! let electronics: QueryResult<Product> = txn.query_by_index(
+//!     &ProductKeys::Category,
+//!     &QueryConfig::new().with_limit(10)
+//! )?;
+//!
+//! for product in electronics {
+//!     println!(\"Found: {} - ${}\", product.name, product.price);
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ### Relational Links
+//!
+//! ```rust
+//! use netabase_store::prelude::*;
+//! use netabase_store::traits::database::store::NBStore;
+//! use netabase_store::relational::RelationalLink;
+//! use serde::{Serialize, Deserialize};
+//!
+//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//! struct Author {
+//!     #[primary_key]
+//!     id: String,
+//!     name: String,
+//! }
+//!
+//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//! struct Book {
+//!     #[primary_key]
+//!     isbn: String,
+//!     title: String,
+//!     #[link(BlogApp, Author)]
+//!     author: String,
+//! }
+//!
+//! #[netabase_macros::netabase_definition(BlogApp)]
+//! mod blog_models {
+//!     use super::*;
+//! }
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let (store, _temp) = RedbStore::<BlogApp>::new_temporary()?;
+//!
+//! // Create related models
+//! let txn = store.begin_write()?;
+//! txn.create(&Author { id: \"author1\".into(), name: \"Jane Doe\".into() })?;
+//! txn.create(&Book {
+//!     isbn: \"123\".into(),
+//!     title: \"Rust Guide\".into(),
+//!     author: RelationalLink::new_dehydrated(AuthorID(\"author1\".into())),
+//! })?;
+//! txn.commit()?;
+//!
+//! // Hydrate the relationship
+//! let txn = store.begin_read()?;
+//! let book: Book = txn.read(&BookISBN(\"123\".into()))?.unwrap();
+//! let author: Option<Author> = book.author.hydrate(&txn)?;
+//! assert_eq!(author.unwrap().name, \"Jane Doe\");
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ### Model Versioning and Migration
+//!
+//! ```rust
+//! use netabase_store::prelude::*;
+//! use netabase_store::traits::database::store::NBStore;
+//! use serde::{Serialize, Deserialize};
+//!
+//! // Old version of your model
+//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//! #[netabase_version(family = \"Customer\", version = 1)]
+//! struct CustomerV1 {
+//!     #[primary_key]
+//!     id: String,
+//!     name: String,
+//! }
+//!
+//! // New version with additional field
+//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//! #[netabase_version(family = \"Customer\", version = 2)]
+//! struct Customer {
+//!     #[primary_key]
+//!     id: String,
+//!     name: String,
+//!     email: String,  // New field!
+//! }
+//!
+//! // Define how to migrate from V1 to V2
+//! impl MigrateFrom<CustomerV1> for Customer {
+//!     fn migrate_from(old: CustomerV1) -> Self {
+//!         Customer {
+//!             id: old.id,
+//!             name: old.name,
+//!             email: String::new(),  // Default for new field
+//!         }
+//!     }
+//! }
+//!
+//! #[netabase_macros::netabase_definition(CRM)]
+//! mod crm_models {
+//!     use super::*;
+//! }
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let (store, _temp) = RedbStore::<CRM>::new_temporary()?;
+//!
+//! // Migration runs automatically when needed
+//! if store.needs_migration() {
+//!     let result = store.migrate()?;
+//!     println!(\"Migrated {} records\", result.total_migrated());
+//! }
 //! # Ok(())
 //! # }
 //! ```

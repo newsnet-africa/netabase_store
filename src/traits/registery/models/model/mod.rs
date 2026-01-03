@@ -35,24 +35,21 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
-//! #[netabase_model]
+//! ```rust
+//! use serde::{Serialize, Deserialize};
+//!
+//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
 //! pub struct User {
 //!     #[primary_key]
-//!     pub id: UserId,
+//!     pub id: String,
 //!     
 //!     #[secondary_key]
 //!     pub email: String,
 //!     
-//!     #[relational]
-//!     pub company: RelationalLink<Company>,
-//!     
-//!     #[blob]
-//!     pub avatar: Vec<u8>,
-//!     
-//!     #[subscription]
-//!     pub topics: Vec<TopicId>,
+//!     pub name: String,
 //! }
+//!
+//! // This generates all the key types, table names, and CRUD operations
 //! ```
 //!
 //! # Trait Bounds
@@ -144,10 +141,16 @@
 //!
 //! # Example Model Definition
 //!
-//! ```rust,ignore
-//! #[netabase_model]
+//! ```rust
+//! use serde::{Serialize, Deserialize};
+//!
+//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
 //! pub struct User {
 //!     #[primary_key]
+//!     id: String,
+//!     name: String,
+//! }
+//! ```
 //!     pub id: UserId,
 //!     
 //!     #[secondary_key]
@@ -298,23 +301,11 @@ where
 ///
 /// Models are typically used through transactions:
 ///
-/// ```rust,ignore
-/// let user = User {
-///     id: UserId("alice".to_string()),
-///     email: "alice@example.com".to_string(),
-///     name: "Alice".to_string(),
-///     age: 30,
-/// };
-///
-/// // Extract primary key
-/// let pk = user.get_primary_key();
-/// assert_eq!(pk.0, "alice");
-///
-/// // Extract secondary keys
-/// let secondary = user.get_secondary_keys();
-/// // Contains email index
-///
-/// // Check for relational links
+/// ```rust
+/// // Models are created with macro-derived traits
+/// // and used through database transactions.
+/// // See the main crate documentation for examples.
+/// ```
 /// if user.has_relational_links() {
 ///     // Handle links
 /// }

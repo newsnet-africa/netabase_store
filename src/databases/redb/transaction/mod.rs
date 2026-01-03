@@ -14,46 +14,97 @@
 //!
 //! The simplest pattern for database operations:
 //!
-//! ```rust,ignore
+//! ```rust
+//! use netabase_store::prelude::*;
+//! use netabase_store::traits::database::store::NBStore;
+//! use serde::{Serialize, Deserialize};
+//!
+//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//! struct MyModel {
+//!     #[primary_key]
+//!     id: String,
+//!     data: String,
+//! }
+//!
+//! #[netabase_macros::netabase_definition(MyApp)]
+//! mod models { use super::*; }
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
+//!
 //! // Write data
 //! let txn = store.begin_write()?;
-//! txn.create(&my_model)?;
+//! txn.create(&MyModel { id: \"1\".into(), data: \"test\".into() })?;
 //! txn.commit()?;
 //!
 //! // Read data
 //! let txn = store.begin_read()?;
-//! let result: Option<MyModel> = txn.read(&my_key)?;
+//! let result: Option<MyModel> = txn.read(&MyModelID(\"1\".into()))?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Batch Operations Pattern
 //!
-//! For better performance when processing many records, use `prepare_model` to keep tables open:
+//! For better performance when processing many records:
 //!
-//! ```rust,ignore
+//! ```rust
+//! use netabase_store::prelude::*;
+//! use netabase_store::traits::database::store::NBStore;
+//! use serde::{Serialize, Deserialize};
+//!
+//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//! struct Item {
+//!     #[primary_key]
+//!     id: u64,
+//!     value: String,
+//! }
+//!
+//! #[netabase_macros::netabase_definition(MyApp)]
+//! mod models { use super::*; }
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
 //! let txn = store.begin_write()?;
-//! let tables = txn.prepare_model::<MyModel>()?;
 //!
-//! for item in large_dataset {
-//!     MyModel::create_entry(&item, &tables)?;
+//! for i in 0..10 {
+//!     txn.create(&Item { id: i, value: format!(\"item_{}\", i) })?;
 //! }
 //!
 //! txn.commit()?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Query Pattern
 //!
 //! For listing and querying data with pagination and filtering:
 //!
-//! ```rust,ignore
-//! use netabase_store::query::{QueryConfig, QueryMode};
+//! ```rust
+//! use netabase_store::prelude::*;
+//! use netabase_store::traits::database::store::NBStore;
+//! use serde::{Serialize, Deserialize};
+//!
+//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//! struct Product {
+//!     #[primary_key]
+//!     sku: String,
+//!     name: String,
+//! }
+//!
+//! #[netabase_macros::netabase_definition(MyApp)]
+//! mod models { use super::*; }
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
 //!
 //! let txn = store.begin_read()?;
 //! let config = QueryConfig::new()
-//!     .with_mode(QueryMode::Single)
-//!     .with_limit(10)
-//!     .with_offset(20);
+//!     .with_limit(10);
 //!
-//! let results = txn.list_with_config::<MyModel>(config)?;
+//! let results = txn.list_with_config::<Product>(config)?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! # Rules and Limitations
@@ -62,7 +113,7 @@
 //! 2. **Concurrency**: Multiple read transactions can run concurrently. Write transactions are exclusive.
 //! 3. **Lifetime Management**: Table handles borrowed from transactions cannot outlive the transaction.
 //! 4. **Error Handling**: All database operations return `NetabaseResult<T>`. Always check for errors before commit.
-//! 5. **Performance**: Opening/closing tables has overhead. For batch operations, use `prepare_model` to amortize this cost.
+//! 5. **Performance**: Opening/closing tables has overhead. For batch operations, reuse transactions for multiple creates.
 //!
 //! # See Also
 //!
@@ -424,10 +475,28 @@ where
     /// [tests/integration_crud.rs](../../../tests/integration_crud.rs), and
     /// [tests/readme_examples.rs](../../../tests/readme_examples.rs) for working examples.
     ///
-    /// ```rust,ignore
+    /// ```rust
+    /// use netabase_store::prelude::*;
+    /// use netabase_store::traits::database::store::NBStore;
+    /// use serde::{Serialize, Deserialize};
+    ///
+    /// #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+    /// struct User {
+    ///     #[primary_key]
+    ///     id: String,
+    ///     name: String,
+    /// }
+    ///
+    /// #[netabase_macros::netabase_definition(MyApp)]
+    /// mod models { use super::*; }
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
     /// let txn = store.begin_write()?;
-    /// txn.create(&user)?;
+    /// txn.create(&User { id: "1".into(), name: "Alice".into() })?;
     /// txn.commit()?; // Persist the changes
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn commit(self) -> NetabaseResult<()> {
         match self.transaction {
@@ -475,11 +544,29 @@ where
     /// [tests/integration_crud.rs](../../../tests/integration_crud.rs), and
     /// [tests/readme_examples.rs](../../../tests/readme_examples.rs) for working examples.
     ///
-    /// ```rust,ignore
+    /// ```rust
+    /// use netabase_store::prelude::*;
+    /// use netabase_store::traits::database::store::NBStore;
+    /// use serde::{Serialize, Deserialize};
+    ///
+    /// #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+    /// struct User {
+    ///     #[primary_key]
+    ///     id: u64,
+    ///     name: String,
+    /// }
+    ///
+    /// #[netabase_macros::netabase_definition(MyApp)]
+    /// mod models { use super::*; }
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
     /// let txn = store.begin_write()?;
     /// let user = User { id: 1, name: "Alice".to_string() };
     /// txn.create(&user)?;
     /// txn.commit()?;
+    /// # Ok(())
+    /// # }
     /// ```
     #[inline]
     pub fn create<'data: 'db, M>(&'db self, model: &'data M) -> NetabaseResult<()>
@@ -539,12 +626,30 @@ where
     /// [tests/integration_crud.rs](../../../tests/integration_crud.rs), and
     /// [tests/readme_examples.rs](../../../tests/readme_examples.rs) for working examples.
     ///
-    /// ```rust,ignore
+    /// ```rust
+    /// use netabase_store::prelude::*;
+    /// use netabase_store::traits::database::store::NBStore;
+    /// use serde::{Serialize, Deserialize};
+    ///
+    /// #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+    /// struct User {
+    ///     #[primary_key]
+    ///     id: u64,
+    ///     name: String,
+    /// }
+    ///
+    /// #[netabase_macros::netabase_definition(MyApp)]
+    /// mod models { use super::*; }
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
     /// let txn = store.begin_read()?;
-    /// let user: Option<User> = txn.read::<User>(&1u64)?;
+    /// let user: Option<User> = txn.read::<User>(&UserID(1u64))?;
     /// if let Some(user) = user {
     ///     println!("Found user: {}", user.name);
     /// }
+    /// # Ok(())
+    /// # }
     /// ```
     #[inline]
     pub fn read<'data: 'db, M>(
@@ -605,12 +710,31 @@ where
     /// [tests/integration_crud.rs](../../../tests/integration_crud.rs), and
     /// [tests/readme_examples.rs](../../../tests/readme_examples.rs) for working examples.
     ///
-    /// ```rust,ignore
+    /// ```rust
+    /// use netabase_store::prelude::*;
+    /// use netabase_store::traits::database::store::NBStore;
+    /// use serde::{Serialize, Deserialize};
+    ///
+    /// #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+    /// struct User {
+    ///     #[primary_key]
+    ///     id: u64,
+    ///     name: String,
+    /// }
+    ///
+    /// #[netabase_macros::netabase_definition(MyApp)]
+    /// mod models { use super::*; }
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
     /// let txn = store.begin_write()?;
-    /// let mut user = txn.read::<User>(&1u64)?.expect("user exists");
+    /// txn.create(&User { id: 1, name: "Alice".into() })?;
+    /// let mut user = txn.read::<User>(&UserID(1u64))?.expect("user exists");
     /// user.name = "Bob".to_string();
     /// txn.update(&user)?;
     /// txn.commit()?;
+    /// # Ok(())
+    /// # }
     /// ```
     #[inline]
     pub fn update<'data: 'db, M>(&'db self, model: &'data M) -> NetabaseResult<()>
@@ -674,10 +798,28 @@ where
     /// [tests/integration_crud.rs](../../../tests/integration_crud.rs), and
     /// [tests/readme_examples.rs](../../../tests/readme_examples.rs) for working examples.
     ///
-    /// ```rust,ignore
+    /// ```rust
+    /// use netabase_store::prelude::*;
+    /// use netabase_store::traits::database::store::NBStore;
+    /// use serde::{Serialize, Deserialize};
+    ///
+    /// #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+    /// struct User {
+    ///     #[primary_key]
+    ///     id: u64,
+    ///     name: String,
+    /// }
+    ///
+    /// #[netabase_macros::netabase_definition(MyApp)]
+    /// mod models { use super::*; }
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
     /// let txn = store.begin_write()?;
-    /// txn.delete::<User>(&1u64)?;
+    /// txn.delete::<User>(&UserID(1u64))?;
     /// txn.commit()?;
+    /// # Ok(())
+    /// # }
     /// ```
     #[inline]
     pub fn delete<'data, M>(

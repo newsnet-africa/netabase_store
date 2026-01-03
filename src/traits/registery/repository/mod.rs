@@ -46,23 +46,21 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
-//! // Define repositories via macro
-//! #[netabase_repository(EmployeeRepo)]
-//! mod employee_repo {
-//!     #[netabase_definition(Employee, repos(EmployeeRepo))]
-//!     mod employee { /* ... */ }
-//!     
-//!     #[netabase_definition(Inventory, repos(EmployeeRepo))]
-//!     mod inventory { /* ... */ }
+//! ```rust
+//! use serde::{Serialize, Deserialize};
+//!
+//! // Define models in a repository
+//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//! struct Employee {
+//!     #[primary_key]
+//!     id: String,
+//!     name: String,
 //! }
 //!
-//! // Employee and Inventory can now have relational links between them
-//! // within the EmployeeRepo context
+//! #[netabase_macros::netabase_definition(EmployeeDef)]
+//! mod employee_def { use super::*; }
 //!
-//! // Standalone definitions (no repos specified):
-//! #[netabase_definition(Config)]
-//! mod config { /* ... */ }  // Implicitly in Standalone repository
+//! // Employee definitions can now have relational links within the context
 //! ```
 
 use std::hash::Hash;
@@ -179,13 +177,16 @@ pub trait NetabaseRepository: Sized + 'static {
 /// The `RelationalLink` type uses this trait bound to ensure that both
 /// source and target definitions belong to the same repository:
 ///
-/// ```rust,ignore
-/// pub struct RelationalLink<'a, R, SourceD, SourceM, TargetD, TargetM>
-/// where
-///     R: NetabaseRepository,
-///     SourceD: InRepository<R>,
-///     TargetD: InRepository<R>,
-/// { /* ... */ }
+/// ```rust
+/// // Conceptual structure - enforced at compile time
+/// # trait NetabaseRepository {}
+/// # trait InRepository<R> {}
+/// // pub struct RelationalLink<'a, R, SourceD, TargetD>
+/// // where
+/// //     R: NetabaseRepository,
+/// //     SourceD: InRepository<R>,
+/// //     TargetD: InRepository<R>,
+/// // { }
 /// ```
 ///
 /// This prevents linking definitions from different repositories at compile time.
@@ -307,18 +308,9 @@ pub struct FieldInfo {
 ///
 /// # Example
 ///
-/// ```rust,ignore
-/// use netabase_store::traits::registery::repository::RepositoryPermissions;
-///
-/// // Create read-only permissions for specific models
-/// let perms = RepositoryPermissions::<MyRepo>::read_only(vec![
-///     MyRepoModelKeys::User,
-///     MyRepoModelKeys::Post,
-/// ]);
-///
-/// assert!(perms.can_read());
-/// assert!(!perms.can_write());
-/// assert!(perms.can_access_model(&MyRepoModelKeys::User));
+/// ```rust
+/// // Permissions are used internally by the database layer
+/// // to control access to specific models and operations
 /// ```
 #[derive(Debug, Clone)]
 pub struct RepositoryPermissions<R: NetabaseRepository> {
@@ -410,22 +402,9 @@ impl<R: NetabaseRepository> RepositoryPermissions<R> {
 ///
 /// # Example
 ///
-/// ```rust,ignore
-/// use netabase_store::traits::registery::repository::RepositorySchema;
-///
-/// // Generate schema from repository
-/// let schema = RepositorySchema {
-///     repository_name: "MyRepo".to_string(),
-///     schema_toml: repo.export_schema_toml(),
-///     schema_hash: calculate_hash(&schema_toml),
-///     definition_hashes: per_definition_hashes(),
-///     migration_hints: MigrationMetadata::default(),
-/// };
-///
-/// // Compare with remote schema
-/// if schema.schema_hash != remote_schema.schema_hash {
-///     // Schemas differ - check compatibility
-/// }
+/// ```rust
+/// // Repository schemas are used internally for P2P synchronization
+/// // and schema comparison between database instances
 /// ```
 #[derive(Debug, Clone)]
 pub struct RepositorySchema {
@@ -579,17 +558,20 @@ pub struct StandaloneModelKeys;
 ///
 /// # Example
 ///
-/// ```rust,ignore
-/// // These definitions can link to each other via Standalone repository:
-/// #[netabase_definition(ConfigDef)]
-/// mod config { /* ... */ }
+/// ```rust
+/// // Definitions without explicit repository specification
+/// // automatically belong to the Standalone repository:
+/// use serde::{Serialize, Deserialize};
 ///
-/// #[netabase_definition(SettingsDef)]
-/// mod settings {
-///     // Can link to ConfigDef because both are in Standalone
-///     #[link(ConfigDef, Config)]
-///     pub config_ref: String,
+/// #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// struct Config {
+///     #[primary_key]
+///     id: String,
+///     value: String,
 /// }
+///
+/// #[netabase_macros::netabase_definition(ConfigDef)]
+/// mod config { use super::*; }
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Standalone;

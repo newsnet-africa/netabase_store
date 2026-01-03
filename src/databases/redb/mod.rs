@@ -212,3 +212,42 @@ where
         f()
     }
 }
+
+impl<D: RedbDefinition> RedbStore<D>
+where
+    <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug + PartialEq,
+    <D as IntoDiscriminant>::Discriminant: PartialEq,
+    D: Clone,
+{
+    /// Create a new temporary in-memory RedbStore for testing and doctests.
+    ///
+    /// This creates a database in a temporary directory that will be automatically
+    /// cleaned up when the returned guard is dropped. Perfect for examples and tests
+    /// that don't need persistence.
+    ///
+    /// # Returns
+    ///
+    /// Returns a tuple of `(RedbStore<D>, TempDir)`. The `TempDir` guard must be kept
+    /// alive for the database to remain accessible. When dropped, the temporary
+    /// directory and all its contents are deleted.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// # use netabase_store::databases::redb::RedbStore;
+    /// # use netabase_store::traits::database::store::NBStore;
+    /// # struct MyDefinition;
+    /// let (store, _temp) = RedbStore::<MyDefinition>::new_temporary().unwrap();
+    /// // Use store for testing...
+    /// // _temp is automatically cleaned up when it goes out of scope
+    /// ```
+    pub fn new_temporary() -> NetabaseResult<(Self, tempfile::TempDir)>
+    where
+        D::TreeNames: Default,
+    {
+        let temp_dir = tempfile::tempdir()
+            .map_err(|e| NetabaseError::IoError(format!("Failed to create temp dir: {}", e)))?;
+        let store = <Self as NBStore<D>>::new(temp_dir.path())?;
+        Ok((store, temp_dir))
+    }
+}
