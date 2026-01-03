@@ -241,8 +241,7 @@ fn test_update_and_verify() -> NetabaseResult<()> {
 }
 
 #[test]
-#[ignore] // TODO: update_entry should check if entry exists before updating
-fn test_update_nonexistent_should_fail() -> NetabaseResult<()> {
+fn test_update_nonexistent_succeeds() -> NetabaseResult<()> {
     let (store, db_path) = create_test_db::<Definition>("update_nonexistent")?;
 
     let user_id = UserID("does_not_exist".to_string());
@@ -269,10 +268,22 @@ fn test_update_nonexistent_should_fail() -> NetabaseResult<()> {
         };
         let mut tables = txn.open_model_tables(table_defs, Some(perms))?;
 
+        // Update is idempotent - it creates if doesn't exist (like an upsert)
         let result = user.update_entry(&mut tables);
+        assert!(
+            result.is_ok(),
+            "Update should succeed even for nonexistent entry (upsert behavior)"
+        );
+    }
+    txn.commit()?;
 
-        // VERIFY: Update should fail for nonexistent entry
-        assert!(result.is_err(), "Update should fail for nonexistent entry");
+    // VERIFY: User was created by the update
+    let txn = store.begin_read()?;
+    {
+        let table_defs = User::table_definitions();
+        let tables = txn.open_model_tables(table_defs, None)?;
+        let exists = User::read_default(&user_id, &tables)?;
+        assert!(exists.is_some(), "User should exist after update");
     }
     txn.commit()?;
 
@@ -349,8 +360,7 @@ fn test_delete_and_verify() -> NetabaseResult<()> {
 }
 
 #[test]
-#[ignore] // TODO: delete_entry should check if entry exists before deleting
-fn test_delete_nonexistent_should_fail() -> NetabaseResult<()> {
+fn test_delete_nonexistent_succeeds() -> NetabaseResult<()> {
     let (store, db_path) = create_test_db::<Definition>("delete_nonexistent")?;
 
     let txn = store.begin_write()?;
@@ -364,10 +374,12 @@ fn test_delete_nonexistent_should_fail() -> NetabaseResult<()> {
         };
         let mut tables = txn.open_model_tables(table_defs, Some(perms))?;
 
+        // Delete is idempotent - succeeds even if entry doesn't exist
         let result = User::delete_entry(&UserID("does_not_exist".to_string()), &mut tables);
-
-        // VERIFY: Delete should fail for nonexistent entry
-        assert!(result.is_err(), "Delete should fail for nonexistent entry");
+        assert!(
+            result.is_ok(),
+            "Delete should succeed for nonexistent entry (idempotent)"
+        );
     }
     txn.commit()?;
 

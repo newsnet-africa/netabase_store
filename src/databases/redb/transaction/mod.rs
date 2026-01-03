@@ -345,7 +345,11 @@ where
     ///
     /// Returns an error if the commit fails (e.g., due to I/O errors).
     ///
-    /// # Example
+    /// # Examples
+    ///
+    /// See [tests/comprehensive_functionality.rs](../../../tests/comprehensive_functionality.rs),
+    /// [tests/integration_crud.rs](../../../tests/integration_crud.rs), and
+    /// [tests/readme_examples.rs](../../../tests/readme_examples.rs) for working examples.
     ///
     /// ```rust,ignore
     /// let txn = store.begin_write()?;
@@ -392,7 +396,11 @@ where
     /// - A record with the same primary key already exists
     /// - The database operation fails
     ///
-    /// # Example
+    /// # Examples
+    ///
+    /// See [tests/comprehensive_functionality.rs](../../../tests/comprehensive_functionality.rs),
+    /// [tests/integration_crud.rs](../../../tests/integration_crud.rs), and
+    /// [tests/readme_examples.rs](../../../tests/readme_examples.rs) for working examples.
     ///
     /// ```rust,ignore
     /// let txn = store.begin_write()?;
@@ -452,7 +460,11 @@ where
     ///
     /// * `M` - The model type to read
     ///
-    /// # Example
+    /// # Examples
+    ///
+    /// See [tests/comprehensive_functionality.rs](../../../tests/comprehensive_functionality.rs),
+    /// [tests/integration_crud.rs](../../../tests/integration_crud.rs), and
+    /// [tests/readme_examples.rs](../../../tests/readme_examples.rs) for working examples.
     ///
     /// ```rust,ignore
     /// let txn = store.begin_read()?;
@@ -514,7 +526,11 @@ where
     /// - The transaction is read-only
     /// - The database operation fails
     ///
-    /// # Example
+    /// # Examples
+    ///
+    /// See [tests/comprehensive_functionality.rs](../../../tests/comprehensive_functionality.rs),
+    /// [tests/integration_crud.rs](../../../tests/integration_crud.rs), and
+    /// [tests/readme_examples.rs](../../../tests/readme_examples.rs) for working examples.
     ///
     /// ```rust,ignore
     /// let txn = store.begin_write()?;
@@ -579,7 +595,11 @@ where
     /// - The transaction is read-only
     /// - The database operation fails
     ///
-    /// # Example
+    /// # Examples
+    ///
+    /// See [tests/comprehensive_functionality.rs](../../../tests/comprehensive_functionality.rs),
+    /// [tests/integration_crud.rs](../../../tests/integration_crud.rs), and
+    /// [tests/readme_examples.rs](../../../tests/readme_examples.rs) for working examples.
     ///
     /// ```rust,ignore
     /// let txn = store.begin_write()?;

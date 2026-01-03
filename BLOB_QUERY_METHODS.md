@@ -4,6 +4,8 @@
 
 Four new read-only methods have been added to the `RedbModelCrud` trait to enable decentralized network use cases such as parallel fetching and sharded storage of blob data.
 
+**See [tests/blob_query_methods.rs](tests/blob_query_methods.rs) for complete working examples.**
+
 ## New Methods
 
 ### 1. `read_blob_items`
