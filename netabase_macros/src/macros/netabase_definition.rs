@@ -1,3 +1,87 @@
+//! Definition macro for generating database schema code.
+//!
+//! The `#[netabase_definition]` macro is the primary macro for creating
+//! a collection of related models. It processes all `NetabaseModel` structs
+//! within the module and generates the necessary trait implementations,
+//! enums, and helper types.
+//!
+//! # Syntax
+//!
+//! ```rust,ignore
+//! #[netabase_definition(
+//!     DefinitionName,
+//!     subscriptions(Topic1, Topic2),  // Optional
+//!     repos(RepoName),                 // Optional
+//!     from_file = "schema.toml"       // Optional
+//! )]
+//! mod my_definition {
+//!     #[derive(NetabaseModel)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: String,
+//!         pub name: String,
+//!     }
+//! }
+//! ```
+//!
+//! # Generated Code
+//!
+//! For each definition, the macro generates:
+//!
+//! 1. **Definition Enum**: Wraps all models
+//! 2. **Tree Names Enum**: All database table names
+//! 3. **Keys Enum**: All index types (primary, secondary, relational, blob)
+//! 4. **Subscription Enum**: All pub/sub topics
+//! 5. **Trait Implementations**: NetabaseDefinition, conversions, etc.
+//! 6. **Per-Model Code**:
+//!    - Key extraction methods
+//!    - Serialization with postcard
+//!    - CRUD trait implementations
+//!    - Index management
+//!
+//! # Attributes
+//!
+//! - `subscriptions(...)`: Declare pub/sub topics for this definition
+//! - `repos(...)`: Place this definition in a specific repository
+//! - `from_file`: Import schema from a TOML file
+//!
+//! # Schema Import
+//!
+//! You can generate models from a TOML schema file:
+//!
+//! ```toml
+//! # schema.toml
+//! [User]
+//! id = { type = "String", primary_key = true }
+//! name = "String"
+//! email = { type = "String", secondary_key = true }
+//! ```
+//!
+//! Then import it:
+//!
+//! ```rust,ignore
+//! #[netabase_definition(MyDef, from_file = "schema.toml")]
+//! mod my_def {}
+//! ```
+//!
+//! # Model Versioning
+//!
+//! Models can be versioned for schema migrations:
+//!
+//! ```rust,ignore
+//! #[derive(NetabaseModel)]
+//! #[netabase_version(family = "User", version = 1)]
+//! pub struct UserV1 { /* ... */ }
+//!
+//! #[derive(NetabaseModel)]
+//! #[netabase_version(family = "User", version = 2)]
+//! pub struct UserV2 { /* ... */ }
+//!
+//! impl MigrateFrom<UserV1> for UserV2 {
+//!     fn migrate_from(old: UserV1) -> Self { /* ... */ }
+//! }
+//! ```
+
 use proc_macro2::TokenStream;
 use quote::quote;
 use std::fs;
@@ -15,7 +99,11 @@ use crate::utils::schema::DefinitionSchema;
 use crate::visitors::definition::DefinitionVisitor;
 use crate::visitors::model::ModelMutator;
 
-/// Implementation of the netabase_definition attribute macro
+/// Implementation of the netabase_definition attribute macro.
+///
+/// This is the main entry point for definition code generation.
+/// It orchestrates the visitor, generators, and mutators to transform
+/// a module of model structs into a complete database schema.
 pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
     // Parse attribute to get definition name, subscriptions, and repositories
     let config = parse_definition_attribute_from_tokens(attr)?;

@@ -1,3 +1,76 @@
+//! Transaction layer for redb database operations.
+//!
+//! This module provides the core transaction infrastructure for interacting with redb databases.
+//! Transactions are the primary mechanism for reading and writing data, with full ACID guarantees.
+//!
+//! # Transaction Types
+//!
+//! - **Read transactions** ([`NetabaseRedbReadTransaction`]) - Read-only access to the database
+//! - **Write transactions** ([`NetabaseRedbWriteTransaction`]) - Read/write access with commit/rollback support
+//!
+//! # Design Patterns
+//!
+//! ## Basic CRUD Pattern
+//!
+//! The simplest pattern for database operations:
+//!
+//! ```rust,ignore
+//! // Write data
+//! let txn = store.begin_write()?;
+//! txn.create(&my_model)?;
+//! txn.commit()?;
+//!
+//! // Read data
+//! let txn = store.begin_read()?;
+//! let result: Option<MyModel> = txn.read(&my_key)?;
+//! ```
+//!
+//! ## Batch Operations Pattern
+//!
+//! For better performance when processing many records, use `prepare_model` to keep tables open:
+//!
+//! ```rust,ignore
+//! let txn = store.begin_write()?;
+//! let tables = txn.prepare_model::<MyModel>()?;
+//!
+//! for item in large_dataset {
+//!     MyModel::create_entry(&item, &tables)?;
+//! }
+//!
+//! txn.commit()?;
+//! ```
+//!
+//! ## Query Pattern
+//!
+//! For listing and querying data with pagination and filtering:
+//!
+//! ```rust,ignore
+//! use netabase_store::query::{QueryConfig, QueryMode};
+//!
+//! let txn = store.begin_read()?;
+//! let config = QueryConfig::new()
+//!     .with_mode(QueryMode::Single)
+//!     .with_limit(10)
+//!     .with_offset(20);
+//!
+//! let results = txn.list_with_config::<MyModel>(config)?;
+//! ```
+//!
+//! # Rules and Limitations
+//!
+//! 1. **Transaction Scope**: Transactions must be committed explicitly. Uncommitted write transactions are rolled back on drop.
+//! 2. **Concurrency**: Multiple read transactions can run concurrently. Write transactions are exclusive.
+//! 3. **Lifetime Management**: Table handles borrowed from transactions cannot outlive the transaction.
+//! 4. **Error Handling**: All database operations return `NetabaseResult<T>`. Always check for errors before commit.
+//! 5. **Performance**: Opening/closing tables has overhead. For batch operations, use `prepare_model` to amortize this cost.
+//!
+//! # See Also
+//!
+//! - [`crud`] - CRUD operation implementations
+//! - [`options`] - Configuration options for operations
+//! - [`tables`] - Low-level table access
+//! - [`wrappers`] - Transaction wrapper types
+
 pub mod crud;
 pub mod options;
 pub mod tables;

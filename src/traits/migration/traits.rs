@@ -72,6 +72,12 @@ pub trait MigrateFrom<OldVersion>: Sized {
 /// Downgrading may result in data loss if the new version has fields that
 /// don't exist in the old version. Document any data loss in your implementation.
 ///
+/// # Use Cases
+///
+/// - **P2P Networks**: Nodes may be running different schema versions
+/// - **Rolling Deployments**: Old services need to understand new data
+/// - **Backward Compatibility**: Maintain compatibility during transitions
+///
 /// # Example
 ///
 /// ```
@@ -185,6 +191,37 @@ impl<T> MigrateChain<T> for T {
 // when ModelV2: MigrateFrom<ModelV1>
 
 /// Metadata about a migration path.
+///
+/// Describes the complete path taken during a migration, including
+/// all intermediate versions and potential data loss warnings.
+///
+/// # Use Cases
+///
+/// - Logging migration operations for audit trails
+/// - Warning users before lossy migrations
+/// - Debugging migration chain execution
+/// - P2P schema negotiation
+///
+/// # Example
+///
+/// ```
+/// use netabase_store::traits::migration::MigrationPath;
+///
+/// let path = MigrationPath {
+///     from_version: 1,
+///     to_version: 4,
+///     family: "User",
+///     steps: 3, // V1 -> V2 -> V3 -> V4
+///     may_lose_data: false,
+/// };
+///
+/// if path.may_lose_data {
+///     println!("Warning: Migration may lose data");
+/// }
+///
+/// println!("Migrating {} from v{} to v{} in {} steps",
+///          path.family, path.from_version, path.to_version, path.steps);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MigrationPath {
     /// The source version number.
@@ -200,6 +237,38 @@ pub struct MigrationPath {
 }
 
 /// Result of a migration operation.
+///
+/// Contains statistics and error details from a batch migration operation,
+/// such as migrating all records in a table from V1 to V3.
+///
+/// # Success Criteria
+///
+/// A migration is considered successful if `records_failed == 0`.
+/// Partial migrations (some failures) should be handled by examining
+/// the `errors` field and potentially retrying failed records.
+///
+/// # Example
+///
+/// ```
+/// use netabase_store::traits::migration::{MigrationResult, MigrationPath};
+///
+/// let result = MigrationResult {
+///     records_migrated: 1000,
+///     records_failed: 0,
+///     errors: vec![],
+///     path: MigrationPath {
+///         from_version: 1,
+///         to_version: 2,
+///         family: "User",
+///         steps: 1,
+///         may_lose_data: false,
+///     },
+/// };
+///
+/// assert_eq!(result.records_migrated, 1000);
+/// assert_eq!(result.records_failed, 0);
+/// println!("Successfully migrated {} records", result.records_migrated);
+/// ```
 #[derive(Debug, Clone)]
 pub struct MigrationResult {
     /// Number of records migrated.
@@ -213,6 +282,30 @@ pub struct MigrationResult {
 }
 
 /// Error during migration.
+///
+/// This struct captures detailed information about migration failures,
+/// enabling debugging and recovery strategies.
+///
+/// # Fields
+///
+/// - `record_key`: Primary key of the failed record (serialized as string)
+/// - `error`: Human-readable error description
+/// - `at_version`: Version where the migration failed
+///
+/// # Example
+///
+/// ```
+/// use netabase_store::traits::migration::MigrationError;
+///
+/// let error = MigrationError {
+///     record_key: "user_123".to_string(),
+///     error: "Invalid email format".to_string(),
+///     at_version: 3,
+/// };
+///
+/// println!("Migration failed for {}: {}", error.record_key, error.error);
+/// assert_eq!(error.at_version, 3);
+/// ```
 #[derive(Debug, Clone)]
 pub struct MigrationError {
     /// The primary key of the record that failed (as string).

@@ -3,6 +3,25 @@
 //! This module provides a context type for version-aware deserialization.
 //! When receiving data from an older node or reading from an old database,
 //! the context triggers automatic migration during deserialization.
+//!
+//! # Architecture
+//!
+//! The version context is used during deserialization to detect version mismatches
+//! and trigger migrations. This enables transparent upgrades when reading data
+//! serialized with older schema versions.
+//!
+//! # Wire Format Compatibility
+//!
+//! The 4-byte version prefix is compatible with postcard's wire format because:
+//! 1. It's prepended before serialization
+//! 2. It's stripped before passing to postcard deserializer
+//! 3. The version detection happens at a layer above postcard
+//!
+//! # Performance
+//!
+//! Version checking adds minimal overhead (single u32 comparison per deserialization).
+//! The migration chain is inlined and optimized by the compiler when versions
+//! are known at compile time.
 
 /// Version context for migration-aware deserialization.
 ///

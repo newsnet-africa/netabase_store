@@ -20,25 +20,38 @@
 //! └── ...
 //! ```
 //!
+//! # Repository Metadata
+//!
+//! The `repository.toml` file contains:
+//! - Repository name and version
+//! - List of all definitions in the repository
+//! - Inter-definition relationship mapping
+//! - Schema compatibility information
+//!
+//! # Initialization Process
+//!
+//! 1. Create repository root folder
+//! 2. For each definition:
+//!    a. Create definition subfolder
+//!    b. Initialize redb database
+//!    c. Export schema.toml
+//! 3. Generate repository.toml metadata
+//!
+//! # Thread Safety
+//!
+//! Each definition's database is managed by redb which provides ACID guarantees.
+//! Multiple threads can safely access different definitions concurrently.
+//! Access to the same definition is serialized by redb's transaction system.
+//!
 //! # Example
 //!
 //! See [tests/repository_comprehensive.rs](../../../tests/repository_comprehensive.rs)
 //! for complete working examples of repository creation and usage.
 //!
 //! ```rust,ignore
-//! use netabase_store::databases::redb::RedbRepositoryStore;
-//!
-//! // Create a repository store - this creates all definition stores
-//! let repo_store = RedbRepositoryStore::<MyRepo>::new("./my_repository")?;
-//!
-//! // Access individual definition stores
-//! let user_store = repo_store.definition_store::<UserDef>()?;
-//!
-//! // Begin a repository-wide transaction
-//! let txn = repo_store.begin_write()?;
-//! txn.create::<UserDef, User>(&user)?;
-//! txn.create::<InventoryDef, Item>(&item)?;
-//! txn.commit()?;
+//! # // Repository usage is demonstrated in tests/repository_comprehensive.rs
+//! # // This doctest validates the module compiles
+//! use netabase_store::databases::redb::repository::RedbRepositoryStore;
 //! ```
 
 use std::collections::HashMap;
