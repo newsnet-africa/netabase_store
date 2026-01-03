@@ -1,0 +1,35 @@
+thread 'main' panicked at src/tools/rustfmt/src/items.rs:567:10:
+called `Option::unwrap()` on a `None` value
+stack backtrace:
+   0:     0x79f9f1c0f5fb - <std[447efae271323c10]::backtrace::Backtrace>::create
+   1:     0x79f9f1c0f545 - <std[447efae271323c10]::backtrace::Backtrace>::force_capture
+   2:     0x79f9f0c0cbb7 - std[447efae271323c10]::panicking::update_hook::<alloc[73d32e15361375ff]::boxed::Box<rustc_driver_impl[6b3496e7fe174e5c]::install_ice_hook::{closure#1}>>::{closure#0}
+   3:     0x79f9f1c224f2 - std[447efae271323c10]::panicking::panic_with_hook
+   4:     0x79f9f1c04bba - std[447efae271323c10]::panicking::panic_handler::{closure#0}
+   5:     0x79f9f1bfbc69 - std[447efae271323c10]::sys::backtrace::__rust_end_short_backtrace::<std[447efae271323c10]::panicking::panic_handler::{closure#0}, !>
+   6:     0x79f9f1c0663d - __rustc[84873610a2c64cf5]::rust_begin_unwind
+   7:     0x79f9ee97bb4c - core[f6693e57cd064a40]::panicking::panic_fmt
+   8:     0x79f9ee4ad942 - core[f6693e57cd064a40]::panicking::panic
+   9:     0x79f9eea5acc9 - core[f6693e57cd064a40]::option::unwrap_failed
+  10:     0x577260fae422 - <rustfmt_nightly[ddce6f726c633758]::visitor::FmtVisitor>::visit_enum
+  11:     0x577260fa3956 - <rustfmt_nightly[ddce6f726c633758]::visitor::FmtVisitor>::visit_item
+  12:     0x577260fea173 - <rustfmt_nightly[ddce6f726c633758]::visitor::FmtVisitor>::visit_items_with_reordering
+  13:     0x577260fa8580 - <rustfmt_nightly[ddce6f726c633758]::visitor::FmtVisitor>::walk_mod_items
+  14:     0x577260f25927 - <rustfmt_nightly[ddce6f726c633758]::Session<std[447efae271323c10]::io::stdio::Stdout>>::format_input_inner::{closure#0}
+  15:     0x577260f16e07 - rustfmt[217122c55667bd93]::format_and_emit_report::<std[447efae271323c10]::io::stdio::Stdout>
+  16:     0x577260f2b9dc - rustfmt[217122c55667bd93]::execute
+  17:     0x577260f27767 - rustfmt[217122c55667bd93]::main
+  18:     0x577260f22463 - std[447efae271323c10]::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  19:     0x577260f22b49 - std[447efae271323c10]::rt::lang_start::<()>::{closure#0}
+  20:     0x79f9f33d0126 - std[447efae271323c10]::rt::lang_start_internal
+  21:     0x577260f370a8 - main
+  22:     0x79f9ece181ca - __libc_start_call_main
+                               at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+  23:     0x79f9ece1828b - __libc_start_main_impl
+                               at ./csu/../csu/libc-start.c:360:3
+  24:     0x577260e1c159 - <unknown>
+  25:                0x0 - <unknown>
+
+
+rustc version: 1.94.0-nightly (85c8ff69c 2026-01-02)
+platform: x86_64-unknown-linux-gnu
