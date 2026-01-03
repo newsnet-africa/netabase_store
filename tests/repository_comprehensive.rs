@@ -8,7 +8,7 @@ use netabase_store::errors::NetabaseResult;
 use netabase_store::traits::registery::repository::NetabaseRepository;
 
 use netabase_store_examples::{
-    Category, CategoryID, Definition, DefinitionTwo, MainRepository, User, UserID,
+    Category, CategoryID, Definition, MainRepository, User, UserID,
 };
 
 /// Test that the repository marker struct is generated correctly
@@ -34,7 +34,6 @@ fn test_definition_names() {
 #[test]
 fn test_repository_stores_creation() -> NetabaseResult<()> {
     use netabase_store_examples::MainRepositoryStores;
-    use std::path::Path;
 
     let temp_dir = std::env::temp_dir().join(format!(
         "netabase_repo_test_{}",
@@ -45,7 +44,7 @@ fn test_repository_stores_creation() -> NetabaseResult<()> {
     ));
 
     // Create the repository stores
-    let stores = MainRepositoryStores::new(&temp_dir)?;
+    let _stores = MainRepositoryStores::new(&temp_dir)?;
 
     // Verify folder structure was created
     assert!(temp_dir.exists(), "Repository folder should exist");
@@ -143,7 +142,7 @@ fn test_definition_stores_independent() -> NetabaseResult<()> {
         let user = user.unwrap();
         assert_eq!(user.name, "Alice");
         // The category link should be dehydrated (just holds the ID)
-        assert_eq!(user.category.id().0, "cat1");
+        assert_eq!(user.category.get_primary_key().0, "cat1");
     }
 
     // Clean up
