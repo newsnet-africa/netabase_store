@@ -2,7 +2,7 @@ use crate::utils::attributes::{
     find_attribute, has_attribute, parse_link_attribute, remove_attribute,
 };
 use crate::utils::naming::*;
-use syn::{Field, Ident, ItemStruct, Path, parse_quote, visit_mut::VisitMut};
+use syn::{Field, Ident, ItemStruct, parse_quote, visit_mut::VisitMut};
 
 /// Mutator that transforms the model structs
 pub struct ModelMutator {
@@ -36,15 +36,15 @@ impl VisitMut for ModelMutator {
         }
 
         self.current_model_name = Some(item_struct.ident.clone());
-        let model_name = item_struct.ident.clone();
+        let _model_name = item_struct.ident.clone();
 
         // Check for subscriptions before removing attributes
         let mut subscriptions_field = None;
-        if let Some(subscribe_attr) = find_attribute(&item_struct.attrs, "subscribe") {
+        if let Some(_subscribe_attr) = find_attribute(&item_struct.attrs, "subscribe") {
             // We just need to know it exists to add the field
             // The type will be Vec<DefinitionSubscriptions>
             // Note: DefinitionSubscriptions is the definition-level enum
-            let def_subs_name = subscriptions_enum_name(&self.definition_name); // Actually DefinitionSubscriptions
+            let _def_subs_name = subscriptions_enum_name(&self.definition_name); // Actually DefinitionSubscriptions
             // Wait, naming utils might expect model name for subscriptions_enum_name
             // But here we want the DEFINITION's subscription enum.
             // In boilerplate: pub subscriptions: Vec<DefinitionSubscriptions>

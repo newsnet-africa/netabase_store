@@ -106,7 +106,7 @@ impl ModelFieldVisitor {
             ));
         }
 
-        let field_info = if has_primary {
+        if has_primary {
             self.visit_primary_key(field_name, &field.ty)?
         } else if has_secondary {
             self.visit_secondary_key(field_name, &field.ty)?

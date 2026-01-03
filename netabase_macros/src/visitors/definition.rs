@@ -196,10 +196,10 @@ impl DefinitionVisitor {
                     }
                     syn::Item::Mod(nested_mod) => {
                         // Check for nested netabase_definition attribute
-                        if let Some(attr) = nested_mod
+                        if nested_mod
                             .attrs
                             .iter()
-                            .find(|a| a.path().is_ident("netabase_definition"))
+                            .any(|a| a.path().is_ident("netabase_definition"))
                         {
                             self.visit_nested_definition(nested_mod)?;
                         }

@@ -218,10 +218,10 @@ impl<'a> DefinitionTraitGenerator<'a> {
         &self,
         definition_name: &syn::Ident,
         model_name: &syn::Ident,
-        visitor: &crate::visitors::model::field::ModelFieldVisitor,
+        _visitor: &crate::visitors::model::field::ModelFieldVisitor,
     ) -> TokenStream {
         let id_type = primary_key_type_name(model_name);
-        let keys_enum = unified_keys_enum_name(model_name);
+        let _keys_enum = unified_keys_enum_name(model_name);
 
         let mut impls = vec![];
 
@@ -280,7 +280,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
         &self,
         definition_name: &syn::Ident,
         model_name: &syn::Ident,
-        visitor: &crate::visitors::model::field::ModelFieldVisitor,
+        _visitor: &crate::visitors::model::field::ModelFieldVisitor,
     ) -> TokenStream {
         let id_type = primary_key_type_name(model_name);
 
@@ -321,7 +321,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
         &self,
         definition_name: &syn::Ident,
         model_name: &syn::Ident,
-        visitor: &crate::visitors::model::field::ModelFieldVisitor,
+        _visitor: &crate::visitors::model::field::ModelFieldVisitor,
     ) -> TokenStream {
         let id_type = primary_key_type_name(model_name);
         let keys_enum = unified_keys_enum_name(model_name);

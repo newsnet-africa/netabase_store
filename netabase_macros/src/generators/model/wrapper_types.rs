@@ -1,8 +1,8 @@
+use crate::utils::naming::*;
+use crate::visitors::model::field::{FieldKeyType, ModelFieldVisitor};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Ident, Type};
-use crate::visitors::model::field::{FieldInfo, FieldKeyType, ModelFieldVisitor};
-use crate::utils::naming::*;
 
 /// Generator for wrapper types (ID type and field wrapper types)
 pub struct WrapperTypeGenerator<'a> {
@@ -69,7 +69,11 @@ impl<'a> WrapperTypeGenerator<'a> {
         }
     }
 
-    fn generate_relational_wrapper(&self, field_name: &Ident, target_model: &syn::Path) -> TokenStream {
+    fn generate_relational_wrapper(
+        &self,
+        field_name: &Ident,
+        target_model: &syn::Path,
+    ) -> TokenStream {
         let model_name = &self.visitor.model_name;
         let wrapper_name = field_wrapper_name(model_name, field_name);
 

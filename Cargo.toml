@@ -23,5 +23,6 @@ members = [
 
 [dev-dependencies]
 netabase_store_examples = { path = "./boilerplate" }
+netabase_macros = { path = "./netabase_macros" }
 derive_more = { version = "2.1.0", features = ["display"] }
 

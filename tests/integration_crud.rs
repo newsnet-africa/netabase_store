@@ -1,15 +1,19 @@
 // Integration tests for CRUD operations with full verification
 
+#![allow(deprecated)]
+
 pub mod common;
 
 use common::{cleanup_test_db, create_test_db};
 use netabase_store::databases::redb::transaction::RedbModelCrud;
 use netabase_store::errors::NetabaseResult;
-use netabase_store::relational::{RelationalLink, ModelRelationPermissions, RelationPermission, PermissionFlag};
+use netabase_store::relational::{
+    ModelRelationPermissions, PermissionFlag, RelationPermission, RelationalLink,
+};
 use netabase_store::traits::registery::models::model::{NetabaseModel, RedbNetbaseModel};
 
 // Use boilerplate models from examples
-use netabase_store_examples::{User, UserID, LargeUserFile, AnotherLargeUserFile};
+use netabase_store_examples::{AnotherLargeUserFile, LargeUserFile, User, UserID};
 use netabase_store_examples::{CategoryID, Definition, DefinitionSubscriptions};
 
 #[test]
@@ -30,12 +34,12 @@ fn test_create_and_verify() -> NetabaseResult<()> {
     };
 
     // Create in database
-    let txn = store.begin_transaction()?;
-    txn.create_redb(&user)?;
+    let txn = store.begin_write()?;
+    txn.create(&user)?;
     txn.commit()?;
 
     // VERIFY: Read back and check all fields
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -85,8 +89,8 @@ fn test_create_duplicate_should_overwrite() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_transaction()?;
-    txn.create_redb(&user_v1)?;
+    let txn = store.begin_write()?;
+    txn.create(&user_v1)?;
     txn.commit()?;
 
     // Create second version with same ID
@@ -101,12 +105,12 @@ fn test_create_duplicate_should_overwrite() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_transaction()?;
-    txn.create_redb(&user_v2)?;
+    let txn = store.begin_write()?;
+    txn.create(&user_v2)?;
     txn.commit()?;
 
     // VERIFY: Should have the second version
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -128,7 +132,7 @@ fn test_create_duplicate_should_overwrite() -> NetabaseResult<()> {
 fn test_read_nonexistent() -> NetabaseResult<()> {
     let (store, db_path) = create_test_db::<Definition>("read_nonexistent")?;
 
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -162,12 +166,12 @@ fn test_update_and_verify() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_transaction()?;
-    txn.create_redb(&user)?;
+    let txn = store.begin_write()?;
+    txn.create(&user)?;
     txn.commit()?;
 
     // VERIFY: Initial state
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -190,11 +194,14 @@ fn test_update_and_verify() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_write()?;
     {
         let table_defs = User::table_definitions();
         let perms = ModelRelationPermissions {
-            relationa_tree_access: &[RelationPermission(User::TREE_NAMES, PermissionFlag::ReadWrite)]
+            relationa_tree_access: &[RelationPermission(
+                User::TREE_NAMES,
+                PermissionFlag::ReadWrite,
+            )],
         };
         let mut tables = txn.open_model_tables(table_defs, Some(perms))?;
         updated_user.update_entry(&mut tables)?;
@@ -202,7 +209,7 @@ fn test_update_and_verify() -> NetabaseResult<()> {
     txn.commit()?;
 
     // VERIFY: Updated state
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -242,11 +249,14 @@ fn test_update_nonexistent_should_fail() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_write()?;
     {
         let table_defs = User::table_definitions();
         let perms = ModelRelationPermissions {
-            relationa_tree_access: &[RelationPermission(User::TREE_NAMES, PermissionFlag::ReadWrite)]
+            relationa_tree_access: &[RelationPermission(
+                User::TREE_NAMES,
+                PermissionFlag::ReadWrite,
+            )],
         };
         let mut tables = txn.open_model_tables(table_defs, Some(perms))?;
 
@@ -282,12 +292,12 @@ fn test_delete_and_verify() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_transaction()?;
-    txn.create_redb(&user)?;
+    let txn = store.begin_write()?;
+    txn.create(&user)?;
     txn.commit()?;
 
     // VERIFY: User exists before deletion
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -298,11 +308,14 @@ fn test_delete_and_verify() -> NetabaseResult<()> {
     txn.commit()?;
 
     // Delete user
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_write()?;
     {
         let table_defs = User::table_definitions();
         let perms = ModelRelationPermissions {
-            relationa_tree_access: &[RelationPermission(User::TREE_NAMES, PermissionFlag::ReadWrite)]
+            relationa_tree_access: &[RelationPermission(
+                User::TREE_NAMES,
+                PermissionFlag::ReadWrite,
+            )],
         };
         let mut tables = txn.open_model_tables(table_defs, Some(perms))?;
 
@@ -311,7 +324,7 @@ fn test_delete_and_verify() -> NetabaseResult<()> {
     txn.commit()?;
 
     // VERIFY: User no longer exists
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -330,11 +343,14 @@ fn test_delete_and_verify() -> NetabaseResult<()> {
 fn test_delete_nonexistent_should_fail() -> NetabaseResult<()> {
     let (store, db_path) = create_test_db::<Definition>("delete_nonexistent")?;
 
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_write()?;
     {
         let table_defs = User::table_definitions();
         let perms = ModelRelationPermissions {
-            relationa_tree_access: &[RelationPermission(User::TREE_NAMES, PermissionFlag::ReadWrite)]
+            relationa_tree_access: &[RelationPermission(
+                User::TREE_NAMES,
+                PermissionFlag::ReadWrite,
+            )],
         };
         let mut tables = txn.open_model_tables(table_defs, Some(perms))?;
 
@@ -360,7 +376,7 @@ fn test_multiple_creates_and_verify_all() -> NetabaseResult<()> {
     ];
 
     // Create all users
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_write()?;
     for (id, name, age) in &users {
         let user = User {
             id: UserID(id.to_string()),
@@ -377,7 +393,7 @@ fn test_multiple_creates_and_verify_all() -> NetabaseResult<()> {
     txn.commit()?;
 
     // VERIFY: All users exist with correct data
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -415,13 +431,13 @@ fn test_transaction_rollback_on_drop() -> NetabaseResult<()> {
 
     // Create but don't commit (drop transaction)
     {
-        let txn = store.begin_transaction()?;
-        txn.create_redb(&user)?;
+        let txn = store.begin_write()?;
+        txn.create(&user)?;
         // Transaction dropped here without commit
     }
 
     // VERIFY: User should not exist (transaction rolled back)
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;

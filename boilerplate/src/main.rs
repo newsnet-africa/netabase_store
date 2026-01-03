@@ -4,7 +4,6 @@
 // Run with: cargo run --bin netabase_store_examples
 
 use netabase_store::blob::NetabaseBlobItem;
-use netabase_store::databases::redb::transaction::ModelOpenTables;
 use netabase_store::relational::RelationalLink;
 use netabase_store::traits::registery::definition::NetabaseDefinition;
 use netabase_store::traits::registery::models::model::NetabaseModel;

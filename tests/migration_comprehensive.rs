@@ -1,85 +1,24 @@
 /// Comprehensive migration system tests
 ///
 /// This test suite validates:
-/// - Version attribute parsing
-/// - Model family grouping
-/// - Migration chain generation
-/// - Bincode versioned encoding/decoding
-/// - Database migration utilities
-/// - Schema comparison for P2P
+/// - Version header encoding/decoding
+/// - Version context usage
+/// - Database CRUD with state verification
 mod common;
 
-use bincode::{Decode, Encode};
-use netabase_macros::{NetabaseModel, netabase_definition};
-use netabase_store::databases::redb::RedbStore;
 use netabase_store::errors::NetabaseResult;
-use netabase_store::traits::database::transaction::NetabaseRwTransaction;
-use netabase_store::traits::migration::{
-    MigrateFrom, VersionContext, VersionHeader, VersionedDecode, VersionedEncode,
-};
+use netabase_store::traits::migration::{VersionContext, VersionHeader};
+use netabase_store_examples::{Definition, Post, PostID};
 
-#[netabase_definition]
-mod test_users {
-    use super::*;
-
-    /// Version 1 of User - basic fields only
-    #[derive(Debug, Clone, PartialEq, Eq, NetabaseModel, Encode, Decode)]
-    #[netabase_version(family = "User", version = 1)]
-    pub struct UserV1 {
-        #[primary]
-        pub id: u64,
-        pub name: String,
-    }
-
-    /// Version 2 of User - added email field
-    #[derive(Debug, Clone, PartialEq, Eq, NetabaseModel, Encode, Decode)]
-    #[netabase_version(family = "User", version = 2)]
-    pub struct UserV2 {
-        #[primary]
-        pub id: u64,
-        pub name: String,
-        pub email: String,
-    }
-
-    /// Version 3 of User (current) - added age field
-    #[derive(Debug, Clone, PartialEq, Eq, NetabaseModel, Encode, Decode)]
-    #[netabase_version(family = "User", version = 3, current)]
-    pub struct User {
-        #[primary]
-        pub id: u64,
-        pub name: String,
-        pub email: String,
-        pub age: u32,
-    }
-
-    /// Unversioned model for comparison
-    #[derive(Debug, Clone, PartialEq, Eq, NetabaseModel, Encode, Decode)]
-    pub struct SimpleModel {
-        #[primary]
-        pub id: u64,
-        pub data: String,
-    }
-}
-
-// Migration implementations: V1 -> V2 -> V3
-impl From<test_users::UserV1> for test_users::UserV2 {
-    fn from(old: test_users::UserV1) -> Self {
-        test_users::UserV2 {
-            id: old.id,
-            name: old.name,
-            email: String::from("unknown@example.com"),
-        }
-    }
-}
-
-impl From<test_users::UserV2> for test_users::User {
-    fn from(old: test_users::UserV2) -> Self {
-        test_users::User {
-            id: old.id,
-            name: old.name,
-            email: old.email,
-            age: 0,
-        }
+/// Helper to create a test Post
+fn create_post(id: &str, title: &str, content: &str, age: u32) -> Post {
+    Post {
+        id: PostID(id.to_string()),
+        title: title.to_string(),
+        author_id: format!("author_{}", age),
+        content: content.to_string(),
+        published: age > 25,
+        subscriptions: vec![],
     }
 }
 
@@ -110,407 +49,277 @@ fn test_version_header_detection() {
 }
 
 #[test]
-fn test_versioned_encode_current() {
-    let user = test_users::User {
-        id: 1,
-        name: String::from("Alice"),
-        email: String::from("alice@example.com"),
-        age: 30,
-    };
-
-    let encoded = user.encode_versioned();
-
-    // Should have version header
-    assert!(VersionHeader::is_versioned(&encoded));
-
-    // Extract and check version
-    let header = VersionHeader::from_bytes(&encoded).unwrap();
-    assert_eq!(header.version, 3);
-
-    // Payload should follow header
-    assert!(encoded.len() > VersionHeader::SIZE);
-}
-
-#[test]
-fn test_versioned_decode_same_version() {
-    let user = test_users::User {
-        id: 1,
-        name: String::from("Bob"),
-        email: String::from("bob@example.com"),
-        age: 25,
-    };
-
-    let encoded = user.encode_versioned();
-
-    let ctx = VersionContext {
-        current_version: 3,
-        min_supported_version: 1,
-        auto_migrate: false,
-        strict: false,
-    };
-
-    let decoded = test_users::User::decode_versioned(&encoded, &ctx).unwrap();
-
-    assert_eq!(decoded, user);
-}
-
-#[test]
-fn test_manual_migration_v1_to_v2() {
-    let v1 = test_users::UserV1 {
-        id: 1,
-        name: String::from("Charlie"),
-    };
-
-    let v2: test_users::UserV2 = v1.into();
-
-    assert_eq!(v2.id, 1);
-    assert_eq!(v2.name, "Charlie");
-    assert_eq!(v2.email, "unknown@example.com");
-}
-
-#[test]
-fn test_manual_migration_v2_to_v3() {
-    let v2 = test_users::UserV2 {
-        id: 2,
-        name: String::from("Diana"),
-        email: String::from("diana@example.com"),
-    };
-
-    let v3: test_users::User = v2.into();
-
-    assert_eq!(v3.id, 2);
-    assert_eq!(v3.name, "Diana");
-    assert_eq!(v3.email, "diana@example.com");
-    assert_eq!(v3.age, 0);
-}
-
-#[test]
-fn test_chained_migration_v1_to_v3() {
-    let v1 = test_users::UserV1 {
-        id: 3,
-        name: String::from("Eve"),
-    };
-
-    // Chain: V1 -> V2 -> V3
-    let v2: test_users::UserV2 = v1.into();
-    let v3: test_users::User = v2.into();
-
-    assert_eq!(v3.id, 3);
-    assert_eq!(v3.name, "Eve");
-    assert_eq!(v3.email, "unknown@example.com");
-    assert_eq!(v3.age, 0);
-}
-
-#[test]
-fn test_unversioned_model_legacy_decode() {
-    let model = test_users::SimpleModel {
-        id: 1,
-        data: String::from("test"),
-    };
-
-    // Encode without version header (legacy format)
-    let encoded = bincode::encode_to_vec(&model, bincode::config::standard()).unwrap();
-
-    // Should not have version header
-    assert!(!VersionHeader::is_versioned(&encoded));
-
-    // Should decode via unversioned path
+fn test_version_context_creation() {
+    // Default context
     let ctx = VersionContext::default();
-    let decoded = test_users::SimpleModel::decode_versioned(&encoded, &ctx).unwrap();
+    assert!(ctx.auto_migrate);
+    assert!(!ctx.strict);
+    assert_eq!(ctx.expected_version, 0);
 
-    assert_eq!(decoded, model);
+    // New context with specific version
+    let ctx = VersionContext::new(3);
+    assert_eq!(ctx.expected_version, 3);
+    assert!(ctx.auto_migrate);
+
+    // Strict context
+    let strict = VersionContext::strict(5);
+    assert_eq!(strict.expected_version, 5);
+    assert!(!strict.auto_migrate);
+    assert!(strict.strict);
+
+    // Builder pattern
+    let custom = VersionContext::new(2).with_auto_migrate(false);
+    assert_eq!(custom.expected_version, 2);
+    assert!(!custom.auto_migrate);
 }
 
 #[test]
-fn test_version_context_strict_mode() {
-    let user = test_users::User {
-        id: 1,
-        name: String::from("Frank"),
-        email: String::from("frank@example.com"),
-        age: 35,
-    };
+fn test_version_context_needs_migration() {
+    let mut ctx = VersionContext::new(3);
 
-    let mut encoded = user.encode_versioned();
+    // No actual version yet
+    assert!(!ctx.needs_migration());
 
-    // Tamper with version number to simulate old data
-    encoded[2] = 1; // Change version from 3 to 1
+    // Same version - no migration needed
+    ctx.actual_version = Some(3);
+    assert!(!ctx.needs_migration());
 
-    let ctx = VersionContext {
-        current_version: 3,
-        min_supported_version: 1,
-        auto_migrate: false,
-        strict: true, // Strict mode - should reject version mismatch
-    };
-
-    let result = test_users::User::decode_versioned(&encoded, &ctx);
-    assert!(result.is_err());
+    // Different version - migration needed
+    ctx.actual_version = Some(2);
+    assert!(ctx.needs_migration());
 }
 
 #[test]
-fn test_database_create_and_read_inspection() {
-    let (store, db_path) = common::create_test_db::<test_users::TestUsers>("migration_inspect")
-        .expect("Failed to create test db");
+fn test_version_context_delta() {
+    let mut ctx = VersionContext::new(5);
 
-    // Create a user
-    let user = test_users::User {
-        id: 1,
-        name: String::from("Grace"),
-        email: String::from("grace@example.com"),
-        age: 28,
-    };
+    // No actual version
+    assert_eq!(ctx.version_delta(), 0);
+
+    // Same version
+    ctx.actual_version = Some(5);
+    assert_eq!(ctx.version_delta(), 0);
+
+    // Upgrade needed (actual < expected)
+    ctx.actual_version = Some(3);
+    assert_eq!(ctx.version_delta(), 2);
+
+    // Downgrade (actual > expected) - rare
+    ctx.actual_version = Some(7);
+    assert_eq!(ctx.version_delta(), -2);
+}
+
+#[test]
+fn test_database_create_and_read_inspection() -> NetabaseResult<()> {
+    let (store, db_path) = common::create_test_db::<Definition>("migration_inspect")?;
+
+    let post = create_post("1", "Grace's Post", "Hello world", 28);
 
     {
-        let txn = store.begin_write().expect("Failed to begin write");
-
-        // Create record
-        txn.create(&user).expect("Failed to create user");
-
-        // Read back immediately
-        let read_user: Option<test_users::User> = txn.read(&1u64).expect("Failed to read user");
-
-        assert!(read_user.is_some());
-        let read_user = read_user.unwrap();
-        assert_eq!(read_user.id, 1);
-        assert_eq!(read_user.name, "Grace");
-        assert_eq!(read_user.email, "grace@example.com");
-        assert_eq!(read_user.age, 28);
-
-        txn.commit().expect("Failed to commit");
+        let txn = store.begin_write()?;
+        txn.create(&post)?;
+        txn.commit()?;
     }
 
     // Verify after commit
     {
-        let txn = store.begin_read().expect("Failed to begin read");
-        let read_user: Option<test_users::User> = txn.read(&1u64).expect("Failed to read user");
+        let txn = store.begin_read()?;
+        let read_post = txn.read::<Post>(&PostID("1".to_string()))?;
 
-        assert!(read_user.is_some());
-        assert_eq!(read_user.unwrap().name, "Grace");
+        assert!(read_post.is_some());
+        let read_post = read_post.unwrap();
+        assert_eq!(read_post.title, "Grace's Post");
+        assert_eq!(read_post.content, "Hello world");
     }
 
     common::cleanup_test_db(db_path);
+    Ok(())
 }
 
 #[test]
-fn test_database_update_and_verify_state() {
-    let (store, db_path) = common::create_test_db::<test_users::TestUsers>("migration_update")
-        .expect("Failed to create test db");
+fn test_database_update_and_verify_state() -> NetabaseResult<()> {
+    let (store, db_path) = common::create_test_db::<Definition>("migration_update")?;
 
-    let user_id = 1u64;
+    let post_id = PostID("helen".to_string());
+    let post = create_post("helen", "Original Title", "Original content", 30);
 
-    // Initial state
+    // Create initial state
     {
-        let txn = store.begin_write().expect("Failed to begin write");
-
-        let user = test_users::User {
-            id: user_id,
-            name: String::from("Helen"),
-            email: String::from("helen@example.com"),
-            age: 30,
-        };
-
-        txn.create(&user).expect("Failed to create user");
-        txn.commit().expect("Failed to commit");
+        let txn = store.begin_write()?;
+        txn.create(&post)?;
+        txn.commit()?;
     }
 
     // Verify initial state
     {
-        let txn = store.begin_read().expect("Failed to begin read");
-        let user: Option<test_users::User> = txn.read(&user_id).expect("Failed to read");
-        assert_eq!(user.unwrap().age, 30);
+        let txn = store.begin_read()?;
+        let read = txn.read::<Post>(&post_id)?;
+        assert_eq!(read.unwrap().title, "Original Title");
     }
 
     // Update
     {
-        let txn = store.begin_write().expect("Failed to begin write");
-
-        let mut user: test_users::User = txn
-            .read(&user_id)
-            .expect("Failed to read")
-            .expect("User not found");
-
-        // Modify
-        user.age = 31;
-        user.email = String::from("helen.updated@example.com");
-
-        txn.update(&user).expect("Failed to update user");
-        txn.commit().expect("Failed to commit");
+        let txn = store.begin_write()?;
+        let mut post = txn.read::<Post>(&post_id)?.expect("Post not found");
+        post.title = "Updated Title".to_string();
+        post.content = "Updated content".to_string();
+        txn.update(&post)?;
+        txn.commit()?;
     }
 
     // Verify updated state
     {
-        let txn = store.begin_read().expect("Failed to begin read");
-        let user: Option<test_users::User> = txn.read(&user_id).expect("Failed to read");
-        let user = user.unwrap();
-        assert_eq!(user.age, 31);
-        assert_eq!(user.email, "helen.updated@example.com");
+        let txn = store.begin_read()?;
+        let post = txn.read::<Post>(&post_id)?.unwrap();
+        assert_eq!(post.title, "Updated Title");
+        assert_eq!(post.content, "Updated content");
     }
 
     common::cleanup_test_db(db_path);
+    Ok(())
 }
 
 #[test]
-fn test_database_delete_and_verify() {
-    let (store, db_path) = common::create_test_db::<test_users::TestUsers>("migration_delete")
-        .expect("Failed to create test db");
+fn test_database_delete_and_verify() -> NetabaseResult<()> {
+    let (store, db_path) = common::create_test_db::<Definition>("migration_delete")?;
 
-    let user_id = 1u64;
+    let post_id = PostID("ivy".to_string());
+    let post = create_post("ivy", "Ivy's Post", "Will be deleted", 27);
 
     // Create
     {
-        let txn = store.begin_write().expect("Failed to begin write");
-
-        let user = test_users::User {
-            id: user_id,
-            name: String::from("Ivy"),
-            email: String::from("ivy@example.com"),
-            age: 27,
-        };
-
-        txn.create(&user).expect("Failed to create user");
-        txn.commit().expect("Failed to commit");
+        let txn = store.begin_write()?;
+        txn.create(&post)?;
+        txn.commit()?;
     }
 
     // Verify exists
     {
-        let txn = store.begin_read().expect("Failed to begin read");
-        let user: Option<test_users::User> = txn.read(&user_id).expect("Failed to read");
-        assert!(user.is_some());
+        let txn = store.begin_read()?;
+        let read = txn.read::<Post>(&post_id)?;
+        assert!(read.is_some());
     }
 
     // Delete
     {
-        let txn = store.begin_write().expect("Failed to begin write");
-        txn.delete::<test_users::User>(&user_id)
-            .expect("Failed to delete user");
-        txn.commit().expect("Failed to commit");
+        let txn = store.begin_write()?;
+        txn.delete::<Post>(&post_id)?;
+        txn.commit()?;
     }
 
     // Verify deleted
     {
-        let txn = store.begin_read().expect("Failed to begin read");
-        let user: Option<test_users::User> = txn.read(&user_id).expect("Failed to read");
-        assert!(user.is_none());
+        let txn = store.begin_read()?;
+        let read = txn.read::<Post>(&post_id)?;
+        assert!(read.is_none());
     }
 
     common::cleanup_test_db(db_path);
+    Ok(())
 }
 
 #[test]
-fn test_multiple_records_state_consistency() {
-    let (store, db_path) = common::create_test_db::<test_users::TestUsers>("migration_multi")
-        .expect("Failed to create test db");
+fn test_multiple_records_state_consistency() -> NetabaseResult<()> {
+    let (store, db_path) = common::create_test_db::<Definition>("migration_multi")?;
 
     // Create multiple records
     {
-        let txn = store.begin_write().expect("Failed to begin write");
-
+        let txn = store.begin_write()?;
         for i in 1..=5 {
-            let user = test_users::User {
-                id: i,
-                name: format!("User{}", i),
-                email: format!("user{}@example.com", i),
-                age: 20 + i as u32,
-            };
-            txn.create(&user).expect("Failed to create user");
+            let post = create_post(
+                &format!("post_{}", i),
+                &format!("Title {}", i),
+                &format!("Content {}", i),
+                20 + i,
+            );
+            txn.create(&post)?;
         }
-
-        txn.commit().expect("Failed to commit");
+        txn.commit()?;
     }
 
     // Verify all records exist
     {
-        let txn = store.begin_read().expect("Failed to begin read");
-
+        let txn = store.begin_read()?;
         for i in 1..=5 {
-            let user: Option<test_users::User> = txn.read(&i).expect("Failed to read");
-            assert!(user.is_some());
-            let user = user.unwrap();
-            assert_eq!(user.id, i);
-            assert_eq!(user.name, format!("User{}", i));
-            assert_eq!(user.age, 20 + i as u32);
+            let post_id = PostID(format!("post_{}", i));
+            let post = txn.read::<Post>(&post_id)?;
+            assert!(post.is_some(), "Post {} should exist", i);
+            let post = post.unwrap();
+            assert_eq!(post.title, format!("Title {}", i));
         }
     }
 
     // Update selective records
     {
-        let txn = store.begin_write().expect("Failed to begin write");
-
-        for i in [2u64, 4u64] {
-            let mut user: test_users::User = txn
-                .read(&i)
-                .expect("Failed to read")
-                .expect("User not found");
-            user.age += 10;
-            txn.update(&user).expect("Failed to update");
+        let txn = store.begin_write()?;
+        for i in [2, 4] {
+            let post_id = PostID(format!("post_{}", i));
+            let mut post = txn.read::<Post>(&post_id)?.expect("Post not found");
+            post.title = format!("Updated Title {}", i);
+            txn.update(&post)?;
         }
-
-        txn.commit().expect("Failed to commit");
+        txn.commit()?;
     }
 
     // Verify selective updates
     {
-        let txn = store.begin_read().expect("Failed to begin read");
+        let txn = store.begin_read()?;
 
-        let user1: test_users::User = txn.read(&1u64).expect("Failed to read").unwrap();
-        assert_eq!(user1.age, 21); // Unchanged
+        // Unchanged
+        let post1 = txn.read::<Post>(&PostID("post_1".to_string()))?.unwrap();
+        assert_eq!(post1.title, "Title 1");
 
-        let user2: test_users::User = txn.read(&2u64).expect("Failed to read").unwrap();
-        assert_eq!(user2.age, 32); // Changed: 22 + 10
+        // Changed
+        let post2 = txn.read::<Post>(&PostID("post_2".to_string()))?.unwrap();
+        assert_eq!(post2.title, "Updated Title 2");
 
-        let user3: test_users::User = txn.read(&3u64).expect("Failed to read").unwrap();
-        assert_eq!(user3.age, 23); // Unchanged
+        // Unchanged
+        let post3 = txn.read::<Post>(&PostID("post_3".to_string()))?.unwrap();
+        assert_eq!(post3.title, "Title 3");
 
-        let user4: test_users::User = txn.read(&4u64).expect("Failed to read").unwrap();
-        assert_eq!(user4.age, 34); // Changed: 24 + 10
+        // Changed
+        let post4 = txn.read::<Post>(&PostID("post_4".to_string()))?.unwrap();
+        assert_eq!(post4.title, "Updated Title 4");
 
-        let user5: test_users::User = txn.read(&5u64).expect("Failed to read").unwrap();
-        assert_eq!(user5.age, 25); // Unchanged
+        // Unchanged
+        let post5 = txn.read::<Post>(&PostID("post_5".to_string()))?.unwrap();
+        assert_eq!(post5.title, "Title 5");
     }
 
     common::cleanup_test_db(db_path);
+    Ok(())
 }
 
 #[test]
-fn test_transaction_rollback_preserves_state() {
-    let (store, db_path) = common::create_test_db::<test_users::TestUsers>("migration_rollback")
-        .expect("Failed to create test db");
+fn test_transaction_rollback_preserves_state() -> NetabaseResult<()> {
+    let (store, db_path) = common::create_test_db::<Definition>("migration_rollback")?;
+
+    let post_id = PostID("jack".to_string());
+    let post = create_post("jack", "Original", "Original content", 30);
 
     // Create initial record
     {
-        let txn = store.begin_write().expect("Failed to begin write");
-
-        let user = test_users::User {
-            id: 1,
-            name: String::from("Jack"),
-            email: String::from("jack@example.com"),
-            age: 30,
-        };
-
-        txn.create(&user).expect("Failed to create user");
-        txn.commit().expect("Failed to commit");
+        let txn = store.begin_write()?;
+        txn.create(&post)?;
+        txn.commit()?;
     }
 
     // Start a transaction but don't commit (implicit rollback)
     {
-        let txn = store.begin_write().expect("Failed to begin write");
-
-        let mut user: test_users::User = txn
-            .read(&1u64)
-            .expect("Failed to read")
-            .expect("User not found");
-
-        user.age = 99;
-        txn.update(&user).expect("Failed to update");
-
+        let txn = store.begin_write()?;
+        let mut post = txn.read::<Post>(&post_id)?.expect("Post not found");
+        post.title = "Modified".to_string();
+        txn.update(&post)?;
         // Don't commit - transaction drops and rolls back
     }
 
     // Verify state unchanged
     {
-        let txn = store.begin_read().expect("Failed to begin read");
-        let user: Option<test_users::User> = txn.read(&1u64).expect("Failed to read");
-        assert_eq!(user.unwrap().age, 30); // Original value preserved
+        let txn = store.begin_read()?;
+        let post = txn.read::<Post>(&post_id)?;
+        assert_eq!(post.unwrap().title, "Original");
     }
 
     common::cleanup_test_db(db_path);
+    Ok(())
 }

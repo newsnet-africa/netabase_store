@@ -1,3 +1,10 @@
+//! Netabase procedural macros for defining database models and definitions.
+//!
+//! This crate provides derive macros and attribute macros for the netabase_store library.
+
+// Allow dead code in macro crate - utility functions may be used in future expansions
+#![allow(dead_code)]
+
 use proc_macro::TokenStream;
 
 mod generators;

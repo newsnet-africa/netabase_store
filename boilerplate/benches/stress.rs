@@ -1,13 +1,13 @@
-use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use netabase_store::databases::redb::transaction::RedbModelCrud;
 use netabase_store::relational::RelationalLink;
-use netabase_store_examples::boilerplate_lib::{
-    CategoryID, Definition, DefinitionSubscriptions,
-};
 use netabase_store_examples::boilerplate_lib::definition::{
     HeavyModel, HeavyModelID, User, UserID,
 };
-use netabase_store_examples::boilerplate_lib::models::blob_types::{AnotherLargeUserFile, LargeUserFile, HeavyAttachment};
+use netabase_store_examples::boilerplate_lib::models::blob_types::{
+    AnotherLargeUserFile, HeavyAttachment, LargeUserFile,
+};
+use netabase_store_examples::boilerplate_lib::{CategoryID, Definition, DefinitionSubscriptions};
 use rand::prelude::*;
 use std::hint::black_box;
 use std::path::PathBuf;
@@ -174,7 +174,7 @@ fn bench_stress_operations(c: &mut Criterion) {
                         create_test_db::<Definition>(&name).expect("Failed to create DB");
 
                     // Insert users first so foreign keys technically exist (though not enforced by DB strictly yet)
-                    let txn = store.begin_transaction().expect("Failed to begin txn");
+                    let txn = store.begin_write().expect("Failed to begin txn");
                     {
                         let mut tables = txn.prepare_model::<User>().unwrap();
                         for user in &users {
@@ -186,7 +186,7 @@ fn bench_stress_operations(c: &mut Criterion) {
                     (store, heavies, CleanupGuard(path))
                 },
                 |(store, heavies, _guard)| {
-                    let txn = store.begin_transaction().expect("Failed to begin txn");
+                    let txn = store.begin_write().expect("Failed to begin txn");
                     {
                         let mut tables = txn.prepare_model::<HeavyModel>().unwrap();
                         for item in &heavies {
@@ -217,7 +217,7 @@ fn bench_stress_operations(c: &mut Criterion) {
                     let (store, path) =
                         create_test_db::<Definition>(&name).expect("Failed to create DB");
 
-                    let txn = store.begin_transaction().unwrap();
+                    let txn = store.begin_write().unwrap();
                     {
                         let mut user_tables = txn.prepare_model::<User>().unwrap();
                         for u in &users {
@@ -233,7 +233,7 @@ fn bench_stress_operations(c: &mut Criterion) {
                     (store, heavies, CleanupGuard(path))
                 },
                 |(store, heavies, _guard)| {
-                    let txn = store.begin_transaction().unwrap();
+                    let txn = store.begin_read().unwrap();
                     let tables = txn.prepare_model::<HeavyModel>().unwrap();
                     for item in &heavies {
                         black_box(HeavyModel::read_default(&item.id, &tables)).unwrap();
@@ -261,7 +261,7 @@ fn bench_stress_operations(c: &mut Criterion) {
                     let (store, path) =
                         create_test_db::<Definition>(&name).expect("Failed to create DB");
 
-                    let txn = store.begin_transaction().unwrap();
+                    let txn = store.begin_write().unwrap();
                     {
                         let mut user_tables = txn.prepare_model::<User>().unwrap();
                         for u in &users {
@@ -277,7 +277,7 @@ fn bench_stress_operations(c: &mut Criterion) {
                     (store, heavies, CleanupGuard(path))
                 },
                 |(store, heavies, _guard)| {
-                    let txn = store.begin_transaction().unwrap();
+                    let txn = store.begin_read().unwrap();
                     let heavy_tables = txn.prepare_model::<HeavyModel>().unwrap();
                     let user_tables = txn.prepare_model::<User>().unwrap();
 
