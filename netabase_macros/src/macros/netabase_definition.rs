@@ -161,6 +161,7 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
             let migration_file: syn::File = parse2(migration_code).map_err(|e| {
                 syn::Error::new(e.span(), format!("Failed to parse migration items: {}", e))
             })?;
+
             items.extend(migration_file.items.into_iter().map(syn::Item::from));
         }
     }

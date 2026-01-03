@@ -1,5 +1,6 @@
 // Macro-based boilerplate library - exact duplicate of boilerplate_lib using macros
 // This demonstrates 1:1 parity between manual and macro-generated code
+// Updated: 2026-01-03 - Added versioned models for migration testing
 use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
