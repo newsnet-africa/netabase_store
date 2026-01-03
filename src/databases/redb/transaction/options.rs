@@ -1,14 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct QueryConfig {
+pub struct CrudOptions {
     pub list: ListConfig,
     pub hydration: HydrationConfig,
     pub blob: BlobConfig,
     pub subscription: SubscriptionConfig,
 }
 
-impl QueryConfig {
+impl CrudOptions {
     pub fn new() -> Self {
         Self::default()
     }

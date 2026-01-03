@@ -5,7 +5,7 @@
 pub mod common;
 
 use common::{cleanup_test_db, create_test_db};
-use netabase_store::databases::redb::transaction::{QueryConfig, RedbModelCrud};
+use netabase_store::databases::redb::transaction::{CrudOptions, RedbModelCrud};
 use netabase_store::errors::NetabaseResult;
 use netabase_store::relational::RelationalLink;
 use netabase_store::traits::registery::models::model::RedbNetbaseModel;
@@ -133,7 +133,7 @@ fn test_list_entries_pagination() -> NetabaseResult<()> {
         let tables = txn.open_model_tables(table_defs, None)?;
 
         // 1. First page (limit 3, offset 0)
-        let page1: Vec<User> = User::list_entries(&tables, QueryConfig::new().with_limit(3))?
+        let page1: Vec<User> = User::list_entries(&tables, CrudOptions::new().with_limit(3))?
             .into_iter()
             .map(|g| g.value())
             .collect();
@@ -145,7 +145,7 @@ fn test_list_entries_pagination() -> NetabaseResult<()> {
 
         // 2. Second page (limit 3, offset 3)
         let page2: Vec<User> =
-            User::list_entries(&tables, QueryConfig::new().with_limit(3).with_offset(3))?
+            User::list_entries(&tables, CrudOptions::new().with_limit(3).with_offset(3))?
                 .into_iter()
                 .map(|g| g.value())
                 .collect();
@@ -157,7 +157,7 @@ fn test_list_entries_pagination() -> NetabaseResult<()> {
 
         // 3. Last page (limit 3, offset 9) - should return 1 item (user_9)
         let page4: Vec<User> =
-            User::list_entries(&tables, QueryConfig::new().with_limit(3).with_offset(9))?
+            User::list_entries(&tables, CrudOptions::new().with_limit(3).with_offset(9))?
                 .into_iter()
                 .map(|g| g.value())
                 .collect();
@@ -167,7 +167,7 @@ fn test_list_entries_pagination() -> NetabaseResult<()> {
 
         // 4. Out of bounds offset
         let empty_page: Vec<User> =
-            User::list_entries(&tables, QueryConfig::new().with_limit(3).with_offset(100))?
+            User::list_entries(&tables, CrudOptions::new().with_limit(3).with_offset(100))?
                 .into_iter()
                 .map(|g| g.value())
                 .collect();
@@ -212,7 +212,7 @@ fn test_list_range() -> NetabaseResult<()> {
         // Range: b_user to d_user (inclusive start, exclusive end)
         // Should include: b_user, c_user
         let range = UserID("b_user".to_string())..UserID("d_user".to_string());
-        let result: Vec<User> = User::list_range(&tables, range, QueryConfig::default())?
+        let result: Vec<User> = User::list_range(&tables, range, CrudOptions::default())?
             .into_iter()
             .map(|g| g.value())
             .collect();
@@ -226,7 +226,7 @@ fn test_list_range() -> NetabaseResult<()> {
         // Should include: b_user, c_user, d_user
         let range_inclusive = UserID("b_user".to_string())..=UserID("d_user".to_string());
         let result_inc: Vec<User> =
-            User::list_range(&tables, range_inclusive, QueryConfig::default())?
+            User::list_range(&tables, range_inclusive, CrudOptions::default())?
                 .into_iter()
                 .map(|g| g.value())
                 .collect();
@@ -244,7 +244,7 @@ fn test_list_range() -> NetabaseResult<()> {
         let result_page: Vec<User> = User::list_range(
             &tables,
             range_page,
-            QueryConfig::new().with_limit(2).with_offset(1),
+            CrudOptions::new().with_limit(2).with_offset(1),
         )?
         .into_iter()
         .map(|g| g.value())

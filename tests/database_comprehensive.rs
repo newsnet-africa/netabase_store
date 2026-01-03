@@ -437,18 +437,17 @@ fn test_query_config_helpers() {
     use std::ops::RangeFull;
 
     // Test all query config helper methods
-    // Use turbofish since `all()` is on a generic impl
-    let all = QueryConfig::<RangeFull>::all();
+    let all = QueryConfig::all();
     assert_eq!(all.range, RangeFull);
 
-    let first = QueryConfig::<RangeFull>::first();
+    let first = QueryConfig::first();
     assert_eq!(first.pagination.limit, Some(1));
 
-    let dump = QueryConfig::<RangeFull>::dump_all();
+    let dump = QueryConfig::dump_all();
     assert!(dump.fetch_options.include_blobs);
     assert_eq!(dump.fetch_options.hydration_depth, 0);
 
-    let inspect = QueryConfig::<std::ops::Range<u64>>::inspect_range(0u64..100u64);
+    let inspect = QueryConfig::inspect_range(0u64..100u64);
     assert_eq!(inspect.range, 0u64..100u64);
     assert!(inspect.fetch_options.include_blobs);
 
