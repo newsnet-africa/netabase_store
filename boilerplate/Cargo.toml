@@ -30,3 +30,16 @@ harness = false
 name = "stress"
 path = "benches/stress.rs"
 harness = false
+# Test ordering: schema_export must run before schema_import
+# Tests run in alphabetical order
+[[test]]
+name = "0_schema_export"
+path = "tests/schema_export.rs"
+
+[[test]]
+name = "1_schema_import"
+path = "tests/schema_import.rs"
+
+[[test]]
+name = "macro_test"
+path = "tests/macro_test.rs"

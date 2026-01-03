@@ -15,7 +15,10 @@ pub use crate::traits::registery::models::model::NetabaseModel;
 
 // Database and transactions
 pub use crate::databases::redb::RedbStore;
-pub use crate::databases::redb::transaction::{QueryConfig, RedbTransaction};
+pub use crate::databases::redb::transaction::RedbTransaction;
+
+// Query configuration
+pub use crate::query::{QueryConfig, QueryMode, QueryResult, FetchOptions, Pagination};
 
 // Error handling
 pub use crate::errors::{NetabaseError, NetabaseResult};
