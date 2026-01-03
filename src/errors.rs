@@ -40,6 +40,9 @@ pub enum NetabaseError {
     #[error("Schema Conflict: {0}")]
     SchemaConflict(String),
 
+    #[error("IO Error: {0}")]
+    IoError(String),
+
     #[error("Unknown Error")]
     Other,
 }

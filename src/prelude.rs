@@ -18,7 +18,7 @@ pub use crate::databases::redb::RedbStore;
 pub use crate::databases::redb::transaction::RedbTransaction;
 
 // Query configuration
-pub use crate::query::{QueryConfig, QueryMode, QueryResult, FetchOptions, Pagination};
+pub use crate::query::{FetchOptions, Pagination, QueryConfig, QueryMode, QueryResult};
 
 // Error handling
 pub use crate::errors::{NetabaseError, NetabaseResult};

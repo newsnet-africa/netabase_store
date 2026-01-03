@@ -388,7 +388,7 @@ fn test_multiple_creates_and_verify_all() -> NetabaseResult<()> {
             bio: LargeUserFile::default(),
             another: AnotherLargeUserFile(vec![]),
         };
-        txn.create_redb(&user)?;
+        txn.create(&user)?;
     }
     txn.commit()?;
 

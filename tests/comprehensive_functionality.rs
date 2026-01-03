@@ -734,7 +734,7 @@ fn test_transaction_rollback_on_drop() -> NetabaseResult<()> {
             another: AnotherLargeUserFile(vec![]),
         };
 
-        txn.create_redb(&user)?;
+        txn.create(&user)?;
 
         // Transaction dropped here without commit - should rollback
     }
@@ -796,7 +796,7 @@ fn test_transaction_multiple_models() -> NetabaseResult<()> {
             bio: LargeUserFile::default(),
             another: AnotherLargeUserFile(vec![]),
         };
-        txn.create_redb(&user)?;
+        txn.create(&user)?;
     }
 
     txn.commit()?;
@@ -876,7 +876,7 @@ fn test_count_entries_accurate() -> NetabaseResult<()> {
             bio: LargeUserFile::default(),
             another: AnotherLargeUserFile(vec![]),
         };
-        txn.create_redb(&user)?;
+        txn.create(&user)?;
     }
     txn.commit()?;
 
@@ -948,7 +948,7 @@ fn test_list_entries_complete() -> NetabaseResult<()> {
             bio: LargeUserFile::default(),
             another: AnotherLargeUserFile(vec![]),
         };
-        txn.create_redb(&user)?;
+        txn.create(&user)?;
     }
     txn.commit()?;
 
@@ -1052,7 +1052,7 @@ fn test_blob_storage_large_data() -> NetabaseResult<()> {
 
     // Store
     let txn = store.begin_write()?;
-    txn.create_redb(&user)?;
+    txn.create(&user)?;
     txn.commit()?;
     println!("✓ Large blobs stored");
 
@@ -1154,7 +1154,7 @@ fn test_standalone_repository_cross_definition_links() -> NetabaseResult<()> {
     };
 
     let txn = store.begin_write()?;
-    txn.create_redb(&alice)?;
+    txn.create(&alice)?;
     txn.commit()?;
 
     println!("Creating Bob (user with link to Alice and category link)");
@@ -1172,7 +1172,7 @@ fn test_standalone_repository_cross_definition_links() -> NetabaseResult<()> {
     };
 
     let txn = store.begin_write()?;
-    txn.create_redb(&bob)?;
+    txn.create(&bob)?;
     txn.commit()?;
 
     // Verify Bob's links
@@ -1287,7 +1287,7 @@ fn test_subscriptions_storage_and_retrieval() -> NetabaseResult<()> {
             bio: LargeUserFile::default(),
             another: AnotherLargeUserFile(vec![]),
         };
-        txn.create_redb(&user)?;
+        txn.create(&user)?;
     }
     txn.commit()?;
 
@@ -1397,7 +1397,7 @@ fn test_delete_nonexistent_model() -> NetabaseResult<()> {
     };
 
     let txn = store.begin_write()?;
-    txn.create_redb(&user)?;
+    txn.create(&user)?;
     txn.commit()?;
 
     // Try to delete non-existent user
@@ -1547,9 +1547,9 @@ fn test_complex_multi_model_relationships() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    txn.create_redb(&alice)?;
-    txn.create_redb(&bob)?;
-    txn.create_redb(&charlie)?;
+    txn.create(&alice)?;
+    txn.create(&bob)?;
+    txn.create(&charlie)?;
     txn.commit()?;
 
     // Verify the relationship structure
