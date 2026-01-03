@@ -133,9 +133,9 @@ fn bench_crud_operations(c: &mut Criterion) {
     const REL_CATEGORY: MultimapTableDefinition<UserRelationalKeys, UserID> =
         MultimapTableDefinition::new("Definition:User:Relational:Category");
     const SUB_TOPIC1: MultimapTableDefinition<DefinitionSubscriptions, UserID> =
-        MultimapTableDefinition::new("Definition:Subscription:Topic1");
+        MultimapTableDefinition::new("Definition:User:Subscription:Topic1");
     const SUB_TOPIC2: MultimapTableDefinition<DefinitionSubscriptions, UserID> =
-        MultimapTableDefinition::new("Definition:Subscription:Topic2");
+        MultimapTableDefinition::new("Definition:User:Subscription:Topic2");
     // Updated blob table name and type usage
     const BLOB_BIO: MultimapTableDefinition<UserBlobKeys, UserBlobItem> =
         MultimapTableDefinition::new("Definition:User:Blob:Bio");

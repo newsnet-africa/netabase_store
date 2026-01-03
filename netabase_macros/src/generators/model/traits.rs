@@ -146,7 +146,7 @@ impl<'a> TraitGenerator<'a> {
                 .map(|topic| {
                     let topic_ident = path_last_segment(topic).unwrap();
                     let topic_str = topic_ident.to_string();
-                    let table_name_str = subscription_table_name(&def_str, &topic_str);
+                    let table_name_str = subscription_table_name(&def_str, &model_str, &topic_str);
                     let tree_name = tree_name_type(&subscriptions_enum_name(model_name));
 
                     quote! {

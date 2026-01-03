@@ -112,6 +112,9 @@ impl<'a> DefinitionTraitGenerator<'a> {
             // Generate migration code for each model family
             let migration_code = self.generate_probing_migration_code(&def_str);
 
+            // Generate table initialization code for all models
+            let init_tables_code = self.generate_init_tables_code(&def_str);
+
             quote! {
                 impl ::netabase_store::traits::registery::definition::redb_definition::RedbDefinition for #definition_name {
                     type ModelTableDefinition<'db> = ::netabase_store::traits::registery::models::model::redb_model::RedbModelTableDefinitions<'db, #model_name, Self>;
@@ -155,6 +158,22 @@ impl<'a> DefinitionTraitGenerator<'a> {
                         #migration_code
 
                         Ok(result)
+                    }
+
+                    fn init_tables(db: &redb::Database) -> ::netabase_store::errors::NetabaseResult<()> {
+                        use ::netabase_store::traits::registery::models::model::NetabaseModel;
+                        
+                        // Open a write transaction to create all tables
+                        let write_txn = db.begin_write()
+                            .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTransactionError(e.into()))?;
+
+                        #init_tables_code
+
+                        // Commit the transaction to persist table creation
+                        write_txn.commit()
+                            .map_err(|e| ::netabase_store::errors::NetabaseError::RedbCommitError(e.into()))?;
+
+                        Ok(())
                     }
                 }
             }
@@ -204,6 +223,115 @@ impl<'a> DefinitionTraitGenerator<'a> {
         probes
     }
 
+    /// Generate code to initialize all tables for all models in the definition.
+    fn generate_init_tables_code(&self, def_str: &str) -> TokenStream {
+        let mut code = TokenStream::new();
+
+        // For each model in the definition, generate code to open all its tables
+        for model_info in &self.visitor.models {
+            let model_name = &model_info.visitor.model_name;
+            let model_str = model_name.to_string();
+
+            // Main table
+            let main_table_name = table_name(def_str, &model_str, "Primary", "Main");
+            code.extend(quote! {
+                // Initialize main table for #model_name
+                {
+                    let table_def = redb::TableDefinition::<
+                        <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<Self, #model_name>>::Primary<'_>,
+                        #model_name
+                    >::new(#main_table_name);
+                    let _ = write_txn.open_table(table_def)
+                        .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e.into()))?;
+                }
+            });
+
+            // Secondary tables
+            for field in &model_info.visitor.secondary_keys {
+                let field_name = &field.name;
+                let field_name_str = field_name.to_string();
+                let pascal_field = to_pascal_case(&field_name_str);
+                let sec_table_name = table_name(def_str, &model_str, "Secondary", &pascal_field);
+                
+                code.extend(quote! {
+                    // Initialize secondary table for #model_name::#field_name
+                    {
+                        let table_def = redb::MultimapTableDefinition::<
+                            <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<Self, #model_name>>::Secondary<'_>,
+                            <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<Self, #model_name>>::Primary<'_>
+                        >::new(#sec_table_name);
+                        let _ = write_txn.open_multimap_table(table_def)
+                            .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e.into()))?;
+                    }
+                });
+            }
+
+            // Blob tables
+            let blob_keys_name = blob_keys_enum_name(model_name);
+            let blob_item_name = blob_item_enum_name(model_name);
+            for field in &model_info.visitor.blob_fields {
+                let field_name = &field.name;
+                let field_name_str = field_name.to_string();
+                let pascal_field = to_pascal_case(&field_name_str);
+                let blob_table_name = table_name(def_str, &model_str, "Blob", &pascal_field);
+                
+                code.extend(quote! {
+                    // Initialize blob table for #model_name::#field_name
+                    {
+                        let table_def = redb::MultimapTableDefinition::<#blob_keys_name, #blob_item_name>::new(#blob_table_name);
+                        let _ = write_txn.open_multimap_table(table_def)
+                            .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e.into()))?;
+                    }
+                });
+            }
+
+            // Relational tables
+            for field in &model_info.visitor.relational_keys {
+                let field_name = &field.name;
+                let field_name_str = field_name.to_string();
+                let pascal_field = to_pascal_case(&field_name_str);
+                let rel_table_name = table_name(def_str, &model_str, "Relational", &pascal_field);
+                
+                code.extend(quote! {
+                    // Initialize relational table for #model_name::#field_name
+                    {
+                        let table_def = redb::MultimapTableDefinition::<
+                            <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<Self, #model_name>>::Primary<'_>,
+                            <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<Self, #model_name>>::Relational<'_>
+                        >::new(#rel_table_name);
+                        let _ = write_txn.open_multimap_table(table_def)
+                            .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e.into()))?;
+                    }
+                });
+            }
+
+            // Subscription tables (if model has subscriptions)
+            let def_subscriptions_name = definition_subscriptions_enum_name(&self.visitor.definition_name);
+            let primary_key_name = primary_key_type_name(model_name);
+            if let Some(sub_info) = &model_info.visitor.subscriptions {
+                for topic in &sub_info.topics {
+                    // Extract just the topic name from the path (last segment)
+                    let topic_str = topic.segments.last()
+                        .map(|seg| seg.ident.to_string())
+                        .unwrap_or_default();
+                    // Subscription tables are per-model for modularity and faster lookups
+                    let sub_table_name = subscription_table_name(def_str, &model_str, &topic_str);
+                    
+                    code.extend(quote! {
+                        // Initialize subscription table for #model_name::#topic
+                        {
+                            let table_def = redb::MultimapTableDefinition::<#def_subscriptions_name, #primary_key_name>::new(#sub_table_name);
+                            let _ = write_txn.open_multimap_table(table_def)
+                                .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e.into()))?;
+                        }
+                    });
+                }
+            }
+        }
+
+        code
+    }
+
     /// Generate migration code that probes for old versions and migrates.
     fn generate_probing_migration_code(&self, def_str: &str) -> TokenStream {
         let mut code = TokenStream::new();
@@ -241,7 +369,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     // Check if version #version table exists
                     {
                         let old_table_def = redb::TableDefinition::<
-                            <#old_model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::PrimaryKey,
+                            <<#old_model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<Self, #old_model_name>>::Primary<'_>,
                             #old_model_name
                         >::new(#old_table_name);
 
@@ -259,7 +387,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
                                 
                                 // Now open/create the new table and migrate each record
                                 let new_table_def = redb::TableDefinition::<
-                                    <#current_model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::PrimaryKey,
+                                    <<#current_model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<Self, #current_model_name>>::Primary<'_>,
                                     #current_model_name
                                 >::new(#current_table_name);
                                 
