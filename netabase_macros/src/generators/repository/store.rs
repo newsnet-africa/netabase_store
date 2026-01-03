@@ -186,7 +186,6 @@ impl<'a> StoreGenerator<'a> {
             ///
             /// This provides direct access to each definition's store for
             /// fine-grained transaction control.
-            #[derive(Clone)]
             pub struct #stores_struct_name {
                 #(#fields),*
             }

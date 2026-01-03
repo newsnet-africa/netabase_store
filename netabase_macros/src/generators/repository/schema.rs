@@ -58,14 +58,23 @@ impl<'a> SchemaGenerator<'a> {
         let repo_name = &self.visitor.repository_name;
         let metadata_name = format_ident!("{}MigrationMetadata", repo_name);
 
+        // Check if using external definitions (need super:: prefix)
+        let is_external = !self.visitor.external_definitions.is_empty();
+
         // Collect definition names for schema generation
         let def_schema_calls: Vec<_> = self.visitor.definitions
             .iter()
             .map(|def| {
                 let def_name = &def.name;
+                // Use super:: prefix for external definitions
+                let def_path = if is_external {
+                    quote! { super::#def_name }
+                } else {
+                    quote! { #def_name }
+                };
                 quote! {
                     {
-                        let def_schema = <#def_name as netabase_store::traits::registery::definition::NetabaseDefinition>::schema();
+                        let def_schema = <#def_path as netabase_store::traits::registery::definition::NetabaseDefinition>::schema();
                         schemas.push((stringify!(#def_name).to_string(), def_schema));
                     }
                 }
