@@ -14,31 +14,41 @@
 //!
 //! ## Quick Start
 //!
-//! ```rust,ignore
-//! use netabase_store::prelude::*;
-//! use netabase_macros::{NetabaseModel, netabase_definition};
-//!
-//! #[netabase_definition]
-//! mod mydb {
-//!     #[derive(NetabaseModel, Clone, Encode, Decode)]
-//!     pub struct User {
-//!         #[primary]
-//!         pub id: u64,
-//!         pub name: String,
-//!     }
-//! }
+//! ```rust,no_run
+//! # use netabase_store::prelude::*;
+//! # use netabase_store::traits::database::store::NBStore;
+//! # use netabase_store_examples::boilerplate_lib::Definition;
+//! # use netabase_store_examples::boilerplate_lib::definition::{User, UserID, LargeUserFile, AnotherLargeUserFile};
+//! # use netabase_store::relational::RelationalLink;
+//! # use netabase_store_examples::boilerplate_lib::CategoryID;
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # let db_path = "my.db";
 //!
 //! // Open a database
-//! let store = RedbStore::<mydb::Mydb>::new("my.db")?;
+//! let store = RedbStore::<Definition>::new(&db_path)?;
 //!
 //! // Write data
 //! let txn = store.begin_write()?;
-//! txn.create(&mydb::User { id: 1, name: "Alice".into() })?;
+//! let user = User {
+//!     id: UserID("alice".into()),
+//!     first_name: "Alice".into(),
+//!     last_name: "Smith".into(),
+//!     age: 30,
+//!     partner: RelationalLink::new_dehydrated(UserID("none".into())),
+//!     category: RelationalLink::new_dehydrated(CategoryID("none".into())),
+//!     bio: LargeUserFile::default(),
+//!     another: AnotherLargeUserFile::default(),
+//!     subscriptions: vec![],
+//! };
+//! txn.create(&user)?;
 //! txn.commit()?;
 //!
 //! // Read data
 //! let txn = store.begin_read()?;
-//! let user: Option<mydb::User> = txn.read::<mydb::User>(&1u64)?;
+//! let retrieved: Option<User> = txn.read(&UserID("alice".into()))?;
+//! assert!(retrieved.is_some());
+//! # Ok(())
+//! # }
 //! ```
 
 #![feature(generic_const_items)]

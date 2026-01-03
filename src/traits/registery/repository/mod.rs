@@ -19,12 +19,30 @@
 //! contexts where `Employee` in `EmployeeRepo` is completely separate from
 //! `Employee` in `ManagerRepo`, even if they share the same underlying definition.
 //!
+//! ## Compile-Time Guarantees
+//!
+//! - RelationalLinks cannot cross repository boundaries
+//! - Type system enforces complete data graph requirements
+//! - Missing dependencies cause compilation errors, not runtime failures
+//!
+//! ## Use Cases
+//!
+//! - **Multi-Tenancy**: Each tenant gets isolated repository
+//! - **Microservices**: Service-specific data graphs
+//! - **Security Boundaries**: Separate sensitive from public data
+//!
 //! # Standalone Mode
 //!
 //! Definitions that don't specify `repos(...)` are automatically placed in the
 //! `Standalone` repository. This provides backward compatibility while still
 //! allowing explicit repository isolation when needed. All standalone definitions
 //! can communicate with each other.
+//!
+//! # Limitations
+//!
+//! - Repositories cannot be changed at runtime
+//! - Cross-repository queries require manual coordination
+//! - Repository structure is fixed at compile time
 //!
 //! # Example
 //!
@@ -103,38 +121,40 @@ pub trait NetabaseRepository: Sized + 'static {
     /// Enum type holding all definition instances in this repository.
     ///
     /// Generated as:
-    /// ```rust,ignore
-    /// pub enum RepoNameDefinition {
-    ///     Employee(Employee),
-    ///     Inventory(Inventory),
-    ///     // ...
-    /// }
+    /// ```rust
+    /// # // Example of generated enum structure
+    /// # #[derive(Clone, Debug)]
+    /// # pub enum RepoNameDefinition {
+    /// #     Employee,
+    /// #     Inventory,
+    /// # }
     /// ```
     type RepositoryDefinition: Clone + std::fmt::Debug;
 
     /// Discriminant enum for definitions in this repository.
     ///
     /// Generated with strum derives for efficient matching:
-    /// ```rust,ignore
-    /// #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, strum::AsRefStr)]
-    /// pub enum RepoNameDefinitionDiscriminant {
-    ///     Employee,
-    ///     Inventory,
-    ///     // ...
-    /// }
+    /// ```rust
+    /// # // Example of generated discriminant enum
+    /// # #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+    /// # pub enum RepoNameDefinitionDiscriminant {
+    /// #     Employee,
+    /// #     Inventory,
+    /// # }
     /// ```
     type RepositoryDiscriminant: RepositoryDiscriminant;
 
     /// Flattened model discriminant enum across all definitions.
     ///
     /// Allows type-safe identification of any model in the repository:
-    /// ```rust,ignore
-    /// pub enum RepoNameModelDiscriminant {
-    ///     EmployeeUser,
-    ///     EmployeeShift,
-    ///     InventoryItem,
-    ///     // ...
-    /// }
+    /// ```rust
+    /// # // Example of generated model discriminant enum
+    /// # #[derive(Clone, Copy, Debug)]
+    /// # pub enum RepoNameModelDiscriminant {
+    /// #     EmployeeUser,
+    /// #     EmployeeShift,
+    /// #     InventoryItem,
+    /// # }
     /// ```
     type RepositoryModelKeys: RepositoryModelDiscriminant;
 
@@ -184,6 +204,31 @@ where
 ///
 /// This struct captures information needed for future migration support,
 /// including field renames, type changes, and structural modifications.
+///
+/// # Use Cases
+///
+/// - **P2P Schema Negotiation**: Nodes can compare migration metadata to
+///   determine compatibility and automatic upgrade paths
+/// - **Breaking Change Detection**: Identifies schema changes that cannot
+///   be automatically migrated
+/// - **Migration Planning**: Provides hints for constructing migration logic
+///
+/// # Example
+///
+/// ```
+/// use netabase_store::traits::registery::repository::{MigrationMetadata, FieldRename};
+///
+/// let mut metadata = MigrationMetadata::default();
+/// metadata.field_renames.push(FieldRename {
+///     definition: "UserDef",
+///     model: "User",
+///     old_name: "username",
+///     new_name: "email",
+/// });
+///
+/// // Check if there are any field renames
+/// assert!(!metadata.field_renames.is_empty());
+/// ```
 #[derive(Debug, Clone, Default)]
 pub struct MigrationMetadata {
     /// Fields that have been renamed (old_name -> new_name).
@@ -242,8 +287,39 @@ pub struct FieldInfo {
 
 /// Repository-scoped permissions for access validation.
 ///
-/// This replaces the old `CrossDefinitionPermissions` with repository-aware
-/// permission checking.
+/// This struct provides fine-grained access control at the repository level,
+/// allowing you to restrict which models can be accessed and what operations
+/// are permitted.
+///
+/// # Security Model
+///
+/// Permissions operate within a repository context. A permission set specifies:
+/// - Which models can be accessed (by discriminant)
+/// - Whether read operations are allowed
+/// - Whether write operations are allowed
+/// - Whether hydration (loading related data) is allowed
+///
+/// # Use Cases
+///
+/// - **Read-Only Transactions**: Create views that can query but not modify
+/// - **Restricted Access**: Limit access to specific models only
+/// - **Audit Operations**: Prevent hydration during read-only audits
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use netabase_store::traits::registery::repository::RepositoryPermissions;
+///
+/// // Create read-only permissions for specific models
+/// let perms = RepositoryPermissions::<MyRepo>::read_only(vec![
+///     MyRepoModelKeys::User,
+///     MyRepoModelKeys::Post,
+/// ]);
+///
+/// assert!(perms.can_read());
+/// assert!(!perms.can_write());
+/// assert!(perms.can_access_model(&MyRepoModelKeys::User));
+/// ```
 #[derive(Debug, Clone)]
 pub struct RepositoryPermissions<R: NetabaseRepository> {
     /// List of accessible model discriminants within the repository.
@@ -315,7 +391,42 @@ impl<R: NetabaseRepository> RepositoryPermissions<R> {
 /// Represents a repository schema for P2P comparison.
 ///
 /// This struct encapsulates all the information needed to compare
-/// repository schemas between nodes.
+/// repository schemas between nodes in a peer-to-peer network.
+///
+/// # Schema Comparison Strategy
+///
+/// 1. **Quick Check**: Compare `schema_hash` first for fast identity check
+/// 2. **Granular Check**: If hashes differ, compare `definition_hashes`
+///    to identify which specific definitions changed
+/// 3. **Migration Hints**: Use `migration_hints` to determine if automatic
+///    migration is possible
+///
+/// # Use Cases
+///
+/// - **P2P Handshake**: Exchange schemas during node connection
+/// - **Conflict Detection**: Identify incompatible schema versions
+/// - **Upgrade Coordination**: Determine if nodes can communicate despite
+///   schema differences
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use netabase_store::traits::registery::repository::RepositorySchema;
+///
+/// // Generate schema from repository
+/// let schema = RepositorySchema {
+///     repository_name: "MyRepo".to_string(),
+///     schema_toml: repo.export_schema_toml(),
+///     schema_hash: calculate_hash(&schema_toml),
+///     definition_hashes: per_definition_hashes(),
+///     migration_hints: MigrationMetadata::default(),
+/// };
+///
+/// // Compare with remote schema
+/// if schema.schema_hash != remote_schema.schema_hash {
+///     // Schemas differ - check compatibility
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub struct RepositorySchema {
     /// Name of the repository.
@@ -331,6 +442,39 @@ pub struct RepositorySchema {
 }
 
 /// Result of comparing two repository schemas.
+///
+/// Provides detailed information about differences between local and remote
+/// schemas, enabling informed decisions about compatibility and migration.
+///
+/// # Compatibility Rules
+///
+/// - Schemas are **compatible** if all definitions exist in both and have
+///   matching hashes
+/// - Additional definitions in one side indicate **schema extensions**
+/// - Modified definitions indicate **schema evolution** requiring migration
+///
+/// # Example
+///
+/// ```
+/// use netabase_store::traits::registery::repository::SchemaDiff;
+///
+/// let diff = SchemaDiff {
+///     compatible: false,
+///     local_only: vec!["NewUserModel".to_string()],
+///     remote_only: vec![],
+///     modified: vec!["Post".to_string()],
+///     details: vec!["Post.content changed from String to Text".to_string()],
+/// };
+///
+/// if !diff.compatible {
+///     println!("Schema mismatch detected:");
+///     for def in &diff.modified {
+///         println!("  - Modified: {}", def);
+///     }
+/// }
+///
+/// assert!(!diff.is_identical());
+/// ```
 #[derive(Debug, Clone)]
 pub struct SchemaDiff {
     /// Whether the schemas are compatible.

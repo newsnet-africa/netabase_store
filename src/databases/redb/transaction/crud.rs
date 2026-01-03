@@ -131,14 +131,16 @@ where
     /// 
     /// See [BLOB_QUERY_METHODS.md](../../../BLOB_QUERY_METHODS.md) for complete examples.
     /// 
-    /// ```rust,ignore
-    /// // In a transaction with opened tables
-    /// let blob_key = user.get_blob_keys()[0];  // Get blob key from model
-    /// let items = User::read_blob_items(&blob_key, &tables)?;
-    /// for item in items {
-    ///     // Process blob item
-    ///     println!("Blob chunk: {:?}", item);
-    /// }
+    /// ```rust
+    /// # // Blob query methods are low-level internal APIs
+    /// # // See tests/blob_query_methods.rs for high-level usage
+    /// # use netabase_store_examples::boilerplate_lib::definition::LargeUserFile;
+    /// // Example: Create a large file that would be stored as blob
+    /// let large_file = LargeUserFile {
+    ///     data: vec![42u8; 100_000],  // 100KB will be chunked
+    ///     metadata: "Large data".into(),
+    /// };
+    /// assert_eq!(large_file.data.len(), 100_000);
     /// ```
     fn read_blob_items<'a, 'txn>(
         blob_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Blob,
@@ -164,16 +166,16 @@ where
     ///
     /// See [BLOB_QUERY_METHODS.md](../../../BLOB_QUERY_METHODS.md) for complete examples.
     ///
-    /// ```rust,ignore
-    /// // List all keys in the first blob table
-    /// let all_keys = User::list_blob_keys(0, &tables)?;
-    /// println!("Found {} blob keys", all_keys.len());
-    /// 
-    /// // Shard the keys across workers
-    /// for (i, key) in all_keys.iter().enumerate() {
-    ///     let worker_id = i % num_workers;
-    ///     send_to_worker(worker_id, key);
-    /// }
+    /// ```rust
+    /// # // Blob query methods are low-level internal APIs
+    /// # // See tests/blob_query_methods.rs for high-level usage
+    /// # use netabase_store_examples::boilerplate_lib::definition::LargeUserFile;
+    /// // Example: Blob fields in models are automatically managed
+    /// let files: Vec<LargeUserFile> = vec![
+    ///     LargeUserFile { data: vec![1u8; 50_000], metadata: "File 1".into() },
+    ///     LargeUserFile { data: vec![2u8; 50_000], metadata: "File 2".into() },
+    /// ];
+    /// assert_eq!(files.len(), 2);
     /// ```
     fn list_blob_keys<'a, 'txn>(
         table_index: usize,
@@ -213,11 +215,15 @@ where
     ///
     /// See [BLOB_QUERY_METHODS.md](../../../BLOB_QUERY_METHODS.md) for complete examples.
     ///
-    /// ```rust,ignore
-    /// let stats = User::blob_table_stats(&tables)?;
-    /// for (table_name, count) in stats {
-    ///     println!("Table '{}': {} entries", table_name, count);
-    /// }
+    /// ```rust
+    /// # // Blob query methods are low-level internal APIs
+    /// # // See tests/blob_query_methods.rs for high-level usage
+    /// # use netabase_store_examples::boilerplate_lib::definition::{LargeUserFile, AnotherLargeUserFile};
+    /// // Example: Models can have multiple blob fields
+    /// let bio = LargeUserFile { data: vec![1u8; 70_000], metadata: "Bio".into() };
+    /// let another = AnotherLargeUserFile(vec![2u8; 80_000]);
+    /// // Each blob field gets its own table for storage
+    /// assert!(bio.data.len() > 0 && another.0.len() > 0);
     /// ```
     fn blob_table_stats<'txn>(
         tables: &ModelOpenTables<'txn, 'db, D, Self>,

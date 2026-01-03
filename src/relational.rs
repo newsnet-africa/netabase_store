@@ -1,3 +1,79 @@
+//! Relational linking system for type-safe foreign key relationships.
+//!
+//! This module provides `RelationalLink<R, SourceD, TargetD, M>` which represents
+//! a relationship between models while enforcing repository isolation at compile time.
+//!
+//! # Four Link Variants
+//!
+//! 1. **Dehydrated**: Only stores the primary key (minimal memory)
+//! 2. **Owned**: Owns the full model in a Box (independent lifetime)
+//! 3. **Hydrated**: Borrowed reference with application-controlled lifetime
+//! 4. **Borrowed**: Borrowed reference tied to database AccessGuard
+//!
+//! # Repository Isolation
+//!
+//! The `R` type parameter enforces that both source and target models belong
+//! to the same repository. This prevents unauthorized cross-repository references:
+//!
+//! ```rust,ignore
+//! // OK: Both in EmployeeRepo
+//! RelationalLink<EmployeeRepo, Employee, Inventory, Item>
+//!
+//! // Compile error: Different repositories
+//! RelationalLink<EmployeeRepo, Employee, ReportsRepo, Report>
+//! ```
+//!
+//! # Common Patterns
+//!
+//! ## Creating Links
+//!
+//! ```rust,ignore
+//! // Dehydrated (for storage)
+//! let link = RelationalLink::new_dehydrated(user_id);
+//!
+//! // Owned (when you have the model)
+//! let link = RelationalLink::new_owned(user_id, Box::new(user));
+//!
+//! // Hydrated (with app-controlled reference)
+//! let link = RelationalLink::new_hydrated(user_id, &user);
+//! ```
+//!
+//! ## Hydration (Loading Related Data)
+//!
+//! ```rust,ignore
+//! // Manual hydration
+//! let dehydrated: RelationalLink<R, _, _, User> = ...;
+//! if let Some(key) = dehydrated.key() {
+//!     let user = txn.read(key)?;
+//!     let hydrated = dehydrated.clone().with_model(user.as_ref());
+//! }
+//!
+//! // Automatic hydration via transaction
+//! let hydrated = txn.hydrate_link(link)?;
+//! ```
+//!
+//! # Serialization Behavior
+//!
+//! When serializing, all variants convert to the dehydrated form (key only).
+//! This ensures:
+//! - Compact wire format
+//! - No accidental data duplication
+//! - Consistent serialization regardless of hydration state
+//!
+//! # Use Cases
+//!
+//! - **User -> Posts**: One-to-many relationships
+//! - **Post -> Author**: Many-to-one relationships
+//! - **Team -> Members**: Many-to-many (via intermediate model)
+//! - **Document -> Attachments**: Hierarchical data
+//!
+//! # Limitations
+//!
+//! - Cannot cross repository boundaries (enforced at compile time)
+//! - Target model must have a primary key type
+//! - No automatic cascade delete (must be handled manually)
+//! - Circular references must be carefully managed
+
 use crate::traits::registery::{
     definition::NetabaseDefinition,
     models::{keys::NetabaseModelKeys, model::NetabaseModel, treenames::ModelTreeNames},
@@ -6,8 +82,13 @@ use crate::traits::registery::{
 use serde::{Serialize, Deserialize};
 use strum::IntoDiscriminant;
 
+/// Permission flag for relational access control.
+///
+/// Determines whether related data can be read-only or modified.
 pub enum PermissionFlag {
+    /// Read-only access to related data
     ReadOnly,
+    /// Full read-write access to related data  
     ReadWrite
 }
 

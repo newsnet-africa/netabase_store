@@ -1,13 +1,55 @@
+//! Global macro for grouping multiple definitions.
+//!
+//! The `#[netabase]` macro is used to create a top-level enum that wraps
+//! multiple definition enums. This is useful for applications that need
+//! to work with multiple definitions polymorphically.
+//!
+//! # Generated Code
+//!
+//! Given multiple `#[netabase_definition]` modules, `#[netabase(MyGlobal)]`
+//! generates:
+//! - `MyGlobal` enum with variants for each definition
+//! - Conversions between definitions and the global enum
+//! - Strum derives for discriminant matching
+//!
+//! # Example
+//!
+//! ```rust,ignore
+//! #[netabase(AppData)]
+//! mod app {
+//!     #[netabase_definition(Users)]
+//!     mod users { /* ... */ }
+//!     
+//!     #[netabase_definition(Posts)]
+//!     mod posts { /* ... */ }
+//! }
+//!
+//! // Generated:
+//! // enum AppData {
+//! //     Users(Users),
+//! //     Posts(Posts),
+//! // }
+//! ```
+//!
+//! # Use Cases
+//!
+//! - Multi-definition applications
+//! - Plugin systems with dynamic schema
+//! - Generic database utilities that work across definitions
+
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{parse2, ItemMod, Result, Path};
+use syn::{ItemMod, Path, Result, parse2};
 
-use crate::visitors::global::GlobalVisitor;
 use crate::generators::global::GlobalEnumGenerator;
 use crate::utils::attributes::remove_attribute;
 use crate::utils::naming::path_last_segment;
+use crate::visitors::global::GlobalVisitor;
 
-/// Implementation of the netabase attribute macro
+/// Implementation of the netabase attribute macro.
+///
+/// This macro processes a module containing multiple `#[netabase_definition]`
+/// modules and generates a global enum to wrap them all.
 pub fn netabase_attribute(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
     // Parse attribute to get global name
     let global_path: Path = parse2(attr)?;
@@ -23,7 +65,7 @@ pub fn netabase_attribute(attr: TokenStream, item: TokenStream) -> Result<TokenS
     if module.content.is_none() {
         return Err(syn::Error::new_spanned(
             module,
-            "netabase can only be applied to modules with content (not external modules)"
+            "netabase can only be applied to modules with content (not external modules)",
         ));
     }
 

@@ -1,12 +1,112 @@
+//! Query configuration and result types.
+//!
+//! This module provides types for configuring queries with pagination,
+//! fetch options, and result modes. All queries use a builder pattern
+//! for convenient configuration.
+//!
+//! # Query Modes
+//!
+//! - **Fetch**: Return the actual data (default)
+//! - **Count**: Return only the count of matching records
+//!
+//! # Query Configuration
+//!
+//! Queries are configured using `QueryConfig` which supports:
+//! - Range-based queries (e.g., `0..100`)
+//! - Pagination with limit/offset
+//! - Reversed iteration order
+//! - Custom fetch options
+//!
+//! # Common Patterns
+//!
+//! ## Basic Queries
+//!
+//! ```rust,ignore
+//! // Fetch all users
+//! let users = txn.list_all::<User>(QueryConfig::default())?;
+//!
+//! // Fetch first 10 users
+//! let users = txn.list_all::<User>(
+//!     QueryConfig::default().with_limit(10)
+//! )?;
+//!
+//! // Count total users
+//! let count = txn.list_all::<User>(
+//!     QueryConfig::default().count_only()
+//! )?;
+//! ```
+//!
+//! ## Pagination
+//!
+//! ```rust,ignore
+//! // Page 1: items 0-9
+//! let page1 = QueryConfig::default()
+//!     .with_limit(10)
+//!     .with_offset(0);
+//!
+//! // Page 2: items 10-19
+//! let page2 = QueryConfig::default()
+//!     .with_limit(10)
+//!     .with_offset(10);
+//! ```
+//!
+//! ## Range Queries
+//!
+//! ```rust,ignore
+//! // Fetch users with IDs in range
+//! let config = QueryConfig::new(UserId(0)..UserId(100));
+//! let users = txn.list_range(config)?;
+//! ```
+//!
+//! ## Reversed Iteration
+//!
+//! ```rust,ignore
+//! // Get most recent items first
+//! let recent = QueryConfig::default()
+//!     .reversed()
+//!     .with_limit(10);
+//! ```
+//!
+//! # Performance Considerations
+//!
+//! - Use `count_only()` when you only need the count
+//! - Use `with_limit()` to prevent loading too much data
+//! - Range queries are more efficient than full scans
+//! - Reversed iteration has same performance as forward
+
 use std::ops::RangeFull;
 
+/// Query execution mode.
+///
+/// Determines whether to fetch data or just count records.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum QueryMode {
+    /// Fetch and return the actual data (default)
     #[default]
     Fetch,
+    /// Only count matching records without fetching data
     Count,
 }
 
+/// Configuration for database queries.
+///
+/// Provides a builder API for configuring query behavior including
+/// pagination, fetch modes, and iteration order.
+///
+/// # Type Parameters
+///
+/// - `R`: Range type (defaults to `RangeFull` for unbounded queries)
+///
+/// # Example
+///
+/// ```
+/// use netabase_store::query::{QueryConfig, QueryMode};
+///
+/// let config = QueryConfig::default()
+///     .with_limit(10)
+///     .with_offset(20)
+///     .reversed();
+/// ```
 #[derive(Debug, Clone)]
 pub struct QueryConfig<R = RangeFull> {
     pub mode: QueryMode,
