@@ -261,7 +261,7 @@ pub fn migrate_record_bytes<Chain: MigrationChainExecutor>(
     source_version: u32,
 ) -> Result<Vec<u8>, MigrationError>
 where
-    Chain::Current: bincode::Encode,
+    Chain::Current: serde::Serialize,
 {
     // Deserialize, migrate, re-serialize
     let migrated = Chain::migrate_bytes(source_version, data)?;
@@ -270,12 +270,10 @@ where
     let current_version = Chain::VERSIONS.last().copied().unwrap_or(1);
     let mut output = VersionHeader::new(current_version).to_bytes().to_vec();
     output.extend(
-        bincode::encode_to_vec(&migrated, bincode::config::standard()).map_err(|e| {
-            MigrationError {
-                record_key: String::new(),
-                error: e.to_string(),
-                at_version: current_version,
-            }
+        postcard::to_allocvec(&migrated).map_err(|e| MigrationError {
+            record_key: String::new(),
+            error: e.to_string(),
+            at_version: current_version,
         })?,
     );
 

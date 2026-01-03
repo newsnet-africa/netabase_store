@@ -19,6 +19,7 @@ fn create_post(id: &str, title: &str, content: &str, age: u32) -> Post {
         content: content.to_string(),
         published: age > 25,
         subscriptions: vec![],
+        tags: vec![],
     }
 }
 

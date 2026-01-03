@@ -6,7 +6,8 @@ use strum::IntoDiscriminant;
 use crate::traits::registery::{
     definition::NetabaseDefinition,
     models::{
-        StoreKeyMarker, StoreValue, StoreValueMarker, keys::{NetabaseModelKeys, blob::NetabaseModelBlobKey},
+        StoreKeyMarker, StoreValue, StoreValueMarker,
+        keys::{NetabaseModelKeys, blob::NetabaseModelBlobKey},
         treenames::ModelTreeNames,
     },
 };
@@ -23,44 +24,44 @@ pub trait NetabaseModel<D: NetabaseDefinition>:
     + Sized
     + Into<D>
     + TryFrom<D>
-    + for<'a> StoreValue<D, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'a>>
+    + StoreValue<D, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary>
 where
     D::Discriminant: 'static + std::fmt::Debug,
-    for<'a> <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Primary<'a>:
+    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Primary:
         StoreKeyMarker<D>,
-    for<'a> <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary<'a>:
+    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary:
         IntoDiscriminant,
-    for<'a> <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational<'a>:
+    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational:
         IntoDiscriminant,
-    for<'a> <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'a>:
+    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription:
         IntoDiscriminant,
-    for<'a> <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'a>:
+    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob:
         IntoDiscriminant,
-    for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-     <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'static>: 'static
+    <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+     <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription: 'static
 {
     type Keys: NetabaseModelKeys<D, Self>;
     const TREE_NAMES: ModelTreeNames<'static, D, Self>;
 
 
-    fn get_primary_key<'a>(&'a self) -> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'a>;
-    fn get_secondary_keys<'a>(
-        &'a self,
-    ) -> Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Secondary<'a>>;
-    fn get_relational_keys<'a>(
-        &'a self,
-    ) -> Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Relational<'a>>;
-    fn get_subscription_keys<'a>(
-        &'a self,
-    ) -> Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Subscription<'a>>;
-    fn get_blob_entries<'a>(
-        &'a self,
+    fn get_primary_key(&self) -> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary;
+    fn get_secondary_keys(
+        &self,
+    ) -> Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Secondary>;
+    fn get_relational_keys(
+        &self,
+    ) -> Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Relational>;
+    fn get_subscription_keys(
+        &self,
+    ) -> Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Subscription>;
+    fn get_blob_entries(
+        &self,
     ) -> Vec<Vec<(
-        <Self::Keys as NetabaseModelKeys<D, Self>>::Blob<'a>,
-        <<Self::Keys as NetabaseModelKeys<D, Self>>::Blob<'a> as NetabaseModelBlobKey<'a, D, Self, Self::Keys>>::BlobItem,
+        <Self::Keys as NetabaseModelKeys<D, Self>>::Blob,
+        <<Self::Keys as NetabaseModelKeys<D, Self>>::Blob as NetabaseModelBlobKey<D, Self>>::BlobItem,
     )>>;
 
     /// Get all relational links from this model

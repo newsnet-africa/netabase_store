@@ -11,39 +11,39 @@ use super::NetabaseModel;
 pub struct RedbModelTableDefinitions<'db, M: RedbNetbaseModel<'db, D>, D: RedbDefinition>
 where
     D::Discriminant: 'static + std::fmt::Debug,
-    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key + 'static,
-    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key + 'static,
-    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>:
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: redb::Key + 'static,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: redb::Key + 'static,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational:
         redb::Key + 'static,
-    for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: redb::Key + 'static,
-    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: redb::Key + 'static,
-    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: redb::Key + 'static,
+    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: redb::Key + 'static,
+    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: redb::Key + 'static,
+    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: redb::Key + 'static,
     M: 'db
 {
-    pub main: TableDefinition<'db, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>, M::TableV>,
+    pub main: TableDefinition<'db, <M::Keys as NetabaseModelKeys<D, M>>::Primary, M::TableV>,
     pub main_name: &'db str,
     
     pub secondary: Vec<(
-        MultimapTableDefinition<'db, <M::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>>,
+        MultimapTableDefinition<'db, <M::Keys as NetabaseModelKeys<D, M>>::Secondary, <M::Keys as NetabaseModelKeys<D, M>>::Primary>,
         &'db str
     )>,
 
     pub blob: Vec<(
-        MultimapTableDefinition<'db, <M::Keys as NetabaseModelKeys<D, M>>::Blob<'db>, <<M::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, M::Keys>>::BlobItem>,
+        MultimapTableDefinition<'db, <M::Keys as NetabaseModelKeys<D, M>>::Blob, <<M::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem>,
         &'db str
     )>,
     
     pub relational: Vec<(
-        MultimapTableDefinition<'db, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>, <M::Keys as NetabaseModelKeys<D, M>>::Relational<'db>>,
+        MultimapTableDefinition<'db, <M::Keys as NetabaseModelKeys<D, M>>::Primary, <M::Keys as NetabaseModelKeys<D, M>>::Relational>,
         &'db str
     )>,
 
     pub subscription: Vec<(
-        MultimapTableDefinition<'db, <M::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>, <M::Keys as NetabaseModelKeys<D, M>>::Primary<'db>>,
+        MultimapTableDefinition<'db, <M::Keys as NetabaseModelKeys<D, M>>::Subscription, <M::Keys as NetabaseModelKeys<D, M>>::Primary>,
         &'db str
     )>,
 }
@@ -51,22 +51,22 @@ where
 pub trait RedbNetbaseModel<'db, D: RedbDefinition>: NetabaseModel<D> + redb::Value + redb::Key
 where
     D::Discriminant: 'static + std::fmt::Debug,
-    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>:
+    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Primary:
         redb::Key + 'static,
-    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary<'db>:
+    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary:
         redb::Key + 'static,
-    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational<'db>:
+    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational:
         redb::Key + 'static,
-    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'db>:
+    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription:
         redb::Key + 'static,
-    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'db>:
+    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob:
         redb::Key + 'static,
-    <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'db> as NetabaseModelBlobKey<'db, D, Self, <Self as NetabaseModel<D>>::Keys>>::BlobItem:
+    <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob as NetabaseModelBlobKey<D, Self>>::BlobItem:
         redb::Key + 'static,
-    for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    for<'a> <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     Self: 'db
 {
     type RedbTables;
@@ -129,20 +129,20 @@ where
     }
 
     fn main_definition()
-    -> TableDefinition<'db, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>, Self::TableV>
+    -> TableDefinition<'db, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary, Self::TableV>
     {
         Self::table_definitions().main
     }
 
     fn secondary_definitions() -> Vec<(
-        MultimapTableDefinition<'db, <Self::Keys as NetabaseModelKeys<D, Self>>::Secondary<'db>, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>>,
+        MultimapTableDefinition<'db, <Self::Keys as NetabaseModelKeys<D, Self>>::Secondary, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary>,
         &'db str
     )> {
         Self::table_definitions().secondary
     }
 
     fn relational_definitions() -> Vec<(
-        MultimapTableDefinition<'db, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary<'db>, <Self::Keys as NetabaseModelKeys<D, Self>>::Relational<'db>>,
+        MultimapTableDefinition<'db, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary, <Self::Keys as NetabaseModelKeys<D, Self>>::Relational>,
         &'db str
     )> {
         Self::table_definitions().relational
@@ -152,14 +152,14 @@ where
 pub struct ModelTableNames<'a, D: RedbDefinition, M: NetabaseModel<D>> 
 where
     D::Discriminant: 'static + std::fmt::Debug,
-    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug, 
-    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    for<'b> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'b> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug, 
+    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
 {
     pub main: crate::traits::registery::models::treenames::DiscriminantTableName<D::Discriminant>,
-    pub secondary: &'a [crate::traits::registery::models::treenames::DiscriminantTableName<<<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant>],
-    pub blob: &'a [crate::traits::registery::models::treenames::DiscriminantTableName<<<M::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as IntoDiscriminant>::Discriminant>],
-    pub relational: &'a [crate::traits::registery::models::treenames::DiscriminantTableName<<<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant>],
-    pub subscription: Option<&'a [crate::traits::registery::models::treenames::DiscriminantTableName<<<M::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant>]>,
+    pub secondary: &'a [crate::traits::registery::models::treenames::DiscriminantTableName<<<M::Keys as NetabaseModelKeys<D, M>>::Secondary as IntoDiscriminant>::Discriminant>],
+    pub blob: &'a [crate::traits::registery::models::treenames::DiscriminantTableName<<<M::Keys as NetabaseModelKeys<D, M>>::Blob as IntoDiscriminant>::Discriminant>],
+    pub relational: &'a [crate::traits::registery::models::treenames::DiscriminantTableName<<<M::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant>],
+    pub subscription: Option<&'a [crate::traits::registery::models::treenames::DiscriminantTableName<<<M::Keys as NetabaseModelKeys<D, M>>::Subscription as IntoDiscriminant>::Discriminant>]>,
 }

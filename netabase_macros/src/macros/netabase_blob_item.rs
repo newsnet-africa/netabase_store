@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{parse2, DeriveInput, Result, Data, Fields};
+use syn::{Data, DeriveInput, Fields, Result, parse2};
 
 /// Implementation of the NetabaseBlobItem derive macro
 ///
@@ -25,11 +25,10 @@ pub fn netabase_blob_item_derive(input: TokenStream) -> Result<TokenStream> {
         Data::Struct(data_struct) => {
             // Check if it's a struct with named fields or a tuple struct
             let has_data_field = match &data_struct.fields {
-                Fields::Named(fields) => {
-                    fields.named.iter().any(|f| {
-                        f.ident.as_ref().map(|i| i == "data").unwrap_or(false)
-                    })
-                }
+                Fields::Named(fields) => fields
+                    .named
+                    .iter()
+                    .any(|f| f.ident.as_ref().map(|i| i == "data").unwrap_or(false)),
                 Fields::Unnamed(_) => true,
                 Fields::Unit => false,
             };
@@ -39,25 +38,22 @@ pub fn netabase_blob_item_derive(input: TokenStream) -> Result<TokenStream> {
                 match &data_struct.fields {
                     Fields::Named(_) => (
                         quote! { Self { data, ..Default::default() } },
-                        quote! { Some((0, blob.data.clone())) }
+                        quote! { Some((0, blob.data.clone())) },
                     ),
-                    Fields::Unnamed(_) => (
-                        quote! { Self(data) },
-                        quote! { Some((0, blob.0.clone())) }
-                    ),
+                    Fields::Unnamed(_) => {
+                        (quote! { Self(data) }, quote! { Some((0, blob.0.clone())) })
+                    }
                     Fields::Unit => unreachable!(),
                 }
             } else {
                 // Generic implementation
                 (
                     quote! {
-                        bincode::decode_from_slice(&data, bincode::config::standard())
-                            .map(|(v, _)| v)
-                            .unwrap_or_default()
+                        postcard::from_bytes(&data).unwrap_or_default()
                     },
                     quote! {
-                        Some((0, bincode::encode_to_vec(blob, bincode::config::standard()).unwrap_or_default()))
-                    }
+                        Some((0, postcard::to_allocvec(blob).unwrap_or_default()))
+                    },
                 )
             };
 
@@ -83,17 +79,13 @@ pub fn netabase_blob_item_derive(input: TokenStream) -> Result<TokenStream> {
                 }
             })
         }
-        Data::Enum(_) => {
-            Err(syn::Error::new_spanned(
-                name,
-                "NetabaseBlobItem can only be derived for structs, not enums"
-            ))
-        }
-        Data::Union(_) => {
-            Err(syn::Error::new_spanned(
-                name,
-                "NetabaseBlobItem can only be derived for structs, not unions"
-            ))
-        }
+        Data::Enum(_) => Err(syn::Error::new_spanned(
+            name,
+            "NetabaseBlobItem can only be derived for structs, not enums",
+        )),
+        Data::Union(_) => Err(syn::Error::new_spanned(
+            name,
+            "NetabaseBlobItem can only be derived for structs, not unions",
+        )),
     }
 }

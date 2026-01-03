@@ -1,16 +1,12 @@
-//! Version context for bincode deserialization.
+//! Version context for postcard deserialization.
 //!
-//! This module provides a context type that can be passed to bincode's `Decode`
-//! trait to enable version-aware deserialization. When receiving data from an
-//! older node or reading from an old database, the context triggers automatic
-//! migration during deserialization.
-
-use bincode::error::DecodeError;
+//! This module provides a context type for version-aware deserialization.
+//! When receiving data from an older node or reading from an old database,
+//! the context triggers automatic migration during deserialization.
 
 /// Version context for migration-aware deserialization.
 ///
-/// This context is passed to bincode's `Decode<VersionContext>` implementation
-/// to enable automatic migration during deserialization.
+/// This context enables automatic migration during deserialization.
 ///
 /// # Wire Format
 ///
@@ -112,7 +108,7 @@ impl VersionContext {
 
 /// Trait for types that can be decoded with version awareness.
 ///
-/// This extends bincode's `Decode` trait to support version-aware deserialization.
+/// This trait supports version-aware deserialization.
 /// The macro system generates implementations that read the version header and
 /// apply migrations as needed.
 pub trait VersionedDecode: Sized {
@@ -124,12 +120,12 @@ pub trait VersionedDecode: Sized {
     ///
     /// # Returns
     /// The decoded value, possibly migrated from an older version.
-    fn decode_versioned(data: &[u8], ctx: &VersionContext) -> Result<Self, DecodeError>;
+    fn decode_versioned(data: &[u8], ctx: &VersionContext) -> Result<Self, postcard::Error>;
 
     /// Decode from bytes without version header (legacy format).
     ///
     /// Assumes the data is in the expected version format.
-    fn decode_unversioned(data: &[u8]) -> Result<Self, DecodeError>;
+    fn decode_unversioned(data: &[u8]) -> Result<Self, postcard::Error>;
 }
 
 /// Trait for types that can be encoded with version header.

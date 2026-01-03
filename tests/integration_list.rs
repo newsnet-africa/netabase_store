@@ -34,7 +34,8 @@ fn test_count_entries() -> NetabaseResult<()> {
     for i in 0..5 {
         let user = User {
             id: UserID(format!("user_{}", i)),
-            name: format!("User {}", i),
+            first_name: format!("User {}", i),
+            last_name: "Test".to_string(),
             age: 20 + i as u8,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -70,7 +71,8 @@ fn test_list_entries() -> NetabaseResult<()> {
     for i in 0..3 {
         let user = User {
             id: UserID(format!("user_{}", i)),
-            name: format!("User {}", i),
+            first_name: format!("User {}", i),
+            last_name: "Test".to_string(),
             age: 20 + i as u8,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -115,7 +117,8 @@ fn test_list_entries_pagination() -> NetabaseResult<()> {
     for i in 0..10 {
         let user = User {
             id: UserID(format!("user_{}", i)),
-            name: format!("User {}", i),
+            first_name: format!("User {}", i),
+            last_name: "Test".to_string(),
             age: 20 + i as u8,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -192,7 +195,8 @@ fn test_list_range() -> NetabaseResult<()> {
     for name in &names {
         let user = User {
             id: UserID(name.to_string()),
-            name: name.to_string(),
+            first_name: name.to_string(),
+            last_name: "Test".to_string(),
             age: 25,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),

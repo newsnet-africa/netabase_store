@@ -2,7 +2,7 @@ use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criteri
 use netabase_store::databases::redb::transaction::RedbModelCrud;
 use netabase_store::relational::RelationalLink;
 use netabase_store_examples::boilerplate_lib::definition::{
-    User, UserAge, UserBlobItem, UserBlobKeys, UserCategory, UserID, UserName, UserPartner,
+    User, UserAge, UserBlobItem, UserBlobKeys, UserCategory, UserFirstName, UserID, UserPartner,
     UserRelationalKeys, UserSecondaryKeys,
 };
 use netabase_store_examples::boilerplate_lib::models::blob_types::{
@@ -27,8 +27,8 @@ fn random_id(prefix: &str, rng: &mut impl Rng) -> String {
 
 /// Helper to split blob data like the abstracted version does
 /// Mimics NetabaseBlobItem::split_into_blobs() behavior
-fn split_blob_into_chunks<T: bincode::Encode>(item: &T) -> Vec<(u8, Vec<u8>)> {
-    let serialized = bincode::encode_to_vec(item, bincode::config::standard()).unwrap();
+fn split_blob_into_chunks<T: serde::Serialize>(item: &T) -> Vec<(u8, Vec<u8>)> {
+    let serialized = postcard::to_allocvec(item).unwrap();
 
     if serialized.is_empty() {
         return Vec::new();
@@ -99,7 +99,8 @@ pub fn generate_random_user() -> User {
 
     User {
         id: user_id,
-        name,
+        first_name: name,
+        last_name: "Test".to_string(),
         age,
         partner,
         category,
@@ -232,7 +233,9 @@ fn bench_crud_operations(c: &mut Criterion) {
                             // Insert Secondary
                             sec_name
                                 .insert(
-                                    &UserSecondaryKeys::Name(UserName(user.name.clone())),
+                                    &UserSecondaryKeys::FirstName(UserFirstName(
+                                        user.first_name.clone(),
+                                    )),
                                     user_id,
                                 )
                                 .expect("Failed to insert sec name");
@@ -411,7 +414,9 @@ fn bench_crud_operations(c: &mut Criterion) {
                             main_table.insert(user_id, user).unwrap();
                             sec_name
                                 .insert(
-                                    &UserSecondaryKeys::Name(UserName(user.name.clone())),
+                                    &UserSecondaryKeys::FirstName(UserFirstName(
+                                        user.first_name.clone(),
+                                    )),
                                     user_id,
                                 )
                                 .unwrap();
@@ -595,7 +600,9 @@ fn bench_crud_operations(c: &mut Criterion) {
                             main_table.insert(user_id, user).unwrap();
                             sec_name
                                 .insert(
-                                    &UserSecondaryKeys::Name(UserName(user.name.clone())),
+                                    &UserSecondaryKeys::FirstName(UserFirstName(
+                                        user.first_name.clone(),
+                                    )),
                                     user_id,
                                 )
                                 .unwrap();
@@ -709,7 +716,9 @@ fn bench_crud_operations(c: &mut Criterion) {
 
                             sec_name
                                 .remove(
-                                    &UserSecondaryKeys::Name(UserName(black_box(stored_user.name))),
+                                    &UserSecondaryKeys::FirstName(UserFirstName(black_box(
+                                        stored_user.first_name,
+                                    ))),
                                     user_id,
                                 )
                                 .unwrap();

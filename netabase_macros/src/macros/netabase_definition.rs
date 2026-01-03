@@ -93,11 +93,86 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
     // 3. Generate Model-level code for each collected model
     let mut model_generated_code = Vec::new();
 
+    // 3.1. First, generate shared ID types for versioned model families
+    let mut family_id_types = TokenStream::new();
+    for family in visitor.model_families.values() {
+        if family.versions.len() > 1
+            || family
+                .versions
+                .first()
+                .map(|m| m.version_info().is_some())
+                .unwrap_or(false)
+        {
+            // This is a versioned family - generate shared ID type
+            let current = family.current_model();
+            if let Some(pk_field) = &current.visitor.primary_key {
+                let family_ident = syn::Ident::new(&family.family, proc_macro2::Span::call_site());
+                let id_type_name = crate::utils::naming::primary_key_type_name(&family_ident);
+                let inner_type = &pk_field.ty;
+
+                // Generate the ID struct
+                family_id_types.extend(quote::quote! {
+                    #[derive(
+                        Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
+                        serde::Serialize, serde::Deserialize,
+                        Hash, derive_more::Display
+                    )]
+                    pub struct #id_type_name(pub #inner_type);
+                });
+
+                // Generate redb Value and Key implementations for the ID type
+                family_id_types.extend(quote::quote! {
+                    impl redb::Value for #id_type_name {
+                        type SelfType<'a> = #id_type_name;
+                        type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
+
+                        fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+                        where
+                            Self: 'a,
+                        {
+                            postcard::from_bytes(data).unwrap()
+                        }
+
+                        fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a> {
+                            std::borrow::Cow::Owned(
+                                postcard::to_allocvec(value).unwrap()
+                            )
+                        }
+
+                        fn fixed_width() -> Option<usize> {
+                            None
+                        }
+
+                        fn type_name() -> redb::TypeName {
+                            redb::TypeName::new(stringify!(#id_type_name))
+                        }
+                    }
+
+                    impl redb::Key for #id_type_name {
+                        fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+                            let val1: #id_type_name = postcard::from_bytes(data1).unwrap();
+                            let val2: #id_type_name = postcard::from_bytes(data2).unwrap();
+                            val1.cmp(&val2)
+                        }
+                    }
+
+                    // StoreKeyMarker and StoreValueMarker for the shared ID type
+                    impl netabase_store::traits::registery::models::StoreKeyMarker<#definition_name> for #id_type_name {}
+                    impl netabase_store::traits::registery::models::StoreValueMarker<#definition_name> for #id_type_name {}
+                });
+            }
+        }
+    }
+    model_generated_code.push(family_id_types);
+
+    // 3.2. Then generate per-model code
     for model_info in &visitor.models {
         let model_visitor = &model_info.visitor;
 
-        // Wrapper Types (ID, wrappers)
-        let wrappers = WrapperTypeGenerator::new(model_visitor).generate();
+        // Wrapper Types (ID, wrappers) - Skip ID for versioned models as it's already generated
+        let is_versioned = model_visitor.version_info.is_some();
+        let wrappers =
+            WrapperTypeGenerator::with_id_generation(model_visitor, !is_versioned).generate();
         model_generated_code.push(wrappers);
 
         // Key Enums
@@ -107,7 +182,8 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
         // Traits (NetabaseModel, NetabaseModelKeys) are handled by DefinitionTraitGenerator
 
         // Serialization (redb::Value, redb::Key, NetabaseBlobItem)
-        let ser_gen = SerializationGenerator::new(model_visitor);
+        // Skip ID trait generation for versioned models to avoid duplicates
+        let ser_gen = SerializationGenerator::with_id_traits(model_visitor, !is_versioned);
         let model_ser = ser_gen.generate_model_value_key();
         let key_ser = ser_gen.generate_key_enum_value_key();
         let blob_traits = ser_gen.generate_blob_traits();
@@ -158,6 +234,15 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
 
         // Add migration-related items if we have versioned models
         if !migration_code.is_empty() {
+            // Debug: write migration code to file for inspection
+            let debug_path = std::path::PathBuf::from(
+                std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string()),
+            )
+            .join("../target/generated/migration_debug.rs");
+            if let Ok(()) = std::fs::create_dir_all(debug_path.parent().unwrap()) {
+                let _ = std::fs::write(&debug_path, migration_code.to_string());
+            }
+
             let migration_file: syn::File = parse2(migration_code).map_err(|e| {
                 syn::Error::new(e.span(), format!("Failed to parse migration items: {}", e))
             })?;

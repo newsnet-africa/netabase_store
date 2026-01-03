@@ -1,11 +1,11 @@
-use bincode::{Encode, Decode};
+use serde::{Serialize, de::DeserializeOwned};
 
 pub enum BlobLink<T: NetabaseBlobItem> {
     Complete(T),
     Blobs(Vec<T::Blobs>),
 }
 
-pub trait NetabaseBlobItem: Sized + Encode + Decode<()> {
+pub trait NetabaseBlobItem: Sized + Serialize + DeserializeOwned {
     type Blobs;
 
     /// Wrap a chunk of data into the specific Blob enum variant
@@ -15,10 +15,10 @@ pub trait NetabaseBlobItem: Sized + Encode + Decode<()> {
     fn unwrap_blob(blob: &Self::Blobs) -> Option<(u8, Vec<u8>)>;
 
     fn split_into_blobs(&self) -> Vec<Self::Blobs> {
-        let serialized = bincode::encode_to_vec(self, bincode::config::standard()).unwrap();
-        
+        let serialized = postcard::to_allocvec(self).unwrap();
+
         if serialized.is_empty() {
-             return Vec::new();
+            return Vec::new();
         }
 
         serialized
@@ -30,20 +30,18 @@ pub trait NetabaseBlobItem: Sized + Encode + Decode<()> {
 
     fn reconstruct_from_blobs(blobs: Vec<Self::Blobs>) -> Self {
         if blobs.is_empty() {
-             // Handle empty case: try to decode from empty bytes
-             // This assumes that empty struct encodes to empty bytes and vice versa
-             return bincode::decode_from_slice(&[], bincode::config::standard()).unwrap().0;
+            // Handle empty case: try to decode from empty bytes
+            // This assumes that empty struct encodes to empty bytes and vice versa
+            return postcard::from_bytes(&[]).unwrap();
         }
 
-        let mut parts: Vec<(u8, Vec<u8>)> = blobs
-            .iter()
-            .filter_map(|b| Self::unwrap_blob(b))
-            .collect();
+        let mut parts: Vec<(u8, Vec<u8>)> =
+            blobs.iter().filter_map(|b| Self::unwrap_blob(b)).collect();
         parts.sort_by_key(|(i, _)| *i);
         let mut result = Vec::new();
         for (_, part) in parts {
             result.extend(part);
         }
-        bincode::decode_from_slice(&result, bincode::config::standard()).unwrap().0
+        postcard::from_bytes(&result).unwrap()
     }
 }

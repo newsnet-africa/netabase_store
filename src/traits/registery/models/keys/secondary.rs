@@ -1,17 +1,16 @@
 use crate::traits::registery::definition::NetabaseDefinition;
 use crate::traits::registery::models::StoreKeyMarker;
-use crate::traits::registery::models::keys::NetabaseModelKeys;
 pub use crate::traits::registery::models::keys::primary::NetabaseModelPrimaryKey;
 use crate::traits::registery::models::model::NetabaseModelMarker;
-pub trait NetabaseModelSecondaryKey<
-    'a,
-    D: NetabaseDefinition,
-    M: NetabaseModelMarker<D>,
-    K: NetabaseModelKeys<D, M>,
->: StoreKeyMarker<D> + Clone
+
+/// Marker trait for secondary key types.
+///
+/// This is a simple marker trait without the K parameter to avoid
+/// early/late-bound lifetime issues with GATs.
+pub trait NetabaseModelSecondaryKey<D: NetabaseDefinition, M: NetabaseModelMarker<D>>:
+    StoreKeyMarker<D> + Clone
 where
     D::Discriminant: 'static + std::fmt::Debug,
-    K::Relational<'a>: StoreKeyMarker<D>,
 {
-    type PrimaryKey: NetabaseModelPrimaryKey<'a, D, M, K>;
+    type PrimaryKey: NetabaseModelPrimaryKey<D, M>;
 }

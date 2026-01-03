@@ -1,11 +1,11 @@
 pub mod redb_definition;
-pub mod subscription;
 pub mod schema;
+pub mod subscription;
 
 use schema::DefinitionSchema;
+use serde::Serialize;
 use strum::IntoDiscriminant;
 use subscription::{DefinitionSubscriptionRegistry, NetabaseDefinitionSubscriptionKeys};
-use serde::Serialize;
 
 use crate::traits::registery::models::{
     keys::NetabaseModelKeys,
@@ -33,7 +33,8 @@ where
     /// Exports the schema to a TOML string
     fn export_toml() -> String {
         let schema = Self::schema();
-        toml::to_string_pretty(&schema).unwrap_or_else(|e| format!("# Error serializing to TOML: {}", e))
+        toml::to_string_pretty(&schema)
+            .unwrap_or_else(|e| format!("# Error serializing to TOML: {}", e))
     }
 
     /// Definition-level subscription keys enum
@@ -63,19 +64,15 @@ where
     fn get_model_tree<M: NetabaseModel<D>>(&self) -> Option<M>
     where
         for<'a> Self: From<ModelTreeNames<'a, Self, M>>,
-        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'a>:
-            IntoDiscriminant,
-        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a>:
-            IntoDiscriminant,
-        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a>:
-            IntoDiscriminant,
-        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a>:
-            IntoDiscriminant,
-        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'static>: 'static
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: IntoDiscriminant,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: IntoDiscriminant,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: IntoDiscriminant,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: IntoDiscriminant,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: 'static
     ;
 }
 

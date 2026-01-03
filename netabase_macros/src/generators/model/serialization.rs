@@ -1,16 +1,29 @@
+use crate::utils::naming::*;
+use crate::visitors::model::field::ModelFieldVisitor;
 use proc_macro2::TokenStream;
 use quote::quote;
-use crate::visitors::model::field::ModelFieldVisitor;
-use crate::utils::naming::*;
 
 /// Generator for serialization trait implementations (redb Value/Key)
 pub struct SerializationGenerator<'a> {
     visitor: &'a ModelFieldVisitor,
+    /// Flag to control whether to generate trait impls for the ID type
+    generate_id_traits: bool,
 }
 
 impl<'a> SerializationGenerator<'a> {
     pub fn new(visitor: &'a ModelFieldVisitor) -> Self {
-        Self { visitor }
+        Self {
+            visitor,
+            generate_id_traits: true,
+        }
+    }
+
+    /// Create a new generator with explicit control over ID trait generation
+    pub fn with_id_traits(visitor: &'a ModelFieldVisitor, generate_id_traits: bool) -> Self {
+        Self {
+            visitor,
+            generate_id_traits,
+        }
     }
 
     /// Generate redb Value and Key implementations for the model
@@ -26,9 +39,7 @@ impl<'a> SerializationGenerator<'a> {
                 where
                     Self: 'a,
                 {
-                    bincode::decode_from_slice(data, bincode::config::standard())
-                        .unwrap()
-                        .0
+                    postcard::from_bytes(data).unwrap()
                 }
 
                 fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
@@ -37,7 +48,7 @@ impl<'a> SerializationGenerator<'a> {
                     Self: 'b,
                 {
                     std::borrow::Cow::Owned(
-                        bincode::encode_to_vec(value, bincode::config::standard()).unwrap()
+                        postcard::to_allocvec(value).unwrap()
                     )
                 }
 
@@ -52,12 +63,8 @@ impl<'a> SerializationGenerator<'a> {
 
             impl redb::Key for #model_name {
                 fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
-                    let val1: #model_name = bincode::decode_from_slice(data1, bincode::config::standard())
-                        .unwrap()
-                        .0;
-                    let val2: #model_name = bincode::decode_from_slice(data2, bincode::config::standard())
-                        .unwrap()
-                        .0;
+                    let val1: #model_name = postcard::from_bytes(data1).unwrap();
+                    let val2: #model_name = postcard::from_bytes(data2).unwrap();
                     val1.cmp(&val2)
                 }
             }
@@ -70,9 +77,11 @@ impl<'a> SerializationGenerator<'a> {
 
         let model_name = &self.visitor.model_name;
 
-        // ID type
-        let id_type = primary_key_type_name(model_name);
-        output.extend(self.generate_value_key_for_type(&id_type));
+        // ID type - only generate if flagged (to avoid duplicates for versioned models)
+        if self.generate_id_traits {
+            let id_type = primary_key_type_name_for_model(self.visitor);
+            output.extend(self.generate_value_key_for_type(&id_type));
+        }
 
         // Secondary keys enum
         let secondary_enum = secondary_keys_enum_name(model_name);
@@ -106,9 +115,7 @@ impl<'a> SerializationGenerator<'a> {
                 where
                     Self: 'a,
                 {
-                    bincode::decode_from_slice(data, bincode::config::standard())
-                        .unwrap()
-                        .0
+                    postcard::from_bytes(data).unwrap()
                 }
 
                 fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
@@ -117,7 +124,7 @@ impl<'a> SerializationGenerator<'a> {
                     Self: 'b,
                 {
                     std::borrow::Cow::Owned(
-                        bincode::encode_to_vec(value, bincode::config::standard()).unwrap()
+                        postcard::to_allocvec(value).unwrap()
                     )
                 }
 
@@ -132,12 +139,8 @@ impl<'a> SerializationGenerator<'a> {
 
             impl redb::Key for #type_name {
                 fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
-                    let val1: #type_name = bincode::decode_from_slice(data1, bincode::config::standard())
-                        .unwrap()
-                        .0;
-                    let val2: #type_name = bincode::decode_from_slice(data2, bincode::config::standard())
-                        .unwrap()
-                        .0;
+                    let val1: #type_name = postcard::from_bytes(data1).unwrap();
+                    let val2: #type_name = postcard::from_bytes(data2).unwrap();
                     val1.cmp(&val2)
                 }
             }
@@ -204,7 +207,9 @@ impl<'a> SerializationGenerator<'a> {
         }
 
         // Generate impl for the BlobItem enum itself
-        let reconstruct_arms: Vec<_> = self.visitor.blob_fields
+        let reconstruct_arms: Vec<_> = self
+            .visitor
+            .blob_fields
             .iter()
             .map(|field| {
                 let variant_name = to_pascal_case(&field.name.to_string());

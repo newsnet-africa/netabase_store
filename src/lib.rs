@@ -6,7 +6,7 @@
 //! ## Features
 //!
 //! - **Type-Safe**: Compile-time schema validation with Rust's type system
-//! - **High Performance**: Zero-copy operations with bincode serialization
+//! - **High Performance**: Zero-copy operations with postcard serialization
 //! - **Auto Migration**: Automatic schema versioning and data migration
 //! - **Transactions**: ACID-compliant read/write transactions
 //! - **Secondary Indexes**: Fast lookups on non-primary fields

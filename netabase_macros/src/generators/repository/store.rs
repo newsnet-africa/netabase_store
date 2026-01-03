@@ -90,7 +90,7 @@ impl<'a> StoreGenerator<'a> {
                         // Create database file
                         let db_path = def_path_folder.join("data.redb");
                         let db = redb::Database::create(&db_path)
-                            .map_err(|e| netabase_store::errors::NetabaseError::RedbError(e.into()))?;
+                            .map_err(|e| netabase_store::errors::NetabaseError::RedbDatabaseError(e))?;
 
                         // Initialize tables for this definition
                         <#def_path as netabase_store::traits::registery::definition::redb_definition::RedbDefinition>::init_tables(&db)?;

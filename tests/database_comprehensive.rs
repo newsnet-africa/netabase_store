@@ -22,6 +22,7 @@ fn create_post(id: &str, title: &str, content: &str, published: bool) -> Post {
         content: content.to_string(),
         published,
         subscriptions: vec![],
+        tags: vec![],
     }
 }
 

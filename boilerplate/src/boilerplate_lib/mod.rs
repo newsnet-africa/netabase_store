@@ -1,7 +1,6 @@
 // Macro-based boilerplate library - exact duplicate of boilerplate_lib using macros
 // This demonstrates 1:1 parity between manual and macro-generated code
 // Updated: 2026-01-03 - Added versioned models for migration testing
-use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 // Declare models module
@@ -16,8 +15,6 @@ pub mod definition_two {
         netabase_macros::NetabaseModel,
         Debug,
         Clone,
-        Encode,
-        Decode,
         Serialize,
         Deserialize,
         PartialEq,
@@ -46,18 +43,7 @@ pub mod definition {
     use netabase_store::blob::NetabaseBlobItem;
 
     #[derive(
-        Debug,
-        Clone,
-        Encode,
-        Decode,
-        Serialize,
-        Deserialize,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        Default,
+        Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default,
     )]
     pub struct LargeUserFile {
         pub data: Vec<u8>,
@@ -65,34 +51,12 @@ pub mod definition {
     }
 
     #[derive(
-        Debug,
-        Clone,
-        Encode,
-        Decode,
-        Serialize,
-        Deserialize,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        Default,
+        Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default,
     )]
     pub struct AnotherLargeUserFile(pub Vec<u8>);
 
     #[derive(
-        Debug,
-        Clone,
-        Encode,
-        Decode,
-        Serialize,
-        Deserialize,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        Default,
+        Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default,
     )]
     pub struct HeavyAttachment {
         pub mime_type: String,
@@ -104,8 +68,6 @@ pub mod definition {
         netabase_macros::NetabaseModel,
         Debug,
         Clone,
-        Encode,
-        Decode,
         Serialize,
         Deserialize,
         PartialEq,
@@ -135,8 +97,6 @@ pub mod definition {
         netabase_macros::NetabaseModel,
         Debug,
         Clone,
-        Encode,
-        Decode,
         Serialize,
         Deserialize,
         PartialEq,
@@ -176,17 +136,19 @@ pub mod definition {
     // Migration from V1 to V2
     impl netabase_store::traits::migration::MigrateFrom<UserV1> for User {
         fn migrate_from(old: UserV1) -> Self {
+            use netabase_store::relational::RelationalLink;
             // Split the single name field into first_name and last_name
             let parts: Vec<&str> = old.name.split_whitespace().collect();
             User {
-                id: old.id,
+                id: old.id.clone(),
                 first_name: parts.first().map(|s| s.to_string()).unwrap_or_default(),
                 last_name: parts.get(1).map(|s| s.to_string()).unwrap_or_default(),
                 age: old.age,
-                partner: String::new(), // New field - default to empty
+                partner: RelationalLink::new_dehydrated(old.id),
                 category: old.category,
                 bio: LargeUserFile::default(),
                 another: AnotherLargeUserFile::default(),
+                subscriptions: old.subscriptions,
             }
         }
     }
@@ -199,6 +161,7 @@ pub mod definition {
                 name: format!("{} {}", self.first_name, self.last_name),
                 age: self.age,
                 category: self.category.clone(),
+                subscriptions: self.subscriptions.clone(),
             }
         }
     }
@@ -208,8 +171,6 @@ pub mod definition {
         netabase_macros::NetabaseModel,
         Debug,
         Clone,
-        Encode,
-        Decode,
         Serialize,
         Deserialize,
         PartialEq,
@@ -238,8 +199,6 @@ pub mod definition {
         netabase_macros::NetabaseModel,
         Debug,
         Clone,
-        Encode,
-        Decode,
         Serialize,
         Deserialize,
         PartialEq,
@@ -277,6 +236,7 @@ pub mod definition {
                 content: old.content,
                 published: false, // Default to unpublished
                 tags: vec![],     // Default to no tags
+                subscriptions: old.subscriptions,
             }
         }
     }
@@ -289,6 +249,7 @@ pub mod definition {
                 title: self.title.clone(),
                 author_id: self.author_id.clone(),
                 content: self.content.clone(),
+                subscriptions: self.subscriptions.clone(),
             }
         }
     }
@@ -297,8 +258,6 @@ pub mod definition {
         netabase_macros::NetabaseModel,
         Debug,
         Clone,
-        Encode,
-        Decode,
         Serialize,
         Deserialize,
         PartialEq,

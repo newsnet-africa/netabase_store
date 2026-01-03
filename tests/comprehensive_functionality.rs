@@ -64,7 +64,8 @@ fn test_crud_create_single_model() -> NetabaseResult<()> {
 
     let user = User {
         id: user_id.clone(),
-        name: "Alice Johnson".to_string(),
+        first_name: "Alice Johnson".to_string(),
+        last_name: "Test".to_string(),
         age: 28,
         partner: RelationalLink::<Standalone, Definition, Definition, User>::new_dehydrated(
             partner_id.clone(),
@@ -111,7 +112,7 @@ fn test_crud_create_single_model() -> NetabaseResult<()> {
 
         // Verify secondary keys
         assert_eq!(
-            read_user.name, "Alice Johnson",
+            read_user.first_name, "Alice Johnson",
             "Name (secondary key) should match"
         );
         assert_eq!(read_user.age, 28, "Age (secondary key) should match");
@@ -206,7 +207,8 @@ fn test_crud_update_model_full_verification() -> NetabaseResult<()> {
     // Initial state: Create user version 1
     let user_v1 = User {
         id: user_id.clone(),
-        name: "Original Name".to_string(),
+        first_name: "Original Name".to_string(),
+        last_name: "Test".to_string(),
         age: 25,
         partner: RelationalLink::new_dehydrated(UserID("partner_v1".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("category_v1".to_string())),
@@ -231,7 +233,7 @@ fn test_crud_update_model_full_verification() -> NetabaseResult<()> {
         let tables = txn.open_model_tables(table_defs, None)?;
         let user = User::read_default(&user_id, &tables)?.unwrap();
 
-        assert_eq!(user.name, "Original Name");
+        assert_eq!(user.first_name, "Original Name");
         assert_eq!(user.age, 25);
         assert_eq!(user.partner.get_primary_key().0, "partner_v1");
         assert_eq!(user.subscriptions.len(), 1);
@@ -241,9 +243,10 @@ fn test_crud_update_model_full_verification() -> NetabaseResult<()> {
 
     // Update: Modify multiple fields
     let user_v2 = User {
-        id: user_id.clone(),              // Same primary key
-        name: "Updated Name".to_string(), // Changed
-        age: 30,                          // Changed
+        id: user_id.clone(),                    // Same primary key
+        first_name: "Updated Name".to_string(), // Changed
+        last_name: "Test".to_string(),          // Added
+        age: 30,                                // Changed
         partner: RelationalLink::new_dehydrated(UserID("partner_v2".to_string())), // Changed
         category: RelationalLink::new_dehydrated(CategoryID("category_v1".to_string())), // Unchanged
         subscriptions: vec![
@@ -271,7 +274,7 @@ fn test_crud_update_model_full_verification() -> NetabaseResult<()> {
         let user = User::read_default(&user_id, &tables)?.unwrap();
 
         // Verify changed fields
-        assert_eq!(user.name, "Updated Name", "Name should be updated");
+        assert_eq!(user.first_name, "Updated Name", "Name should be updated");
         assert_eq!(user.age, 30, "Age should be updated");
         assert_eq!(
             user.partner.get_primary_key().0,
@@ -347,7 +350,8 @@ fn test_crud_delete_model_state_verification() -> NetabaseResult<()> {
 
     let user1 = User {
         id: user1_id.clone(),
-        name: "Delete Me".to_string(),
+        first_name: "Delete Me".to_string(),
+        last_name: "Test".to_string(),
         age: 30,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -358,7 +362,8 @@ fn test_crud_delete_model_state_verification() -> NetabaseResult<()> {
 
     let user2 = User {
         id: user2_id.clone(),
-        name: "Keep Me".to_string(),
+        first_name: "Keep Me".to_string(),
+        last_name: "Test".to_string(),
         age: 25,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -415,7 +420,7 @@ fn test_crud_delete_model_state_verification() -> NetabaseResult<()> {
 
         // Verify user2 unchanged
         let user2 = User::read_default(&user2_id, &tables)?.unwrap();
-        assert_eq!(user2.name, "Keep Me", "User 2 should be unchanged");
+        assert_eq!(user2.first_name, "Keep Me", "User 2 should be unchanged");
         assert_eq!(user2.age, 25, "User 2 age should be unchanged");
 
         println!("✓ Deletion verified - user1 removed, user2 intact");
@@ -471,7 +476,8 @@ fn test_relational_links_all_variants() -> NetabaseResult<()> {
     // Create a real user model for testing
     let partner = User {
         id: partner_id.clone(),
-        name: "Bob Partner".to_string(),
+        first_name: "Bob Partner".to_string(),
+        last_name: "Test".to_string(),
         age: 32,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -530,7 +536,7 @@ fn test_relational_links_all_variants() -> NetabaseResult<()> {
 
     let model_ref = owned.get_model().unwrap();
     assert_eq!(
-        model_ref.name, "Bob Partner",
+        model_ref.first_name, "Bob Partner",
         "Model data should be accessible"
     );
     assert_eq!(model_ref.age, 32, "Model data should match original");
@@ -540,7 +546,7 @@ fn test_relational_links_all_variants() -> NetabaseResult<()> {
     let extracted = owned_clone.into_owned();
     assert!(extracted.is_some(), "Should be able to extract owned model");
     assert_eq!(
-        extracted.unwrap().name,
+        extracted.unwrap().first_name,
         "Bob Partner",
         "Extracted model should match"
     );
@@ -571,7 +577,7 @@ fn test_relational_links_all_variants() -> NetabaseResult<()> {
 
     let model_ref = hydrated.get_model().unwrap();
     assert_eq!(
-        model_ref.name, "Bob Partner",
+        model_ref.first_name, "Bob Partner",
         "Model data should be accessible via reference"
     );
 
@@ -604,7 +610,7 @@ fn test_relational_links_all_variants() -> NetabaseResult<()> {
 
     let model_ref = borrowed.as_borrowed().unwrap();
     assert_eq!(
-        model_ref.name, "Bob Partner",
+        model_ref.first_name, "Bob Partner",
         "Model data should be accessible via borrowed reference"
     );
 
@@ -648,7 +654,8 @@ fn test_relational_links_all_variants() -> NetabaseResult<()> {
     let test_id = UserID("test".to_string());
     let test_user = User {
         id: test_id.clone(),
-        name: "Test".to_string(),
+        first_name: "Test".to_string(),
+        last_name: "Test".to_string(),
         age: 20,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -725,7 +732,8 @@ fn test_transaction_rollback_on_drop() -> NetabaseResult<()> {
 
         let user = User {
             id: user_id.clone(),
-            name: "Should Not Persist".to_string(),
+            first_name: "Should Not Persist".to_string(),
+            last_name: "Test".to_string(),
             age: 99,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -788,7 +796,8 @@ fn test_transaction_multiple_models() -> NetabaseResult<()> {
     for i in 0..3 {
         let user = User {
             id: UserID(format!("user_{}", i)),
-            name: format!("User {}", i),
+            first_name: format!("User {}", i),
+            last_name: "Test".to_string(),
             age: 20 + i as u8,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -818,7 +827,7 @@ fn test_transaction_multiple_models() -> NetabaseResult<()> {
 
             let user = user.unwrap();
             assert_eq!(
-                user.name,
+                user.first_name,
                 format!("User {}", i),
                 "User {} name should match",
                 i
@@ -868,7 +877,8 @@ fn test_count_entries_accurate() -> NetabaseResult<()> {
     for i in 0..5 {
         let user = User {
             id: UserID(format!("count_user_{}", i)),
-            name: format!("User {}", i),
+            first_name: format!("User {}", i),
+            last_name: "Test".to_string(),
             age: 25,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -940,7 +950,8 @@ fn test_list_entries_complete() -> NetabaseResult<()> {
     for (id, name, age) in &users_data {
         let user = User {
             id: UserID(id.to_string()),
-            name: name.to_string(),
+            first_name: name.to_string(),
+            last_name: "Test".to_string(),
             age: *age,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -981,7 +992,7 @@ fn test_list_entries_complete() -> NetabaseResult<()> {
                 .unwrap();
 
             assert_eq!(
-                &user.name, expected_name,
+                &user.first_name, expected_name,
                 "Name should match for {}",
                 user.id.0
             );
@@ -1038,7 +1049,8 @@ fn test_blob_storage_large_data() -> NetabaseResult<()> {
 
     let user = User {
         id: user_id.clone(),
-        name: "Blob User".to_string(),
+        first_name: "Blob User".to_string(),
+        last_name: "Test".to_string(),
         age: 30,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -1144,7 +1156,8 @@ fn test_standalone_repository_cross_definition_links() -> NetabaseResult<()> {
     println!("Creating Alice (user without links)");
     let alice = User {
         id: alice_id.clone(),
-        name: "Alice".to_string(),
+        first_name: "Alice".to_string(),
+        last_name: "Test".to_string(),
         age: 28,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -1160,7 +1173,8 @@ fn test_standalone_repository_cross_definition_links() -> NetabaseResult<()> {
     println!("Creating Bob (user with link to Alice and category link)");
     let bob = User {
         id: bob_id.clone(),
-        name: "Bob".to_string(),
+        first_name: "Bob".to_string(),
+        last_name: "Test".to_string(),
         age: 32,
         // Link to Alice (same definition, same repository)
         partner: RelationalLink::new_dehydrated(alice_id.clone()),
@@ -1279,7 +1293,8 @@ fn test_subscriptions_storage_and_retrieval() -> NetabaseResult<()> {
         println!("  - {}: {}", id, desc);
         let user = User {
             id: UserID(id.to_string()),
-            name: desc.to_string(),
+            first_name: desc.to_string(),
+            last_name: "Test".to_string(),
             age: 30,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -1387,7 +1402,8 @@ fn test_delete_nonexistent_model() -> NetabaseResult<()> {
     let existing_id = UserID("existing".to_string());
     let user = User {
         id: existing_id.clone(),
-        name: "Existing User".to_string(),
+        first_name: "Existing User".to_string(),
+        last_name: "Test".to_string(),
         age: 30,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
@@ -1514,7 +1530,8 @@ fn test_complex_multi_model_relationships() -> NetabaseResult<()> {
     // Alice (links to Bob as partner, Tech category)
     let alice = User {
         id: alice_id.clone(),
-        name: "Alice".to_string(),
+        first_name: "Alice".to_string(),
+        last_name: "Test".to_string(),
         age: 28,
         partner: RelationalLink::new_dehydrated(bob_id.clone()),
         category: RelationalLink::new_dehydrated(tech_category.clone()),
@@ -1526,7 +1543,8 @@ fn test_complex_multi_model_relationships() -> NetabaseResult<()> {
     // Bob (links to Alice as partner, Tech category)
     let bob = User {
         id: bob_id.clone(),
-        name: "Bob".to_string(),
+        first_name: "Bob".to_string(),
+        last_name: "Test".to_string(),
         age: 32,
         partner: RelationalLink::new_dehydrated(alice_id.clone()),
         category: RelationalLink::new_dehydrated(tech_category.clone()),
@@ -1538,7 +1556,8 @@ fn test_complex_multi_model_relationships() -> NetabaseResult<()> {
     // Charlie (no partner, Science category)
     let charlie = User {
         id: charlie_id.clone(),
-        name: "Charlie".to_string(),
+        first_name: "Charlie".to_string(),
+        last_name: "Test".to_string(),
         age: 35,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(science_category.clone()),
@@ -1561,7 +1580,7 @@ fn test_complex_multi_model_relationships() -> NetabaseResult<()> {
 
         // Verify Alice
         let alice_read = User::read_default(&alice_id, &tables)?.unwrap();
-        assert_eq!(alice_read.name, "Alice");
+        assert_eq!(alice_read.first_name, "Alice");
         assert_eq!(
             alice_read.partner.get_primary_key().0,
             "bob",
@@ -1576,7 +1595,7 @@ fn test_complex_multi_model_relationships() -> NetabaseResult<()> {
 
         // Verify Bob
         let bob_read = User::read_default(&bob_id, &tables)?.unwrap();
-        assert_eq!(bob_read.name, "Bob");
+        assert_eq!(bob_read.first_name, "Bob");
         assert_eq!(
             bob_read.partner.get_primary_key().0,
             "alice",
@@ -1591,7 +1610,7 @@ fn test_complex_multi_model_relationships() -> NetabaseResult<()> {
 
         // Verify Charlie
         let charlie_read = User::read_default(&charlie_id, &tables)?.unwrap();
-        assert_eq!(charlie_read.name, "Charlie");
+        assert_eq!(charlie_read.first_name, "Charlie");
         assert_eq!(
             charlie_read.partner.get_primary_key().0,
             "none",
