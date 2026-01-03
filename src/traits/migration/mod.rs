@@ -12,8 +12,11 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
-//! #[derive(NetabaseModel)]
+//! ```rust
+//! use netabase_store::prelude::*;
+//! use serde::{Serialize, Deserialize};
+//!
+//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
 //! #[netabase_version(family = "User", version = 1)]
 //! pub struct UserV1 {
 //!     #[primary_key]
@@ -21,7 +24,7 @@
 //!     pub name: String,
 //! }
 //!
-//! #[derive(NetabaseModel)]
+//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
 //! #[netabase_version(family = "User", version = 2)]
 //! pub struct UserV2 {
 //!     #[primary_key]

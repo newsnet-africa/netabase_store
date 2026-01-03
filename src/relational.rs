@@ -27,29 +27,21 @@
 //!
 //! ## Creating Links
 //!
-//! ```rust,ignore
+//! ```rust
+//! use netabase_store::relational::RelationalLink;
+//! use serde::{Serialize, Deserialize};
+//!
+//! #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+//! struct UserID(String);
+//!
 //! // Dehydrated (for storage)
-//! let link = RelationalLink::new_dehydrated(user_id);
-//!
-//! // Owned (when you have the model)
-//! let link = RelationalLink::new_owned(user_id, Box::new(user));
-//!
-//! // Hydrated (with app-controlled reference)
-//! let link = RelationalLink::new_hydrated(user_id, &user);
+//! let link: RelationalLink<(), (), (), UserID> = RelationalLink::new_dehydrated(UserID("123".into()));
 //! ```
 //!
 //! ## Hydration (Loading Related Data)
 //!
-//! ```rust,ignore
-//! // Manual hydration
-//! let dehydrated: RelationalLink<R, _, _, User> = ...;
-//! if let Some(key) = dehydrated.key() {
-//!     let user = txn.read(key)?;
-//!     let hydrated = dehydrated.clone().with_model(user.as_ref());
-//! }
-//!
-//! // Automatic hydration via transaction
-//! let hydrated = txn.hydrate_link(link)?;
+//! Hydration loads the full model data for a relational link. This typically happens
+//! through transaction methods that can fetch the related model from the database.
 //! ```
 //!
 //! # Serialization Behavior

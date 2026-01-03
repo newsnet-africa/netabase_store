@@ -5,8 +5,9 @@
 //!
 //! # Usage
 //!
-//! ```rust,ignore
+//! ```rust
 //! use netabase_store::prelude::*;
+//! // Now you have access to all common types and traits
 //! ```
 //!
 //! # What's Included

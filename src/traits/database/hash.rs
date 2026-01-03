@@ -12,14 +12,11 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
-//! use netabase_store::traits::database::hash::{FastHash, CryptoHash};
+//! ```rust
+//! use netabase_store::traits::database::hash::HashAlgorithm;
 //!
-//! // Quick comparison using fast hash
-//! let fast_hash = MyRepo::schema_hash::<FastHash>();
-//!
-//! // Secure comparison using cryptographic hash
-//! let crypto_hash = MyRepo::schema_hash::<CryptoHash>();
+//! // Hash algorithms are used internally for schema comparison
+//! // Custom algorithms can be implemented for specialized use cases
 //! ```
 
 use std::hash::{Hash, Hasher};
