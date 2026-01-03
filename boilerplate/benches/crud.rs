@@ -28,7 +28,6 @@ fn random_id(prefix: &str, rng: &mut impl Rng) -> String {
 /// Helper to split blob data like the abstracted version does
 /// Mimics NetabaseBlobItem::split_into_blobs() behavior
 fn split_blob_into_chunks<T: bincode::Encode>(item: &T) -> Vec<(u8, Vec<u8>)> {
-    use bincode::Encode;
     let serialized = bincode::encode_to_vec(item, bincode::config::standard()).unwrap();
 
     if serialized.is_empty() {
@@ -161,7 +160,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                 },
                 |(store, users, _guard)| {
                     // MEASURED: Transaction, table opening, and insert loop
-                    let txn = store.begin_transaction().expect("Failed to begin txn");
+                    let txn = store.begin_write().expect("Failed to begin txn");
                     {
                         let mut tables = txn
                             .prepare_model::<User>()
@@ -334,7 +333,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                         create_test_db::<Definition>(&name).expect("Failed to create DB");
 
                     // Insert data in setup
-                    let txn = store.begin_transaction().expect("Failed to begin txn");
+                    let txn = store.begin_write().expect("Failed to begin txn");
                     {
                         let mut tables = txn
                             .prepare_model::<User>()
@@ -350,7 +349,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                 },
                 |(store, users, _guard)| {
                     // MEASURED: Transaction, table opening, and read loop
-                    let txn = store.begin_transaction().expect("Failed to begin txn");
+                    let txn = store.begin_read().expect("Failed to begin txn");
                     {
                         let tables = txn
                             .prepare_model::<User>()
@@ -517,7 +516,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                         create_test_db::<Definition>(&name).expect("Failed to create DB");
 
                     // Insert data in setup
-                    let txn = store.begin_transaction().expect("Failed to begin txn");
+                    let txn = store.begin_write().expect("Failed to begin txn");
                     {
                         let mut tables = txn
                             .prepare_model::<User>()
@@ -533,7 +532,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                 },
                 |(store, users, _guard)| {
                     // MEASURED: Transaction, table opening, and delete loop
-                    let txn = store.begin_transaction().expect("Failed to begin txn");
+                    let txn = store.begin_write().expect("Failed to begin txn");
                     {
                         let mut tables = txn
                             .prepare_model::<User>()

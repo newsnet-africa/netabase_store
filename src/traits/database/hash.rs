@@ -155,7 +155,7 @@ mod tests {
     fn test_different_algorithms_produce_different_hashes() {
         let input = "same input";
         let fast = FastHash::hash_string(input);
-        let default = DefaultHash::hash_string(input);
+        let _default = DefaultHash::hash_string(input);
         let crypto = CryptoHash::hash_string(input);
 
         // Different algorithms should produce different hashes

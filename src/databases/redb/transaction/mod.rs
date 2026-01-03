@@ -1,9 +1,9 @@
 pub mod crud;
+pub mod options;
 pub mod tables;
 pub mod wrappers;
-pub mod options;
 
-use redb::TransactionError;
+use redb::{ReadableDatabase, TransactionError};
 use strum::IntoDiscriminant;
 
 use crate::{
@@ -25,9 +25,9 @@ use crate::{
 };
 
 pub use self::crud::RedbModelCrud;
+pub use self::options::*;
 pub use self::tables::{ModelOpenTables, ReadWriteTableType, TablePermission, TableType};
 pub use self::wrappers::{NetabaseRedbReadTransaction, NetabaseRedbWriteTransaction};
-pub use self::options::*;
 
 pub struct RedbTransactionInner<'txn, D: RedbDefinition>
 where
@@ -53,11 +53,22 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     D: Clone,
 {
-    pub fn new(db: &redb::Database) -> NetabaseResult<Self> {
+    /// Create a new write transaction.
+    pub fn new_write(db: &redb::Database) -> NetabaseResult<Self> {
         let write_txn = db
             .begin_write()
             .map_err(|e: TransactionError| NetabaseError::RedbTransactionError(e.into()))?;
         let transaction = RedbTransactionType::Write(NetabaseRedbWriteTransaction::new(write_txn));
+
+        Ok(RedbTransactionInner { transaction })
+    }
+
+    /// Create a new read-only transaction.
+    pub fn new_read(db: &redb::Database) -> NetabaseResult<Self> {
+        let read_txn = db
+            .begin_read()
+            .map_err(|e: TransactionError| NetabaseError::RedbTransactionError(e.into()))?;
+        let transaction = RedbTransactionType::Read(NetabaseRedbReadTransaction::new(read_txn));
 
         Ok(RedbTransactionInner { transaction })
     }
@@ -324,6 +335,23 @@ where
         }
     }
 
+    /// Commit the transaction, persisting all changes to the database.
+    ///
+    /// For write transactions, this atomically applies all changes made during
+    /// the transaction. For read transactions, this is a no-op (read transactions
+    /// don't need to be committed).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the commit fails (e.g., due to I/O errors).
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let txn = store.begin_write()?;
+    /// txn.create(&user)?;
+    /// txn.commit()?; // Persist the changes
+    /// ```
     pub fn commit(self) -> NetabaseResult<()> {
         match self.transaction {
             RedbTransactionType::Write(write_txn) => write_txn.commit(),
@@ -334,8 +362,286 @@ where
         }
     }
 
-    // --- Inherent methods for Redb models ---
+    /// Check if this is a write transaction.
+    pub fn is_write(&self) -> bool {
+        matches!(self.transaction, RedbTransactionType::Write(_))
+    }
 
+    /// Check if this is a read-only transaction.
+    pub fn is_read(&self) -> bool {
+        matches!(self.transaction, RedbTransactionType::Read(_))
+    }
+
+    // ========================================================================
+    // High-Level CRUD Operations
+    // ========================================================================
+
+    /// Create a new record in the database.
+    ///
+    /// Inserts the model into the appropriate table(s), including primary key,
+    /// secondary indexes, relational links, and blob storage.
+    ///
+    /// # Arguments
+    ///
+    /// * `model` - The model instance to insert
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The transaction is read-only
+    /// - A record with the same primary key already exists
+    /// - The database operation fails
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let txn = store.begin_write()?;
+    /// let user = User { id: 1, name: "Alice".to_string() };
+    /// txn.create(&user)?;
+    /// txn.commit()?;
+    /// ```
+    #[inline]
+    pub fn create<'data: 'db, M>(&'db self, model: &'data M) -> NetabaseResult<()>
+    where
+        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
+        for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: Clone,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db> as redb::Value>::SelfType<'db>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: 'static,
+        D: 'static,
+        D::SubscriptionKeys: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'static>: 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as redb::Value>::SelfType<'a>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem as redb::Value>::SelfType<'a>>,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a>: Into<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as NetabaseModelBlobKey<'a, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: Into<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem>,
+    {
+        let definitions = M::table_definitions();
+        let perms = ModelRelationPermissions {
+            relationa_tree_access: &[RelationPermission(M::TREE_NAMES, PermissionFlag::ReadWrite)],
+        };
+        let mut tables = self.open_model_tables(definitions, Some(perms))?;
+        model.create_entry(&mut tables)
+    }
+
+    /// Read a record by its primary key.
+    ///
+    /// Returns `Some(model)` if a record with the given key exists,
+    /// or `None` if no such record is found.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The primary key of the record to read
+    ///
+    /// # Type Parameters
+    ///
+    /// * `M` - The model type to read
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let txn = store.begin_read()?;
+    /// let user: Option<User> = txn.read::<User>(&1u64)?;
+    /// if let Some(user) = user {
+    ///     println!("Found user: {}", user.name);
+    /// }
+    /// ```
+    #[inline]
+    pub fn read<'data: 'db, M>(
+        &'db self,
+        key: &'data <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>,
+    ) -> NetabaseResult<Option<M>>
+    where
+        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
+        for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: Clone,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db> as redb::Value>::SelfType<'db>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: 'static,
+        D: 'static,
+        D::SubscriptionKeys: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: redb::Key + 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as redb::Value>::SelfType<'a>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem as redb::Value>::SelfType<'a>>,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a>: Into<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as NetabaseModelBlobKey<'a, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: Into<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem>,
+    {
+        let definitions = M::table_definitions();
+        let tables = self.open_model_tables(definitions, None)?;
+        M::read_default(key, &tables)
+    }
+
+    /// Update an existing record in the database.
+    ///
+    /// Replaces the record with the matching primary key with the new values.
+    /// All indexes are updated accordingly.
+    ///
+    /// # Arguments
+    ///
+    /// * `model` - The model instance with updated values
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The transaction is read-only
+    /// - The database operation fails
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let txn = store.begin_write()?;
+    /// let mut user = txn.read::<User>(&1u64)?.expect("user exists");
+    /// user.name = "Bob".to_string();
+    /// txn.update(&user)?;
+    /// txn.commit()?;
+    /// ```
+    #[inline]
+    pub fn update<'data: 'db, M>(&'db self, model: &'data M) -> NetabaseResult<()>
+    where
+        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
+        for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: Clone,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db> as redb::Value>::SelfType<'db>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: 'static,
+        D: 'static,
+        D::SubscriptionKeys: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: redb::Key + 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as redb::Value>::SelfType<'a>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem as redb::Value>::SelfType<'a>>,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a>: Into<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as NetabaseModelBlobKey<'a, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: Into<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem>,
+    {
+        let definitions = M::table_definitions();
+        let perms = ModelRelationPermissions {
+            relationa_tree_access: &[RelationPermission(M::TREE_NAMES, PermissionFlag::ReadWrite)],
+        };
+        let mut tables = self.open_model_tables(definitions, Some(perms))?;
+        model.update_entry(&mut tables)
+    }
+
+    /// Delete a record by its primary key.
+    ///
+    /// Removes the record and all associated index entries.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The primary key of the record to delete
+    ///
+    /// # Type Parameters
+    ///
+    /// * `M` - The model type to delete
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The transaction is read-only
+    /// - The database operation fails
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let txn = store.begin_write()?;
+    /// txn.delete::<User>(&1u64)?;
+    /// txn.commit()?;
+    /// ```
+    #[inline]
+    pub fn delete<'data, M>(
+        &'db self,
+        key: &'data <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>,
+    ) -> NetabaseResult<()>
+    where
+        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
+        for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: Clone,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Secondary<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Relational<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        for<'a> <<M::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary<'db>: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational<'db>: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary<'db> as redb::Value>::SelfType<'db>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'a> as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription<'db>: 'static,
+        D: 'static,
+        D::SubscriptionKeys: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: redb::Key + 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as redb::Value>::SelfType<'a>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem as redb::Value>::SelfType<'a>>,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a>: Into<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'a> as NetabaseModelBlobKey<'a, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem: Into<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob<'db> as NetabaseModelBlobKey<'db, D, M, <M as NetabaseModel<D>>::Keys>>::BlobItem>,
+    {
+        let definitions = M::table_definitions();
+        let perms = ModelRelationPermissions {
+            relationa_tree_access: &[RelationPermission(M::TREE_NAMES, PermissionFlag::ReadWrite)],
+        };
+        let mut tables = self.open_model_tables(definitions, Some(perms))?;
+        M::delete_entry(key, &mut tables)
+    }
+
+    // ========================================================================
+    // Legacy method aliases (kept for backwards compatibility)
+    // ========================================================================
+
+    /// Deprecated: Use `create` instead.
+    #[inline]
+    #[deprecated(since = "0.2.0", note = "Use `create` instead")]
     pub fn create_redb<'data: 'db, M>(&'db self, model: &'data M) -> NetabaseResult<()>
     where
         M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
@@ -495,6 +801,7 @@ impl<'db, D: RedbDefinition> NBTransaction<'db, D> for RedbTransaction<'db, D>
 where
     <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     D: Clone,
+    D::SubscriptionKeys: redb::Key + 'static,
 {
     type ReadTransaction = NetabaseRedbReadTransaction<'db, D>;
     type WriteTransaction = NetabaseRedbWriteTransaction<'db, D>;
@@ -517,11 +824,8 @@ where
         todo!("NBTransaction::delete - extract primary key from DefKeys, call delete_redb")
     }
 
-    fn create_many(&self, definitions: &[D]) -> NetabaseResult<()> {
-        for definition in definitions {
-            self.create(definition)?;
-        }
-        Ok(())
+    fn create_many(&self, _definitions: &[D]) -> NetabaseResult<()> {
+        todo!("NBTransaction::create_many - requires NBTransaction::create to be implemented first")
     }
 
     fn read_if<F>(&self, _predicate: F) -> NetabaseResult<Vec<D>>
@@ -554,11 +858,8 @@ where
         todo!("NBTransaction::update_if")
     }
 
-    fn delete_many(&self, keys: &[D::DefKeys]) -> NetabaseResult<()> {
-        for key in keys {
-            self.delete(key)?;
-        }
-        Ok(())
+    fn delete_many(&self, _keys: &[D::DefKeys]) -> NetabaseResult<()> {
+        todo!("NBTransaction::delete_many - requires NBTransaction::delete to be implemented first")
     }
 
     fn delete_if<F>(&self, _predicate: F) -> NetabaseResult<()>

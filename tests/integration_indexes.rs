@@ -1,4 +1,8 @@
 // Integration tests for secondary keys, relational keys, and subscription indexes
+// These tests are WIP and not yet enabled
+
+#![allow(dead_code)]
+#![allow(deprecated)]
 
 mod common;
 
@@ -26,7 +30,7 @@ fn test_secondary_key_indexes_created() -> NetabaseResult<()> {
         ("user3", "Bob", 30),   // Different name, same age as user1
     ];
 
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_write()?;
     for (id, name, age) in &users {
         let user = User {
             id: UserID(id.to_string()),
@@ -43,7 +47,7 @@ fn test_secondary_key_indexes_created() -> NetabaseResult<()> {
     txn.commit()?;
 
     // VERIFY: All users can be read back
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -92,7 +96,7 @@ fn test_secondary_index_update() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_write()?;
     txn.create_redb(&user)?;
     txn.commit()?;
 
@@ -108,7 +112,7 @@ fn test_secondary_index_update() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_write()?;
     {
         let table_defs = User::table_definitions();
         let perms = ModelRelationPermissions {
@@ -123,7 +127,7 @@ fn test_secondary_index_update() -> NetabaseResult<()> {
     txn.commit()?;
 
     // VERIFY: User has new name
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -172,13 +176,13 @@ fn test_relational_key_indexes_created() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_write()?;
     txn.create_redb(&user1)?;
     txn.create_redb(&user2)?;
     txn.commit()?;
 
     // VERIFY: Both users exist with correct partner references
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -221,14 +225,14 @@ fn test_post_author_relationship() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_write()?;
     txn.create_redb(&author)?;
     txn.commit()?;
 
     // Create posts by this author
     let post_ids = vec!["post1", "post2", "post3"];
 
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_write()?;
     for post_id in &post_ids {
         let post = Post {
             id: PostID(post_id.to_string()),
@@ -243,7 +247,7 @@ fn test_post_author_relationship() -> NetabaseResult<()> {
     txn.commit()?;
 
     // VERIFY: All posts exist with correct author
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_read()?;
     {
         let table_defs = Post::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -285,12 +289,12 @@ fn test_relational_key_update() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_write()?;
     txn.create_redb(&user)?;
     txn.commit()?;
 
     // VERIFY: Has old partner
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -312,7 +316,7 @@ fn test_relational_key_update() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_write()?;
     {
         let table_defs = User::table_definitions();
         let perms = ModelRelationPermissions {
@@ -327,7 +331,7 @@ fn test_relational_key_update() -> NetabaseResult<()> {
     txn.commit()?;
 
     // VERIFY: Has new partner
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -386,13 +390,13 @@ fn test_subscription_indexes_created() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_write()?;
     txn.create_redb(&user1)?;
     txn.create_redb(&user2)?;
     txn.commit()?;
 
     // VERIFY: Users exist with correct subscriptions
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -433,7 +437,7 @@ fn test_subscription_update() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_write()?;
     txn.create_redb(&user)?;
     txn.commit()?;
 
@@ -449,7 +453,7 @@ fn test_subscription_update() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_write()?;
     {
         let table_defs = User::table_definitions();
         let perms = ModelRelationPermissions {
@@ -464,7 +468,7 @@ fn test_subscription_update() -> NetabaseResult<()> {
     txn.commit()?;
 
     // VERIFY: Has new subscription
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -509,12 +513,12 @@ fn test_delete_cleans_all_indexes() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_write()?;
     txn.create_redb(&user)?;
     txn.commit()?;
 
     // VERIFY: User exists
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -524,7 +528,7 @@ fn test_delete_cleans_all_indexes() -> NetabaseResult<()> {
     txn.commit()?;
 
     // Delete user
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_write()?;
     {
         let table_defs = User::table_definitions();
         let perms = ModelRelationPermissions {
@@ -540,7 +544,7 @@ fn test_delete_cleans_all_indexes() -> NetabaseResult<()> {
     txn.commit()?;
 
     // VERIFY: User is gone
-    let txn = store.begin_transaction()?;
+    let txn = store.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;

@@ -1,11 +1,9 @@
-use netabase_store::traits::registery::definition::NetabaseDefinition;
 use netabase_store::blob::NetabaseBlobItem;
 use netabase_store::relational::RelationalLink;
-use bincode::{Encode, Decode};
-use serde::{Serialize, Deserialize};
+use netabase_store::traits::registery::definition::NetabaseDefinition;
 
 // Import DefinitionTwo and Category from lib for cross-links
-pub use netabase_store_examples::boilerplate_lib::{DefinitionTwo, Category, CategoryID};
+pub use netabase_store_examples::boilerplate_lib::{Category, CategoryID, DefinitionTwo};
 
 // Test 1: Import Definition (Definition) from definition_roundtrip_schema.toml
 netabase_store_examples::import_netabase_schema!("definition_roundtrip_schema.toml", imported_def);
@@ -42,13 +40,16 @@ fn test_definition_roundtrip() {
 // Test 2: Import DefinitionTwo (RoundtripDefinition) from definition_2_roundtrip_schema.toml
 // Note: We name it differently to avoid conflict with LibDefinitionTwo above if name was the same.
 // But name in TOML is "DefinitionTwo", so it will conflict if we don't use a different module name or alias.
-netabase_store_examples::import_netabase_schema!("definition_2_roundtrip_schema.toml", roundtrip_import);
+netabase_store_examples::import_netabase_schema!(
+    "definition_2_roundtrip_schema.toml",
+    roundtrip_import
+);
 
 #[test]
 fn test_roundtrip_translation() {
     // This test verifies that we can import the schema exported by DefinitionTwo
-    use roundtrip_import::{Category, CategoryID, DefinitionTwo};
     use netabase_store::traits::registery::definition::NetabaseDefinition;
+    use roundtrip_import::{Category, CategoryID, DefinitionTwo};
 
     let schema = DefinitionTwo::schema();
     assert_eq!(schema.name, "DefinitionTwo");

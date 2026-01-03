@@ -83,6 +83,7 @@ pub trait ModelMigrator: MigrationChainExecutor {
 }
 
 /// Database-level migration coordinator.
+#[allow(dead_code)]
 pub struct DatabaseMigrator<'a, D: RedbDefinition>
 where
     <D as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,

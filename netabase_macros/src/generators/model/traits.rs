@@ -1,7 +1,7 @@
+use crate::utils::naming::*;
+use crate::visitors::model::field::ModelFieldVisitor;
 use proc_macro2::TokenStream;
 use quote::quote;
-use crate::visitors::model::field::{FieldKeyType, ModelFieldVisitor};
-use crate::utils::naming::*;
 
 /// Generator for trait implementations
 /// Note: This generates model-level traits only. Definition-dependent traits are generated
@@ -206,7 +206,9 @@ impl<'a> TraitGenerator<'a> {
         let model_name = &self.visitor.model_name;
         let enum_name = secondary_keys_enum_name(model_name);
 
-        let key_constructions: Vec<_> = self.visitor.secondary_keys
+        let key_constructions: Vec<_> = self
+            .visitor
+            .secondary_keys
             .iter()
             .map(|field| {
                 let field_name = &field.name;
@@ -273,12 +275,14 @@ impl<'a> TraitGenerator<'a> {
         }
     }
 
-    fn generate_get_blob_entries(&self, definition_name: &syn::Ident) -> TokenStream {
+    fn generate_get_blob_entries(&self, _definition_name: &syn::Ident) -> TokenStream {
         let model_name = &self.visitor.model_name;
         let blob_keys_enum = blob_keys_enum_name(model_name);
         let blob_item_enum = blob_item_enum_name(model_name);
 
-        let blob_entries: Vec<_> = self.visitor.blob_fields
+        let blob_entries: Vec<_> = self
+            .visitor
+            .blob_fields
             .iter()
             .map(|field| {
                 let field_name = &field.name;

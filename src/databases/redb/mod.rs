@@ -9,6 +9,7 @@ use std::sync::Arc;
 use strum::IntoDiscriminant;
 
 /// Metadata table name for storing schema version information.
+#[allow(dead_code)]
 const SCHEMA_META_TABLE: &str = "__netabase_schema_meta__";
 
 pub struct RedbStore<D: RedbDefinition>
@@ -27,9 +28,20 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     D: Clone,
 {
-    /// Begin a transaction on the database
-    pub fn begin_transaction(&self) -> NetabaseResult<transaction::RedbTransaction<'_, D>> {
-        transaction::RedbTransaction::new(&self.db)
+    /// Begin a read-only transaction on the database.
+    ///
+    /// Read transactions provide a consistent snapshot view of the database
+    /// and allow concurrent reads without blocking other readers.
+    pub fn begin_read(&self) -> NetabaseResult<transaction::RedbTransaction<'_, D>> {
+        transaction::RedbTransaction::new_read(&self.db)
+    }
+
+    /// Begin a read-write transaction on the database.
+    ///
+    /// Write transactions are exclusive - only one write transaction can be
+    /// active at a time. Use read transactions when you don't need to modify data.
+    pub fn begin_write(&self) -> NetabaseResult<transaction::RedbTransaction<'_, D>> {
+        transaction::RedbTransaction::new_write(&self.db)
     }
 
     /// Get the current compiled schema.

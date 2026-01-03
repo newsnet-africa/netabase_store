@@ -27,6 +27,7 @@ where
 }
 
 /// Clean up test database
+#[allow(dead_code)]
 pub fn cleanup_test_db(path: PathBuf) {
     std::fs::remove_file(&path).ok();
 }
