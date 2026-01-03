@@ -19,27 +19,31 @@
 //! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
 //!
-//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
-//! struct MyModel {
-//!     #[primary_key]
-//!     id: String,
-//!     data: String,
+//! #[netabase_macros::netabase_definition(MyApp)]
+//! mod models {
+//!     use super::*;
+//!
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     pub struct MyModel {
+//!         #[primary_key]
+//!         pub id: String,
+//!         pub data: String,
+//!     }
 //! }
 //!
-//! #[netabase_macros::netabase_definition(MyApp)]
-//! mod models { use super::*; }
-//!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use models::*;
+//!
 //! let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
 //!
 //! // Write data
 //! let txn = store.begin_write()?;
-//! txn.create(&MyModel { id: \"1\".into(), data: \"test\".into() })?;
+//! txn.create(&MyModel { id: "1".into(), data: "test".into() })?;
 //! txn.commit()?;
 //!
 //! // Read data
 //! let txn = store.begin_read()?;
-//! let result: Option<MyModel> = txn.read(&MyModelID(\"1\".into()))?;
+//! let result: Option<MyModel> = txn.read(&MyModelID("1".into()))?;
 //! # Ok(())
 //! # }
 //! ```
@@ -53,22 +57,26 @@
 //! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
 //!
-//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
-//! struct Item {
-//!     #[primary_key]
-//!     id: u64,
-//!     value: String,
+//! #[netabase_macros::netabase_definition(MyApp)]
+//! mod models {
+//!     use super::*;
+//!
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     pub struct Item {
+//!         #[primary_key]
+//!         pub id: u64,
+//!         pub value: String,
+//!     }
 //! }
 //!
-//! #[netabase_macros::netabase_definition(MyApp)]
-//! mod models { use super::*; }
-//!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use models::*;
+//!
 //! let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
 //! let txn = store.begin_write()?;
 //!
 //! for i in 0..10 {
-//!     txn.create(&Item { id: i, value: format!(\"item_{}\", i) })?;
+//!     txn.create(&Item { id: i, value: format!("item_{}", i) })?;
 //! }
 //!
 //! txn.commit()?;
@@ -85,17 +93,21 @@
 //! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
 //!
-//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
-//! struct Product {
-//!     #[primary_key]
-//!     sku: String,
-//!     name: String,
+//! #[netabase_macros::netabase_definition(MyApp)]
+//! mod models {
+//!     use super::*;
+//!
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     pub struct Product {
+//!         #[primary_key]
+//!         pub sku: String,
+//!         pub name: String,
+//!     }
 //! }
 //!
-//! #[netabase_macros::netabase_definition(MyApp)]
-//! mod models { use super::*; }
-//!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use models::*;
+//!
 //! let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
 //!
 //! let txn = store.begin_read()?;

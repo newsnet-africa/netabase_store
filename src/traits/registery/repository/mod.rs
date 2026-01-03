@@ -49,18 +49,18 @@
 //! ```rust
 //! use serde::{Serialize, Deserialize};
 //!
-//! // Define models in a repository
-//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
-//! struct Employee {
-//!     #[primary_key]
-//!     id: String,
-//!     name: String,
-//! }
-//!
+//! // Define models in a definition
 //! #[netabase_macros::netabase_definition(EmployeeDef)]
-//! mod employee_def { use super::*; }
+//! mod employee_def {
+//!     use super::*;
 //!
-//! // Employee definitions can now have relational links within the context
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     pub struct Employee {
+//!         #[primary_key]
+//!         pub id: String,
+//!         pub name: String,
+//!     }
+//! }
 //! ```
 
 use std::hash::Hash;

@@ -38,15 +38,20 @@
 //! ```rust
 //! use serde::{Serialize, Deserialize};
 //!
-//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
-//! pub struct User {
-//!     #[primary_key]
-//!     pub id: String,
-//!     
-//!     #[secondary_key]
-//!     pub email: String,
-//!     
-//!     pub name: String,
+//! #[netabase_macros::netabase_definition(MyDef)]
+//! mod my_def {
+//!     use super::*;
+//!
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: String,
+//!         
+//!         #[secondary_key]
+//!         pub email: String,
+//!         
+//!         pub name: String,
+//!     }
 //! }
 //!
 //! // This generates all the key types, table names, and CRUD operations
@@ -142,36 +147,12 @@
 //! # Example Model Definition
 //!
 //! ```rust
-//! use serde::{Serialize, Deserialize};
-//!
-//! #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
-//! pub struct User {
-//!     #[primary_key]
-//!     id: String,
-//!     name: String,
-//! }
-//! ```
-//!     pub id: UserId,
-//!     
-//!     #[secondary_key]
-//!     pub email: String,
-//!     
-//!     #[link(UserDef, Category)]
-//!     pub category: CategoryId,
-//!     
-//!     #[blob]
-//!     pub avatar: Vec<u8>,
-//!     
-//!     pub name: String,
-//!     pub age: u8,
-//! }
-//! ```
+//! use serde::{Serialize, Deserialize};\n//!\n//! #[netabase_macros::netabase_definition(MyDef)]\n//! mod my_def {\n//!     use super::*;\n//!\n//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]\n//!     pub struct User {\n//!         #[primary_key]\n//!         pub id: String,\n//!         pub name: String,\n//!     }\n//! }\n//! ```
 //!
 //! This generates:
 //! - Primary key table: `User_primary`
-//! - Secondary index: `User_secondary_email`
-//! - Relational index: `User_relational_category`
-//! - Blob storage: `User_blob_avatar`
+//! - Secondary indexes for marked fields
+//! - Full CRUD operations
 //!
 //! # Key Types
 //!
