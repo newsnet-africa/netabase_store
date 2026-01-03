@@ -194,10 +194,13 @@ pub fn parse_definition_attribute(attr: &Attribute) -> Result<DefinitionAttribut
 pub struct RepositoryAttributeConfig {
     /// The repository name identifier
     pub name: syn::Ident,
+    /// List of definitions to include in this repository
+    pub definitions: Vec<syn::Ident>,
 }
 
 /// Parse netabase_repository attribute
 /// #[netabase_repository(RepoName)]
+/// #[netabase_repository(RepoName, definitions(Def1, Def2))]
 pub fn parse_repository_attribute_from_tokens(
     tokens: proc_macro2::TokenStream,
 ) -> Result<RepositoryAttributeConfig> {
@@ -205,17 +208,38 @@ pub fn parse_repository_attribute_from_tokens(
 
     struct RepositoryAttr {
         name: syn::Ident,
+        definitions: Vec<syn::Ident>,
     }
 
     impl Parse for RepositoryAttr {
         fn parse(input: syn::parse::ParseStream) -> Result<Self> {
             let name: syn::Ident = input.parse()?;
-            Ok(RepositoryAttr { name })
+
+            let mut definitions = Vec::new();
+
+            // Parse optional definitions(...)
+            while !input.is_empty() {
+                input.parse::<syn::Token![,]>()?;
+
+                let ident: syn::Ident = input.parse()?;
+                if ident == "definitions" {
+                    let content;
+                    syn::parenthesized!(content in input);
+                    let defs: syn::punctuated::Punctuated<syn::Ident, syn::Token![,]> =
+                        content.parse_terminated(syn::Ident::parse, syn::Token![,])?;
+                    definitions.extend(defs);
+                }
+            }
+
+            Ok(RepositoryAttr { name, definitions })
         }
     }
 
     let attr: RepositoryAttr = syn::parse2(tokens)?;
-    Ok(RepositoryAttributeConfig { name: attr.name })
+    Ok(RepositoryAttributeConfig {
+        name: attr.name,
+        definitions: attr.definitions,
+    })
 }
 
 pub fn parse_repository_attribute(attr: &Attribute) -> Result<RepositoryAttributeConfig> {

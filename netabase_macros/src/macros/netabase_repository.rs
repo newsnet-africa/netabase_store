@@ -7,6 +7,22 @@
 //! - `NetabaseRepository` trait implementation
 //! - `InRepository` trait implementations for each definition
 //! - Schema export and hash methods
+//! - Store management for multi-definition databases
+//!
+//! ## Usage
+//!
+//! ```rust,ignore
+//! // Repository with external definitions (recommended for standalone definitions)
+//! #[netabase_repository(MyRepo, definitions(Definition1, Definition2))]
+//! pub mod my_repo {}
+//!
+//! // Repository with nested definitions (legacy)
+//! #[netabase_repository(MyRepo)]
+//! pub mod my_repo {
+//!     #[netabase_definition(Definition1, repos(MyRepo))]
+//!     pub mod def1 { ... }
+//! }
+//! ```
 
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -18,9 +34,10 @@ use crate::visitors::repository::RepositoryVisitor;
 
 /// Implementation of the netabase_repository attribute macro
 pub fn netabase_repository_attribute(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
-    // Parse attribute to get repository name
+    // Parse attribute to get repository name and external definitions
     let config = parse_repository_attribute_from_tokens(attr)?;
     let repo_name = config.name;
+    let external_definitions = config.definitions;
 
     // Parse the module
     let mut module: ItemMod = parse2(item)?;
@@ -35,11 +52,21 @@ pub fn netabase_repository_attribute(attr: TokenStream, item: TokenStream) -> Re
 
     // Create repository visitor and collect information
     let mut visitor = RepositoryVisitor::new(repo_name);
+
+    // Add external definitions if specified
+    if !external_definitions.is_empty() {
+        visitor.add_external_definitions(external_definitions);
+    }
+
+    // Visit the module for nested definitions (if any)
     visitor.visit_module(&module)?;
 
-    // Check for missing definitions (incomplete data graph)
-    if let Some(error) = visitor.generate_missing_error() {
-        return Err(error);
+    // Check for missing definitions only if using nested definitions
+    // External definitions don't need this validation
+    if visitor.external_definitions.is_empty() {
+        if let Some(error) = visitor.generate_missing_error() {
+            return Err(error);
+        }
     }
 
     // Generate cycle warnings (these are warnings, not errors)
