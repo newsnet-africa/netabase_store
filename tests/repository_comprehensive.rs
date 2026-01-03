@@ -7,9 +7,7 @@ use netabase_store::databases::redb::repository::RedbRepositoryDefinitions;
 use netabase_store::errors::NetabaseResult;
 use netabase_store::traits::registery::repository::NetabaseRepository;
 
-use netabase_store_examples::{
-    Category, CategoryID, Definition, MainRepository, User, UserID,
-};
+use netabase_store_examples::{Category, CategoryID, Definition, MainRepository, User, UserID};
 
 /// Test that the repository marker struct is generated correctly
 #[test]

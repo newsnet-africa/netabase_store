@@ -346,10 +346,3 @@ impl<R: RedbRepositoryDefinitions> RedbRepositoryStore<R> {
         RedbRepositoryTransaction::new_write(self)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // Tests will be added when the macro generates the required trait implementations
-}
