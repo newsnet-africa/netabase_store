@@ -1,0 +1,102 @@
+schema_format_version = 2
+name = "EmployeeRepo"
+
+[[definitions]]
+schema_format_version = 2
+name = "Employee"
+subscriptions = []
+
+[[definitions.models]]
+name = "User"
+is_current = false
+
+[[definitions.models.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[definitions.models.fields]]
+name = "name"
+type_name = "String"
+kind = "Secondary"
+
+[[definitions.models.fields]]
+name = "email"
+type_name = "String"
+kind = "Secondary"
+
+[[definitions.models.fields]]
+name = "department"
+type_name = "String"
+kind = "Regular"
+
+[[definitions.models]]
+name = "Shift"
+is_current = false
+
+[[definitions.models.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[definitions.models.fields]]
+name = "date"
+type_name = "String"
+kind = "Secondary"
+
+[[definitions.models.fields]]
+name = "employee_id"
+type_name = "String"
+kind = "Relational"
+
+[definitions.models.fields.details]
+definition = "Employee"
+model = "User"
+
+[[definitions.models.fields]]
+name = "hours"
+type_name = "u8"
+kind = "Regular"
+
+[[definitions]]
+schema_format_version = 2
+name = "Inventory"
+subscriptions = []
+
+[[definitions.models]]
+name = "Product"
+is_current = false
+
+[[definitions.models.fields]]
+name = "sku"
+type_name = "String"
+kind = "Primary"
+
+[[definitions.models.fields]]
+name = "name"
+type_name = "String"
+kind = "Secondary"
+
+[[definitions.models.fields]]
+name = "category"
+type_name = "String"
+kind = "Secondary"
+
+[[definitions.models.fields]]
+name = "last_updated_by"
+type_name = "String"
+kind = "Relational"
+
+[definitions.models.fields.details]
+definition = "Employee"
+model = "User"
+
+[[definitions.models.fields]]
+name = "price_cents"
+type_name = "u64"
+kind = "Regular"
+
+[[definitions.models.fields]]
+name = "stock_count"
+type_name = "u32"
+kind = "Regular"

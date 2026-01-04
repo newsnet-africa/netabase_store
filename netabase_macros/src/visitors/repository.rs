@@ -88,14 +88,19 @@ impl RepositoryVisitor {
     /// Visit all items in the module and collect definitions belonging to this repository
     pub fn visit_module(&mut self, module: &ItemMod) -> Result<()> {
         if let Some((_, items)) = &module.content {
-            // First pass: collect all definition names and those in this repository
+            // Scan for all definition modules that register to this repository
             for item in items {
                 if let syn::Item::Mod(nested_mod) = item {
+                    // Check for netabase_definition attribute (with or without path prefix)
                     if let Some(attr) = nested_mod
                         .attrs
                         .iter()
-                        .find(|a| a.path().is_ident("netabase_definition"))
+                        .find(|a| {
+                            // Check if path ends with "netabase_definition"
+                            a.path().segments.last().map(|s| &s.ident).map(|i| i == "netabase_definition").unwrap_or(false)
+                        })
                     {
+                        // Parse the attribute to check if it registers to our repository
                         self.visit_definition_module(nested_mod, attr)?;
                     }
                 }
@@ -120,14 +125,18 @@ impl RepositoryVisitor {
 
         self.all_definition_names.insert(def_name.to_string());
 
-        // Check if this definition belongs to our repository
+        // Check if this definition belongs to our repository via repos() argument
         if config.belongs_to_repository(&self.repository_name) {
             // Create a definition visitor to collect model information
+            // Note: The definition module hasn't been expanded yet, so we parse the raw structs
             let mut def_visitor = DefinitionVisitor::new(
                 def_name.clone(),
                 config.subscriptions.clone(),
                 config.repositories.clone(),
             );
+            
+            // Visit the UNexpanded module to collect model information
+            // This works because we only need struct names and attributes, not generated code
             def_visitor.visit_module(module)?;
 
             // Collect link targets from all models

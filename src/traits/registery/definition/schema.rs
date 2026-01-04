@@ -49,6 +49,54 @@ mod hash_as_u64_string {
 /// Schema format version for forwards/backwards compatibility.
 pub const SCHEMA_FORMAT_VERSION: u32 = 2;
 
+fn default_schema_format_version() -> u32 {
+    1 // Old schemas without version field are v1
+}
+
+/// Repository schema containing multiple definitions
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RepositorySchema {
+    /// Schema format version
+    #[serde(default = "default_schema_format_version")]
+    pub schema_format_version: u32,
+    /// Repository name
+    pub name: String,
+    /// All definitions in this repository
+    pub definitions: Vec<DefinitionSchema>,
+}
+
+impl RepositorySchema {
+    /// Convert the repository schema to a TOML string
+    pub fn to_toml(&self) -> String {
+        toml::to_string_pretty(self)
+            .unwrap_or_else(|e| format!("# Error serializing repository to TOML: {}", e))
+    }
+
+    /// Compute a hash of the entire repository schema
+    pub fn compute_hash(&self) -> u64 {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        self.name.hash(&mut hasher);
+        for def in &self.definitions {
+            def.name.hash(&mut hasher);
+            for model in &def.models {
+                model.name.hash(&mut hasher);
+                for field in &model.fields {
+                    field.name.hash(&mut hasher);
+                    field.type_name.hash(&mut hasher);
+                }
+            }
+        }
+        hasher.finish()
+    }
+}
+
+fn default_auto_migration() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DefinitionSchema {
     /// Schema format version (for parsing old TOML files).
@@ -90,14 +138,6 @@ pub struct DefinitionConfig {
     /// Custom metadata fields.
     #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
     pub metadata: std::collections::HashMap<String, String>,
-}
-
-fn default_auto_migration() -> bool {
-    true
-}
-
-fn default_schema_format_version() -> u32 {
-    1 // Old schemas without version field are v1
 }
 
 /// Version history for a single model family.

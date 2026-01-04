@@ -83,7 +83,7 @@
 //! ```
 
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, format_ident};
 use std::fs;
 use std::path::PathBuf;
 use syn::{ItemMod, Result, parse2, visit_mut::VisitMut};
@@ -98,6 +98,22 @@ use crate::utils::naming::path_last_segment;
 use crate::utils::schema::DefinitionSchema;
 use crate::visitors::definition::DefinitionVisitor;
 use crate::visitors::model::ModelMutator;
+
+/// Generate a marker type that repositories can use to discover this definition at compile-time
+fn generate_repository_registration_marker(visitor: &DefinitionVisitor) -> TokenStream {
+    let definition_name = &visitor.definition_name;
+    let marker_name = format_ident!("__NETABASE_REPO_REGISTRATION_{}", definition_name);
+    
+    // Get repository names this definition is registered to
+    let repo_names: Vec<_> = visitor.repositories.iter().map(|r| r.to_string()).collect();
+    let repo_names_lit = repo_names.join(",");
+    
+    quote! {
+        // Compile-time constant that repositories can discover
+        #[doc(hidden)]
+        pub const #marker_name: &str = #repo_names_lit;
+    }
+}
 
 /// Implementation of the netabase_definition attribute macro.
 ///
@@ -294,6 +310,9 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
     // Remove the netabase_definition attribute from the module
     remove_attribute(&mut module.attrs, "netabase_definition");
 
+    // Generate repository registration marker for repositories to discover this definition
+    let repo_marker = generate_repository_registration_marker(&visitor);
+
     // 5. Append generated code to the module
     if let Some((ref _brace, ref mut items)) = module.content {
         // Add definition-level items
@@ -304,6 +323,7 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
             #definition_keys_enum
             #definition_tree_names_enum
             #def_trait_impls
+            #repo_marker
         };
 
         let def_file: syn::File = parse2(def_items_tokens).map_err(|e| {

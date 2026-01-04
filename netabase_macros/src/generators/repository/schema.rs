@@ -66,7 +66,7 @@ impl<'a> SchemaGenerator<'a> {
             .iter()
             .map(|def| {
                 let def_name = &def.name;
-                // Use super:: prefix for external definitions
+                // Use super:: prefix for external definitions, no prefix for nested
                 let def_path = if is_external {
                     quote! { super::#def_name }
                 } else {
@@ -75,7 +75,7 @@ impl<'a> SchemaGenerator<'a> {
                 quote! {
                     {
                         let def_schema = <#def_path as netabase_store::traits::registery::definition::NetabaseDefinition>::schema();
-                        schemas.push((stringify!(#def_name).to_string(), def_schema));
+                        schemas.push(def_schema);
                     }
                 }
             })
@@ -86,24 +86,30 @@ impl<'a> SchemaGenerator<'a> {
                 /// Export the repository schema as a TOML string.
                 ///
                 /// This aggregates all definition schemas within the repository
-                /// and includes migration hint metadata.
+                /// into a complete repository.toml file that can be used to
+                /// regenerate the entire database structure.
                 pub fn schema_toml() -> String {
                     use netabase_store::traits::registery::definition::NetabaseDefinition;
 
-                    let mut schemas: Vec<(String, netabase_store::traits::registery::definition::schema::DefinitionSchema)> = Vec::new();
+                    let mut schemas: Vec<netabase_store::traits::registery::definition::schema::DefinitionSchema> = Vec::new();
                     #(#def_schema_calls)*
 
-                    // Build repository-level TOML
-                    let mut toml_content = format!("[repository]\nname = \"{}\"\n\n", stringify!(#repo_name));
+                    // Build repository schema
+                    let repo_schema = netabase_store::traits::registery::definition::schema::RepositorySchema {
+                        schema_format_version: netabase_store::traits::registery::definition::schema::SCHEMA_FORMAT_VERSION,
+                        name: stringify!(#repo_name).to_string(),
+                        definitions: schemas,
+                    };
 
-                    for (def_name, schema) in schemas {
-                        toml_content.push_str(&format!("[[definitions]]\nname = \"{}\"\n", def_name));
-                        // Export each definition's schema
-                        toml_content.push_str(&schema.to_toml());
-                        toml_content.push('\n');
-                    }
+                    repo_schema.to_toml()
+                }
 
-                    toml_content
+                /// Write the repository schema to a file.
+                ///
+                /// This creates a repository.toml file that fully describes
+                /// the database structure and can be used for replication.
+                pub fn write_schema_toml<P: AsRef<std::path::Path>>(path: P) -> std::io::Result<()> {
+                    std::fs::write(path, Self::schema_toml())
                 }
 
                 /// Compute the schema hash using the specified hash algorithm.
