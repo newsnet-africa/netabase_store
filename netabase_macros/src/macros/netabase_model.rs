@@ -26,7 +26,7 @@
 //! # Auto-Detection
 //!
 //! The macro automatically detects:
-//! - Blob fields: Vec<u8> larger than 60KB
+//! - Blob fields: `Vec<u8>` larger than 60KB
 //! - Relational fields: `RelationalLink<T>` types
 //! - Subscription fields: Marked with `#[subscription]`
 //!
