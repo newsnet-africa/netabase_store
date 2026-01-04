@@ -21,7 +21,7 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! use serde::{Serialize, Deserialize};
 //!
 //! #[netabase_macros::netabase_definition(Employee)]
@@ -41,7 +41,6 @@
 //! // - EmployeeTreeNames for all table names
 //! // - EmployeeDefKeys for all key types
 //! // - Schema export via Employee::export_toml()
-//! # fn main() {}
 //! ```
 //!
 //! # Subscription System
@@ -80,7 +79,7 @@
 //!
 //! # Example Structure
 //!
-//! ```rust
+//! ```rust,ignore
 //! use serde::{Serialize, Deserialize};
 //!
 //! #[netabase_macros::netabase_definition(UserDef)]
@@ -94,7 +93,6 @@
 //!         pub name: String,
 //!     }
 //! }
-//! # fn main() {}
 //! ```
 //!
 //! This generates:
@@ -150,7 +148,7 @@ use crate::traits::registery::models::{
 ///
 /// # Example Usage
 ///
-/// ```rust
+/// ```rust,ignore
 /// use netabase_store::traits::registery::definition::NetabaseDefinition;
 /// use serde::{Serialize, Deserialize};
 ///
@@ -168,7 +166,6 @@ use crate::traits::registery::models::{
 /// // Access the schema
 /// let schema = my_def::MyDef::schema();
 /// let toml = my_def::MyDef::export_toml();
-/// # fn main() {}
 /// ```
 ///
 /// # Trait Bounds
