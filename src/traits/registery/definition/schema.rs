@@ -1,5 +1,51 @@
 use serde::{Deserialize, Serialize};
 
+/// Serde module for serializing Option<u64> hashes as strings to avoid TOML i64::MAX limitation
+mod hash_as_string {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(value: &Option<u64>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match value {
+            Some(v) => serializer.serialize_str(&v.to_string()),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: Option<String> = Option::deserialize(deserializer)?;
+        match s {
+            Some(s) => s.parse().map(Some).map_err(serde::de::Error::custom),
+            None => Ok(None),
+        }
+    }
+}
+
+/// Serde module for serializing u64 hashes as strings to avoid TOML i64::MAX limitation
+mod hash_as_u64_string {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(value: &u64, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&value.to_string())
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<u64, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: String = String::deserialize(deserializer)?;
+        s.parse().map_err(serde::de::Error::custom)
+    }
+}
+
 /// Schema format version for forwards/backwards compatibility.
 pub const SCHEMA_FORMAT_VERSION: u32 = 2;
 
@@ -19,6 +65,7 @@ pub struct DefinitionSchema {
     pub model_history: Vec<ModelVersionHistory>,
     /// Schema hash for quick P2P comparison.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(with = "hash_as_string")]
     pub schema_hash: Option<u64>,
     /// Configuration options for this definition.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -80,6 +127,7 @@ pub struct VersionedModelSchema {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub subscriptions: Vec<String>,
     /// Schema hash for this specific version.
+    #[serde(with = "hash_as_u64_string")]
     pub version_hash: u64,
     /// Whether this version implements MigrateTo (can downgrade).
     #[serde(default)]

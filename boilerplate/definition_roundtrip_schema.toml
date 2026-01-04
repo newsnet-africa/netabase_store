@@ -1,1 +1,449 @@
-# Error serializing to TOML: out-of-range value for u64 type
+schema_format_version = 2
+name = "Definition"
+subscriptions = [
+    "Topic1",
+    "Topic2",
+    "Topic3",
+    "Topic4",
+]
+
+[[models]]
+name = "UserV1"
+subscriptions = [
+    "Topic1",
+    "Topic2",
+]
+family = "User"
+version = 1
+is_current = false
+
+[[models.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[models.fields]]
+name = "name"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "age"
+type_name = "u8"
+kind = "Secondary"
+
+[[models.fields]]
+name = "category"
+type_name = "String"
+kind = "Relational"
+
+[models.fields.details]
+definition = "DefinitionTwo"
+model = "Category"
+
+[[models]]
+name = "User"
+subscriptions = [
+    "Topic1",
+    "Topic2",
+]
+family = "User"
+version = 2
+is_current = true
+
+[[models.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[models.fields]]
+name = "first_name"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "last_name"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "age"
+type_name = "u8"
+kind = "Secondary"
+
+[[models.fields]]
+name = "partner"
+type_name = "String"
+kind = "Relational"
+
+[models.fields.details]
+definition = "Definition"
+model = "User"
+
+[[models.fields]]
+name = "category"
+type_name = "String"
+kind = "Relational"
+
+[models.fields.details]
+definition = "DefinitionTwo"
+model = "Category"
+
+[[models.fields]]
+name = "bio"
+type_name = "LargeUserFile"
+kind = "Blob"
+
+[[models.fields]]
+name = "another"
+type_name = "AnotherLargeUserFile"
+kind = "Blob"
+
+[[models]]
+name = "PostV1"
+subscriptions = [
+    "Topic3",
+    "Topic4",
+]
+family = "Post"
+version = 1
+is_current = false
+
+[[models.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[models.fields]]
+name = "title"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "author_id"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "content"
+type_name = "String"
+kind = "Regular"
+
+[[models]]
+name = "Post"
+subscriptions = [
+    "Topic3",
+    "Topic4",
+]
+family = "Post"
+version = 2
+is_current = true
+
+[[models.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[models.fields]]
+name = "title"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "author_id"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "content"
+type_name = "String"
+kind = "Regular"
+
+[[models.fields]]
+name = "published"
+type_name = "bool"
+kind = "Regular"
+
+[[models.fields]]
+name = "tags"
+type_name = "Vec < String >"
+kind = "Regular"
+
+[[models]]
+name = "HeavyModel"
+subscriptions = [
+    "Topic1",
+    "Topic2",
+    "Topic3",
+    "Topic4",
+]
+is_current = false
+
+[[models.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[models.fields]]
+name = "category_label"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "score"
+type_name = "u64"
+kind = "Secondary"
+
+[[models.fields]]
+name = "creator"
+type_name = "String"
+kind = "Relational"
+
+[models.fields.details]
+definition = "Definition"
+model = "User"
+
+[[models.fields]]
+name = "related_heavy"
+type_name = "String"
+kind = "Relational"
+
+[models.fields.details]
+definition = "Definition"
+model = "HeavyModel"
+
+[[models.fields]]
+name = "attachment"
+type_name = "HeavyAttachment"
+kind = "Blob"
+
+[[models.fields]]
+name = "name"
+type_name = "String"
+kind = "Regular"
+
+[[models.fields]]
+name = "title"
+type_name = "String"
+kind = "Regular"
+
+[[models.fields]]
+name = "matrix"
+type_name = "Vec < u64 >"
+kind = "Regular"
+
+[[structs]]
+name = "LargeUserFile"
+is_tuple = false
+
+[[structs.fields]]
+name = "data"
+type_name = "Vec < u8 >"
+
+[[structs.fields]]
+name = "metadata"
+type_name = "String"
+
+[[structs]]
+name = "AnotherLargeUserFile"
+is_tuple = true
+
+[[structs.fields]]
+name = ""
+type_name = "Vec < u8 >"
+
+[[structs]]
+name = "HeavyAttachment"
+is_tuple = false
+
+[[structs.fields]]
+name = "mime_type"
+type_name = "String"
+
+[[structs.fields]]
+name = "data"
+type_name = "Vec < u8 >"
+
+[[model_history]]
+family = "Post"
+current_version = 2
+
+[[model_history.versions]]
+version = 1
+struct_name = "PostV1"
+subscriptions = [
+    "Topic3",
+    "Topic4",
+]
+version_hash = "18306954760968958270"
+supports_downgrade = false
+supports_upgrade = false
+
+[[model_history.versions.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[model_history.versions.fields]]
+name = "title"
+type_name = "String"
+kind = "Secondary"
+
+[[model_history.versions.fields]]
+name = "author_id"
+type_name = "String"
+kind = "Secondary"
+
+[[model_history.versions.fields]]
+name = "content"
+type_name = "String"
+kind = "Regular"
+
+[[model_history.versions]]
+version = 2
+struct_name = "Post"
+subscriptions = [
+    "Topic3",
+    "Topic4",
+]
+version_hash = "12940536922446132280"
+supports_downgrade = true
+supports_upgrade = true
+
+[[model_history.versions.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[model_history.versions.fields]]
+name = "title"
+type_name = "String"
+kind = "Secondary"
+
+[[model_history.versions.fields]]
+name = "author_id"
+type_name = "String"
+kind = "Secondary"
+
+[[model_history.versions.fields]]
+name = "content"
+type_name = "String"
+kind = "Regular"
+
+[[model_history.versions.fields]]
+name = "published"
+type_name = "bool"
+kind = "Regular"
+
+[[model_history.versions.fields]]
+name = "tags"
+type_name = "Vec < String >"
+kind = "Regular"
+
+[[model_history.migration_paths]]
+from_version = 1
+to_version = 2
+may_lose_data = false
+
+[[model_history]]
+family = "User"
+current_version = 2
+
+[[model_history.versions]]
+version = 1
+struct_name = "UserV1"
+subscriptions = [
+    "Topic1",
+    "Topic2",
+]
+version_hash = "9774471415192068689"
+supports_downgrade = false
+supports_upgrade = false
+
+[[model_history.versions.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[model_history.versions.fields]]
+name = "name"
+type_name = "String"
+kind = "Secondary"
+
+[[model_history.versions.fields]]
+name = "age"
+type_name = "u8"
+kind = "Secondary"
+
+[[model_history.versions.fields]]
+name = "category"
+type_name = "String"
+kind = "Relational"
+
+[model_history.versions.fields.details]
+definition = "DefinitionTwo"
+model = "Category"
+
+[[model_history.versions]]
+version = 2
+struct_name = "User"
+subscriptions = [
+    "Topic1",
+    "Topic2",
+]
+version_hash = "5563019169600077249"
+supports_downgrade = false
+supports_upgrade = true
+
+[[model_history.versions.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[model_history.versions.fields]]
+name = "first_name"
+type_name = "String"
+kind = "Secondary"
+
+[[model_history.versions.fields]]
+name = "last_name"
+type_name = "String"
+kind = "Secondary"
+
+[[model_history.versions.fields]]
+name = "age"
+type_name = "u8"
+kind = "Secondary"
+
+[[model_history.versions.fields]]
+name = "partner"
+type_name = "String"
+kind = "Relational"
+
+[model_history.versions.fields.details]
+definition = "Definition"
+model = "User"
+
+[[model_history.versions.fields]]
+name = "category"
+type_name = "String"
+kind = "Relational"
+
+[model_history.versions.fields.details]
+definition = "DefinitionTwo"
+model = "Category"
+
+[[model_history.versions.fields]]
+name = "bio"
+type_name = "LargeUserFile"
+kind = "Blob"
+
+[[model_history.versions.fields]]
+name = "another"
+type_name = "AnotherLargeUserFile"
+kind = "Blob"
+
+[[model_history.migration_paths]]
+from_version = 1
+to_version = 2
+may_lose_data = false
