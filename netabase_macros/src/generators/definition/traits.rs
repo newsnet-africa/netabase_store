@@ -485,6 +485,69 @@ impl<'a> DefinitionTraitGenerator<'a> {
         let tree_name = tree_name_type(&enum_name);
         let def_subscription_enum = definition_subscriptions_enum_name(definition_name);
 
+        // Handle empty case - generate an empty enum with proper trait implementations
+        if topics.is_empty() {
+            return quote! {
+                // Empty TreeName discriminant - use unit type
+                #[derive(
+                    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
+                    serde::Serialize, serde::Deserialize,
+                    strum::AsRefStr
+                )]
+                pub enum #tree_name {}
+
+                // Empty enum for models with no subscriptions
+                #[derive(
+                    Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
+                    serde::Serialize, serde::Deserialize,
+                    Hash
+                )]
+                pub enum #enum_name {}
+
+                impl strum::IntoDiscriminant for #enum_name {
+                    type Discriminant = ();
+
+                    fn discriminant(&self) -> Self::Discriminant {
+                        match *self {}
+                    }
+                }
+
+                impl redb::Value for #enum_name {
+                    type SelfType<'a> = #enum_name;
+                    type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
+
+                    fn from_bytes<'a>(_data: &'a [u8]) -> Self::SelfType<'a>
+                    where
+                        Self: 'a,
+                    {
+                        panic!("Cannot deserialize empty subscription enum")
+                    }
+
+                    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+                    where
+                        Self: 'a,
+                        Self: 'b,
+                    {
+                        match *value {}
+                    }
+
+                    fn fixed_width() -> Option<usize> {
+                        None
+                    }
+
+                    fn type_name() -> redb::TypeName {
+                        redb::TypeName::new(&format!("{}::{}", module_path!(), stringify!(#enum_name)))
+                    }
+                }
+
+                impl redb::Key for #enum_name {
+                    fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+                        data1.cmp(data2)
+                    }
+                }
+            };
+        }
+
         let variants: Vec<_> = topics
             .iter()
             .map(|topic| {
@@ -529,6 +592,44 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     match self {
                         #(#enum_name::#tree_name_variants(_) => #tree_name::#tree_name_variants),*
                     }
+                }
+            }
+
+            impl redb::Value for #enum_name {
+                type SelfType<'a> = #enum_name;
+                type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
+
+                fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+                where
+                    Self: 'a,
+                {
+                    postcard::from_bytes(data).unwrap()
+                }
+
+                fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+                where
+                    Self: 'a,
+                    Self: 'b,
+                {
+                    std::borrow::Cow::Owned(
+                        postcard::to_allocvec(value).unwrap()
+                    )
+                }
+
+                fn fixed_width() -> Option<usize> {
+                    None
+                }
+
+                fn type_name() -> redb::TypeName {
+                    redb::TypeName::new(&format!("{}::{}", module_path!(), stringify!(#enum_name)))
+                }
+            }
+
+            impl redb::Key for #enum_name {
+                fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+                    let val1: #enum_name = postcard::from_bytes(data1).unwrap();
+                    let val2: #enum_name = postcard::from_bytes(data2).unwrap();
+                    val1.cmp(&val2)
                 }
             }
         }

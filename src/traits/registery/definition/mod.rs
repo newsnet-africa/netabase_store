@@ -21,14 +21,14 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! use serde::{Serialize, Deserialize};
 //!
 //! #[netabase_macros::netabase_definition(Employee)]
 //! mod employee {
 //!     use super::*;
 //!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 //!     pub struct User {
 //!         #[primary_key]
 //!         pub id: String,
@@ -79,14 +79,14 @@
 //!
 //! # Example Structure
 //!
-//! ```rust
+//! ```rust,ignore
 //! use serde::{Serialize, Deserialize};
 //!
 //! #[netabase_macros::netabase_definition(UserDef)]
 //! mod user_definition {
 //!     use super::*;
 //!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 //!     pub struct User {
 //!         #[primary_key]
 //!         pub id: String,

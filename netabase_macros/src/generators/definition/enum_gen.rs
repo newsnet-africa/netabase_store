@@ -98,18 +98,59 @@ impl<'a> DefinitionEnumGenerator<'a> {
         );
 
         if self.visitor.subscriptions.topics.is_empty() {
-            // Generate an empty enum
-            // For empty enum, strum generates empty discriminant enum
+            // Generate an empty enum with necessary trait implementations
+            // When empty, NetabaseDefinition trait uses () as SubscriptionKeysDiscriminant
             return quote! {
                 #[derive(
                     Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
                     serde::Serialize, serde::Deserialize,
-                    Hash,
-                    strum::EnumDiscriminants
+                    Hash
                 )]
-                #[strum_discriminants(name(#discriminant_name))]
-                #[strum_discriminants(derive(strum::AsRefStr))]
                 pub enum #enum_name {}
+
+                // Implement IntoDiscriminant for empty enum - discriminant is ()
+                impl strum::IntoDiscriminant for #enum_name {
+                    type Discriminant = ();
+
+                    fn discriminant(&self) -> Self::Discriminant {
+                        match *self {}
+                    }
+                }
+
+                // Implement redb::Value for empty enum
+                impl redb::Value for #enum_name {
+                    type SelfType<'a> = Self;
+                    type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
+
+                    fn from_bytes<'a>(_data: &'a [u8]) -> Self::SelfType<'a>
+                    where
+                        Self: 'a,
+                    {
+                        panic!("Cannot deserialize empty subscription enum")
+                    }
+
+                    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+                    where
+                        Self: 'a,
+                    {
+                        match *value {}
+                    }
+
+                    fn fixed_width() -> Option<usize> {
+                        Some(0)
+                    }
+
+                    fn type_name() -> redb::TypeName {
+                        redb::TypeName::new(&format!("{}::{}", module_path!(), stringify!(#enum_name)))
+                    }
+                }
+
+                // Implement redb::Key for empty enum
+                impl redb::Key for #enum_name {
+                    fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+                        data1.cmp(data2)
+                    }
+                }
             };
         }
 

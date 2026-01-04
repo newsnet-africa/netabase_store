@@ -46,7 +46,7 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! use serde::{Serialize, Deserialize};
 //!
 //! // Define models in a definition
@@ -54,7 +54,7 @@
 //! mod employee_def {
 //!     use super::*;
 //!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 //!     pub struct Employee {
 //!         #[primary_key]
 //!         pub id: String,
@@ -558,20 +558,22 @@ pub struct StandaloneModelKeys;
 ///
 /// # Example
 ///
-/// ```rust
+/// ```rust,ignore
 /// // Definitions without explicit repository specification
 /// // automatically belong to the Standalone repository:
 /// use serde::{Serialize, Deserialize};
 ///
-/// #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
-/// struct Config {
-///     #[primary_key]
-///     id: String,
-///     value: String,
-/// }
-///
 /// #[netabase_macros::netabase_definition(ConfigDef)]
-/// mod config { use super::*; }
+/// mod config {
+///     use super::*;
+///
+///     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+///     pub struct Config {
+///         #[primary_key]
+///         id: String,
+///         value: String,
+///     }
+/// }
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Standalone;

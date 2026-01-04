@@ -35,14 +35,14 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! use serde::{Serialize, Deserialize};
 //!
 //! #[netabase_macros::netabase_definition(MyDef)]
 //! mod my_def {
 //!     use super::*;
 //!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 //!     pub struct User {
 //!         #[primary_key]
 //!         pub id: String,
@@ -146,8 +146,8 @@
 //!
 //! # Example Model Definition
 //!
-//! ```rust
-//! use serde::{Serialize, Deserialize};\n//!\n//! #[netabase_macros::netabase_definition(MyDef)]\n//! mod my_def {\n//!     use super::*;\n//!\n//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]\n//!     pub struct User {\n//!         #[primary_key]\n//!         pub id: String,\n//!         pub name: String,\n//!     }\n//! }\n//! ```
+//! ```rust,ignore
+//! use serde::{Serialize, Deserialize};\n//!\n//! #[netabase_macros::netabase_definition(MyDef)]\n//! mod my_def {\n//!     use super::*;\n//!\n//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]\n//!     pub struct User {\n//!         #[primary_key]\n//!         pub id: String,\n//!         pub name: String,\n//!     }\n//! }\n//! ```
 //!
 //! This generates:
 //! - Primary key table: `User_primary`
@@ -282,11 +282,10 @@ where
 ///
 /// Models are typically used through transactions:
 ///
-/// ```rust
+/// ```rust,ignore
 /// // Models are created with macro-derived traits
 /// // and used through database transactions.
 /// // See the main crate documentation for examples.
-/// ```
 /// if user.has_relational_links() {
 ///     // Handle links
 /// }

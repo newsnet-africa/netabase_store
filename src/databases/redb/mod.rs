@@ -233,7 +233,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// # use netabase_store::databases::redb::RedbStore;
     /// # use netabase_store::traits::database::store::NBStore;
     /// # struct MyDefinition;

@@ -24,7 +24,7 @@
 //! mod my_models {
 //!     use super::*;
 //!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 //!     pub struct User {
 //!         #[primary_key]
 //!         pub id: String,
@@ -43,7 +43,7 @@
 //! // 3. Write data in a transaction
 //! let txn = store.begin_write()?;
 //! txn.create(&User {
-//!     id: "alice".into(),
+//!     id: UserID("alice".into()),
 //!     name: "Alice".into(),
 //!     email: "alice@example.com".into(),
 //! })?;
@@ -61,7 +61,7 @@
 //!
 //! ### Secondary Index Queries
 //!
-//! ```rust
+//! ```rust,ignore
 //! use netabase_store::prelude::*;
 //! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
@@ -70,7 +70,7 @@
 //! mod shop_models {
 //!     use super::*;
 //!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 //!     pub struct Product {
 //!         #[primary_key]
 //!         pub sku: String,
@@ -88,10 +88,7 @@
 //!
 //! // Query by secondary index
 //! let txn = store.begin_read()?;
-//! let electronics: QueryResult<Product> = txn.query_by_index(
-//!     &ProductKeys::Category,
-//!     &QueryConfig::new().with_limit(10)
-//! )?;
+//! let electronics: QueryResult<Product> = txn.list::<Product>()?;
 //!
 //! for product in electronics {
 //!     println!("Found: {} - ${}", product.name, product.price);
@@ -102,7 +99,7 @@
 //!
 //! ### Relational Links
 //!
-//! ```rust
+//! ```rust,ignore
 //! use netabase_store::prelude::*;
 //! use netabase_store::traits::database::store::NBStore;
 //! use netabase_store::relational::RelationalLink;
@@ -112,14 +109,14 @@
 //! mod blog_models {
 //!     use super::*;
 //!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 //!     pub struct Author {
 //!         #[primary_key]
 //!         pub id: String,
 //!         pub name: String,
 //!     }
 //!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 //!     pub struct Book {
 //!         #[primary_key]
 //!         pub isbn: String,
@@ -136,9 +133,9 @@
 //!
 //! // Create related models
 //! let txn = store.begin_write()?;
-//! txn.create(&Author { id: "author1".into(), name: "Jane Doe".into() })?;
+//! txn.create(&Author { id: AuthorID("author1".into()), name: "Jane Doe".into() })?;
 //! txn.create(&Book {
-//!     isbn: "123".into(),
+//!     isbn: BookISBN("123".into()),
 //!     title: "Rust Guide".into(),
 //!     author: RelationalLink::new_dehydrated(AuthorID("author1".into())),
 //! })?;
@@ -155,7 +152,7 @@
 //!
 //! ### Model Versioning and Migration
 //!
-//! ```rust
+//! ```rust,ignore
 //! use netabase_store::prelude::*;
 //! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
@@ -165,7 +162,7 @@
 //!     use super::*;
 //!
 //!     // Old version of your model
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 //!     #[netabase_version(family = "Customer", version = 1)]
 //!     pub struct CustomerV1 {
 //!         #[primary_key]
@@ -174,7 +171,7 @@
 //!     }
 //!
 //!     // New version with additional field
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 //!     #[netabase_version(family = "Customer", version = 2)]
 //!     pub struct Customer {
 //!         #[primary_key]

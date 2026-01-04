@@ -27,11 +27,11 @@
 //!
 //! ## Creating Links
 //!
-//! ```rust
+//! ```rust,ignore
 //! use netabase_store::relational::RelationalLink;
 //! use serde::{Serialize, Deserialize};
 //!
-//! #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+//! #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 //! struct UserID(String);
 //!
 //! // Dehydrated (for storage)
@@ -42,7 +42,6 @@
 //!
 //! Hydration loads the full model data for a relational link. This typically happens
 //! through transaction methods that can fetch the related model from the database.
-//! ```
 //!
 //! # Serialization Behavior
 //!

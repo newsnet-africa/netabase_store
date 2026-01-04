@@ -91,9 +91,8 @@ impl<'a> SerializationGenerator<'a> {
         let relational_enum = relational_keys_enum_name(model_name);
         output.extend(self.generate_value_key_for_type(&relational_enum));
 
-        // Subscriptions enum - always generate even if no subscriptions
-        let enum_name = subscriptions_enum_name(model_name);
-        output.extend(self.generate_value_key_for_type(&enum_name));
+        // Subscriptions enum - handled by definition/traits.rs to properly support
+        // both empty and non-empty enums with correct trait implementations
 
         // Blob keys enum
         let blob_keys = blob_keys_enum_name(model_name);

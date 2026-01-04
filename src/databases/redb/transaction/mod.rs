@@ -23,7 +23,7 @@
 //! mod models {
 //!     use super::*;
 //!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 //!     pub struct MyModel {
 //!         #[primary_key]
 //!         pub id: String,
@@ -38,7 +38,7 @@
 //!
 //! // Write data
 //! let txn = store.begin_write()?;
-//! txn.create(&MyModel { id: "1".into(), data: "test".into() })?;
+//! txn.create(&MyModel { id: MyModelID("1".into()), data: "test".into() })?;
 //! txn.commit()?;
 //!
 //! // Read data
@@ -61,7 +61,7 @@
 //! mod models {
 //!     use super::*;
 //!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 //!     pub struct Item {
 //!         #[primary_key]
 //!         pub id: u64,
@@ -76,7 +76,7 @@
 //! let txn = store.begin_write()?;
 //!
 //! for i in 0..10 {
-//!     txn.create(&Item { id: i, value: format!("item_{}", i) })?;
+//!     txn.create(&Item { id: ItemID(i), value: format!("item_{}", i) })?;
 //! }
 //!
 //! txn.commit()?;
@@ -88,7 +88,7 @@
 //!
 //! For listing and querying data with pagination and filtering:
 //!
-//! ```rust
+//! ```rust,ignore
 //! use netabase_store::prelude::*;
 //! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
@@ -97,7 +97,7 @@
 //! mod models {
 //!     use super::*;
 //!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 //!     pub struct Product {
 //!         #[primary_key]
 //!         pub sku: String,
@@ -111,10 +111,7 @@
 //! let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
 //!
 //! let txn = store.begin_read()?;
-//! let config = QueryConfig::new()
-//!     .with_limit(10);
-//!
-//! let results = txn.list_with_config::<Product>(config)?;
+//! let results = txn.list::<Product>()?;
 //! # Ok(())
 //! # }
 //! ```
@@ -492,20 +489,23 @@ where
     /// use netabase_store::traits::database::store::NBStore;
     /// use serde::{Serialize, Deserialize};
     ///
-    /// #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
-    /// struct User {
-    ///     #[primary_key]
-    ///     id: String,
-    ///     name: String,
+    /// #[netabase_macros::netabase_definition(MyApp)]
+    /// mod models {
+    ///     use super::*;
+    ///
+    ///     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    ///     pub struct User {
+    ///         #[primary_key]
+    ///         pub id: String,
+    ///         pub name: String,
+    ///     }
     /// }
     ///
-    /// #[netabase_macros::netabase_definition(MyApp)]
-    /// mod models { use super::*; }
-    ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// use models::*;
     /// let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
     /// let txn = store.begin_write()?;
-    /// txn.create(&User { id: "1".into(), name: "Alice".into() })?;
+    /// txn.create(&User { id: UserID("1".into()), name: "Alice".into() })?;
     /// txn.commit()?; // Persist the changes
     /// # Ok(())
     /// # }
@@ -561,20 +561,23 @@ where
     /// use netabase_store::traits::database::store::NBStore;
     /// use serde::{Serialize, Deserialize};
     ///
-    /// #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
-    /// struct User {
-    ///     #[primary_key]
-    ///     id: u64,
-    ///     name: String,
+    /// #[netabase_macros::netabase_definition(MyApp)]
+    /// mod models {
+    ///     use super::*;
+    ///
+    ///     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    ///     pub struct User {
+    ///         #[primary_key]
+    ///         pub id: u64,
+    ///         pub name: String,
+    ///     }
     /// }
     ///
-    /// #[netabase_macros::netabase_definition(MyApp)]
-    /// mod models { use super::*; }
-    ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// use models::*;
     /// let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
     /// let txn = store.begin_write()?;
-    /// let user = User { id: 1, name: "Alice".to_string() };
+    /// let user = User { id: UserID(1), name: "Alice".to_string() };
     /// txn.create(&user)?;
     /// txn.commit()?;
     /// # Ok(())
@@ -643,17 +646,20 @@ where
     /// use netabase_store::traits::database::store::NBStore;
     /// use serde::{Serialize, Deserialize};
     ///
-    /// #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
-    /// struct User {
-    ///     #[primary_key]
-    ///     id: u64,
-    ///     name: String,
+    /// #[netabase_macros::netabase_definition(MyApp)]
+    /// mod models {
+    ///     use super::*;
+    ///
+    ///     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    ///     pub struct User {
+    ///         #[primary_key]
+    ///         pub id: u64,
+    ///         pub name: String,
+    ///     }
     /// }
     ///
-    /// #[netabase_macros::netabase_definition(MyApp)]
-    /// mod models { use super::*; }
-    ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// use models::*;
     /// let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
     /// let txn = store.begin_read()?;
     /// let user: Option<User> = txn.read::<User>(&UserID(1u64))?;
@@ -727,20 +733,23 @@ where
     /// use netabase_store::traits::database::store::NBStore;
     /// use serde::{Serialize, Deserialize};
     ///
-    /// #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
-    /// struct User {
-    ///     #[primary_key]
-    ///     id: u64,
-    ///     name: String,
+    /// #[netabase_macros::netabase_definition(MyApp)]
+    /// mod models {
+    ///     use super::*;
+    ///
+    ///     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    ///     pub struct User {
+    ///         #[primary_key]
+    ///         pub id: u64,
+    ///         pub name: String,
+    ///     }
     /// }
     ///
-    /// #[netabase_macros::netabase_definition(MyApp)]
-    /// mod models { use super::*; }
-    ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// use models::*;
     /// let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
     /// let txn = store.begin_write()?;
-    /// txn.create(&User { id: 1, name: "Alice".into() })?;
+    /// txn.create(&User { id: UserID(1), name: "Alice".into() })?;
     /// let mut user = txn.read::<User>(&UserID(1u64))?.expect("user exists");
     /// user.name = "Bob".to_string();
     /// txn.update(&user)?;
@@ -815,17 +824,20 @@ where
     /// use netabase_store::traits::database::store::NBStore;
     /// use serde::{Serialize, Deserialize};
     ///
-    /// #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq)]
-    /// struct User {
-    ///     #[primary_key]
-    ///     id: u64,
-    ///     name: String,
+    /// #[netabase_macros::netabase_definition(MyApp)]
+    /// mod models {
+    ///     use super::*;
+    ///
+    ///     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    ///     pub struct User {
+    ///         #[primary_key]
+    ///         pub id: u64,
+    ///         pub name: String,
+    ///     }
     /// }
     ///
-    /// #[netabase_macros::netabase_definition(MyApp)]
-    /// mod models { use super::*; }
-    ///
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// use models::*;
     /// let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
     /// let txn = store.begin_write()?;
     /// txn.delete::<User>(&UserID(1u64))?;
