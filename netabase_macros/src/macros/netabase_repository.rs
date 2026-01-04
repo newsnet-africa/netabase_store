@@ -29,13 +29,13 @@ use quote::quote;
 use syn::{ItemMod, Result, parse2};
 
 use crate::generators::repository::RepositoryGenerator;
-use crate::utils::attributes::{parse_repository_attribute_from_tokens, remove_attribute};
+use crate::utils::attributes::{parse_repository_attribute_from_tokens, remove_attribute_with_tokens};
 use crate::visitors::repository::RepositoryVisitor;
 
 /// Implementation of the netabase_repository attribute macro
 pub fn netabase_repository_attribute(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
     // Parse attribute to get repository name and external definitions
-    let config = parse_repository_attribute_from_tokens(attr)?;
+    let config = parse_repository_attribute_from_tokens(attr.clone())?;
     let repo_name = config.name;
     let external_definitions = config.definitions;
 
@@ -81,8 +81,9 @@ pub fn netabase_repository_attribute(attr: TokenStream, item: TokenStream) -> Re
     let generator = RepositoryGenerator::new(&visitor);
     let generated_code = generator.generate();
 
-    // Remove the netabase_repository attribute from the module
-    remove_attribute(&mut module.attrs, "netabase_repository");
+    // Remove only the current netabase_repository attribute being processed
+    // This allows multiple repository attributes on the same module
+    remove_attribute_with_tokens(&mut module.attrs, "netabase_repository", &attr);
 
     // Append generated code to the module
     if let Some((ref _brace, ref mut items)) = module.content {

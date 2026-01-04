@@ -55,15 +55,10 @@ impl<'a> DefinitionTraitGenerator<'a> {
         output
     }
 
-    /// Generate InRepository<Standalone> implementation for definitions without explicit repos.
+    /// Generate InRepository<Standalone> implementation for all definitions.
     ///
-    /// This allows definitions to use RelationalLink even when not part of an explicit repository.
+    /// This allows definitions to use RelationalLink even when part of explicit repositories.
     fn generate_standalone_repository_impl(&self) -> TokenStream {
-        // Only generate Standalone impl if no explicit repositories specified
-        if !self.visitor.repositories.is_empty() {
-            return TokenStream::new();
-        }
-
         let definition_name = &self.visitor.definition_name;
 
         quote! {

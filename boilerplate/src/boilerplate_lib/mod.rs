@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 // Declare models module
 pub mod models;
+pub mod repository_example;
 
 // DefinitionTwo with Category model (defined first to avoid forward references)
 #[netabase_macros::netabase_definition(DefinitionTwo, subscriptions(General))]

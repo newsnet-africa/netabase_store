@@ -281,6 +281,23 @@ pub fn remove_attribute(attrs: &mut Vec<Attribute>, name: &str) {
     attrs.retain(|attr| !is_attribute(attr, name));
 }
 
+/// Remove a specific attribute from a list by matching both name and tokens
+/// This allows removing one specific instance when multiple attributes with the same name exist
+pub fn remove_attribute_with_tokens(attrs: &mut Vec<Attribute>, name: &str, tokens: &proc_macro2::TokenStream) {
+    let tokens_str = tokens.to_string();
+    attrs.retain(|attr| {
+        if !is_attribute(attr, name) {
+            return true; // Keep attributes with different names
+        }
+        // For matching names, only keep if tokens are different
+        if let Meta::List(meta_list) = &attr.meta {
+            meta_list.tokens.to_string() != tokens_str
+        } else {
+            true // Keep if not a list (shouldn't happen for netabase_repository)
+        }
+    });
+}
+
 /// Version information parsed from #[netabase_version(...)] attribute.
 #[derive(Debug, Clone)]
 pub struct VersionAttributeConfig {
