@@ -21,26 +21,20 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
-//! use serde::{Serialize, Deserialize};
+//! Using the pre-built example types:
 //!
-//! #[netabase_macros::netabase_definition(Employee)]
-//! mod employee {
-//!     use super::*;
+//! ```rust,no_run
+//! use netabase_store::doc_examples::*;
+//! use netabase_store::traits::registery::definition::NetabaseDefinition;
 //!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-//!     pub struct User {
-//!         #[primary_key]
-//!         pub id: String,
-//!         pub name: String,
-//!     }
-//! }
-//!
-//! // Generated code provides:
-//! // - EmployeeDefinition enum wrapping User
-//! // - EmployeeTreeNames for all table names
-//! // - EmployeeDefKeys for all key types
-//! // - Schema export via Employee::export_toml()
+//! // ExampleDef provides User, Product, Author, Book models
+//! // Generated code includes:
+//! // - ExampleDef enum wrapping all models
+//! // - ExampleDefDiscriminant for pattern matching
+//! // - ExampleDefTreeNames for table names
+//! // - ExampleDefKeys for unified key access
+//! let schema_toml = ExampleDef::export_toml();
+//! println!("{}", schema_toml);
 //! ```
 //!
 //! # Subscription System
@@ -79,27 +73,19 @@
 //!
 //! # Example Structure
 //!
-//! ```rust,ignore
-//! use serde::{Serialize, Deserialize};
+//! ```rust,no_run
+//! use netabase_store::doc_examples::*;
+//! use netabase_store::traits::registery::definition::NetabaseDefinition;
 //!
-//! #[netabase_macros::netabase_definition(UserDef)]
-//! mod user_definition {
-//!     use super::*;
-//!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-//!     pub struct User {
-//!         #[primary_key]
-//!         pub id: String,
-//!         pub name: String,
-//!     }
-//! }
+//! // ExampleDef contains User, Product, Author, Book
+//! // The macro generates:
+//! // - `ExampleDef` enum with variants for each model
+//! // - `ExampleDefDiscriminant` for type-safe pattern matching
+//! // - `ExampleDefTreeNames` for database table naming
+//! // - `ExampleDefKeys` for unified key access
+//! let name = ExampleDef::debug_name();
+//! println!("Definition: {}", name);
 //! ```
-//!
-//! This generates:
-//! - `UserDef` enum with `User` variant
-//! - `UserDefDiscriminant` for type-safe pattern matching
-//! - `UserDefTreeNames` for database table naming
-//! - `UserDefKeys` for unified key access
 //!
 //! See [tests/comprehensive_functionality.rs] for complete usage examples.
 
@@ -148,24 +134,14 @@ use crate::traits::registery::models::{
 ///
 /// # Example Usage
 ///
-/// ```rust,ignore
+/// ```rust,no_run
+/// use netabase_store::doc_examples::*;
 /// use netabase_store::traits::registery::definition::NetabaseDefinition;
-/// use serde::{Serialize, Deserialize};
 ///
-/// #[netabase_macros::netabase_definition(MyDef)]
-/// mod my_def {
-///     use super::*;
-///
-///     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-///     pub struct Item {
-///         #[primary_key]
-///         pub id: String,
-///     }
-/// }
-///
-/// // Access the schema
-/// let schema = my_def::MyDef::schema();
-/// let toml = my_def::MyDef::export_toml();
+/// // Access the schema from doc_examples
+/// let schema = ExampleDef::schema();
+/// let toml = ExampleDef::export_toml();
+/// println!("Schema: {}", toml);
 /// ```
 ///
 /// # Trait Bounds

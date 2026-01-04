@@ -12,6 +12,9 @@
 //!
 //! # Example
 //!
+//! Migration between model versions is defined using the `MigrateFrom` and `MigrateTo` traits.
+//! This example shows a typical versioning pattern:
+//!
 //! ```rust,ignore
 //! use netabase_store::prelude::*;
 //! use serde::{Serialize, Deserialize};
@@ -21,7 +24,7 @@
 //!     use super::*;
 //!
 //!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-//!     #[netabase_version(family = "User", version = 1)]
+//!     #[netabase_version(family = \"User\", version = 1)]
 //!     pub struct UserV1 {
 //!         #[primary_key]
 //!         pub id: String,
@@ -29,7 +32,7 @@
 //!     }
 //!
 //!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-//!     #[netabase_version(family = "User", version = 2)]
+//!     #[netabase_version(family = \"User\", version = 2)]
 //!     pub struct UserV2 {
 //!         #[primary_key]
 //!         pub id: String,
@@ -53,12 +56,14 @@
 //!         fn migrate_to(&self) -> UserV1 {
 //!             UserV1 {
 //!                 id: self.id.clone(),
-//!                 name: format!("{} {}", self.first_name, self.last_name),
+//!                 name: format!(\"{} {}\", self.first_name, self.last_name),
 //!             }
 //!         }
 //!     }
 //! }
 //! ```
+//!
+//! See the migration chain module for automatic multi-step migrations.
 
 mod chain;
 mod context;

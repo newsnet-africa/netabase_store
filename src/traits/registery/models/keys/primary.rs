@@ -11,19 +11,20 @@
 //!
 //! # Examples
 //!
-//! Primary keys are typically newtypes around string or numeric types:
+//! Primary keys are typically newtypes around string or numeric types.
+//! The `#[primary_key]` attribute on a model field generates the ID type:
 //!
 //! ```rust,ignore
-//! #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-//! pub struct UserID(pub String);
-//!
+//! // In your model definition:
 //! #[derive(NetabaseModel)]
 //! pub struct User {
-//!     #[primary]
-//!     pub id: UserID,
+//!     #[primary_key]  // Generates UserID(String) newtype
+//!     pub id: String,
 //!     // ... other fields
 //! }
 //! ```
+//!
+//! See [`doc_examples`](crate::doc_examples) for working examples.
 //!
 //! # Rules
 //!
@@ -46,11 +47,10 @@ use crate::traits::registery::models::{StoreKeyMarker, StoreValueMarker};
 ///
 /// # Automatic Implementation
 ///
-/// You don't implement this trait manually. The macro generates the implementation:
+/// You don't implement this trait manually. The macro generates the implementation
+/// when you use `#[primary_key]` on a field.
 ///
-/// ```rust,ignore
-/// impl NetabaseModelPrimaryKey<MyDefinition, User> for UserID {}
-/// ```
+/// See [`doc_examples`](crate::doc_examples) for pre-built examples.
 pub trait NetabaseModelPrimaryKey<D: NetabaseDefinition, M: NetabaseModelMarker<D>>:
     StoreValueMarker<D> + StoreKeyMarker<D> + Clone
 where

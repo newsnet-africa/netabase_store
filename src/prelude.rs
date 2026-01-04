@@ -54,80 +54,110 @@
 //!
 //! ## Basic CRUD Operations
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use netabase_store::prelude::*;
+//! use netabase_store::doc_examples::*;
+//! use netabase_store::traits::database::store::NBStore;
+//! use netabase_store::databases::redb::transaction::RedbModelCrud;
 //!
-//! let store = RedbStore::<MyDef>::create("data.db")?;
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let (store, _temp) = RedbStore::<ExampleDef>::new_temporary()?;
 //!
 //! // Create
 //! {
 //!     let txn = store.begin_write()?;
-//!     txn.create(&model)?;
+//!     txn.create(&User { id: UserID("u1".into()), name: "Alice".into(), email: "a@b.com".into() })?;
 //!     txn.commit()?;
 //! }
 //!
 //! // Read
 //! {
 //!     let txn = store.begin_read()?;
-//!     let result: Option<MyModel> = txn.read(&key)?;
+//!     let result: Option<User> = txn.read(&UserID("u1".into()))?;
 //! }
 //!
 //! // Update
 //! {
 //!     let txn = store.begin_write()?;
-//!     txn.update(&modified_model)?;
+//!     txn.update(&User { id: UserID("u1".into()), name: "Alice Updated".into(), email: "a@b.com".into() })?;
 //!     txn.commit()?;
 //! }
 //!
 //! // Delete
 //! {
 //!     let txn = store.begin_write()?;
-//!     txn.delete(&key)?;
+//!     txn.delete::<User>(&UserID("u1".into()))?;
 //!     txn.commit()?;
 //! }
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Querying with Configuration
 //!
+//! Query operations use model-level methods on open tables:
+//!
 //! ```rust,ignore
 //! use netabase_store::prelude::*;
+//! use netabase_store::databases::redb::transaction::CrudOptions;
 //!
-//! let config = QueryConfig::builder()
-//!     .limit(10)
-//!     .skip(20)
-//!     .build();
+//! // Open tables for the model
+//! let table_defs = User::table_definitions();
+//! let tables = txn.open_model_tables(table_defs, None)?;
 //!
-//! let txn = store.begin_read()?;
-//! let results: QueryResult<MyModel> = txn.query(&config)?;
+//! // List with options
+//! let config = CrudOptions::default()
+//!     .with_limit(10)
+//!     .with_offset(20);
+//! let results = User::list_entries(&tables, config)?;
 //!
-//! for model in results {
-//!     println!("Found: {:?}", model);
+//! for entry in results {
+//!     println!("Found: {:?}", entry.value());
 //! }
 //! ```
 //!
+//! See [tests/integration_list.rs](../tests/integration_list.rs) for complete examples.
+//!
 //! ## Working with Relational Links
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use netabase_store::prelude::*;
+//! use netabase_store::doc_examples::*;
+//! use netabase_store::relational::RelationalLink;
+//! use netabase_store::traits::database::store::NBStore;
+//! use netabase_store::traits::registery::repository::Standalone;
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let (store, _temp) = RedbStore::<ExampleDef>::new_temporary()?;
 //!
 //! // Create a dehydrated link (just the key)
-//! let link = RelationalLink::new_dehydrated(user_id);
+//! let author_id = AuthorID("author1".into());
+//! let link: RelationalLink<Standalone, ExampleDef, ExampleDef, Author> =
+//!     RelationalLink::new_dehydrated(author_id.clone());
 //!
-//! // Hydrate the link (load full data)
+//! // Note: Hydration requires the model to exist in the database
+//! // and is performed via transaction read methods
 //! let txn = store.begin_read()?;
-//! let hydrated = link.hydrate(&txn)?;
+//! // Read the author directly using the key
+//! use netabase_store::databases::redb::transaction::RedbModelCrud;
+//! let author: Option<Author> = txn.read(&author_id)?;
 //!
-//! match hydrated {
-//!     Some(user) => println!("User: {}", user.name),
-//!     None => println!("User not found"),
+//! match author {
+//!     Some(a) => println!("Author: {}", a.name),
+//!     None => println!("Author not found"),
 //! }
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Migration Between Versions
 //!
+//! Migration is defined using the `MigrateFrom` trait. Here's a conceptual example:
+//!
 //! ```rust,ignore
 //! use netabase_store::prelude::*;
 //!
+//! // Given UserV1 and UserV2 in the same definition:
 //! impl MigrateFrom<UserV1> for UserV2 {
 //!     fn migrate_from(old: UserV1) -> Self {
 //!         UserV2 {
@@ -138,6 +168,8 @@
 //!     }
 //! }
 //! ```
+//!
+//! See the [`traits::migration`](crate::traits::migration) module for full details.
 //!
 //! # Rules and Best Practices
 //!

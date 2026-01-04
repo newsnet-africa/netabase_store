@@ -21,24 +21,31 @@
 //!
 //! ## Basic Queries
 //!
+//! Query operations use `QueryConfig` to control pagination and limits.
+//! Models are queried via transaction methods:
+//!
 //! ```rust,ignore
-//! // Fetch all users
-//! let users = txn.list_all::<User>(QueryConfig::default())?;
+//! use netabase_store::prelude::*;
+//! use netabase_store::query::QueryConfig;
 //!
-//! // Fetch first 10 users
-//! let users = txn.list_all::<User>(
-//!     QueryConfig::default().with_limit(10)
-//! )?;
+//! // Open tables and use model-level query methods
+//! let table_defs = User::table_definitions();
+//! let tables = txn.open_model_tables(table_defs, None)?;
 //!
-//! // Count total users
-//! let count = txn.list_all::<User>(
-//!     QueryConfig::default().count_only()
-//! )?;
+//! // Fetch entries with pagination
+//! let entries = User::list_entries(&tables, CrudOptions::default().with_limit(10))?;
+//!
+//! // Count entries
+//! let count = User::count_entries(&tables)?;
 //! ```
+//!
+//! See [tests/integration_list.rs](../tests/integration_list.rs) for complete examples.
 //!
 //! ## Pagination
 //!
-//! ```rust,ignore
+//! ```rust
+//! use netabase_store::query::QueryConfig;
+//!
 //! // Page 1: items 0-9
 //! let page1 = QueryConfig::default()
 //!     .with_limit(10)
@@ -52,15 +59,19 @@
 //!
 //! ## Range Queries
 //!
+//! Range queries allow filtering by primary key ranges:
+//!
 //! ```rust,ignore
-//! // Fetch users with IDs in range
+//! // Fetch users with IDs in range (requires range-supporting key types)
 //! let config = QueryConfig::new(UserId(0)..UserId(100));
 //! let users = txn.list_range(config)?;
 //! ```
 //!
 //! ## Reversed Iteration
 //!
-//! ```rust,ignore
+//! ```rust
+//! use netabase_store::query::QueryConfig;
+//!
 //! // Get most recent items first
 //! let recent = QueryConfig::default()
 //!     .reversed()

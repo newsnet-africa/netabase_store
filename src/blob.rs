@@ -14,6 +14,9 @@
 //!
 //! # Example
 //!
+//! Blob items are types that can be chunked for storage. They require the
+//! `NetabaseBlobItem` derive macro and serde traits:
+//!
 //! ```rust,ignore
 //! use netabase_macros::NetabaseBlobItem;
 //! use serde::{Serialize, Deserialize};

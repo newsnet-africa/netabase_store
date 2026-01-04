@@ -61,9 +61,10 @@
 //!
 //! ### Secondary Index Queries
 //!
-//! ```rust,ignore
+//! ```rust
 //! use netabase_store::prelude::*;
 //! use netabase_store::traits::database::store::NBStore;
+//! use netabase_store::databases::redb::transaction::RedbModelCrud;
 //! use serde::{Serialize, Deserialize};
 //!
 //! #[netabase_macros::netabase_definition(Shop)]
@@ -77,7 +78,7 @@
 //!         pub name: String,
 //!         #[secondary_key]
 //!         pub category: String,
-//!         pub price: f64,
+//!         pub price: u64,
 //!     }
 //! }
 //!
@@ -86,71 +87,65 @@
 //!
 //! let (store, _temp) = RedbStore::<Shop>::new_temporary()?;
 //!
-//! // Query by secondary index
-//! let txn = store.begin_read()?;
-//! let electronics: QueryResult<Product> = txn.list::<Product>()?;
+//! // Create some products
+//! let txn = store.begin_write()?;
+//! txn.create(&Product {
+//!     sku: ProductID("001".into()),
+//!     name: "Laptop".into(),
+//!     category: "Electronics".into(),
+//!     price: 999,
+//! })?;
+//! txn.commit()?;
 //!
-//! for product in electronics {
-//!     println!("Found: {} - ${}", product.name, product.price);
-//! }
+//! // Read back by primary key
+//! let txn = store.begin_read()?;
+//! let product: Option<Product> = txn.read(&ProductID("001".into()))?;
+//! assert_eq!(product.unwrap().name, "Laptop");
 //! # Ok(())
 //! # }
 //! ```
 //!
 //! ### Relational Links
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use netabase_store::prelude::*;
+//! use netabase_store::doc_examples::*;
 //! use netabase_store::traits::database::store::NBStore;
 //! use netabase_store::relational::RelationalLink;
-//! use serde::{Serialize, Deserialize};
-//!
-//! #[netabase_macros::netabase_definition(BlogApp)]
-//! mod blog_models {
-//!     use super::*;
-//!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-//!     pub struct Author {
-//!         #[primary_key]
-//!         pub id: String,
-//!         pub name: String,
-//!     }
-//!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-//!     pub struct Book {
-//!         #[primary_key]
-//!         pub isbn: String,
-//!         pub title: String,
-//!         #[link(BlogApp, Author)]
-//!         pub author: String,
-//!     }
-//! }
+//! use netabase_store::databases::redb::transaction::RedbModelCrud;
+//! use netabase_store::traits::registery::repository::Standalone;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use blog_models::*;
-//!
-//! let (store, _temp) = RedbStore::<BlogApp>::new_temporary()?;
+//! let (store, _temp) = RedbStore::<ExampleDef>::new_temporary()?;
 //!
 //! // Create related models
 //! let txn = store.begin_write()?;
-//! txn.create(&Author { id: AuthorID("author1".into()), name: "Jane Doe".into() })?;
+//! txn.create(&Author {
+//!     id: AuthorID("author1".into()),
+//!     name: "Jane Doe".into(),
+//!     genre: "Fiction".into(),
+//! })?;
 //! txn.create(&Book {
-//!     isbn: BookISBN("123".into()),
+//!     isbn: BookID("978-3-16".into()),
 //!     title: "Rust Guide".into(),
+//!     genre: "Technology".into(),
 //!     author: RelationalLink::new_dehydrated(AuthorID("author1".into())),
 //! })?;
 //! txn.commit()?;
 //!
-//! // Hydrate the relationship
+//! // Read the book and access its author link
 //! let txn = store.begin_read()?;
-//! let book: Book = txn.read(&BookISBN("123".into()))?.unwrap();
-//! let author: Option<Author> = book.author.hydrate(&txn)?;
+//! let book: Book = txn.read(&BookID("978-3-16".into()))?.unwrap();
+//! // The author field is a RelationalLink that can be resolved
+//! let author: Option<Author> = txn.read(&AuthorID("author1".into()))?;
 //! assert_eq!(author.unwrap().name, "Jane Doe");
 //! # Ok(())
 //! # }
 //! ```
 //!
 //! ### Model Versioning and Migration
+//!
+//! For models that evolve over time, define version families and migration paths:
 //!
 //! ```rust,ignore
 //! use netabase_store::prelude::*;
@@ -191,24 +186,20 @@
 //!         }
 //!     }
 //! }
-//!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let (store, _temp) = RedbStore::<CRM>::new_temporary()?;
-//!
-//! // Migration runs automatically when needed
-//! if store.needs_migration() {
-//!     let result = store.migrate()?;
-//!     println!("Migrated {} records", result.total_migrated());
-//! }
-//! # Ok(())
-//! # }
 //! ```
+//!
+//! See the [`traits::migration`](crate::traits::migration) module for details.
 
 #![feature(generic_const_items)]
 #![allow(incomplete_features)]
 
+// Allow the crate to reference itself, needed for macros that generate
+// code referencing `netabase_store::` paths
+extern crate self as netabase_store;
+
 pub mod blob;
 pub mod databases;
+pub mod doc_examples;
 pub mod errors;
 pub mod prelude;
 pub mod query;

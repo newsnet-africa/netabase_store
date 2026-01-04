@@ -13,29 +13,24 @@
 //! # Repository Isolation
 //!
 //! The `R` type parameter enforces that both source and target models belong
-//! to the same repository. This prevents unauthorized cross-repository references:
+//! to the same repository. This prevents unauthorized cross-repository references.
 //!
-//! ```rust,ignore
-//! // OK: Both in EmployeeRepo
-//! RelationalLink<EmployeeRepo, Employee, Inventory, Item>
-//!
-//! // Compile error: Different repositories
-//! RelationalLink<EmployeeRepo, Employee, ReportsRepo, Report>
-//! ```
+//! Repository isolation is enforced at compile time - incompatible repositories
+//! will cause type errors.
 //!
 //! # Common Patterns
 //!
 //! ## Creating Links
 //!
-//! ```rust,ignore
+//! ```rust,no_run
+//! use netabase_store::doc_examples::*;
 //! use netabase_store::relational::RelationalLink;
-//! use serde::{Serialize, Deserialize};
+//! use netabase_store::traits::registery::repository::Standalone;
 //!
-//! #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-//! struct UserID(String);
-//!
-//! // Dehydrated (for storage)
-//! let link: RelationalLink<(), (), (), UserID> = RelationalLink::new_dehydrated(UserID("123".into()));
+//! // Dehydrated link (for storage) - just the key
+//! let author_id = AuthorID("author123".into());
+//! let link: RelationalLink<Standalone, ExampleDef, ExampleDef, Author> =
+//!     RelationalLink::new_dehydrated(author_id);
 //! ```
 //!
 //! ## Hydration (Loading Related Data)
@@ -159,13 +154,15 @@ where
 ///
 /// # Example
 ///
-/// ```rust,ignore
-/// // Within EmployeeRepo context
-/// let link: RelationalLink<EmployeeRepo, Employee, Inventory, Item> =
-///     RelationalLink::new_dehydrated(item_id);
+/// ```rust,no_run
+/// use netabase_store::doc_examples::*;
+/// use netabase_store::relational::RelationalLink;
+/// use netabase_store::traits::registery::repository::Standalone;
 ///
-/// // This would fail to compile - different repos:
-/// // let bad: RelationalLink<EmployeeRepo, Employee, Reports, Report> = ...
+/// // Create a dehydrated link to an Author
+/// let author_id = AuthorID("author1".into());
+/// let link: RelationalLink<Standalone, ExampleDef, ExampleDef, Author> =
+///     RelationalLink::new_dehydrated(author_id);
 /// ```
 #[derive(Debug, Clone)]
 pub enum RelationalLink<'data, R, SourceD, TargetD, M>

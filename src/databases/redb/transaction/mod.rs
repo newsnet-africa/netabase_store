@@ -102,6 +102,8 @@
 //!         #[primary_key]
 //!         pub sku: String,
 //!         pub name: String,
+//!         #[secondary_key]
+//!         pub category: String,
 //!     }
 //! }
 //!
