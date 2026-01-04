@@ -23,7 +23,7 @@
 //!
 //! Using the pre-built example types:
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::doc_examples::*;
 //! use netabase_store::traits::registery::definition::NetabaseDefinition;
 //!
@@ -34,7 +34,7 @@
 //! // - ExampleDefTreeNames for table names
 //! // - ExampleDefKeys for unified key access
 //! let schema_toml = ExampleDef::export_toml();
-//! println!("{}", schema_toml);
+//! assert!(!schema_toml.is_empty());
 //! ```
 //!
 //! # Subscription System
@@ -73,7 +73,7 @@
 //!
 //! # Example Structure
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::doc_examples::*;
 //! use netabase_store::traits::registery::definition::NetabaseDefinition;
 //!
@@ -84,7 +84,7 @@
 //! // - `ExampleDefTreeNames` for database table naming
 //! // - `ExampleDefKeys` for unified key access
 //! let name = ExampleDef::debug_name();
-//! println!("Definition: {}", name);
+//! assert_eq!(name, "ExampleDef");
 //! ```
 //!
 //! See [tests/comprehensive_functionality.rs] for complete usage examples.
@@ -134,14 +134,14 @@ use crate::traits::registery::models::{
 ///
 /// # Example Usage
 ///
-/// ```rust,no_run
+/// ```rust
 /// use netabase_store::doc_examples::*;
 /// use netabase_store::traits::registery::definition::NetabaseDefinition;
 ///
 /// // Access the schema from doc_examples
 /// let schema = ExampleDef::schema();
 /// let toml = ExampleDef::export_toml();
-/// println!("Schema: {}", toml);
+/// assert!(!toml.is_empty());
 /// ```
 ///
 /// # Trait Bounds

@@ -107,40 +107,36 @@
 //!
 //! ### Relational Links
 //!
-//! ```rust,no_run
-//! use netabase_store::prelude::*;
+//! ```rust
 //! use netabase_store::doc_examples::*;
-//! use netabase_store::traits::database::store::NBStore;
-//! use netabase_store::relational::RelationalLink;
+//! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
+//! use netabase_store::relational::RelationalLink;
 //! use netabase_store::traits::registery::repository::Standalone;
 //!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let (store, _temp) = RedbStore::<ExampleDef>::new_temporary()?;
+//! let store = RedbStore::<ExampleDef>::new_in_memory().unwrap();
 //!
 //! // Create related models
-//! let txn = store.begin_write()?;
+//! let txn = store.begin_write().unwrap();
 //! txn.create(&Author {
 //!     id: AuthorID("author1".into()),
 //!     name: "Jane Doe".into(),
 //!     genre: "Fiction".into(),
-//! })?;
+//! }).unwrap();
 //! txn.create(&Book {
 //!     isbn: BookID("978-3-16".into()),
 //!     title: "Rust Guide".into(),
 //!     genre: "Technology".into(),
 //!     author: RelationalLink::new_dehydrated(AuthorID("author1".into())),
-//! })?;
-//! txn.commit()?;
+//! }).unwrap();
+//! txn.commit().unwrap();
 //!
 //! // Read the book and access its author link
-//! let txn = store.begin_read()?;
-//! let book: Book = txn.read(&BookID("978-3-16".into()))?.unwrap();
+//! let txn = store.begin_read().unwrap();
+//! let book: Book = txn.read(&BookID("978-3-16".into())).unwrap().unwrap();
 //! // The author field is a RelationalLink that can be resolved
-//! let author: Option<Author> = txn.read(&AuthorID("author1".into()))?;
+//! let author: Option<Author> = txn.read(&AuthorID("author1".into())).unwrap();
 //! assert_eq!(author.unwrap().name, "Jane Doe");
-//! # Ok(())
-//! # }
 //! ```
 //!
 //! ### Model Versioning and Migration

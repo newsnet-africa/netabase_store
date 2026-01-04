@@ -54,43 +54,40 @@
 //!
 //! ## Basic CRUD Operations
 //!
-//! ```rust,no_run
-//! use netabase_store::prelude::*;
+//! ```rust
 //! use netabase_store::doc_examples::*;
-//! use netabase_store::traits::database::store::NBStore;
+//! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
 //!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let (store, _temp) = RedbStore::<ExampleDef>::new_temporary()?;
+//! let store = RedbStore::<ExampleDef>::new_in_memory().unwrap();
 //!
 //! // Create
 //! {
-//!     let txn = store.begin_write()?;
-//!     txn.create(&User { id: UserID("u1".into()), name: "Alice".into(), email: "a@b.com".into() })?;
-//!     txn.commit()?;
+//!     let txn = store.begin_write().unwrap();
+//!     txn.create(&User { id: UserID("u1".into()), name: "Alice".into(), email: "a@b.com".into() }).unwrap();
+//!     txn.commit().unwrap();
 //! }
 //!
 //! // Read
 //! {
-//!     let txn = store.begin_read()?;
-//!     let result: Option<User> = txn.read(&UserID("u1".into()))?;
+//!     let txn = store.begin_read().unwrap();
+//!     let result: Option<User> = txn.read(&UserID("u1".into())).unwrap();
+//!     assert!(result.is_some());
 //! }
 //!
 //! // Update
 //! {
-//!     let txn = store.begin_write()?;
-//!     txn.update(&User { id: UserID("u1".into()), name: "Alice Updated".into(), email: "a@b.com".into() })?;
-//!     txn.commit()?;
+//!     let txn = store.begin_write().unwrap();
+//!     txn.update(&User { id: UserID("u1".into()), name: "Alice Updated".into(), email: "a@b.com".into() }).unwrap();
+//!     txn.commit().unwrap();
 //! }
 //!
 //! // Delete
 //! {
-//!     let txn = store.begin_write()?;
-//!     txn.delete::<User>(&UserID("u1".into()))?;
-//!     txn.commit()?;
+//!     let txn = store.begin_write().unwrap();
+//!     txn.delete::<User>(&UserID("u1".into())).unwrap();
+//!     txn.commit().unwrap();
 //! }
-//! # Ok(())
-//! # }
 //! ```
 //!
 //! ## Querying with Configuration
@@ -120,34 +117,32 @@
 //!
 //! ## Working with Relational Links
 //!
-//! ```rust,no_run
-//! use netabase_store::prelude::*;
+//! ```rust
 //! use netabase_store::doc_examples::*;
+//! use netabase_store::databases::redb::RedbStore;
+//! use netabase_store::databases::redb::transaction::RedbModelCrud;
 //! use netabase_store::relational::RelationalLink;
-//! use netabase_store::traits::database::store::NBStore;
 //! use netabase_store::traits::registery::repository::Standalone;
 //!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let (store, _temp) = RedbStore::<ExampleDef>::new_temporary()?;
+//! let store = RedbStore::<ExampleDef>::new_in_memory().unwrap();
 //!
-//! // Create a dehydrated link (just the key)
-//! let author_id = AuthorID("author1".into());
-//! let link: RelationalLink<Standalone, ExampleDef, ExampleDef, Author> =
-//!     RelationalLink::new_dehydrated(author_id.clone());
+//! // Create an author first
+//! let txn = store.begin_write().unwrap();
+//! txn.create(&Author {
+//!     id: AuthorID("author1".into()),
+//!     name: "Jane Doe".into(),
+//!     genre: "Fiction".into(),
+//! }).unwrap();
+//! txn.commit().unwrap();
 //!
-//! // Note: Hydration requires the model to exist in the database
-//! // and is performed via transaction read methods
-//! let txn = store.begin_read()?;
-//! // Read the author directly using the key
-//! use netabase_store::databases::redb::transaction::RedbModelCrud;
-//! let author: Option<Author> = txn.read(&author_id)?;
+//! // Read the author back
+//! let txn = store.begin_read().unwrap();
+//! let author: Option<Author> = txn.read(&AuthorID("author1".into())).unwrap();
 //!
 //! match author {
-//!     Some(a) => println!("Author: {}", a.name),
-//!     None => println!("Author not found"),
+//!     Some(a) => assert_eq!(a.name, "Jane Doe"),
+//!     None => panic!("Author not found"),
 //! }
-//! # Ok(())
-//! # }
 //! ```
 //!
 //! ## Migration Between Versions

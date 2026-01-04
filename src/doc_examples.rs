@@ -13,36 +13,33 @@
 //! - [`Book`] - A book with isbn, title, and a relational link to Author
 //!
 //! ## Generated Types
-//! - `UserID`, `ProductSKU`, `AuthorID`, `BookISBN` - Primary key wrappers
+//! - `UserID`, `ProductID`, `AuthorID`, `BookID` - Primary key wrappers
 //! - `ExampleDef` - The definition enum containing all models
 //!
 //! # Usage in Doctests
 //!
 //! ```rust
 //! use netabase_store::doc_examples::*;
-//! use netabase_store::prelude::*;
-//! use netabase_store::traits::database::store::NBStore;
+//! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
 //!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! // Create a temporary database
-//! let (store, _temp) = RedbStore::<ExampleDef>::new_temporary()?;
+//! // Create a pure in-memory database (no IO operations)
+//! let store = RedbStore::<ExampleDef>::new_in_memory().unwrap();
 //!
 //! // Write data
-//! let txn = store.begin_write()?;
+//! let txn = store.begin_write().unwrap();
 //! txn.create(&User {
 //!     id: UserID("alice".into()),
 //!     name: "Alice".into(),
 //!     email: "alice@example.com".into(),
-//! })?;
-//! txn.commit()?;
+//! }).unwrap();
+//! txn.commit().unwrap();
 //!
 //! // Read data
-//! let txn = store.begin_read()?;
-//! let user: Option<User> = txn.read(&UserID("alice".into()))?;
+//! let txn = store.begin_read().unwrap();
+//! let user: Option<User> = txn.read(&UserID("alice".into())).unwrap();
 //! assert_eq!(user.unwrap().name, "Alice");
-//! # Ok(())
-//! # }
+//! ```
 //! ```
 
 use serde::{Deserialize, Serialize};

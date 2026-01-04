@@ -233,14 +233,16 @@ where
     ///
     /// # Examples
     ///
-    /// ```rust,ignore
-    /// # use netabase_store::databases::redb::RedbStore;
-    /// # use netabase_store::traits::database::store::NBStore;
-    /// # struct MyDefinition;
-    /// let (store, _temp) = RedbStore::<MyDefinition>::new_temporary().unwrap();
+    /// ```rust
+    /// use netabase_store::databases::redb::RedbStore;
+    /// use netabase_store::doc_examples::ExampleDef;
+    ///
+    /// let (store, _temp) = RedbStore::<ExampleDef>::new_temporary().unwrap();
     /// // Use store for testing...
     /// // _temp is automatically cleaned up when it goes out of scope
     /// ```
+    ///
+    /// For doctests, prefer [`new_in_memory`](Self::new_in_memory) which has zero IO overhead.
     pub fn new_temporary() -> NetabaseResult<(Self, tempfile::TempDir)>
     where
         D::TreeNames: Default,
@@ -249,5 +251,58 @@ where
             .map_err(|e| NetabaseError::IoError(format!("Failed to create temp dir: {}", e)))?;
         let store = <Self as NBStore<D>>::new(temp_dir.path())?;
         Ok((store, temp_dir))
+    }
+
+    /// Create a new purely in-memory RedbStore.
+    ///
+    /// This uses redb's `InMemoryBackend` for a lightweight, zero-IO database
+    /// that exists only in RAM. Perfect for doctests and unit tests that don't
+    /// need any disk operations.
+    ///
+    /// # Note
+    ///
+    /// The database is ephemeral - all data is lost when the store is dropped.
+    /// No schema file is written since there's no filesystem involved.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netabase_store::doc_examples::*;
+    /// use netabase_store::databases::redb::RedbStore;
+    /// use netabase_store::databases::redb::transaction::RedbModelCrud;
+    /// use netabase_store::traits::database::store::NBStore;
+    ///
+    /// let store = RedbStore::<ExampleDef>::new_in_memory().unwrap();
+    ///
+    /// // Write data
+    /// let txn = store.begin_write().unwrap();
+    /// txn.create(&User {
+    ///     id: UserID("alice".into()),
+    ///     name: "Alice".into(),
+    ///     email: "alice@example.com".into(),
+    /// }).unwrap();
+    /// txn.commit().unwrap();
+    ///
+    /// // Read data
+    /// let txn = store.begin_read().unwrap();
+    /// let user: Option<User> = txn.read(&UserID("alice".into())).unwrap();
+    /// assert_eq!(user.unwrap().name, "Alice");
+    /// ```
+    pub fn new_in_memory() -> NetabaseResult<Self>
+    where
+        D::TreeNames: Default,
+    {
+        let db = redb::Database::builder()
+            .create_with_backend(redb::backends::InMemoryBackend::new())
+            .map_err(|e| NetabaseError::RedbError(e.into()))?;
+
+        // Initialize all tables for the definition
+        D::init_tables(&db)?;
+
+        Ok(Self {
+            _tree_names: Default::default(),
+            db: Arc::new(db),
+            stored_schema: None, // No stored schema for in-memory databases
+        })
     }
 }
