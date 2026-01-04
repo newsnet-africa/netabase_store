@@ -46,7 +46,7 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
+//! ```rust
 //! use serde::{Serialize, Deserialize};
 //!
 //! // Define models in a definition
@@ -61,6 +61,7 @@
 //!         pub name: String,
 //!     }
 //! }
+//! # fn main() {}
 //! ```
 
 use std::hash::Hash;
@@ -558,7 +559,7 @@ pub struct StandaloneModelKeys;
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust
 /// // Definitions without explicit repository specification
 /// // automatically belong to the Standalone repository:
 /// use serde::{Serialize, Deserialize};
@@ -574,6 +575,7 @@ pub struct StandaloneModelKeys;
 ///         value: String,
 ///     }
 /// }
+/// # fn main() {}
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Standalone;
