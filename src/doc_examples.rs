@@ -40,7 +40,6 @@
 //! let user: Option<User> = txn.read(&UserID("alice".into())).unwrap();
 //! assert_eq!(user.unwrap().name, "Alice");
 //! ```
-//! ```
 
 use serde::{Deserialize, Serialize};
 
