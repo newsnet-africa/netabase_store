@@ -22,20 +22,28 @@
 //! use netabase_store::doc_examples::*;
 //! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
+//! use netabase_store::traits::registery::models::model::NetabaseModel;
 //!
 //! // Create a pure in-memory database (no IO operations)
 //! let store = RedbStore::<ExampleDef>::new_in_memory().unwrap();
 //!
 //! // Write data
 //! let txn = store.begin_write().unwrap();
-//! txn.create(&User {
+//! let user = User {
 //!     id: UserID("alice".into()),
 //!     name: "Alice".into(),
 //!     email: "alice@example.com".into(),
-//! }).unwrap();
+//! };
+//!
+//! // Secondary keys are automatically extracted from models
+//! let secondary_keys = user.get_secondary_keys();
+//! assert_eq!(secondary_keys.len(), 1);
+//! // The email field is indexed as UserSecondaryKeys::Email("alice@example.com")
+//!
+//! txn.create(&user).unwrap();
 //! txn.commit().unwrap();
 //!
-//! // Read data
+//! // Read data by primary key
 //! let txn = store.begin_read().unwrap();
 //! let user: Option<User> = txn.read(&UserID("alice".into())).unwrap();
 //! assert_eq!(user.unwrap().name, "Alice");
