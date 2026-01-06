@@ -1,4 +1,5 @@
 use crate::traits::registery::models::keys::blob::NetabaseModelBlobKey;
+use crate::traits::registery::models::keys::libp2p::NetabaseModelLibp2pProviderKey;
 pub use crate::traits::registery::models::keys::primary::NetabaseModelPrimaryKey;
 pub use crate::traits::registery::models::keys::relational::{
     NetabaseModelRelationalKey, NetabaseModelRelationalKeyForeign,
@@ -10,6 +11,7 @@ use crate::traits::registery::{
 };
 
 pub mod blob;
+pub mod libp2p;
 pub mod primary;
 pub mod relational;
 pub mod secondary;
@@ -33,4 +35,5 @@ where
     type Relational: NetabaseModelRelationalKey<D, M>;
     type Subscription: NetabaseModelSubscriptionKey<D, M> + 'static;
     type Blob: NetabaseModelBlobKey<D, M>;
+    type Libp2p: NetabaseModelLibp2pProviderKey<D, M>;
 }

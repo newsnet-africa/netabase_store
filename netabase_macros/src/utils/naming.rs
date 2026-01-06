@@ -57,6 +57,11 @@ pub fn unified_keys_enum_name(model_name: &Ident) -> Ident {
     quote::format_ident!("{}Keys", model_name)
 }
 
+/// Generate libp2p provider key enum name (e.g., User -> UserLibp2pProviderKey)
+pub fn libp2p_provider_key_enum_name(model_name: &Ident) -> Ident {
+    quote::format_ident!("{}Libp2pProviderKey", model_name)
+}
+
 /// Generate TreeName discriminant name (e.g., UserSecondaryKeys -> UserSecondaryKeysTreeName)
 pub fn tree_name_type(base_name: &Ident) -> Ident {
     quote::format_ident!("{}TreeName", base_name)

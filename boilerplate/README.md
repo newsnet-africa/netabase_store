@@ -1,88 +1,99 @@
-# Netabase Store Boilerplate Examples
+# Netabase Store Boilerplate & Examples
 
-This directory contains boilerplate examples demonstrating the netabase_store library.
+This crate serves as the comprehensive testbed, boilerplate, and example suite for `netabase_store`. It demonstrates the full power of the macro-based definition system for creating type-safe, relational database schemas on top of `redb`.
 
-## Structure
+## Overview
 
-### `boilerplate_lib/`
-Manual implementation of models and definitions. This is the **production version** used for benchmarks.
+The boilerplate provides a reference implementation of:
+- **Models**: Strongly typed structs with primary/secondary keys, blobs, and relationships.
+- **Definitions**: Groups of models that form a cohesive schema unit.
+- **Repositories**: Isolated contexts that enforce strict graph completeness for definitions.
+- **Migrations**: Versioned models with upgrade/downgrade paths.
+- **Macros**: Full usage of `netabase_macros` to generate all boilerplate code.
 
-**Contains:**
-- `models/user.rs` - User model with blobs and relational links
-- `models/post.rs` - Post model
-- `models/heavy.rs` - Heavy model for stress testing
-- `mod.rs` - Definition and DefinitionTwo with Category model
+## Key Features Demonstrated
 
-**Definitions:**
-- **Definition**: Contains User, Post, and HeavyModel
-- **DefinitionTwo**: Contains Category
+1.  **Strong Typing**: All IDs (`UserID`, `ShiftID`) are strongly typed wrappers, preventing accidental ID mixing.
+2.  **Relational Links**: Type-safe links between models (`RelationalLink<Definition, User>`) that handle hydration/dehydration.
+3.  **Cross-Definition Linking**: Linking models across different definitions (e.g., `User` in `Definition` linking to `Category` in `DefinitionTwo`).
+4.  **Repository Isolation**: `EmployeeRepo` and `ManagerRepo` show how to expose different subsets of data to different contexts while sharing underlying definitions.
+5.  **Blob Storage**: Handling large binary data (`LargeUserFile`) separately from the main record for efficiency.
+6.  **Schema Evolution**: Full examples of versioned models (`UserV1` -> `User`) with migration logic.
 
-### `boilerplate_lib_macros/`
-Macro-based implementation demonstrating the netabase macro system.
+## Project Structure
 
-**Status**: Demonstrates successful macro code generation for simple cases. Complex cross-definition references with blobs require additional trait resolution work.
+- **`src/boilerplate_lib/mod.rs`**: The main example showcasing a standard application schema (`User`, `Post`).
+- **`src/boilerplate_lib/repository_example.rs`**: Advanced example showcasing the Repository pattern for access control and modularity.
+- **`tests/`**: Integration tests verifying schema export, import, and migration logic.
 
-See `MACRO_SYSTEM.md` in the project root for full macro documentation.
+## Usage
 
-## Benchmarks
+### Running Tests
 
-### CRUD Benchmark (`benches/crud.rs`)
-Tests basic create, read, update, delete operations across all models.
+Run the full suite of tests, including unit tests, integration tests, and doctests:
 
-Run with:
-```bash
-cargo bench --bench crud
-```
-
-### Stress Test (`benches/stress.rs`)
-High-volume operations testing database performance under load.
-
-Run with:
-```bash
-cargo bench --bench stress
-```
-
-## Models Overview
-
-### User
-- **Primary Key**: id (String)
-- **Secondary Keys**: name, age
-- **Relational Links**:
-  - partner → Definition::User (self-referential)
-  - category → DefinitionTwo::Category (cross-definition)
-- **Blobs**: bio (LargeUserFile), another (AnotherLargeUserFile)
-- **Subscriptions**: Topic1, Topic2
-
-### Post
-- **Primary Key**: id (String)
-- **Secondary Keys**: title, author_id
-- **Subscriptions**: Topic3, Topic4
-
-### HeavyModel
-- **Primary Key**: id (String)
-- **Secondary Keys**: field1, field2, field3
-- **Blobs**: heavy_blob (HeavyBlob)
-- **Subscriptions**: Topic1, Topic2, Topic3, Topic4
-
-### Category (DefinitionTwo)
-- **Primary Key**: id (String)
-- **Secondary Keys**: name
-- **Subscriptions**: General
-
-## Testing
-
-Run all tests:
 ```bash
 cargo test -p netabase_store_examples
 ```
 
-Run benchmarks:
+### Running Benchmarks
+
+Performance benchmarks for CRUD operations and stress testing:
+
 ```bash
-cargo bench -p netabase_store_examples
+# Basic CRUD operations
+cargo bench --bench crud
+
+# High-load stress testing
+cargo bench --bench stress
 ```
 
-## Notes
+## Code Examples
 
-- The boilerplate demonstrates all netabase features: primary/secondary keys, relational links, blobs, and subscriptions
-- Cross-definition links are supported (e.g., User → Category across Definition boundaries)
-- The manual implementation serves as the reference for what macros should generate
+### Defining a Model
+
+```rust
+use netabase_store_examples::{User, UserID, CategoryID, LargeUserFile, AnotherLargeUserFile};
+use netabase_store::relational::RelationalLink;
+
+// Models are regular Rust structs with attributes
+let user = User {
+    id: UserID("user_123".to_string()),
+    first_name: "Alice".to_string(),
+    last_name: "Smith".to_string(),
+    age: 30,
+    // Relationships are type-checked
+    partner: RelationalLink::new_dehydrated(UserID("user_456".to_string())),
+    category: RelationalLink::new_dehydrated(CategoryID("cat_789".to_string())),
+    bio: LargeUserFile {
+        data: vec![1, 2, 3],
+        metadata: "User bio".to_string(),
+    },
+    another: AnotherLargeUserFile(vec![4, 5, 6]),
+    subscriptions: Default::default(),
+};
+```
+
+### Repository Pattern
+
+The repository pattern allows you to define strict boundaries for your data graph.
+
+```rust
+use netabase_store_examples::repository_example::{EmployeeRepo, ManagerRepo};
+
+// EmployeeRepo can access: Employee (User, Shift), Inventory
+// ManagerRepo can access: Employee (User, Shift), Reports
+```
+
+See `src/boilerplate_lib/repository_example.rs` for the full implementation.
+
+## Schema Migration
+
+The boilerplate includes a complete example of schema evolution in `src/boilerplate_lib/mod.rs`:
+
+1.  **`UserV1`**: Original version.
+2.  **`User`**: Current version (marked with `current`).
+3.  **`MigrateFrom<UserV1> for User`**: Implements the upgrade logic.
+4.  **`MigrateTo<UserV1> for User`**: Implements the downgrade logic (optional).
+
+This setup allows `netabase_store` to automatically handle data migration when schemas change.

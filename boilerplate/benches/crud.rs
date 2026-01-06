@@ -184,7 +184,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                 || {
                     let users: Vec<User> = (0..size).map(|_| generate_random_user()).collect();
                     let name = format!("bench_raw_insert_{}_{}", size, rand::random::<u64>());
-                    let path = PathBuf::from(format!("/tmp/netabase_test_{}.redb", name));
+                    let path = PathBuf::from(format!("./tmp/netabase_test_{}.redb", name));
                     if path.exists() {
                         std::fs::remove_file(&path).ok();
                     }
@@ -374,7 +374,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                 || {
                     let users: Vec<User> = (0..size).map(|_| generate_random_user()).collect();
                     let name = format!("bench_raw_read_{}_{}", size, rand::random::<u64>());
-                    let path = PathBuf::from(format!("/tmp/netabase_test_{}.redb", name));
+                    let path = PathBuf::from(format!("./tmp/netabase_test_{}.redb", name));
                     if path.exists() {
                         std::fs::remove_file(&path).ok();
                     }
@@ -560,7 +560,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                 || {
                     let users: Vec<User> = (0..size).map(|_| generate_random_user()).collect();
                     let name = format!("bench_raw_del_{}_{}", size, rand::random::<u64>());
-                    let path = PathBuf::from(format!("/tmp/netabase_test_{}.redb", name));
+                    let path = PathBuf::from(format!("./tmp/netabase_test_{}.redb", name));
                     if path.exists() {
                         std::fs::remove_file(&path).ok();
                     }

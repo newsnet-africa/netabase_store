@@ -43,3 +43,7 @@ path = "tests/schema_import.rs"
 [[test]]
 name = "macro_test"
 path = "tests/macro_test.rs"
+
+[[test]]
+name = "migration_logic"
+path = "tests/migration_logic.rs"

@@ -65,6 +65,8 @@ pub struct ModelFieldVisitor {
     pub subscriptions: Option<SubscriptionInfo>,
     /// Version information if this model is versioned.
     pub version_info: Option<ModelVersionInfo>,
+    /// Whether this model supports libp2p features
+    pub is_libp2p_enabled: bool,
 }
 
 impl ModelFieldVisitor {
@@ -78,6 +80,7 @@ impl ModelFieldVisitor {
             regular_fields: Vec::new(),
             subscriptions: None,
             version_info: None,
+            is_libp2p_enabled: false,
         }
     }
 
@@ -190,6 +193,11 @@ impl ModelFieldVisitor {
         // Parse version attribute if present
         if let Some(version_config) = get_version_info(attrs)? {
             self.version_info = Some(ModelVersionInfo::from(version_config));
+        }
+
+        // Check for libp2p support
+        if has_attribute(attrs, "netabase_libp2p") {
+            self.is_libp2p_enabled = true;
         }
 
         Ok(())

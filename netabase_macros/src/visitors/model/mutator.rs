@@ -2,6 +2,7 @@ use crate::utils::attributes::{
     find_attribute, has_attribute, parse_link_attribute, remove_attribute,
 };
 use crate::utils::naming::*;
+use crate::macros::netabase_libp2p::process_libp2p_attribute;
 use syn::{Field, Ident, ItemStruct, parse_quote, visit_mut::VisitMut};
 
 /// Mutator that transforms the model structs
@@ -72,9 +73,15 @@ impl VisitMut for ModelMutator {
                 pub subscriptions: Vec<#def_subs_ident>
             });
         }
+        
+        // Process libp2p attribute and inject field if needed
+        // The result isn't needed here as ModelMutator modifies in place
+        // and we already have visitor info from ModelFieldVisitor
+        process_libp2p_attribute(item_struct);
 
         // Remove netabase attributes from struct
         remove_attribute(&mut item_struct.attrs, "subscribe");
+        // netabase_libp2p is removed by process_libp2p_attribute
         // We also need to remove the derive(NetabaseModel) to prevent re-expansion issues
         // or just let it stay if it's a marker.
         // Logic: if we generate all impls manually in the attribute macro, we should remove the derive.

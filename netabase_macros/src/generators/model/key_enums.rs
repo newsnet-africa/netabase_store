@@ -28,9 +28,60 @@ impl<'a> KeyEnumGenerator<'a> {
         output.extend(self.generate_blob_keys_enum());
         output.extend(self.generate_blob_item_enum());
 
+        output.extend(self.generate_libp2p_provider_key_enum());
+
         output.extend(self.generate_unified_keys_enum());
 
         output
+    }
+
+    fn generate_libp2p_provider_key_enum(&self) -> TokenStream {
+        let model_name = &self.visitor.model_name;
+        let enum_name = libp2p_provider_key_enum_name(model_name);
+        let tree_name = tree_name_type(&enum_name);
+        let id_type = primary_key_type_name_for_model(self.visitor);
+        let blob_keys = blob_keys_enum_name(model_name);
+        let relational_keys = relational_keys_enum_name(model_name);
+
+        quote! {
+            // TreeName discriminant enum
+            #[derive(
+                Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
+                serde::Serialize, serde::Deserialize,
+                strum::AsRefStr
+            )]
+            pub enum #tree_name {
+                Full,
+                Bare,
+                WithBlobs,
+                WithRelations,
+            }
+
+            #[derive(
+                Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
+                serde::Serialize, serde::Deserialize,
+                Hash
+            )]
+            pub enum #enum_name {
+                Full(#id_type),
+                Bare(#id_type),
+                WithBlobs(#id_type, Vec<#blob_keys>),
+                WithRelations(#id_type, Vec<#relational_keys>),
+            }
+
+            impl strum::IntoDiscriminant for #enum_name {
+                type Discriminant = #tree_name;
+
+                fn discriminant(&self) -> Self::Discriminant {
+                    match self {
+                        Self::Full(_) => #tree_name::Full,
+                        Self::Bare(_) => #tree_name::Bare,
+                        Self::WithBlobs(..) => #tree_name::WithBlobs,
+                        Self::WithRelations(..) => #tree_name::WithRelations,
+                    }
+                }
+            }
+        }
     }
 
     fn generate_secondary_keys_enum(&self) -> TokenStream {

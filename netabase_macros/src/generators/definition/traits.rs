@@ -322,6 +322,21 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     });
                 }
             }
+
+            // Libp2p Provider Table
+            {
+                let libp2p_provider_key = libp2p_provider_key_enum_name(model_name);
+                let libp2p_table_name = table_name(def_str, &model_str, "Libp2p", "Provider");
+
+                code.extend(quote! {
+                    // Initialize Libp2p Provider table for #model_name
+                    {
+                        let table_def = redb::MultimapTableDefinition::<#libp2p_provider_key, ::netabase_store::databases::redb::transaction::value_wrappers::Libp2pProviderRecordWrapper>::new(#libp2p_table_name);
+                         let _ = write_txn.open_multimap_table(table_def)
+                            .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e))?;
+                    }
+                });
+            }
         }
 
         code
@@ -656,6 +671,9 @@ impl<'a> DefinitionTraitGenerator<'a> {
         // Generate subscription conversion traits
         let subscription_traits = self.generate_subscription_traits(definition_name, model_name, visitor);
 
+        // Generate Libp2pModel trait
+        let libp2p_trait = trait_gen.generate_libp2p_model_trait();
+
         quote! {
             #marker_traits
             #store_traits
@@ -664,6 +682,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
             #netabase_model_trait
             #redb_trait
             #subscription_traits
+            #libp2p_trait
         }
     }
 
@@ -727,6 +746,13 @@ impl<'a> DefinitionTraitGenerator<'a> {
         impls.push(quote! {
             impl netabase_store::traits::registery::models::StoreKeyMarker<#definition_name> for #blob_keys {}
             impl netabase_store::traits::registery::models::StoreKeyMarker<#definition_name> for #blob_item {}
+        });
+
+        // Libp2p keys
+        let libp2p_keys = libp2p_provider_key_enum_name(model_name);
+        impls.push(quote! {
+            impl netabase_store::traits::registery::models::StoreKeyMarker<#definition_name> for #libp2p_keys {}
+            impl netabase_store::traits::registery::models::keys::libp2p::NetabaseModelLibp2pProviderKey<#definition_name, #model_name> for #libp2p_keys {}
         });
 
         quote! { #(#impls)* }

@@ -25,6 +25,7 @@ impl<'a> TraitGenerator<'a> {
         let relational_type = relational_keys_enum_name(model_name);
         let subscription_type = subscriptions_enum_name(model_name);
         let blob_type = blob_keys_enum_name(model_name);
+        let libp2p_type = libp2p_provider_key_enum_name(model_name);
 
         quote! {
             impl netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #model_name> for #keys_enum {
@@ -33,6 +34,7 @@ impl<'a> TraitGenerator<'a> {
                 type Relational = #relational_type;
                 type Subscription = #subscription_type;
                 type Blob = #blob_type;
+                type Libp2p = #libp2p_type;
             }
         }
     }
@@ -187,6 +189,33 @@ impl<'a> TraitGenerator<'a> {
             quote! { &[#(#blob_tables),*] }
         };
 
+        // Providers
+        let libp2p_enum_name = libp2p_provider_key_enum_name(model_name);
+        let libp2p_tree_name = tree_name_type(&libp2p_enum_name);
+        let libp2p_table_name_str = table_name(&def_str, &model_str, "Libp2p", "Provider");
+
+        // We map all variants to the same table for now
+        let providers_array = quote! {
+            &[
+                netabase_store::traits::registery::models::treenames::DiscriminantTableName::new(
+                    #libp2p_tree_name::Full,
+                    #libp2p_table_name_str
+                ),
+                netabase_store::traits::registery::models::treenames::DiscriminantTableName::new(
+                    #libp2p_tree_name::Bare,
+                    #libp2p_table_name_str
+                ),
+                netabase_store::traits::registery::models::treenames::DiscriminantTableName::new(
+                    #libp2p_tree_name::WithBlobs,
+                    #libp2p_table_name_str
+                ),
+                netabase_store::traits::registery::models::treenames::DiscriminantTableName::new(
+                    #libp2p_tree_name::WithRelations,
+                    #libp2p_table_name_str
+                ),
+            ]
+        };
+
         quote! {
             const TREE_NAMES: netabase_store::traits::registery::models::treenames::ModelTreeNames<'static, #definition_name, Self> =
                 netabase_store::traits::registery::models::treenames::ModelTreeNames {
@@ -198,6 +227,7 @@ impl<'a> TraitGenerator<'a> {
                     relational: #relational_array,
                     subscription: #subscription_array,
                     blob: #blob_array,
+                    providers: #providers_array,
                 };
         }
     }
@@ -307,6 +337,29 @@ impl<'a> TraitGenerator<'a> {
         quote! {
             fn get_blob_entries<'a>(&'a self) -> Vec<Vec<(#blob_keys_enum, #blob_item_enum)>> {
                 vec![#(#blob_entries),*]
+            }
+        }
+    }
+
+    /// Generate Libp2pModel trait implementation
+    pub fn generate_libp2p_model_trait(&self) -> TokenStream {
+        let model_name = &self.visitor.model_name;
+        
+        let body = if self.visitor.is_libp2p_enabled {
+            quote! {
+                self.libp2p_metadata.as_ref()
+            }
+        } else {
+            quote! {
+                None
+            }
+        };
+
+        quote! {
+            impl netabase_store::traits::libp2p::libp2p_model::Libp2pModel for #model_name {
+                fn get_libp2p_metadata(&self) -> Option<&netabase_store::traits::libp2p::libp2p_model::Libp2pMetadata> {
+                    #body
+                }
             }
         }
     }

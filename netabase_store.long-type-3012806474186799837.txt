@@ -1,1 +1,0 @@
-doc_examples::example_def::Product: std::convert::TryFrom<doc_examples::example_def::ExampleDef>

@@ -16,6 +16,7 @@ rustc-hash = "2.1"
 sha2 = "0.10"
 tempfile = "3.15"
 netabase_macros = { path = "./netabase_macros" }
+libp2p = { version = "0.56.0", features = ["kad", "serde"] }
 
 [workspace]
 members = [

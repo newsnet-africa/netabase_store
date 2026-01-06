@@ -1,17 +1,75 @@
-// Macro-based boilerplate library - exact duplicate of boilerplate_lib using macros
-// This demonstrates 1:1 parity between manual and macro-generated code
-// Updated: 2026-01-03 - Added versioned models for migration testing
+//! Macro-based boilerplate library and examples.
+//!
+//! This library serves as a reference implementation and testbed for `netabase_store`.
+//! It demonstrates how to define models, schemas, and repositories using the macro system.
+//!
+//! # Examples
+//!
+//! Creating and using a User model:
+//!
+//! ```
+//! use netabase_store_examples::{User, UserID, CategoryID, LargeUserFile, AnotherLargeUserFile};
+//! use netabase_store::relational::RelationalLink;
+//!
+//! let user = User {
+//!     id: UserID("user_123".to_string()),
+//!     first_name: "Alice".to_string(),
+//!     last_name: "Smith".to_string(),
+//!     age: 30,
+//!     partner: RelationalLink::new_dehydrated(UserID("user_456".to_string())),
+//!     category: RelationalLink::new_dehydrated(CategoryID("cat_789".to_string())),
+//!     bio: LargeUserFile {
+//!         data: vec![1, 2, 3],
+//!         metadata: "User bio".to_string(),
+//!     },
+//!     another: AnotherLargeUserFile(vec![4, 5, 6]),
+//!     subscriptions: Default::default(),
+//! };
+//!
+//! assert_eq!(user.first_name, "Alice");
+//! ```
+//!
+//! ## Schema Migration
+//!
+//! Migrating from `UserV1` (older version) to `User` (current version).
+//! Note: This example is conceptual. See `tests/migration_logic.rs` for the full test suite.
+//!
+//! ```rust,ignore
+//! use netabase_store_examples::{User, UserID, UserV1, CategoryID};
+//! use netabase_store::traits::migration::MigrateFrom;
+//! use netabase_store::relational::RelationalLink;
+//!
+//! // 1. Create older version model
+//! let user_v1 = UserV1 {
+//!     id: UserID("user_123".to_string()),
+//!     name: "Alice Smith".to_string(),
+//!     age: 30,
+//!     category: RelationalLink::new_dehydrated(CategoryID("cat_789".to_string())),
+//!     subscriptions: Default::default(),
+//! };
+//!
+//! // 2. Migrate to new version
+//! let user_v2 = User::migrate_from(user_v1);
+//!
+//! // 3. Verify migration
+//! assert_eq!(user_v2.first_name, "Alice");
+//! assert_eq!(user_v2.last_name, "Smith");
+//! ```
+
 use serde::{Deserialize, Serialize};
 
 // Declare models module
 pub mod models;
 pub mod repository_example;
 
-// DefinitionTwo with Category model (defined first to avoid forward references)
+/// DefinitionTwo module containing Category model.
+///
+/// This demonstrates a separate definition that can be linked to from other definitions.
 #[netabase_macros::netabase_definition(DefinitionTwo, subscriptions(General))]
 pub mod definition_two {
     use super::*;
 
+    /// A category for grouping users or other entities.
     #[derive(
         netabase_macros::NetabaseModel,
         Debug,
@@ -36,13 +94,14 @@ pub mod definition_two {
     }
 }
 
-// Main Definition with User, Post, and HeavyModel
+/// Main Definition module containing User, Post, and HeavyModel.
 #[netabase_macros::netabase_definition(Definition, subscriptions(Topic1, Topic2, Topic3, Topic4))]
 pub mod definition {
     use super::definition_two::{Category, CategoryID, DefinitionTwo};
     use super::*;
     use netabase_store::blob::NetabaseBlobItem;
 
+    /// A large file associated with a user, stored as a blob.
     #[derive(
         Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default,
     )]
@@ -51,11 +110,13 @@ pub mod definition {
         pub metadata: String,
     }
 
+    /// Another large file type.
     #[derive(
         Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default,
     )]
     pub struct AnotherLargeUserFile(pub Vec<u8>);
 
+    /// A heavy attachment for stress testing.
     #[derive(
         Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default,
     )]
@@ -64,7 +125,7 @@ pub mod definition {
         pub data: Vec<u8>,
     }
 
-    // Version 1 of User model - original version with single 'name' field
+    /// Version 1 of User model - original version with single 'name' field.
     #[derive(
         netabase_macros::NetabaseModel,
         Debug,
@@ -93,7 +154,7 @@ pub mod definition {
         pub category: String,
     }
 
-    // Version 2 of User model - current version with split name fields and blob support
+    /// Version 2 of User model - current version with split name fields and blob support.
     #[derive(
         netabase_macros::NetabaseModel,
         Debug,

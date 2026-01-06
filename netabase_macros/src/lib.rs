@@ -218,3 +218,10 @@ pub fn netabase_blob_item(input: TokenStream) -> TokenStream {
         .unwrap_or_else(|err| err.to_compile_error())
         .into()
 }
+
+#[proc_macro_attribute]
+pub fn netabase_libp2p(attr: TokenStream, item: TokenStream) -> TokenStream {
+    macros::netabase_libp2p::netabase_libp2p_attribute(attr.into(), item.into())
+        .unwrap_or_else(|err| err.to_compile_error())
+        .into()
+}

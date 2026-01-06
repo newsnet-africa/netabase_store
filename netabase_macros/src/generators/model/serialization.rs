@@ -101,6 +101,9 @@ impl<'a> SerializationGenerator<'a> {
         let blob_item = blob_item_enum_name(model_name);
         output.extend(self.generate_value_key_for_type(&blob_item));
 
+        let libp2p_provider_key = libp2p_provider_key_enum_name(model_name);
+        output.extend(self.generate_value_key_for_type(&libp2p_provider_key));
+
         output
     }
 

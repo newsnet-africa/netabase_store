@@ -18,6 +18,31 @@
 //! ├── Employee (User, Shift) - same definition, different context
 //! └── Reports (Report)
 //! ```
+//!
+//! # Examples
+//!
+//! Creating an employee user:
+//!
+//! ```
+//! use netabase_store_examples::repository_example::{User, UserID, Shift, ShiftID, Product, Report};
+//! use netabase_store::relational::RelationalLink;
+//!
+//! let employee = User {
+//!     id: UserID("emp_001".to_string()),
+//!     name: "John Doe".to_string(),
+//!     email: "john@example.com".to_string(),
+//!     department: "Sales".to_string(),
+//! };
+//!
+//! let shift = Shift {
+//!     id: ShiftID("shift_001".to_string()),
+//!     date: "2023-01-01".to_string(),
+//!     employee_id: RelationalLink::new_dehydrated(UserID("emp_001".to_string())),
+//!     hours: 8,
+//! };
+//!
+//! assert_eq!(employee.department, "Sales");
+//! ```
 
 use serde::{Deserialize, Serialize};
 
