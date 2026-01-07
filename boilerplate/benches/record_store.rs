@@ -28,7 +28,6 @@ fn generate_random_record() -> Record {
         age: 30,
         partner: netabase_store::relational::RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: netabase_store::relational::RelationalLink::new_dehydrated(netabase_store_examples::boilerplate_lib::CategoryID("none".to_string())),
-        subscriptions: vec![],
         bio: Default::default(),
         another: Default::default(),
     };

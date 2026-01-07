@@ -247,22 +247,15 @@ fn bench_crud_operations(c: &mut Criterion) {
                                 )
                                 .expect("Failed to insert rel category");
 
-                            // Insert Subscriptions
-                            for subscription in &user.subscriptions {
-                                match subscription {
-                                    DefinitionSubscriptions::Topic1 => {
-                                        sub_topic1
-                                            .insert(subscription, user_id)
-                                            .expect("Failed to insert sub topic1");
-                                    }
-                                    DefinitionSubscriptions::Topic2 => {
-                                        sub_topic2
-                                            .insert(subscription, user_id)
-                                            .expect("Failed to insert sub topic2");
-                                    }
-                                    _ => {}
-                                }
-                            }
+                            // Insert Subscriptions - now all models subscribe to all topics by default
+                            // Topic1
+                            sub_topic1
+                                .insert(&DefinitionSubscriptions::Topic1, user_id)
+                                .expect("Failed to insert sub topic1");
+                            // Topic2
+                            sub_topic2
+                                .insert(&DefinitionSubscriptions::Topic2, user_id)
+                                .expect("Failed to insert sub topic2");
 
                             // Insert Blobs - properly split like the abstracted version
                             // Bio field
@@ -426,18 +419,11 @@ fn bench_crud_operations(c: &mut Criterion) {
                                 )
                                 .unwrap();
 
-                            // Insert Subscriptions
-                            for subscription in &user.subscriptions {
-                                match subscription {
-                                    DefinitionSubscriptions::Topic1 => {
-                                        sub_topic1.insert(subscription, user_id).unwrap();
-                                    }
-                                    DefinitionSubscriptions::Topic2 => {
-                                        sub_topic2.insert(subscription, user_id).unwrap();
-                                    }
-                                    _ => {}
-                                }
-                            }
+                            // Insert Subscriptions - now all models subscribe to all topics by default
+                            // Topic1
+                            sub_topic1.insert(&DefinitionSubscriptions::Topic1, user_id).unwrap();
+                            // Topic2
+                            sub_topic2.insert(&DefinitionSubscriptions::Topic2, user_id).unwrap();
 
                             // Insert Blobs - properly split like the abstracted version
                             let bio_chunks = split_blob_into_chunks(&user.bio);
@@ -612,18 +598,11 @@ fn bench_crud_operations(c: &mut Criterion) {
                                 )
                                 .unwrap();
 
-                            // Insert Subscriptions
-                            for subscription in &user.subscriptions {
-                                match subscription {
-                                    DefinitionSubscriptions::Topic1 => {
-                                        sub_topic1.insert(subscription, user_id).unwrap();
-                                    }
-                                    DefinitionSubscriptions::Topic2 => {
-                                        sub_topic2.insert(subscription, user_id).unwrap();
-                                    }
-                                    _ => {}
-                                }
-                            }
+                            // Insert Subscriptions - now all models subscribe to all topics by default
+                            // Topic1
+                            sub_topic1.insert(&DefinitionSubscriptions::Topic1, user_id).unwrap();
+                            // Topic2
+                            sub_topic2.insert(&DefinitionSubscriptions::Topic2, user_id).unwrap();
 
                             // Insert Blobs - properly split like the abstracted version
                             let bio_chunks = split_blob_into_chunks(&user.bio);
@@ -731,18 +710,11 @@ fn bench_crud_operations(c: &mut Criterion) {
                                 )
                                 .unwrap();
 
-                            // Remove Subscriptions
-                            for subscription in &stored_user.subscriptions {
-                                match subscription {
-                                    DefinitionSubscriptions::Topic1 => {
-                                        sub_topic1.remove(subscription, user_id).unwrap();
-                                    }
-                                    DefinitionSubscriptions::Topic2 => {
-                                        sub_topic2.remove(subscription, user_id).unwrap();
-                                    }
-                                    _ => {}
-                                }
-                            }
+                            // Remove Subscriptions - remove all default topics
+                            // Topic1
+                            sub_topic1.remove(&DefinitionSubscriptions::Topic1, user_id).unwrap();
+                            // Topic2
+                            sub_topic2.remove(&DefinitionSubscriptions::Topic2, user_id).unwrap();
 
                             // Remove Blobs - properly remove all chunks like the abstracted version
                             let bio_chunks = split_blob_into_chunks(&stored_user.bio);
