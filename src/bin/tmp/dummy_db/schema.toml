@@ -1,0 +1,47 @@
+schema_format_version = 2
+name = "SimpleDefinition"
+subscriptions = []
+
+[[models]]
+name = "InventoryItem"
+is_current = false
+is_libp2p_enabled = false
+
+[[models.fields]]
+name = "id"
+type_name = "u128"
+kind = "Primary"
+
+[[models.fields]]
+name = "name"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "warehouse"
+type_name = "String"
+kind = "Regular"
+
+[[models]]
+name = "BranchInventory"
+is_current = false
+is_libp2p_enabled = false
+
+[[models.fields]]
+name = "branch_id"
+type_name = "u128"
+kind = "Primary"
+
+[[models.fields]]
+name = "one_item"
+type_name = "u128"
+kind = "Relational"
+
+[models.fields.details]
+definition = "SimpleDefinition"
+model = "InventoryItem"
+
+[[models.fields]]
+name = "items"
+type_name = "Vec < InventoryItemID >"
+kind = "Regular"
