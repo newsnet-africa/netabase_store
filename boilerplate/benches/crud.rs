@@ -72,19 +72,9 @@ pub fn generate_random_user() -> User {
         RelationalLink::new_dehydrated(category_id.clone())
     };
 
-    // random non-empty subscriptions
-    let all_subs = [
-        DefinitionSubscriptions::Topic1,
-        DefinitionSubscriptions::Topic2,
-    ];
-    // pick between 1 and all topics
-    let mut subscriptions = Vec::new();
-    let pick_count = rng.random_range(1..=all_subs.len());
-    let mut indices: Vec<usize> = (0..all_subs.len()).collect();
-    indices.shuffle(&mut rng);
-    for &i in indices.iter().take(pick_count) {
-        subscriptions.push(all_subs[i].clone());
-    }
+    // Note: Subscriptions are now trait-level via #[subscribe(Topic1, Topic2)]
+    // Individual instances can choose topics using create_with_subscriptions()
+    // For benchmarks, we use the default create() which subscribes to all model topics
 
     // random bio (1kb - 10kb)
     let bio_size = rng.random_range(1024..10240);
@@ -104,7 +94,6 @@ pub fn generate_random_user() -> User {
         age,
         partner,
         category,
-        subscriptions,
         bio,
         another,
     }

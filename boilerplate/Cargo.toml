@@ -19,6 +19,7 @@ clap = { version = "4.5.23", features = ["derive"] }
 [dev-dependencies]
 criterion = { version = "0.8.1", features = ["html_reports"] }
 rand = "0.9.2"
+hex = "0.4"
 
 [[bench]]
 name = "crud"
@@ -52,3 +53,12 @@ path = "tests/macro_test.rs"
 [[test]]
 name = "migration_logic"
 path = "tests/migration_logic.rs"
+
+# Examples demonstrating new API features
+[[example]]
+name = "selective_subscriptions"
+path = "examples/selective_subscriptions.rs"
+
+[[example]]
+name = "merkle_sync"
+path = "examples/merkle_sync.rs"

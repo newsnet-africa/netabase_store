@@ -1457,6 +1457,7 @@ dependencies = [
  "criterion",
  "derive_more",
  "from",
+ "hex",
  "netabase_macros",
  "netabase_store",
  "postcard",
