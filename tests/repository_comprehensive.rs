@@ -101,7 +101,6 @@ fn test_definition_stores_independent() -> NetabaseResult<()> {
             id: CategoryID("cat1".to_string()),
             name: "Electronics".to_string(),
             description: "Electronic devices".to_string(),
-            subscriptions: vec![],
         };
         txn.create(&category)?;
         txn.commit()?;
@@ -125,7 +124,6 @@ fn test_definition_stores_independent() -> NetabaseResult<()> {
             age: 30,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("cat1".to_string())),
-            subscriptions: vec![],
             bio: LargeUserFile::default(),
             another: AnotherLargeUserFile(vec![]),
         };
@@ -169,7 +167,6 @@ fn test_standalone_definition_store() -> NetabaseResult<()> {
             age: 25,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("cat1".to_string())),
-            subscriptions: vec![],
             bio: LargeUserFile::default(),
             another: AnotherLargeUserFile(vec![]),
         };

@@ -54,14 +54,14 @@ pub mod simple_definition {
     pub struct InventoryItem {
         /// Unique inventory item identifier
         #[primary_key]
-        id: u128,
+        pub id: u128,
         
         /// Item name - indexed for fast lookup
         #[secondary_key]
-        name: String,
+        pub name: String,
         
         /// Warehouse location
-        warehouse: String,
+        pub warehouse: String,
     }
 
     /// Inventory tracking for a specific branch location.
@@ -80,13 +80,13 @@ pub mod simple_definition {
     pub struct BranchInventory {
         /// Unique branch identifier
         #[primary_key]
-        branch_id: u128,
+        pub branch_id: u128,
         
         /// List of inventory item IDs at this branch
-        items: Vec<InventoryItemID>,
+        pub items: Vec<InventoryItemID>,
         
         /// Example link to a specific inventory item
         #[link(SimpleDefinition, InventoryItem)]
-        one_item: u128,
+        pub one_item: u128,
     }
 }

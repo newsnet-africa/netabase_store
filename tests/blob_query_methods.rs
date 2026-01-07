@@ -30,7 +30,6 @@ fn test_blob_storage_single_large_field() -> NetabaseResult<()> {
             metadata: "Test metadata".to_string(),
         },
         another: AnotherLargeUserFile(vec![]),
-        subscriptions: vec![],
     };
 
     // Create the user
@@ -86,7 +85,6 @@ fn test_blob_storage_multiple_users() -> NetabaseResult<()> {
                 metadata: format!("User {} metadata", i),
             },
             another: AnotherLargeUserFile(vec![i as u8; 30_000]),
-            subscriptions: vec![],
         };
 
         let txn = store.begin_write()?;
@@ -140,7 +138,6 @@ fn test_blob_storage_very_large_data() -> NetabaseResult<()> {
             metadata: "Very large metadata".to_string(),
         },
         another: AnotherLargeUserFile(large_another.clone()),
-        subscriptions: vec![],
     };
 
     {
@@ -195,7 +192,6 @@ fn test_blob_storage_update_workflow() -> NetabaseResult<()> {
                 metadata: "Initial".to_string(),
             },
             another: AnotherLargeUserFile(vec![]),
-            subscriptions: vec![],
         };
 
         let txn = store.begin_write()?;
@@ -217,7 +213,6 @@ fn test_blob_storage_update_workflow() -> NetabaseResult<()> {
                 metadata: "Updated".to_string(),
             },
             another: AnotherLargeUserFile(vec![3u8; 60_000]),
-            subscriptions: vec![],
         };
 
         let txn = store.begin_write()?;
@@ -263,7 +258,6 @@ fn test_blob_storage_empty_data() -> NetabaseResult<()> {
             metadata: "Empty data".to_string(),
         },
         another: AnotherLargeUserFile(vec![]),
-        subscriptions: vec![],
     };
 
     {

@@ -34,7 +34,6 @@ fn test_readme_quick_start() -> Result<(), Box<dyn std::error::Error>> {
             category: RelationalLink::new_dehydrated(CategoryID("cat1".into())),
             bio: LargeUserFile::default(),
             another: AnotherLargeUserFile::default(),
-            subscriptions: vec![],
         };
 
         txn.create(&user)?;
@@ -46,7 +45,6 @@ fn test_readme_quick_start() -> Result<(), Box<dyn std::error::Error>> {
             content: "My first post!".into(),
             published: true,
             tags: vec![],
-            subscriptions: vec![],
         };
 
         txn.create(&post)?;
@@ -93,7 +91,6 @@ fn test_readme_crud_operations() -> Result<(), Box<dyn std::error::Error>> {
             category: RelationalLink::new_dehydrated(CategoryID("cat1".into())),
             bio: LargeUserFile::default(),
             another: AnotherLargeUserFile::default(),
-            subscriptions: vec![],
         };
 
         txn.create(&user)?;

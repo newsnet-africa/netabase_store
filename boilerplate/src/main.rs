@@ -32,7 +32,6 @@ fn main() {
         id: category_id.clone(),
         name: "General".to_string(),
         description: "A general category".to_string(),
-        subscriptions: vec![],
     };
 
     let user_id = UserID("user1".to_string());
@@ -46,7 +45,6 @@ fn main() {
         age: 30,
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),
-        subscriptions: vec![DefinitionSubscriptions::Topic1],
         bio: LargeUserFile {
             data: alice_bio_data.clone(),
             metadata: "Alice's Bio".to_string(),
@@ -62,7 +60,6 @@ fn main() {
         content: "This is a test post".to_string(),
         published: true,
         tags: vec!["rust".to_string(), "database".to_string()],
-        subscriptions: vec![DefinitionSubscriptions::Topic3],
     };
 
     println!("Created Category: {:?}", category);
@@ -247,7 +244,6 @@ fn main() {
         age: 25,
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),
-        subscriptions: vec![DefinitionSubscriptions::Topic2],
         bio: LargeUserFile {
             data: vec![2u8; 80_000],
             metadata: "".to_string(),
@@ -343,7 +339,6 @@ fn main() {
         age: 30,
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),
-        subscriptions: vec![],
         bio: LargeUserFile {
             data: vec![4u8; 65_000],
             metadata: "".to_string(),
@@ -363,7 +358,6 @@ fn main() {
         age: 30,
         partner: RelationalLink::new_dehydrated(user_id.clone()),
         category: RelationalLink::new_dehydrated(category_id.clone()),
-        subscriptions: vec![],
         bio: LargeUserFile {
             data: vec![6u8; 125_000],
             metadata: "".to_string(),

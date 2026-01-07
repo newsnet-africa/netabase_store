@@ -714,6 +714,327 @@ where
         M::read_default(key, &tables)
     }
 
+    /// Query records by secondary key value.
+    ///
+    /// Returns a list of models that have the specified secondary key value.
+    /// Secondary keys create indexed lookups for fields marked with `#[secondary_key]`.
+    ///
+    /// # Arguments
+    ///
+    /// * `secondary_key` - The secondary key value to search for
+    ///
+    /// # Returns
+    ///
+    /// A vector of models matching the secondary key value. Returns an empty vector
+    /// if no matches are found.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netabase_store::prelude::*;
+    /// use netabase_store::traits::database::store::NBStore;
+    /// use serde::{Serialize, Deserialize};
+    ///
+    /// #[netabase_macros::netabase_definition(MyApp)]
+    /// mod models {
+    ///     use super::*;
+    ///
+    ///     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    ///     pub struct User {
+    ///         #[primary_key]
+    ///         pub id: String,
+    ///         pub name: String,
+    ///         #[secondary_key]
+    ///         pub email: String,
+    ///     }
+    /// }
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// use models::*;
+    /// let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
+    /// 
+    /// // Create some users
+    /// let txn = store.begin_write()?;
+    /// txn.create(&User { 
+    ///     id: UserID("1".into()), 
+    ///     name: "Alice".into(),
+    ///     email: "alice@example.com".into()
+    /// })?;
+    /// txn.create(&User { 
+    ///     id: UserID("2".into()), 
+    ///     name: "Bob".into(),
+    ///     email: "bob@example.com".into()
+    /// })?;
+    /// txn.commit()?;
+    /// 
+    /// // Query by email (secondary key)
+    /// let txn = store.begin_read()?;
+    /// let users = txn.query_by_secondary_key::<User>(
+    ///     &UserSecondaryKeys::Email(UserEmail("alice@example.com".into()))
+    /// )?;
+    /// assert_eq!(users.len(), 1);
+    /// assert_eq!(users[0].name, "Alice");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn query_by_secondary_key<'data: 'db, M>(
+        &'db self,
+        secondary_key: &'data <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary,
+    ) -> NetabaseResult<Vec<M>>
+    where
+        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
+        for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: Clone,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Secondary as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Blob as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary as redb::Value>::SelfType<'a>>,
+        for<'v> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: redb::Value<SelfType<'v> = <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary>,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary as redb::Value>::SelfType<'a>>,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Libp2p as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: 'static,
+        D: 'static,
+        D::SubscriptionKeys: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: redb::Key + 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as redb::Value>::SelfType<'a>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem as redb::Value>::SelfType<'a>>,
+    {
+        let definitions = M::table_definitions();
+        let tables = self.open_model_tables(definitions, None)?;
+        
+        // Get primary keys matching the secondary key
+        let primary_keys = M::query_by_secondary_key(secondary_key, &tables)?;
+        
+        // Load the full models
+        let mut results = Vec::with_capacity(primary_keys.len());
+        for pk in primary_keys {
+            if let Some(model) = M::read_default(&pk, &tables)? {
+                results.push(model);
+            }
+        }
+        
+        Ok(results)
+    }
+
+    /// Query records by subscription topic.
+    ///
+    /// Returns a list of models that are subscribed to the specified topic.
+    /// Subscriptions are defined by including a subscription field in the model.
+    ///
+    /// # Arguments
+    ///
+    /// * `subscription_key` - The subscription topic to search for
+    ///
+    /// # Returns
+    ///
+    /// A vector of models subscribed to the topic. Returns an empty vector
+    /// if no models are subscribed.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netabase_store::prelude::*;
+    /// use netabase_store::traits::database::store::NBStore;
+    /// use serde::{Serialize, Deserialize};
+    ///
+    /// #[netabase_macros::netabase_definition(MyApp, subscriptions(Topic1, Topic2))]
+    /// mod models {
+    ///     use super::*;
+    ///
+    ///     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    ///     #[subscribe(Topic1)]  // Model-level subscription
+    ///     pub struct User {
+    ///         #[primary_key]
+    ///         pub id: String,
+    ///         pub name: String,
+    ///     }
+    /// }
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// use models::*;
+    /// let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
+    /// 
+    /// // Create users - they automatically subscribe to Topic1 (trait-level)
+    /// let txn = store.begin_write()?;
+    /// txn.create(&User { 
+    ///     id: UserID("1".into()), 
+    ///     name: "Alice".into(),
+    /// })?;
+    /// txn.create(&User { 
+    ///     id: UserID("2".into()), 
+    ///     name: "Bob".into(),
+    /// })?;
+    /// txn.commit()?;
+    /// 
+    /// // Query by subscription - returns all Users with hashes
+    /// let txn = store.begin_read()?;
+    /// let results = txn.query_by_subscription::<User, _>(
+    ///     &MyAppSubscriptions::Topic1
+    /// )?;
+    /// assert_eq!(results.len(), 2);
+    /// assert_eq!(results[0].0.name, "Alice");
+    /// assert_eq!(results[1].0.name, "Bob");
+    /// # Ok(())
+    /// # }
+    /// ```
+    /// Query models by subscription with hashes.
+    ///
+    /// Returns models subscribed to a topic along with their content hashes.
+    /// Hashes enable efficient change detection and merkle tree construction.
+    pub fn query_by_subscription<'data: 'db, M, S>(
+        &'db self,
+        subscription_key: &'data S,
+    ) -> NetabaseResult<Vec<(M, crate::subscription_hash::ModelHash)>>
+    where
+        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
+        S: Into<D::SubscriptionKeys> + Clone,
+        for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: Clone,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Secondary as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Blob as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary as redb::Value>::SelfType<'a>>,
+        for<'v> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: redb::Value<SelfType<'v> = <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary>,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Libp2p as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: 'static,
+        D: 'static,
+        D::SubscriptionKeys: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: redb::Key + 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as redb::Value>::SelfType<'a>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem as redb::Value>::SelfType<'a>>,
+    {
+        let definitions = M::table_definitions();
+        let tables = self.open_model_tables(definitions, None)?;
+        
+        // Get primary keys and hashes
+        let results_with_hashes = M::query_by_subscription(subscription_key, &tables)?;
+        
+        // The query already loaded models to compute hashes, but we need them again
+        // For now, just return the hashes with empty models - we'll optimize later
+        let mut results = Vec::with_capacity(results_with_hashes.len());
+        for (pk, hash) in results_with_hashes {
+            if let Some(model) = M::read_default(&pk, &tables)? {
+                results.push((model, hash));
+            }
+        }
+        
+        Ok(results)
+    }
+
+    /// Query records by relational link.
+    ///
+    /// Returns a list of models that have a relational link with the specified key.
+    /// Relational links are defined using `#[link(Definition, Model)]` attributes.
+    ///
+    /// # Arguments
+    ///
+    /// * `relational_key` - The relational key to search for
+    ///
+    /// # Returns
+    ///
+    /// A vector of models with the matching relational link. Returns an empty vector
+    /// if no matches are found.
+    ///
+    /// # Note
+    ///
+    /// This method scans the relational index table. For frequently queried relationships,
+    /// consider using an explicit foreign key field with a secondary index for better performance.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// use netabase_store::prelude::*;
+    /// use netabase_store::traits::database::store::NBStore;
+    ///
+    /// // Find all users in a specific category
+    /// let txn = store.begin_read()?;
+    /// let users = txn.query_by_relational_key::<User>(
+    ///     &UserRelationalKeys::Category(CategoryID("tech".into()))
+    /// )?;
+    /// 
+    /// for user in users {
+    ///     println!("User {} is in category tech", user.name);
+    /// }
+    /// ```
+    pub fn query_by_relational_key<'data: 'db, M>(
+        &'db self,
+        relational_key: &'data <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational,
+    ) -> NetabaseResult<Vec<M>>
+    where
+        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
+        for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: Clone + PartialEq,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Secondary as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Blob as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary as redb::Value>::SelfType<'a>>,
+        for<'v> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: redb::Value<SelfType<'v> = <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary>,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational as redb::Value>::SelfType<'a>>,
+        for<'v> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational as redb::Value>::SelfType<'v>: PartialEq<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational>,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Libp2p as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: 'static,
+        D: 'static,
+        D::SubscriptionKeys: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: redb::Key + 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as redb::Value>::SelfType<'a>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem as redb::Value>::SelfType<'a>>,
+    {
+        let definitions = M::table_definitions();
+        let tables = self.open_model_tables(definitions, None)?;
+        
+        // Get primary keys matching the relational key
+        let primary_keys = M::query_by_relational_key(relational_key, &tables)?;
+        
+        // Load the full models
+        let mut results = Vec::with_capacity(primary_keys.len());
+        for pk in primary_keys {
+            if let Some(model) = M::read_default(&pk, &tables)? {
+                results.push(model);
+            }
+        }
+        
+        Ok(results)
+    }
+
     /// Update an existing record in the database.
     ///
     /// Replaces the record with the matching primary key with the new values.

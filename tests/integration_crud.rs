@@ -29,7 +29,6 @@ fn test_create_and_verify() -> NetabaseResult<()> {
         age: 30,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
-        subscriptions: vec![DefinitionSubscriptions::Topic1],
         bio: LargeUserFile::default(),
         another: AnotherLargeUserFile(vec![]),
     };
@@ -56,15 +55,11 @@ fn test_create_and_verify() -> NetabaseResult<()> {
         assert_eq!(read_user.id.0, "test_user_1", "User ID should match");
         assert_eq!(read_user.first_name, "Alice", "User name should match");
         assert_eq!(read_user.age, 30, "User age should match");
-        assert_eq!(
-            read_user.subscriptions.len(),
-            1,
-            "Should have 1 subscription"
-        );
-        assert!(matches!(
-            read_user.subscriptions[0],
-            DefinitionSubscriptions::Topic1
-        ));
+        
+        // Verify subscription keys are returned (trait-level)
+        use netabase_store::traits::registery::models::model::NetabaseModel;
+        let sub_keys = read_user.get_subscription_keys();
+        assert_eq!(sub_keys.len(), 2, "Should have 2 subscription topics");
     }
     txn.commit()?;
 
@@ -86,7 +81,6 @@ fn test_create_duplicate_should_overwrite() -> NetabaseResult<()> {
         age: 25,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
-        subscriptions: vec![],
         bio: LargeUserFile::default(),
         another: AnotherLargeUserFile(vec![]),
     };
@@ -103,7 +97,6 @@ fn test_create_duplicate_should_overwrite() -> NetabaseResult<()> {
         age: 30,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
-        subscriptions: vec![],
         bio: LargeUserFile::default(),
         another: AnotherLargeUserFile(vec![]),
     };
@@ -168,7 +161,6 @@ fn test_update_and_verify() -> NetabaseResult<()> {
         age: 25,
         partner: RelationalLink::new_dehydrated(UserID("partner_old".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("cat_old".to_string())),
-        subscriptions: vec![DefinitionSubscriptions::Topic1],
         bio: LargeUserFile::default(),
         another: AnotherLargeUserFile(vec![]),
     };
@@ -197,7 +189,6 @@ fn test_update_and_verify() -> NetabaseResult<()> {
         age: 26,
         partner: RelationalLink::new_dehydrated(UserID("partner_new".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("cat_new".to_string())),
-        subscriptions: vec![DefinitionSubscriptions::Topic2],
         bio: LargeUserFile::default(),
         another: AnotherLargeUserFile(vec![]),
     };
@@ -228,11 +219,11 @@ fn test_update_and_verify() -> NetabaseResult<()> {
         let read = read.unwrap();
         assert_eq!(read.first_name, "Updated", "Name should be updated");
         assert_eq!(read.age, 26, "Age should be updated");
-        assert_eq!(read.subscriptions.len(), 1);
-        assert!(matches!(
-            read.subscriptions[0],
-            DefinitionSubscriptions::Topic2
-        ));
+        
+        // Subscriptions are trait-level - User still has Topic1 and Topic2
+        use netabase_store::traits::registery::models::model::NetabaseModel;
+        let sub_keys = read.get_subscription_keys();
+        assert_eq!(sub_keys.len(), 2, "User model subscribed to 2 topics");
     }
     txn.commit()?;
 
@@ -252,7 +243,6 @@ fn test_update_nonexistent_succeeds() -> NetabaseResult<()> {
         age: 30,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
-        subscriptions: vec![],
         bio: LargeUserFile::default(),
         another: AnotherLargeUserFile(vec![]),
     };
@@ -305,10 +295,6 @@ fn test_delete_and_verify() -> NetabaseResult<()> {
         age: 40,
         partner: RelationalLink::new_dehydrated(UserID("partner".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("cat".to_string())),
-        subscriptions: vec![
-            DefinitionSubscriptions::Topic1,
-            DefinitionSubscriptions::Topic2,
-        ],
         bio: LargeUserFile::default(),
         another: AnotherLargeUserFile(vec![]),
     };
@@ -407,7 +393,6 @@ fn test_multiple_creates_and_verify_all() -> NetabaseResult<()> {
             age: *age,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
-            subscriptions: vec![],
             bio: LargeUserFile::default(),
             another: AnotherLargeUserFile(vec![]),
         };
@@ -452,7 +437,6 @@ fn test_transaction_rollback_on_drop() -> NetabaseResult<()> {
         age: 30,
         partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
         category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
-        subscriptions: vec![],
         bio: LargeUserFile::default(),
         another: AnotherLargeUserFile(vec![]),
     };

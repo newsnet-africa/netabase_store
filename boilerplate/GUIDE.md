@@ -522,9 +522,14 @@ txn.commit()?;
 ```rust
 // Find all users with a specific email
 let txn = store.begin_read()?;
-let users = txn.query_by_secondary_key(
-    &UserKeys::Email("alice@example.com".into())
+let users = txn.query_by_secondary_key::<User>(
+    &UserSecondaryKeys::Email("alice@example.com".into())
 )?;
+
+// Process results
+for user in users {
+    println!("Found user: {}", user.first_name);
+}
 ```
 
 ### Pattern 3: Transaction Rollback

@@ -211,7 +211,6 @@ pub mod definition {
                 category: old.category,
                 bio: LargeUserFile::default(),
                 another: AnotherLargeUserFile::default(),
-                subscriptions: old.subscriptions,
             }
         }
     }
@@ -224,7 +223,6 @@ pub mod definition {
                 name: format!("{} {}", self.first_name, self.last_name),
                 age: self.age,
                 category: self.category.clone(),
-                subscriptions: self.subscriptions.clone(),
             }
         }
     }
@@ -299,7 +297,6 @@ pub mod definition {
                 content: old.content,
                 published: false, // Default to unpublished
                 tags: vec![],     // Default to no tags
-                subscriptions: old.subscriptions,
             }
         }
     }
@@ -312,7 +309,6 @@ pub mod definition {
                 title: self.title.clone(),
                 author_id: self.author_id.clone(),
                 content: self.content.clone(),
-                subscriptions: self.subscriptions.clone(),
             }
         }
     }

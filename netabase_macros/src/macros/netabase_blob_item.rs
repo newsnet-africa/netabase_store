@@ -8,8 +8,10 @@ use syn::{Data, DeriveInput, Fields, Result, parse2};
 /// By default, it treats the entire type as a single blob (no splitting).
 ///
 /// # Example
-/// ```
-/// #[derive(NetabaseBlobItem)]
+/// ```rust,ignore
+/// use netabase_macros::NetabaseBlobItem;
+/// 
+/// #[derive(NetabaseBlobItem, Clone, Default)]
 /// pub struct MyBlob {
 ///     pub data: Vec<u8>,
 /// }

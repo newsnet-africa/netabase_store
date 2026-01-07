@@ -100,15 +100,73 @@ where
     /// 
     /// Returns a list of primary keys for all models subscribed to the given topic.
     /// Use the subscription enum variant (e.g., `DefinitionSubscriptions::Topic1`) as the key.
+    /// Query by subscription topic with model hashes.
+    /// 
+    /// Returns primary keys and model hashes for all models subscribed to a topic.
+    /// This enables efficient sync and change detection without loading full models.
     fn query_by_subscription<'a, 'txn, S>(
         subscription_key: &S,
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
-    ) -> NetabaseResult<Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary>>
+    ) -> NetabaseResult<Vec<(<Self::Keys as NetabaseModelKeys<D, Self>>::Primary, crate::subscription_hash::ModelHash)>>
     where
         S: Into<D::SubscriptionKeys> + Clone,
         D::SubscriptionKeys: redb::Key + 'static,
         <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: Clone,
         for<'v> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: redb::Value<SelfType<'v> = <Self::Keys as NetabaseModelKeys<D, Self>>::Primary>;
+
+    /// Query primary keys by secondary key.
+    /// 
+    /// Returns a list of primary keys for all models with the given secondary key value.
+    /// Use the secondary key enum variant (e.g., `UserSecondaryKeys::Email("alice@example.com".into())`).
+    /// 
+    /// # Example
+    /// 
+    /// ```rust,ignore
+    /// // Find all users with a specific email
+    /// let txn = store.begin_read()?;
+    /// let tables = txn.prepare_model::<User>()?;
+    /// let primary_keys = User::query_by_secondary_key(
+    ///     &UserSecondaryKeys::Email("alice@example.com".into()),
+    ///     &tables
+    /// )?;
+    /// 
+    /// // Load the full models
+    /// for key in primary_keys {
+    ///     let user = User::read_default(&key, &tables)?;
+    /// }
+    /// ```
+    fn query_by_secondary_key<'a, 'txn>(
+        secondary_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Secondary,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary>>
+    where
+        <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: Clone,
+        for<'v> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: redb::Value<SelfType<'v> = <Self::Keys as NetabaseModelKeys<D, Self>>::Primary>;
+
+    /// Query primary keys by relational key.
+    /// 
+    /// Returns a list of primary keys for all models that have a relational link
+    /// with the given key value.
+    /// 
+    /// # Example
+    /// 
+    /// ```rust,ignore
+    /// // Find all posts by a specific author
+    /// let txn = store.begin_read()?;
+    /// let tables = txn.prepare_model::<Post>()?;
+    /// let post_ids = Post::query_by_relational_key(
+    ///     &PostRelationalKeys::Author(UserID("alice".into())),
+    ///     &tables
+    /// )?;
+    /// ```
+    fn query_by_relational_key<'a, 'txn>(
+        relational_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Relational,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary>>
+    where
+        <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: Clone,
+        for<'v> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: redb::Value<SelfType<'v> = <Self::Keys as NetabaseModelKeys<D, Self>>::Primary>,
+        for<'v> <<Self::Keys as NetabaseModelKeys<D, Self>>::Relational as redb::Value>::SelfType<'v>: PartialEq<<Self::Keys as NetabaseModelKeys<D, Self>>::Relational>;
 
     // =========================================================================
     // Blob Query Methods (Read-Only)
@@ -709,7 +767,7 @@ where
     fn query_by_subscription<'a, 'txn, S>(
         subscription_key: &S,
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
-    ) -> NetabaseResult<Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary>>
+    ) -> NetabaseResult<Vec<(<Self::Keys as NetabaseModelKeys<D, Self>>::Primary, crate::subscription_hash::ModelHash)>>
     where
         S: Into<D::SubscriptionKeys> + Clone,
         D::SubscriptionKeys: redb::Key + 'static,
@@ -731,7 +789,13 @@ where
                             let mut result = Vec::new();
                             for item in values {
                                 let guard = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
-                                result.push(guard.value());
+                                let pk = guard.value();
+                                
+                                // Load model to compute hash
+                                if let Some(model) = Self::read_default(&pk, tables)? {
+                                    let hash = model.compute_hash();
+                                    result.push((pk, hash));
+                                }
                             }
                             if !result.is_empty() {
                                 return Ok(result);
@@ -746,7 +810,13 @@ where
                             let mut result = Vec::new();
                             for item in values {
                                 let guard = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
-                                result.push(guard.value());
+                                let pk = guard.value();
+                                
+                                // Load model to compute hash
+                                if let Some(model) = Self::read_default(&pk, tables)? {
+                                    let hash = model.compute_hash();
+                                    result.push((pk, hash));
+                                }
                             }
                             if !result.is_empty() {
                                 return Ok(result);
@@ -757,6 +827,80 @@ where
                 }
                 TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
                     match table.get(def_key.borrow()) {
+                        Ok(values) => {
+                            let mut result = Vec::new();
+                            for item in values {
+                                let guard = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                                let pk = guard.value();
+                                
+                                // Load model to compute hash
+                                if let Some(model) = Self::read_default(&pk, tables)? {
+                                    let hash = model.compute_hash();
+                                    result.push((pk, hash));
+                                }
+                            }
+                            if !result.is_empty() {
+                                return Ok(result);
+                            }
+                        }
+                        Err(_) => continue,
+                    }
+                }
+                _ => continue,
+            }
+        }
+        
+        // No subscribers found for this topic
+        Ok(Vec::new())
+    }
+
+    fn query_by_secondary_key<'a, 'txn>(
+        secondary_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Secondary,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary>>
+    where
+        <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: Clone,
+        for<'v> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: redb::Value<SelfType<'v> = <Self::Keys as NetabaseModelKeys<D, Self>>::Primary>,
+    {
+        use redb::ReadableMultimapTable;
+        
+        // Find the secondary table that matches this key
+        // Each secondary key field has its own table
+        for (table_perm, _table_name) in &tables.secondary {
+            match table_perm {
+                TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
+                    // Try to get values for this key from this table
+                    match table.get(secondary_key.borrow()) {
+                        Ok(values) => {
+                            let mut result = Vec::new();
+                            for item in values {
+                                let guard = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                                result.push(guard.value());
+                            }
+                            if !result.is_empty() {
+                                return Ok(result);
+                            }
+                        }
+                        Err(_) => continue, // Key not found in this table, try next
+                    }
+                }
+                TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    match table.get(secondary_key.borrow()) {
+                        Ok(values) => {
+                            let mut result = Vec::new();
+                            for item in values {
+                                let guard = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                                result.push(guard.value());
+                            }
+                            if !result.is_empty() {
+                                return Ok(result);
+                            }
+                        }
+                        Err(_) => continue,
+                    }
+                }
+                TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    match table.get(secondary_key.borrow()) {
                         Ok(values) => {
                             let mut result = Vec::new();
                             for item in values {
@@ -774,8 +918,102 @@ where
             }
         }
         
-        // No subscribers found for this topic
+        // No results found for this secondary key
         Ok(Vec::new())
+    }
+
+    fn query_by_relational_key<'a, 'txn>(
+        relational_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Relational,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary>>
+    where
+        <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: Clone,
+        <Self::Keys as NetabaseModelKeys<D, Self>>::Relational: PartialEq,
+        for<'v> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: redb::Value<SelfType<'v> = <Self::Keys as NetabaseModelKeys<D, Self>>::Primary>,
+        for<'v> <<Self::Keys as NetabaseModelKeys<D, Self>>::Relational as redb::Value>::SelfType<'v>: PartialEq<<Self::Keys as NetabaseModelKeys<D, Self>>::Relational>,
+    {
+        use redb::ReadableMultimapTable;
+        
+        // Relational tables are multimap: Primary Key -> Relational Keys
+        // We need to scan to find all primary keys that have this relational key value
+        let mut results = Vec::new();
+        
+        for (table_perm, _table_name) in &tables.relational {
+            match table_perm {
+                TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
+                    // Iterate through all primary keys
+                    let iter = table.iter().map_err(|e| NetabaseError::RedbError(e.into()))?;
+                    
+                    for pk_result in iter {
+                        let (pk, _) = pk_result.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                        let pk_value = pk.value();
+                        
+                        // Get all relational keys for this primary key
+                        match table.get(pk_value.borrow()) {
+                            Ok(rel_keys) => {
+                                for rel_key_result in rel_keys {
+                                    let rel_key = rel_key_result.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                                    
+                                    // Check if this relational key matches what we're looking for
+                                    if rel_key.value() == *relational_key {
+                                        results.push(pk_value.clone());
+                                        break; // Found a match for this primary key, move to next
+                                    }
+                                }
+                            }
+                            Err(_) => continue,
+                        }
+                    }
+                }
+                TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    let iter = table.iter().map_err(|e| NetabaseError::RedbError(e.into()))?;
+                    
+                    for pk_result in iter {
+                        let (pk, _) = pk_result.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                        let pk_value = pk.value();
+                        
+                        match table.get(pk_value.borrow()) {
+                            Ok(rel_keys) => {
+                                for rel_key_result in rel_keys {
+                                    let rel_key = rel_key_result.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                                    
+                                    if rel_key.value() == *relational_key {
+                                        results.push(pk_value.clone());
+                                        break;
+                                    }
+                                }
+                            }
+                            Err(_) => continue,
+                        }
+                    }
+                }
+                TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    let iter = table.iter().map_err(|e| NetabaseError::RedbError(e.into()))?;
+                    
+                    for pk_result in iter {
+                        let (pk, _) = pk_result.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                        let pk_value = pk.value();
+                        
+                        match table.get(pk_value.borrow()) {
+                            Ok(rel_keys) => {
+                                for rel_key_result in rel_keys {
+                                    let rel_key = rel_key_result.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                                    
+                                    if rel_key.value() == *relational_key {
+                                        results.push(pk_value.clone());
+                                        break;
+                                    }
+                                }
+                            }
+                            Err(_) => continue,
+                        }
+                    }
+                }
+                _ => continue,
+            }
+        }
+        
+        Ok(results)
     }
 
     // =========================================================================

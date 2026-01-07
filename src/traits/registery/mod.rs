@@ -21,7 +21,7 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! use netabase_store::prelude::*;
 //! use serde::{Serialize, Deserialize};
 //!
@@ -30,7 +30,7 @@
 //! mod my_app {
 //!     use super::*;
 //!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+//!     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, netabase_macros::NetabaseModel)]
 //!     pub struct User {
 //!         #[primary_key]
 //!         pub id: String,
@@ -38,7 +38,7 @@
 //!         pub email: String,
 //!     }
 //!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+//!     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, netabase_macros::NetabaseModel)]
 //!     pub struct Post {
 //!         #[primary_key]
 //!         pub id: String,

@@ -122,6 +122,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 Models are Rust structs decorated with attributes that define their database behavior:
 
 ```rust
+use serde::{Serialize, Deserialize};
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+pub struct ProductImage {
+    pub data: Vec<u8>,
+    pub mime_type: String,
+}
+
 #[derive(NetabaseModel, Serialize, Deserialize, ...)]
 pub struct Product {
     #[primary_key]
@@ -137,7 +145,7 @@ pub struct Product {
     pub seller: String,        // Type-safe foreign key
     
     #[blob]
-    pub image: Vec<u8>,        // Auto-chunked if >60KB
+    pub image: ProductImage,   // Auto-chunked if >60KB
 }
 ```
 
@@ -171,14 +179,20 @@ let store = RedbRepositoryStore::<MainRepo>::new("data.redb")?;
 Version your models and define migration paths:
 
 ```rust
+use netabase_store::traits::migration::MigrateFrom;
+
+#[derive(NetabaseModel, Serialize, Deserialize, ...)]
 #[netabase_version(family = "User", version = 1)]
+#[subscribe(Topic1)]
 pub struct UserV1 {
     #[primary_key]
     pub id: String,
     pub name: String,
 }
 
+#[derive(NetabaseModel, Serialize, Deserialize, ...)]
 #[netabase_version(family = "User", version = 2, current)]
+#[subscribe(Topic1)]
 pub struct User {
     #[primary_key]
     pub id: String,
@@ -193,6 +207,7 @@ impl MigrateFrom<UserV1> for User {
             id: old.id,
             first_name: parts.get(0).unwrap_or(&"").to_string(),
             last_name: parts.get(1).unwrap_or(&"").to_string(),
+            subscriptions: old.subscriptions,
         }
     }
 }
@@ -206,9 +221,15 @@ impl MigrateFrom<UserV1> for User {
 
 ```rust
 // Query by email (secondary key)
-let users = txn.query_by_secondary_key(&UserKeys::Secondary(
-    UserSecondaryKeys::Email("alice@example.com".into())
-))?;
+let txn = store.begin_read()?;
+let users = txn.query_by_secondary_key::<User>(
+    &UserSecondaryKeys::Email("alice@example.com".into())
+)?;
+
+// Returns all users with that email
+for user in users {
+    println!("Found user: {:?}", user);
+}
 ```
 
 ### Blob Storage

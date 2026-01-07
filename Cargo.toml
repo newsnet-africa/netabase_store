@@ -18,6 +18,9 @@ tempfile = "3.15"
 netabase_macros = { path = "./netabase_macros" }
 libp2p = { version = "0.56.0", features = ["kad", "serde"] }
 clap = { version = "4.5", features = ["derive"] }
+rs_merkle = "1.5.0"
+hex = "0.4"
+bincode = "1.3"
 
 [workspace]
 members = [

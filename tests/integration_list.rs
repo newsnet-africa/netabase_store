@@ -39,7 +39,6 @@ fn test_count_entries() -> NetabaseResult<()> {
             age: 20 + i as u8,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
-            subscriptions: vec![],
             bio: LargeUserFile::default(),
             another: AnotherLargeUserFile(vec![]),
         };
@@ -76,7 +75,6 @@ fn test_list_entries() -> NetabaseResult<()> {
             age: 20 + i as u8,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
-            subscriptions: vec![],
             bio: LargeUserFile::default(),
             another: AnotherLargeUserFile(vec![]),
         };
@@ -122,7 +120,6 @@ fn test_list_entries_pagination() -> NetabaseResult<()> {
             age: 20 + i as u8,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
-            subscriptions: vec![],
             bio: LargeUserFile::default(),
             another: AnotherLargeUserFile(vec![]),
         };
@@ -200,7 +197,6 @@ fn test_list_range() -> NetabaseResult<()> {
             age: 25,
             partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
             category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
-            subscriptions: vec![],
             bio: LargeUserFile::default(),
             another: AnotherLargeUserFile(vec![]),
         };

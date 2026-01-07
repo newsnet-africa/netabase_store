@@ -338,6 +338,16 @@ where
     fn get_subscription_keys(
         &self,
     ) -> Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Subscription>;
+    
+    /// Compute the hash of this model for subscription tracking
+    fn compute_hash(&self) -> crate::subscription_hash::ModelHash
+    where
+        Self: serde::Serialize,
+    {
+        crate::subscription_hash::ModelHash::from_data(self)
+            .expect("Failed to hash model")
+    }
+    
     fn get_blob_entries(
         &self,
     ) -> Vec<Vec<(

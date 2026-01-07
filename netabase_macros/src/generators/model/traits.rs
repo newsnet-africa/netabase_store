@@ -64,7 +64,7 @@ impl<'a> TraitGenerator<'a> {
         let get_relational_keys = self.generate_get_relational_keys();
 
         // Generate get_subscription_keys method
-        let get_subscription_keys = self.generate_get_subscription_keys();
+        let get_subscription_keys = self.generate_get_subscription_keys(definition_name);
 
         // Generate get_blob_entries method
         let get_blob_entries = self.generate_get_blob_entries(definition_name);
@@ -284,23 +284,44 @@ impl<'a> TraitGenerator<'a> {
         }
     }
 
-    fn generate_get_subscription_keys(&self) -> TokenStream {
+    fn generate_get_subscription_keys(&self, definition_name: &syn::Ident) -> TokenStream {
         let model_name = &self.visitor.model_name;
         let enum_name = subscriptions_enum_name(model_name);
+        let def_subs_enum = definition_subscriptions_enum_name(definition_name);
 
-        if self.visitor.subscriptions.is_none() {
+        // If no subscriptions declared on the model, return empty
+        let Some(subscription_info) = &self.visitor.subscriptions else {
             return quote! {
                 fn get_subscription_keys<'b>(&'b self) -> Vec<#enum_name> {
                     vec![]
                 }
             };
-        }
+        };
 
-        // For now, we return empty subscriptions - the actual subscription logic
-        // would need to be implemented based on the model's state
+        // Return the static subscription topics declared on the model type
+        // via #[subscribe(Topic1, Topic2, ...)] attribute
+        // The topics are just identifiers, we need to fully qualify them
+        // as DefinitionSubscriptions::TopicIdent and wrap in ModelSubscriptions
+        let topic_constructions: Vec<_> = subscription_info.topics
+            .iter()
+            .map(|topic_path| {
+                // Extract the identifier from the path
+                let topic_ident = &topic_path.segments.last()
+                    .expect("Empty topic path")
+                    .ident;
+                
+                // Generate: UserSubscriptions::Topic1(DefinitionSubscriptions::Topic1)
+                quote! {
+                    #enum_name::#topic_ident(#def_subs_enum::#topic_ident)
+                }
+            })
+            .collect();
+        
         quote! {
             fn get_subscription_keys<'b>(&'b self) -> Vec<#enum_name> {
-                vec![]
+                vec![
+                    #( #topic_constructions ),*
+                ]
             }
         }
     }
