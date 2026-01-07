@@ -36,6 +36,11 @@ name = "record_store"
 path = "benches/record_store.rs"
 harness = false
 
+[[bench]]
+name = "minimal"
+path = "benches/minimal.rs"
+harness = false
+
 # Test ordering: schema_export must run before schema_import
 # Tests run in alphabetical order
 [[test]]
