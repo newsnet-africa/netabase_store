@@ -12,7 +12,6 @@ fn test_user_migration_v1_to_v2() {
         name: "Alice Smith".to_string(),
         age: 30,
         category: RelationalLink::new_dehydrated(CategoryID("cat_789".to_string())),
-        subscriptions: Default::default(),
     };
 
     // 2. Migrate to V2
@@ -43,7 +42,6 @@ fn test_user_migration_v1_to_v2_single_name() {
         name: "Cher".to_string(),
         age: 50,
         category: RelationalLink::new_dehydrated(CategoryID("cat_music".to_string())),
-        subscriptions: Default::default(),
     };
 
     let user_v2 = User::migrate_from(user_v1);
@@ -64,7 +62,6 @@ fn test_user_migration_v2_to_v1_downgrade() {
         category: RelationalLink::new_dehydrated(CategoryID("cat_build".to_string())),
         bio: LargeUserFile::default(),
         another: AnotherLargeUserFile::default(),
-        subscriptions: Default::default(),
     };
 
     // 2. Downgrade to V1

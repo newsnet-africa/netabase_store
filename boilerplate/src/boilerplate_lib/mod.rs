@@ -23,7 +23,6 @@
 //!         metadata: "User bio".to_string(),
 //!     },
 //!     another: AnotherLargeUserFile(vec![4, 5, 6]),
-//!     subscriptions: Default::default(),
 //! };
 //!
 //! assert_eq!(user.first_name, "Alice");
@@ -45,7 +44,6 @@
 //!     name: "Alice Smith".to_string(),
 //!     age: 30,
 //!     category: RelationalLink::new_dehydrated(CategoryID("cat_789".to_string())),
-//!     subscriptions: Default::default(),
 //! };
 //!
 //! // 2. Migrate to new version
