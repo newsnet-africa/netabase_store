@@ -1,9 +1,37 @@
+//! Utility functions for serialization and common operations.
+//!
+//! This module provides helper functions for common tasks, primarily
+//! around serialization of types that need special handling.
+//!
+//! # Modules
+//!
+//! - `serde_system_time_option`: Serialize/deserialize `Option<SystemTime>` as nanoseconds since UNIX epoch
+
 use serde::{Deserialize, Deserializer, Serializer};
 use std::time::SystemTime;
 
+/// Serde helpers for `Option<SystemTime>`.
+///
+/// SystemTime is serialized as nanoseconds since UNIX epoch for compatibility
+/// with postcard binary serialization.
+///
+/// # Example
+///
+/// ```rust
+/// use serde::{Serialize, Deserialize};
+/// use std::time::SystemTime;
+///
+/// #[derive(Serialize, Deserialize)]
+/// struct Event {
+///     name: String,
+///     #[serde(with = "netabase_store::utils::serde_system_time_option")]
+///     timestamp: Option<SystemTime>,
+/// }
+/// ```
 pub mod serde_system_time_option {
     use super::*;
 
+    /// Serialize `Option<SystemTime>` as nanoseconds since UNIX epoch.
     pub fn serialize<S>(value: &Option<SystemTime>, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -19,6 +47,7 @@ pub mod serde_system_time_option {
         }
     }
 
+    /// Deserialize `Option<SystemTime>` from nanoseconds since UNIX epoch.
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<SystemTime>, D::Error>
     where
         D: Deserializer<'de>,
@@ -26,9 +55,6 @@ pub mod serde_system_time_option {
         let nanos: Option<u128> = Option::deserialize(deserializer)?;
         match nanos {
             Some(n) => {
-                // Potential truncation if u128, but standard SystemTime is u64 seconds
-                // Actually duration_from_nanos takes u64. u128 nanos might overflow u64.
-                // Let's use as_secs and subsec_nanos
                 let secs = (n / 1_000_000_000) as u64;
                 let subsec = (n % 1_000_000_000) as u32;
                 Ok(Some(SystemTime::UNIX_EPOCH + std::time::Duration::new(secs, subsec)))

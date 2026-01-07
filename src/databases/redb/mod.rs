@@ -1,3 +1,79 @@
+//! Redb database backend implementation.
+//!
+//! This module provides the [redb](https://github.com/cberner/redb) backend for netabase_store.
+//! Redb is a simple, portable, high-performance, ACID-compliant embedded key-value store.
+//!
+//! # Module Structure
+//!
+//! - `migration`: Schema versioning and data migration
+//! - `repository`: Repository-based database access
+//! - `transaction`: Read/write transactions and CRUD operations
+//! - `libp2p`: Peer-to-peer networking integration
+//!
+//! # Core Types
+//!
+//! - [`RedbStore<D>`]: Main database handle for a definition `D`
+//! - [`RedbTransaction`]: Read or write transaction handle
+//!
+//! # Quick Start
+//!
+//! ```rust
+//! use netabase_store::prelude::*;
+//! use netabase_store::traits::database::store::NBStore;
+//! use serde::{Serialize, Deserialize};
+//!
+//! #[netabase_macros::netabase_definition(MyApp)]
+//! mod models {
+//!     use super::*;
+//!     
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: String,
+//!         pub name: String,
+//!     }
+//! }
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use models::*;
+//!
+//! // Create an in-memory database
+//! let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
+//!
+//! // Write data
+//! let txn = store.begin_write()?;
+//! txn.create(&User { 
+//!     id: UserID("alice".into()), 
+//!     name: "Alice".into() 
+//! })?;
+//! txn.commit()?;
+//!
+//! // Read data
+//! let txn = store.begin_read()?;
+//! let user: Option<User> = txn.read(&UserID("alice".into()))?;
+//! assert_eq!(user.unwrap().name, "Alice");
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Schema Management
+//!
+//! RedbStore tracks schema versions and can detect when migration is needed:
+//!
+//! ```rust,ignore
+//! if store.needs_migration() {
+//!     let result = store.migrate_all()?;
+//!     println!("Migrated {} records", result.records_migrated);
+//! }
+//! ```
+//!
+//! # Implementation Details
+//!
+//! - Uses postcard for efficient binary serialization
+//! - Supports secondary indexes for fast non-primary-key lookups
+//! - Blob data is automatically chunked for large values
+//! - Type-safe relational links between models
+
 pub mod migration;
 pub mod repository;
 pub mod transaction;

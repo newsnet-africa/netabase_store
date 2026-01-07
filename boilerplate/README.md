@@ -1,99 +1,190 @@
-# Netabase Store Boilerplate & Examples
+# Netabase Store Examples
 
-This crate serves as the comprehensive testbed, boilerplate, and example suite for `netabase_store`. It demonstrates the full power of the macro-based definition system for creating type-safe, relational database schemas on top of `redb`.
+Examples, tests, and benchmarks for the `netabase_store` embedded database library.
 
-## Overview
+## 📚 Documentation
 
-The boilerplate provides a reference implementation of:
-- **Models**: Strongly typed structs with primary/secondary keys, blobs, and relationships.
-- **Definitions**: Groups of models that form a cohesive schema unit.
-- **Repositories**: Isolated contexts that enforce strict graph completeness for definitions.
-- **Migrations**: Versioned models with upgrade/downgrade paths.
-- **Macros**: Full usage of `netabase_macros` to generate all boilerplate code.
+- **[GUIDE.md](./GUIDE.md)** - Comprehensive beginner's guide with step-by-step examples
+- **[Parent README](../README.md)** - Main library documentation
 
-## Key Features Demonstrated
-
-1.  **Strong Typing**: All IDs (`UserID`, `ShiftID`) are strongly typed wrappers, preventing accidental ID mixing.
-2.  **Relational Links**: Type-safe links between models (`RelationalLink<Definition, User>`) that handle hydration/dehydration.
-3.  **Cross-Definition Linking**: Linking models across different definitions (e.g., `User` in `Definition` linking to `Category` in `DefinitionTwo`).
-4.  **Repository Isolation**: `EmployeeRepo` and `ManagerRepo` show how to expose different subsets of data to different contexts while sharing underlying definitions.
-5.  **Blob Storage**: Handling large binary data (`LargeUserFile`) separately from the main record for efficiency.
-6.  **Schema Evolution**: Full examples of versioned models (`UserV1` -> `User`) with migration logic.
-
-## Project Structure
-
-- **`src/boilerplate_lib/mod.rs`**: The main example showcasing a standard application schema (`User`, `Post`).
-- **`src/boilerplate_lib/repository_example.rs`**: Advanced example showcasing the Repository pattern for access control and modularity.
-- **`tests/`**: Integration tests verifying schema export, import, and migration logic.
-
-## Usage
-
-### Running Tests
-
-Run the full suite of tests, including unit tests, integration tests, and doctests:
+## 🚀 Quick Start
 
 ```bash
+# Run the demonstration
+cargo run -p netabase_store_examples
+
+# Run all tests
 cargo test -p netabase_store_examples
+
+# Run benchmarks
+cargo bench -p netabase_store_examples
 ```
 
-### Running Benchmarks
+## 📁 Project Structure
 
-Performance benchmarks for CRUD operations and stress testing:
-
-```bash
-# Basic CRUD operations
-cargo bench --bench crud
-
-# High-load stress testing
-cargo bench --bench stress
+```
+boilerplate/
+├── src/
+│   ├── main.rs                    # Feature demonstration program
+│   ├── lib.rs                     # Library exports
+│   └── boilerplate_lib/
+│       ├── mod.rs                 # Main model definitions (User, Post, Category)
+│       ├── repository_example.rs  # Advanced repository pattern
+│       └── simple_repo_example.rs # Simplified repository example
+├── tests/
+│   ├── schema_export.rs           # Schema serialization tests
+│   ├── schema_import.rs           # Schema import tests
+│   ├── migration_logic.rs         # Model migration tests
+│   └── macro_test.rs              # Macro expansion tests
+├── benches/
+│   ├── crud.rs                    # CRUD performance benchmarks
+│   ├── stress.rs                  # High-load stress tests
+│   └── record_store.rs            # Record storage benchmarks
+└── GUIDE.md                       # Beginner's guide (start here!)
 ```
 
-## Code Examples
+## 🎯 What's Demonstrated
 
-### Defining a Model
+### Core Features
+- ✅ **Type-safe models** with compile-time validation
+- ✅ **Primary and secondary keys** for fast lookups
+- ✅ **Relational links** between models
+- ✅ **Blob storage** for large binary data (auto-chunked)
+- ✅ **Schema versioning** with automatic migration
+- ✅ **Repository pattern** for access control
+
+### Models Included
+
+#### Definition (Main Schema)
+- **User** (versioned: V1 → V2)
+  - Primary key: `id`
+  - Secondary keys: `first_name`, `last_name`, `age`
+  - Links: `partner` (self-reference), `category` (cross-definition)
+  - Blobs: `bio`, `another`
+  - Subscriptions: `Topic1`, `Topic2`
+
+- **Post** (versioned: V1 → V2)
+  - Primary key: `id`
+  - Secondary keys: `title`, `author_id`
+  - Subscriptions: `Topic3`, `Topic4`
+
+- **HeavyModel** (for stress testing)
+  - Multiple secondary keys and links
+  - Large blob attachment
+  - All topic subscriptions
+
+#### DefinitionTwo (Secondary Schema)
+- **Category**
+  - Primary key: `id`
+  - Secondary key: `name`
+  - Subscription: `General`
+
+### Repository Examples
+
+1. **MainRepository**: Combines Definition + DefinitionTwo
+2. **EmployeeRepo**: Demonstrates bounded access patterns
+3. **SimpleRepo**: Minimal repository setup
+
+## 💡 Usage Examples
+
+### Basic CRUD
 
 ```rust
-use netabase_store_examples::{User, UserID, CategoryID, LargeUserFile, AnotherLargeUserFile};
+use netabase_store_examples::*;
+use netabase_store::prelude::*;
+use netabase_store::traits::database::store::NBStore;
+
+// Create store
+let (store, _temp) = RedbStore::<Definition>::new_temporary()?;
+
+// Write
+let txn = store.begin_write()?;
+txn.create(&User {
+    id: UserID("alice".into()),
+    first_name: "Alice".into(),
+    last_name: "Smith".into(),
+    age: 30,
+    // ... other fields
+})?;
+txn.commit()?;
+
+// Read
+let txn = store.begin_read()?;
+let user: Option<User> = txn.read(&UserID("alice".into()))?;
+```
+
+### Relationships
+
+```rust
 use netabase_store::relational::RelationalLink;
 
-// Models are regular Rust structs with attributes
-let user = User {
-    id: UserID("user_123".to_string()),
-    first_name: "Alice".to_string(),
-    last_name: "Smith".to_string(),
-    age: 30,
-    // Relationships are type-checked
-    partner: RelationalLink::new_dehydrated(UserID("user_456".to_string())),
-    category: RelationalLink::new_dehydrated(CategoryID("cat_789".to_string())),
-    bio: LargeUserFile {
-        data: vec![1, 2, 3],
-        metadata: "User bio".to_string(),
-    },
-    another: AnotherLargeUserFile(vec![4, 5, 6]),
-    subscriptions: Default::default(),
+let post = Post {
+    id: PostID("post1".into()),
+    title: "Hello World".into(),
+    author_id: "alice".into(),
+    // ...
 };
+
+// The author_id can be used to look up the User
+let author: Option<User> = txn.read(&UserID(post.author_id.clone()))?;
 ```
 
-### Repository Pattern
-
-The repository pattern allows you to define strict boundaries for your data graph.
+### Schema Migration
 
 ```rust
-use netabase_store_examples::repository_example::{EmployeeRepo, ManagerRepo};
+use netabase_store::traits::migration::MigrateFrom;
 
-// EmployeeRepo can access: Employee (User, Shift), Inventory
-// ManagerRepo can access: Employee (User, Shift), Reports
+// Old data (UserV1) is automatically migrated to User (V2)
+let old = UserV1 { id: ..., name: "Alice Smith", ... };
+let new = User::migrate_from(old);
+// new.first_name == "Alice", new.last_name == "Smith"
 ```
 
-See `src/boilerplate_lib/repository_example.rs` for the full implementation.
+## 🧪 Testing
 
-## Schema Migration
+```bash
+# All tests
+cargo test -p netabase_store_examples
 
-The boilerplate includes a complete example of schema evolution in `src/boilerplate_lib/mod.rs`:
+# Schema export (must run before import)
+cargo test -p netabase_store_examples --test 0_schema_export
 
-1.  **`UserV1`**: Original version.
-2.  **`User`**: Current version (marked with `current`).
-3.  **`MigrateFrom<UserV1> for User`**: Implements the upgrade logic.
-4.  **`MigrateTo<UserV1> for User`**: Implements the downgrade logic (optional).
+# Schema import
+cargo test -p netabase_store_examples --test 1_schema_import
 
-This setup allows `netabase_store` to automatically handle data migration when schemas change.
+# Migration logic
+cargo test -p netabase_store_examples --test migration_logic
+```
+
+## 📊 Benchmarks
+
+```bash
+# CRUD operations benchmark
+cargo bench -p netabase_store_examples --bench crud
+
+# Stress testing (1000+ records)
+cargo bench -p netabase_store_examples --bench stress
+
+# Record store performance
+cargo bench -p netabase_store_examples --bench record_store
+```
+
+## 📖 Learning Path
+
+1. **Start with [GUIDE.md](./GUIDE.md)** - Complete beginner's guide
+2. **Read `src/main.rs`** - See all features in action
+3. **Explore `src/boilerplate_lib/mod.rs`** - Understand model definitions
+4. **Review tests** - Integration examples
+5. **Check benchmarks** - Performance characteristics
+
+## 🔧 Development
+
+This crate uses Rust edition 2024 and requires:
+- `serde` for serialization
+- `postcard` for binary encoding
+- `redb` as the underlying database
+- `netabase_macros` for code generation
+
+## 📝 License
+
+Same as parent crate.

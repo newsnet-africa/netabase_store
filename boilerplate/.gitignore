@@ -1,1 +1,6 @@
 /target
+testing/
+tmp/
+generated_schemas/
+*.redb
+*.netabase_schema.toml
