@@ -18,7 +18,12 @@ cargo test -p netabase_store_examples
 
 # Run benchmarks
 cargo bench -p netabase_store_examples
+
+# Clean up benchmark artifacts (recommended after benchmarks)
+rm -rf boilerplate/tmp/
 ```
+
+> **Note:** Benchmarks create temporary database files in `./tmp/`. These are automatically cleaned up after each benchmark run via `CleanupGuard`, but if benchmarks are interrupted, you may need to manually clean with `rm -rf ./tmp/`.
 
 ## 📁 Project Structure
 

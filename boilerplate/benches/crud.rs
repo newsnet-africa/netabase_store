@@ -103,7 +103,11 @@ pub fn generate_random_user() -> User {
 struct CleanupGuard(PathBuf);
 impl Drop for CleanupGuard {
     fn drop(&mut self) {
-        std::fs::remove_file(&self.0).ok();
+        if self.0.is_dir() {
+            std::fs::remove_dir_all(&self.0).ok();
+        } else if self.0.exists() {
+            std::fs::remove_file(&self.0).ok();
+        }
     }
 }
 
