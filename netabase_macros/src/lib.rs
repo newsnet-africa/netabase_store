@@ -225,3 +225,240 @@ pub fn netabase_libp2p(attr: TokenStream, item: TokenStream) -> TokenStream {
         .unwrap_or_else(|err| err.to_compile_error())
         .into()
 }
+
+use quote::{format_ident, quote};
+use serde::Deserialize;
+use std::fs;
+use std::path::PathBuf;
+use syn::{
+    Ident, LitStr, Token,
+    parse::{Parse, ParseStream},
+    parse_macro_input,
+};
+
+struct ImportInput {
+    file_path: LitStr,
+    module_name: Option<Ident>,
+}
+
+impl Parse for ImportInput {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let file_path: LitStr = input.parse()?;
+        let module_name = if input.peek(Token![,]) {
+            input.parse::<Token![,]>()?;
+            Some(input.parse::<Ident>()?)
+        } else {
+            None
+        };
+        Ok(ImportInput {
+            file_path,
+            module_name,
+        })
+    }
+}
+
+#[derive(Deserialize)]
+struct ModelField {
+    name: String,
+    type_name: String,
+    kind: String,
+}
+
+#[derive(Deserialize)]
+struct ModelSchema {
+    name: String,
+    #[serde(default)]
+    fields: Vec<ModelField>,
+}
+
+#[derive(Deserialize)]
+struct FullSchema {
+    name: String,
+    subscriptions: Vec<String>,
+    #[serde(default)]
+    models: Vec<ModelSchema>,
+    #[serde(flatten)]
+    _other: toml::Table,
+}
+
+#[proc_macro]
+pub fn infer_netabase_definition(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as ImportInput);
+    let file_path_lit = input.file_path;
+    let file_path_str = file_path_lit.value();
+
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
+    let full_path = PathBuf::from(manifest_dir).join(&file_path_str);
+
+    let content = match fs::read_to_string(&full_path) {
+        Ok(c) => c,
+        Err(e) => {
+            return syn::Error::new_spanned(
+                file_path_lit,
+                format!("Failed to read file at {:?}: {}", full_path, e),
+            )
+            .to_compile_error()
+            .into();
+        }
+    };
+
+    let schema: FullSchema = match toml::from_str(&content) {
+        Ok(s) => s,
+        Err(e) => {
+            return syn::Error::new_spanned(file_path_lit, format!("Failed to parse TOML: {}", e))
+                .to_compile_error()
+                .into();
+        }
+    };
+
+    let def_name = syn::Ident::new(&schema.name, proc_macro2::Span::call_site());
+    let subs: Vec<syn::Ident> = schema
+        .subscriptions
+        .iter()
+        .map(|s| syn::Ident::new(s, proc_macro2::Span::call_site()))
+        .collect();
+
+    let module_name = input.module_name.unwrap_or_else(|| def_name.clone());
+    let module_name = format_ident!("{module_name}Module");
+
+    let output = quote! {
+        #[netabase_macros::netabase_definition(
+            #def_name,
+            subscriptions(#(#subs),*),
+            from_file = #file_path_str
+        )]
+        pub mod #module_name {
+            use super::*;
+        }
+    };
+
+    output.into()
+}
+
+#[proc_macro]
+pub fn generate_cli(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as ImportInput);
+    let file_path_lit = input.file_path;
+    let file_path_str = file_path_lit.value();
+
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
+    let full_path = PathBuf::from(manifest_dir).join(&file_path_str);
+
+    let content = match fs::read_to_string(&full_path) {
+        Ok(c) => c,
+        Err(e) => {
+            return syn::Error::new_spanned(
+                file_path_lit,
+                format!("Failed to read file at {:?}: {}", full_path, e),
+            )
+            .to_compile_error()
+            .into();
+        }
+    };
+
+    let schema: FullSchema = match toml::from_str(&content) {
+        Ok(s) => s,
+        Err(e) => {
+            return syn::Error::new_spanned(file_path_lit, format!("Failed to parse TOML: {}", e))
+                .to_compile_error()
+                .into();
+        }
+    };
+
+    let def_name = syn::Ident::new(&schema.name, proc_macro2::Span::call_site());
+    let model_idents: Vec<syn::Ident> = schema
+        .models
+        .iter()
+        .map(|m| syn::Ident::new(&m.name, proc_macro2::Span::call_site()))
+        .collect();
+
+    let model_commands = model_idents.iter().map(|model| {
+        let model_lower = model.to_string().to_lowercase();
+        
+        quote! {
+            #[command(name = #model_lower, subcommand)]
+            #model(#model::Commands)
+        }
+    });
+
+    let model_modules = model_idents.iter().map(|model| {
+        quote! {
+            pub mod #model {
+                use clap::{Args, Subcommand};
+                
+                #[derive(Subcommand, Debug, Clone)]
+                pub enum Commands {
+                    /// Create a new record
+                    Create(CreateArgs),
+                    /// Read a record by ID
+                    Read(ReadArgs),
+                    /// Update a record
+                    Update(UpdateArgs),
+                    /// Delete a record
+                    Delete(DeleteArgs),
+                    /// List all records
+                    List,
+                }
+                
+                #[derive(Args, Debug, Clone)]
+                pub struct CreateArgs {
+                    /// JSON string of the record to create
+                    #[arg(short, long)]
+                    pub json: String,
+                }
+                
+                #[derive(Args, Debug, Clone)]
+                pub struct ReadArgs {
+                    /// Primary key of the record to read
+                    #[arg(short, long)]
+                    pub id: String,
+                }
+                
+                #[derive(Args, Debug, Clone)]
+                pub struct UpdateArgs {
+                    /// Primary key of the record to update
+                    #[arg(short, long)]
+                    pub id: String,
+                    /// JSON string of the updated record
+                    #[arg(short, long)]
+                    pub json: String,
+                }
+                
+                #[derive(Args, Debug, Clone)]
+                pub struct DeleteArgs {
+                    /// Primary key of the record to delete
+                    #[arg(short, long)]
+                    pub id: String,
+                }
+            }
+        }
+    });
+
+    let cli_name = format_ident!("{}Cli", def_name);
+    let commands_name = format_ident!("{}Commands", def_name);
+
+    let output = quote! {
+        use clap::{Parser, Subcommand, Args};
+        
+        #[derive(Parser, Debug)]
+        #[command(name = stringify!(#def_name))]
+        #[command(about = "CLI for interacting with the database store", long_about = None)]
+        pub struct #cli_name {
+            /// Database path
+            #[arg(short, long, default_value = "./database")]
+            pub db_path: String,
+            
+            #[command(subcommand)]
+            pub command: #commands_name,
+        }
+        
+        #[derive(Subcommand, Debug, Clone)]
+        pub enum #commands_name {
+            #(#model_commands,)*
+        }
+        
+        #(#model_modules)*
+    };
+
+    output.into()
+}

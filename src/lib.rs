@@ -193,6 +193,9 @@
 // code referencing `netabase_store::` paths
 extern crate self as netabase_store;
 
+pub use libp2p;
+pub use postcard;
+
 pub mod blob;
 pub mod databases;
 pub mod doc_examples;
@@ -201,3 +204,4 @@ pub mod prelude;
 pub mod query;
 pub mod relational;
 pub mod traits;
+pub mod utils;

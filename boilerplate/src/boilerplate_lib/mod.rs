@@ -61,6 +61,7 @@ use serde::{Deserialize, Serialize};
 // Declare models module
 pub mod models;
 pub mod repository_example;
+pub mod simple_repo_example;
 
 /// DefinitionTwo module containing Category model.
 ///
@@ -364,3 +365,4 @@ pub mod main_repository {}
 pub use definition::*;
 pub use definition_two::*;
 pub use main_repository::*;
+pub use simple_repo_example::*;

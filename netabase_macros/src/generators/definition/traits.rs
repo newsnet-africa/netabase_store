@@ -42,6 +42,9 @@ impl<'a> DefinitionTraitGenerator<'a> {
         let standalone_impl = self.generate_standalone_repository_impl();
         output.extend(standalone_impl);
 
+        let record_convertion_impl = self.generate_from_record();
+        output.extend(record_convertion_impl);
+
         for model_info in &self.visitor.models {
             // First generate subscription enum for this model (if it has subscriptions)
             let sub_enum = self.generate_subscription_enum(definition_name, model_info);
@@ -96,6 +99,232 @@ impl<'a> DefinitionTraitGenerator<'a> {
     fn generate_redb_definition_trait(&self) -> TokenStream {
         let definition_name = &self.visitor.definition_name;
         let def_str = definition_name.to_string();
+        
+        let iter_record_name = quote::format_ident!("{}RecordIter", definition_name);
+        let tables_name = quote::format_ident!("{}ReadOnlyTables", definition_name);
+        let record_wrapper_name = syn::Ident::new(&format!("{}Record", definition_name), definition_name.span());
+
+        // Prepare Libp2p method bodies
+        let mut find_record_arms = Vec::new();
+        let mut add_provider_arms = Vec::new();
+        let mut get_providers_arms = Vec::new();
+        let mut remove_record_arms = Vec::new();
+        let mut remove_provider_arms = Vec::new();
+        let mut put_record_arms = Vec::new();
+
+        for model in &self.visitor.models {
+            let model_name = &model.name;
+            let libp2p_provider_key_enum = libp2p_provider_key_enum_name(model_name);
+
+            // put_record block
+            put_record_arms.push(quote! {
+                #definition_name::#model_name(ref model) => {
+                    use ::netabase_store::databases::redb::transaction::tables::{
+                        ModelOpenTables, TablePermission, ReadWriteTableType
+                    };
+                    use ::netabase_store::databases::redb::transaction::crud::RedbModelCrud;
+                    use ::netabase_store::traits::registery::models::model::NetabaseModel;
+                    use ::netabase_store::traits::registery::models::keys::{
+                        NetabaseModelKeys, blob::NetabaseModelBlobKey
+                    };
+                    use redb::{ReadableTable, ReadableMultimapTable};
+
+                    type Keys = <#model_name as NetabaseModel<#definition_name>>::Keys;
+                    type Pk = <Keys as NetabaseModelKeys<#definition_name, #model_name>>::Primary;
+                    type Sk = <Keys as NetabaseModelKeys<#definition_name, #model_name>>::Secondary;
+                    type Rk = <Keys as NetabaseModelKeys<#definition_name, #model_name>>::Relational;
+                    type Bk = <Keys as NetabaseModelKeys<#definition_name, #model_name>>::Blob;
+                    type Bi = <Bk as NetabaseModelBlobKey<#definition_name, #model_name>>::BlobItem;
+                    type SubK = <#definition_name as ::netabase_store::traits::registery::definition::NetabaseDefinition>::SubscriptionKeys;
+
+                    // Helper to open table
+                    let open_rw_table = |name| {
+                        let def = redb::TableDefinition::<Pk, #model_name>::new(name);
+                        txn.open_table(def).map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e))
+                    };
+                    
+                    let tree_names = <#model_name as NetabaseModel<#definition_name>>::TREE_NAMES;
+
+                    // Main
+                    let main_table = open_rw_table(tree_names.main.table_name)?;
+                    let main_perm = TablePermission::ReadWrite(ReadWriteTableType::Table(main_table));
+
+                    // Secondary
+                    let mut secondary = Vec::new();
+                    for t in tree_names.secondary {
+                        let def = redb::MultimapTableDefinition::<Sk, Pk>::new(t.table_name);
+                        let table = txn.open_multimap_table(def).map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e))?;
+                        secondary.push((TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)), t.table_name));
+                    }
+
+                    // Blob
+                    let mut blob = Vec::new();
+                    for t in tree_names.blob {
+                        let def = redb::MultimapTableDefinition::<Bk, Bi>::new(t.table_name);
+                        let table = txn.open_multimap_table(def).map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e))?;
+                        blob.push((TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)), t.table_name));
+                    }
+
+                    // Relational
+                    let mut relational = Vec::new();
+                    for t in tree_names.relational {
+                        let def = redb::MultimapTableDefinition::<Pk, Rk>::new(t.table_name);
+                        let table = txn.open_multimap_table(def).map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e))?;
+                        relational.push((TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)), t.table_name));
+                    }
+
+                    // Subscription
+                    let mut subscription = Vec::new();
+                    if let Some(subs) = tree_names.subscription {
+                        for t in subs {
+                            let def = redb::MultimapTableDefinition::<SubK, Pk>::new(t.table_name);
+                            let table = txn.open_multimap_table(def).map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e))?;
+                            subscription.push((TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)), t.table_name));
+                        }
+                    }
+
+                    let mut tables = ModelOpenTables {
+                        main: main_perm,
+                        secondary,
+                        blob,
+                        relational,
+                        subscription,
+                    };
+
+                    // Check existence
+                    let exists = match &tables.main {
+                        TablePermission::ReadWrite(ReadWriteTableType::Table(t)) => {
+                            t.get(&model.get_primary_key()).map_err(|e| ::netabase_store::errors::NetabaseError::RedbStorageError(e))?.is_some()
+                        },
+                        _ => false,
+                    };
+
+                    if exists {
+                        model.update_entry(&mut tables)?;
+                    } else {
+                        model.create_entry(&mut tables)?;
+                    }
+                }
+            });
+
+            // find_record block
+            find_record_arms.push(quote! {
+                {
+                    use redb::ReadableTable;
+                    type Pk = <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #model_name>>::Primary;
+                    if let Ok(pk) = ::netabase_store::postcard::from_bytes::<Pk>(key_bytes) {
+                        let table_name = <#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES.main.table_name;
+                        let table_def = redb::TableDefinition::<Pk, #model_name>::new(table_name);
+                        
+                        if let Ok(table) = txn.open_table(table_def) {
+                            if let Ok(Some(val)) = table.get(&pk) {
+                                let model = val.value();
+                                let meta = <#model_name as ::netabase_store::traits::libp2p::libp2p_model::Libp2pModel>::get_libp2p_metadata(&model)
+                                    .cloned()
+                                    .unwrap_or_default();
+                                
+                                let wrapper_name = #record_wrapper_name(#definition_name::#model_name(model), meta);
+                                return Ok(Some(wrapper_name.into()));
+                            }
+                        }
+                    }
+                }
+            });
+
+            // add_provider block
+            add_provider_arms.push(quote! {
+                {
+                    type Pk = <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #model_name>>::Primary;
+                    if let Ok(pk) = ::netabase_store::postcard::from_bytes::<Pk>(key_bytes) {
+                        let provider_key = #libp2p_provider_key_enum::Full(pk);
+                        let tree_providers = <#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES.providers;
+                        if let Some(first_provider) = tree_providers.first() {
+                            let table_name = first_provider.table_name;
+                            let table_def = redb::MultimapTableDefinition::<#libp2p_provider_key_enum, ::netabase_store::databases::redb::transaction::value_wrappers::Libp2pProviderRecordWrapper>::new(table_name);
+                            
+                            if let Ok(mut table) = txn.open_multimap_table(table_def) {
+                                let wrapper = ::netabase_store::databases::redb::transaction::value_wrappers::Libp2pProviderRecordWrapper(record.clone());
+                                let _ = table.insert(provider_key, wrapper);
+                            }
+                        }
+                    }
+                }
+            });
+
+            // get_providers block
+            get_providers_arms.push(quote! {
+                {
+                    use redb::ReadableMultimapTable;
+                    type Pk = <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #model_name>>::Primary;
+                    if let Ok(pk) = ::netabase_store::postcard::from_bytes::<Pk>(key_bytes) {
+                        let provider_key = #libp2p_provider_key_enum::Full(pk);
+                        let tree_providers = <#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES.providers;
+                        if let Some(first_provider) = tree_providers.first() {
+                            let table_name = first_provider.table_name;
+                            let table_def = redb::MultimapTableDefinition::<#libp2p_provider_key_enum, ::netabase_store::databases::redb::transaction::value_wrappers::Libp2pProviderRecordWrapper>::new(table_name);
+                            
+                            if let Ok(table) = txn.open_multimap_table(table_def) {
+                                if let Ok(iter) = table.get(provider_key) {
+                                    for item in iter {
+                                        if let Ok(val) = item {
+                                            providers.push(val.value().0);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // remove_record block
+            remove_record_arms.push(quote! {
+                {
+                    type Pk = <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #model_name>>::Primary;
+                    if let Ok(pk) = ::netabase_store::postcard::from_bytes::<Pk>(key_bytes) {
+                        let table_name = <#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES.main.table_name;
+                        let table_def = redb::TableDefinition::<Pk, #model_name>::new(table_name);
+                        
+                        if let Ok(mut table) = txn.open_table(table_def) {
+                            let _ = table.remove(&pk);
+                        }
+                    }
+                }
+            });
+
+            // remove_provider block
+            remove_provider_arms.push(quote! {
+                {
+                    use redb::ReadableMultimapTable;
+                    type Pk = <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #model_name>>::Primary;
+                    if let Ok(pk) = ::netabase_store::postcard::from_bytes::<Pk>(key_bytes) {
+                        let provider_key = #libp2p_provider_key_enum::Full(pk);
+                        let tree_providers = <#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES.providers;
+                        if let Some(first_provider) = tree_providers.first() {
+                            let table_name = first_provider.table_name;
+                            let table_def = redb::MultimapTableDefinition::<#libp2p_provider_key_enum, ::netabase_store::databases::redb::transaction::value_wrappers::Libp2pProviderRecordWrapper>::new(table_name);
+                            
+                            if let Ok(mut table) = txn.open_multimap_table(table_def) {
+                                let mut to_remove = Vec::new();
+                                if let Ok(iter) = table.get(provider_key.clone()) {
+                                    for item in iter {
+                                        if let Ok(val) = item {
+                                            let wrapper = val.value();
+                                            if &wrapper.0.provider == provider {
+                                                to_remove.push(wrapper);
+                                            }
+                                        }
+                                    }
+                                }
+                                for wrapper in to_remove {
+                                    let _ = table.remove(provider_key.clone(), wrapper);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
 
         // Use the first model as representative (following the boilerplate pattern)
         if let Some(first_model) = self.visitor.models.first() {
@@ -168,6 +397,81 @@ impl<'a> DefinitionTraitGenerator<'a> {
                         write_txn.commit()
                             .map_err(|e| ::netabase_store::errors::NetabaseError::RedbCommitError(e))?;
 
+                        Ok(())
+                    }
+
+                    type ReadOnlyTables = #tables_name;
+                    type RecordIter<'a> = #iter_record_name<'a>;
+
+                    fn open_read_only_tables(txn: &redb::ReadTransaction) -> ::netabase_store::errors::NetabaseResult<Self::ReadOnlyTables> {
+                        #tables_name::new(txn)
+                            .map_err(|e| ::netabase_store::errors::NetabaseError::RedbError(e))
+                    }
+
+                    fn iter_records<'a>(
+                        tables: &'a Self::ReadOnlyTables,
+                    ) -> ::netabase_store::errors::NetabaseResult<Self::RecordIter<'a>> {
+                        tables.iter_records()
+                            .map_err(|e| ::netabase_store::errors::NetabaseError::RedbError(e))
+                    }
+
+                    fn find_record(
+                        txn: &redb::ReadTransaction,
+                        key: &::netabase_store::libp2p::kad::RecordKey,
+                    ) -> ::netabase_store::errors::NetabaseResult<Option<::netabase_store::libp2p::kad::Record>> {
+                        let key_bytes = key.as_ref();
+                        #(#find_record_arms)*
+                        Ok(None)
+                    }
+
+                    fn put_record(
+                        txn: &redb::WriteTransaction,
+                        record: ::netabase_store::libp2p::kad::Record,
+                    ) -> ::netabase_store::errors::NetabaseResult<()> {
+                        let def: Self = record.try_into()
+                            .map_err(|e| ::netabase_store::errors::NetabaseError::IoError(format!("Failed to deserialize record: {:?}", e)))?;
+                        match def {
+                            #(#put_record_arms)*
+                            _ => {} // Handles nested/empty
+                        }
+                        Ok(())
+                    }
+
+                    fn add_provider(
+                        txn: &redb::WriteTransaction,
+                        record: ::netabase_store::libp2p::kad::ProviderRecord,
+                    ) -> ::netabase_store::errors::NetabaseResult<()> {
+                        let key_bytes = record.key.as_ref();
+                        #(#add_provider_arms)*
+                        Ok(())
+                    }
+
+                    fn get_providers(
+                        txn: &redb::ReadTransaction,
+                        key: &::netabase_store::libp2p::kad::RecordKey,
+                    ) -> ::netabase_store::errors::NetabaseResult<Vec<::netabase_store::libp2p::kad::ProviderRecord>> {
+                        let key_bytes = key.as_ref();
+                        let mut providers = Vec::new();
+                        #(#get_providers_arms)*
+                        Ok(providers)
+                    }
+
+                    fn remove_record(
+                        txn: &redb::WriteTransaction,
+                        key: &::netabase_store::libp2p::kad::RecordKey,
+                    ) -> ::netabase_store::errors::NetabaseResult<()> {
+                        let key_bytes = key.as_ref();
+                        #(#remove_record_arms)*
+                        Ok(())
+                    }
+
+                    fn remove_provider(
+                        txn: &redb::WriteTransaction,
+                        key: &::netabase_store::libp2p::kad::RecordKey,
+                        provider: &::netabase_store::libp2p::PeerId,
+                    ) -> ::netabase_store::errors::NetabaseResult<()> {
+                        let key_bytes = key.as_ref();
+                        #(#remove_provider_arms)*
                         Ok(())
                     }
                 }
@@ -674,6 +978,9 @@ impl<'a> DefinitionTraitGenerator<'a> {
         // Generate Libp2pModel trait
         let libp2p_trait = trait_gen.generate_libp2p_model_trait();
 
+        // Generate tuple conversion for Model -> (Definition, Metadata)
+        let tuple_conversion = self.generate_model_tuple_conversion(definition_name, model_info);
+
         quote! {
             #marker_traits
             #store_traits
@@ -683,6 +990,23 @@ impl<'a> DefinitionTraitGenerator<'a> {
             #redb_trait
             #subscription_traits
             #libp2p_trait
+            #tuple_conversion
+        }
+    }
+
+    fn generate_model_tuple_conversion(&self, definition_name: &syn::Ident, model_info: &ModelInfo) -> TokenStream {
+        let model_name = &model_info.name;
+        let record_wrapper_name = syn::Ident::new(&format!("{}Record", definition_name), definition_name.span());
+        
+        quote! {
+            impl From<#model_name> for #record_wrapper_name {
+                fn from(model: #model_name) -> Self {
+                    let meta = <#model_name as ::netabase_store::traits::libp2p::libp2p_model::Libp2pModel>::get_libp2p_metadata(&model)
+                        .cloned()
+                        .unwrap_or_default();
+                    #record_wrapper_name(#definition_name::#model_name(model), meta)
+                }
+            }
         }
     }
 
@@ -1088,6 +1412,8 @@ impl<'a> DefinitionTraitGenerator<'a> {
                 })
                 .collect();
 
+            let is_libp2p_expr = visitor.is_libp2p_enabled;
+
             quote! {
                 netabase_store::traits::registery::definition::schema::ModelSchema {
                     name: #model_name_str.to_string(),
@@ -1100,6 +1426,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     family: #family_expr,
                     version: #version_expr,
                     is_current: #is_current_expr,
+                    is_libp2p_enabled: #is_libp2p_expr,
                 }
             }
         }).collect();
@@ -1204,6 +1531,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     
                     // supports_upgrade is true for all versions except the first one
                     let supports_upgrade = version > 1;
+                    let is_libp2p_expr = visitor.is_libp2p_enabled;
                     
                     quote! {
                         netabase_store::traits::registery::definition::schema::VersionedModelSchema {
@@ -1214,6 +1542,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
                             version_hash: #version_hash,
                             supports_downgrade: #supports_downgrade,
                             supports_upgrade: #supports_upgrade,
+                            is_libp2p_enabled: #is_libp2p_expr,
                         }
                     }
                 }).collect();
@@ -1270,6 +1599,70 @@ impl<'a> DefinitionTraitGenerator<'a> {
                 ],
                 schema_hash: None, // Will be computed at runtime if needed
                 config: None, // Default configuration
+            }
+        }
+    }
+
+    fn generate_from_record(&self) -> TokenStream {
+        let name = &self.visitor.definition_name;
+        let record_wrapper_name = syn::Ident::new(&format!("{}Record", name), name.span());
+
+        // Generate key extraction match arms
+        let mut key_match_arms = Vec::new();
+
+        for model in &self.visitor.models {
+            let m_name = &model.name;
+            key_match_arms.push(quote! {
+                #name::#m_name(ref m) => {
+                     use ::netabase_store::traits::registery::models::model::NetabaseModel;
+                     let pk = m.get_primary_key();
+                     ::netabase_store::postcard::to_allocvec(&pk).unwrap_or_default()
+                }
+            });
+        }
+        
+        for nested in &self.visitor.nested_definitions {
+            let n_name = &nested.definition_name;
+            key_match_arms.push(quote! {
+                #name::#n_name(_) => Vec::new() 
+            });
+        }
+
+        quote! {
+            impl TryFrom<::netabase_store::libp2p::kad::Record> for #name {
+                type Error = ::netabase_store::postcard::Error;
+
+                fn try_from(value: ::netabase_store::libp2p::kad::Record) -> Result<Self, Self::Error> {
+                    ::netabase_store::postcard::from_bytes(&value.value)
+                }
+            }
+            
+            /// Wrapper struct to handle conversion to Libp2p Record with metadata
+            pub struct #record_wrapper_name(pub #name, pub ::netabase_store::traits::libp2p::libp2p_model::Libp2pMetadata);
+
+            impl From<#record_wrapper_name> for ::netabase_store::libp2p::kad::Record {
+                fn from(wrapper: #record_wrapper_name) -> Self {
+                    let (def, meta) = (wrapper.0, wrapper.1);
+                    let key_bytes = match def {
+                        #(#key_match_arms),*
+                    };
+                    
+                    let expires = meta.expires.map(|t| {
+                        let now = std::time::SystemTime::now();
+                        if t > now {
+                            std::time::Instant::now() + t.duration_since(now).unwrap()
+                        } else {
+                            std::time::Instant::now() 
+                        }
+                    });
+
+                    ::netabase_store::libp2p::kad::Record {
+                        key: ::netabase_store::libp2p::kad::RecordKey::new(&key_bytes),
+                        value: ::netabase_store::postcard::to_allocvec(&def).unwrap(),
+                        publisher: meta.publisher,
+                        expires,
+                    }
+                }
             }
         }
     }

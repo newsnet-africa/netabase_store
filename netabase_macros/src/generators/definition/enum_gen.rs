@@ -1,8 +1,10 @@
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::Ident;
 use crate::visitors::definition::DefinitionVisitor;
 use crate::utils::naming::*;
+
+// TODO: Add support for more complex relational links: Vec<RelationalLink>, Option<RelationalLink> etc.
 
 /// Generator for Definition enum and DefinitionSubscriptions enum
 pub struct DefinitionEnumGenerator<'a> {
@@ -209,6 +211,158 @@ impl<'a> DefinitionEnumGenerator<'a> {
             impl redb::Key for #enum_name {
                 fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
                     data1.cmp(data2)
+                }
+            }
+        }
+    }
+
+
+    pub fn generate_iter(&self) -> TokenStream {
+        let def_name = &self.visitor.definition_name;
+        let tables_name = format_ident!("{}ReadOnlyTables", def_name);
+        let iter_name = format_ident!("{}Iter", def_name);
+        
+        let mut table_field_defs = Vec::new();
+        let mut table_inits = Vec::new();
+        let mut table_field_names = Vec::new();
+        
+        let mut iter_field_defs = Vec::new();
+        let mut iter_inits = Vec::new();
+        let mut next_arms = Vec::new();
+        
+        for (idx, model) in self.visitor.models.iter().enumerate() {
+             let model_name = &model.name;
+             let pk_type = primary_key_type_name_for_model(&model.visitor);
+             
+             // Field names
+             let table_field_ident = format_ident!("table_{}", model_name);
+             let iter_field_ident = format_ident!("iter_{}", model_name);
+             
+             // Table Field Definition
+             table_field_defs.push(quote! {
+                 pub #table_field_ident: redb::ReadOnlyTable<#pk_type, #model_name>
+             });
+             table_field_names.push(table_field_ident.clone());
+             
+             // Table Init Logic
+             let def_str = def_name.to_string();
+             let model_str = model_name.to_string();
+             let table_name_str = table_name(&def_str, &model_str, "Primary", "Main");
+             
+             table_inits.push(quote! {
+                  let #table_field_ident = txn.open_table(redb::TableDefinition::new(#table_name_str))?;
+             });
+             
+             // Iter Field Definition
+             iter_field_defs.push(quote! {
+                 pub #iter_field_ident: Option<redb::Range<'a, #pk_type, #model_name>>
+             });
+             
+             // Iter Init Logic
+             iter_inits.push(quote! {
+                 #iter_field_ident: Some(self.#table_field_ident.range::<#pk_type>(..)?)
+             });
+             
+             // Next Arm
+             next_arms.push(quote! {
+                 #idx => {
+                     if let Some(range) = &mut self.#iter_field_ident {
+                         match range.next() {
+                             Some(Ok((_k, v))) => return Some(Ok(#def_name::#model_name(v.value()))),
+                             Some(Err(e)) => return Some(Err(netabase_store::errors::NetabaseError::RedbStorageError(e))),
+                             None => {
+                                 self.state += 1;
+                                 continue;
+                             }
+                         }
+                     }
+                     self.state += 1;
+                     continue;
+                 }
+             });
+        }
+        
+        let iter_record_name = format_ident!("{}RecordIter", def_name);
+        let record_wrapper_name = format_ident!("{}Record", def_name);
+        
+        let mut record_match_arms = Vec::new();
+        for model in &self.visitor.models {
+            let model_name = &model.name;
+            record_match_arms.push(quote! {
+                #def_name::#model_name(m) => {
+                    let wrapper: #record_wrapper_name = m.into();
+                    wrapper.into()
+                }
+            });
+        }
+
+        quote! {
+            /// Helper struct to hold open read-only tables for definition iteration
+            pub struct #tables_name {
+                #(#table_field_defs),*
+            }
+            
+            impl #tables_name {
+                pub fn new(txn: &redb::ReadTransaction) -> Result<Self, redb::Error> {
+                     #(#table_inits)*
+                     Ok(Self {
+                         #(#table_field_names),*
+                     })
+                }
+                
+                pub fn iter<'a>(&'a self) -> Result<#iter_name<'a>, redb::Error> {
+                    Ok(#iter_name {
+                        #(#iter_inits),*,
+                        state: 0
+                    })
+                }
+
+                pub fn iter_records<'a>(&'a self) -> Result<#iter_record_name<'a>, redb::Error> {
+                    Ok(#iter_record_name {
+                        inner: self.iter()?
+                    })
+                }
+            }
+            
+            /// Iterator over all models in the definition
+            pub struct #iter_name<'a> {
+                #(#iter_field_defs),*,
+                state: usize,
+            }
+            
+            impl<'a> Iterator for #iter_name<'a> {
+                type Item = netabase_store::errors::NetabaseResult<#def_name>;
+                
+                fn next(&mut self) -> Option<Self::Item> {
+                    loop {
+                        match self.state {
+                            #(#next_arms)*
+                            _ => return None,
+                        }
+                    }
+                }
+            }
+
+            /// Iterator over all records in the definition
+            pub struct #iter_record_name<'a> {
+                inner: #iter_name<'a>
+            }
+
+            impl<'a> Iterator for #iter_record_name<'a> {
+                type Item = netabase_store::errors::NetabaseResult<netabase_store::libp2p::kad::Record>;
+
+                fn next(&mut self) -> Option<Self::Item> {
+                    match self.inner.next() {
+                        Some(Ok(def)) => {
+                            let record = match def {
+                                #(#record_match_arms)*
+                                _ => unreachable!("Iterator only yields models"),
+                            };
+                            Some(Ok(record))
+                        }
+                        Some(Err(e)) => Some(Err(e)),
+                        None => None,
+                    }
                 }
             }
         }

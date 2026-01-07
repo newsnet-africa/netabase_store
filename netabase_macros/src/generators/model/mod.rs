@@ -1,4 +1,5 @@
 pub mod key_enums;
+pub mod libp2p;
 pub mod migration;
 pub mod serialization;
 pub mod traits;

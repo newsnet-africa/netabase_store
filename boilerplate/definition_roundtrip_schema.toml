@@ -16,6 +16,7 @@ subscriptions = [
 family = "User"
 version = 1
 is_current = false
+is_libp2p_enabled = false
 
 [[models.fields]]
 name = "id"
@@ -50,6 +51,7 @@ subscriptions = [
 family = "User"
 version = 2
 is_current = true
+is_libp2p_enabled = false
 
 [[models.fields]]
 name = "id"
@@ -108,6 +110,7 @@ subscriptions = [
 family = "Post"
 version = 1
 is_current = false
+is_libp2p_enabled = false
 
 [[models.fields]]
 name = "id"
@@ -138,6 +141,7 @@ subscriptions = [
 family = "Post"
 version = 2
 is_current = true
+is_libp2p_enabled = false
 
 [[models.fields]]
 name = "id"
@@ -178,6 +182,7 @@ subscriptions = [
     "Topic4",
 ]
 is_current = false
+is_libp2p_enabled = false
 
 [[models.fields]]
 name = "id"
@@ -265,87 +270,6 @@ name = "data"
 type_name = "Vec < u8 >"
 
 [[model_history]]
-family = "Post"
-current_version = 2
-
-[[model_history.versions]]
-version = 1
-struct_name = "PostV1"
-subscriptions = [
-    "Topic3",
-    "Topic4",
-]
-version_hash = "18306954760968958270"
-supports_downgrade = false
-supports_upgrade = false
-
-[[model_history.versions.fields]]
-name = "id"
-type_name = "String"
-kind = "Primary"
-
-[[model_history.versions.fields]]
-name = "title"
-type_name = "String"
-kind = "Secondary"
-
-[[model_history.versions.fields]]
-name = "author_id"
-type_name = "String"
-kind = "Secondary"
-
-[[model_history.versions.fields]]
-name = "content"
-type_name = "String"
-kind = "Regular"
-
-[[model_history.versions]]
-version = 2
-struct_name = "Post"
-subscriptions = [
-    "Topic3",
-    "Topic4",
-]
-version_hash = "12940536922446132280"
-supports_downgrade = true
-supports_upgrade = true
-
-[[model_history.versions.fields]]
-name = "id"
-type_name = "String"
-kind = "Primary"
-
-[[model_history.versions.fields]]
-name = "title"
-type_name = "String"
-kind = "Secondary"
-
-[[model_history.versions.fields]]
-name = "author_id"
-type_name = "String"
-kind = "Secondary"
-
-[[model_history.versions.fields]]
-name = "content"
-type_name = "String"
-kind = "Regular"
-
-[[model_history.versions.fields]]
-name = "published"
-type_name = "bool"
-kind = "Regular"
-
-[[model_history.versions.fields]]
-name = "tags"
-type_name = "Vec < String >"
-kind = "Regular"
-
-[[model_history.migration_paths]]
-from_version = 1
-to_version = 2
-may_lose_data = false
-
-[[model_history]]
 family = "User"
 current_version = 2
 
@@ -359,6 +283,7 @@ subscriptions = [
 version_hash = "9774471415192068689"
 supports_downgrade = false
 supports_upgrade = false
+is_libp2p_enabled = false
 
 [[model_history.versions.fields]]
 name = "id"
@@ -394,6 +319,7 @@ subscriptions = [
 version_hash = "5563019169600077249"
 supports_downgrade = false
 supports_upgrade = true
+is_libp2p_enabled = false
 
 [[model_history.versions.fields]]
 name = "id"
@@ -442,6 +368,89 @@ kind = "Blob"
 name = "another"
 type_name = "AnotherLargeUserFile"
 kind = "Blob"
+
+[[model_history.migration_paths]]
+from_version = 1
+to_version = 2
+may_lose_data = false
+
+[[model_history]]
+family = "Post"
+current_version = 2
+
+[[model_history.versions]]
+version = 1
+struct_name = "PostV1"
+subscriptions = [
+    "Topic3",
+    "Topic4",
+]
+version_hash = "18306954760968958270"
+supports_downgrade = false
+supports_upgrade = false
+is_libp2p_enabled = false
+
+[[model_history.versions.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[model_history.versions.fields]]
+name = "title"
+type_name = "String"
+kind = "Secondary"
+
+[[model_history.versions.fields]]
+name = "author_id"
+type_name = "String"
+kind = "Secondary"
+
+[[model_history.versions.fields]]
+name = "content"
+type_name = "String"
+kind = "Regular"
+
+[[model_history.versions]]
+version = 2
+struct_name = "Post"
+subscriptions = [
+    "Topic3",
+    "Topic4",
+]
+version_hash = "12940536922446132280"
+supports_downgrade = true
+supports_upgrade = true
+is_libp2p_enabled = false
+
+[[model_history.versions.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[model_history.versions.fields]]
+name = "title"
+type_name = "String"
+kind = "Secondary"
+
+[[model_history.versions.fields]]
+name = "author_id"
+type_name = "String"
+kind = "Secondary"
+
+[[model_history.versions.fields]]
+name = "content"
+type_name = "String"
+kind = "Regular"
+
+[[model_history.versions.fields]]
+name = "published"
+type_name = "bool"
+kind = "Regular"
+
+[[model_history.versions.fields]]
+name = "tags"
+type_name = "Vec < String >"
+kind = "Regular"
 
 [[model_history.migration_paths]]
 from_version = 1

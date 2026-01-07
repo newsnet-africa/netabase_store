@@ -141,4 +141,57 @@ where
     ///
     /// `Ok(())` if all tables were created successfully.
     fn init_tables(db: &redb::Database) -> NetabaseResult<()>;
+
+    /// Helper struct to hold open read-only tables.
+    type ReadOnlyTables;
+
+    /// The iterator type returned by `iter_records`.
+    type RecordIter<'a>: Iterator<Item = NetabaseResult<libp2p::kad::Record>> + 'a
+    where
+        Self: 'a;
+
+    /// Open all tables in read-only mode.
+    fn open_read_only_tables(txn: &redb::ReadTransaction) -> NetabaseResult<Self::ReadOnlyTables>;
+
+    /// Create an iterator over all records in the definition using the open tables.
+    fn iter_records<'a>(
+        tables: &'a Self::ReadOnlyTables,
+    ) -> NetabaseResult<Self::RecordIter<'a>>;
+
+    /// Find a record by key across all models.
+    fn find_record(
+        txn: &redb::ReadTransaction,
+        key: &libp2p::kad::RecordKey,
+    ) -> NetabaseResult<Option<libp2p::kad::Record>>;
+
+    /// Put (upsert) a record.
+    fn put_record(
+        txn: &redb::WriteTransaction,
+        record: libp2p::kad::Record,
+    ) -> NetabaseResult<()>;
+
+    /// Add a provider record to the appropriate model table.
+    fn add_provider(
+        txn: &redb::WriteTransaction,
+        record: libp2p::kad::ProviderRecord,
+    ) -> NetabaseResult<()>;
+
+    /// Get providers for a key.
+    fn get_providers(
+        txn: &redb::ReadTransaction,
+        key: &libp2p::kad::RecordKey,
+    ) -> NetabaseResult<Vec<libp2p::kad::ProviderRecord>>;
+
+    /// Remove a record by key.
+    fn remove_record(
+        txn: &redb::WriteTransaction,
+        key: &libp2p::kad::RecordKey,
+    ) -> NetabaseResult<()>;
+    
+    /// Remove a provider.
+    fn remove_provider(
+        txn: &redb::WriteTransaction,
+        key: &libp2p::kad::RecordKey,
+        provider: &libp2p::PeerId,
+    ) -> NetabaseResult<()>;
 }

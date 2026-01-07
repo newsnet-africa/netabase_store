@@ -185,9 +185,6 @@ fn bench_crud_operations(c: &mut Criterion) {
                     let users: Vec<User> = (0..size).map(|_| generate_random_user()).collect();
                     let name = format!("bench_raw_insert_{}_{}", size, rand::random::<u64>());
                     let path = PathBuf::from(format!("./tmp/netabase_test_{}.redb", name));
-                    if path.exists() {
-                        std::fs::remove_file(&path).ok();
-                    }
                     let db = redb::Database::create(&path).expect("Failed to create raw DB");
                     (db, users, CleanupGuard(path))
                 },

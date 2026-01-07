@@ -14,7 +14,7 @@ where
     <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     <D as IntoDiscriminant>::Discriminant: PartialEq,
 {
-    let db_path = PathBuf::from(format!("/tmp/netabase_test_{}", name));
+    let db_path = PathBuf::from(format!("./tmp/netabase_test_{}", name));
 
     // Clean up any existing database folder or file
     if db_path.exists() {

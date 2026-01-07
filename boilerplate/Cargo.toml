@@ -1,7 +1,7 @@
 [package]
 name = "netabase_store_examples"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 publish = false
 
 
@@ -15,7 +15,6 @@ postcard = { version = "1.1.3", features = ["alloc"] }
 derive_more = { version = "2.1.0", features = ["display", "try_into", "from", "into"] }
 from = "0.1.4"
 clap = { version = "4.5.23", features = ["derive"] }
-netabase_helper_macros = { version = "0.1.0", path = "netabase_helper_macros" }
 
 [dev-dependencies]
 criterion = { version = "0.8.1", features = ["html_reports"] }
@@ -30,6 +29,12 @@ harness = false
 name = "stress"
 path = "benches/stress.rs"
 harness = false
+
+[[bench]]
+name = "record_store"
+path = "benches/record_store.rs"
+harness = false
+
 # Test ordering: schema_export must run before schema_import
 # Tests run in alphabetical order
 [[test]]

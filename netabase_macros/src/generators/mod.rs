@@ -1,3 +1,4 @@
+pub mod cli;
 pub mod definition;
 pub mod global;
 pub mod model;

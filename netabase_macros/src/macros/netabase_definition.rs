@@ -190,6 +190,7 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
     let subscriptions_enum = enum_generator.generate_subscriptions_enum();
     let definition_keys_enum = enum_generator.generate_definition_keys_enum();
     let definition_tree_names_enum = enum_generator.generate_definition_tree_names_enum();
+    let definition_iter = enum_generator.generate_iter();
 
     let def_trait_generator = DefinitionTraitGenerator::new(&visitor);
     let def_trait_impls = def_trait_generator.generate();
@@ -322,6 +323,7 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
             #subscriptions_enum
             #definition_keys_enum
             #definition_tree_names_enum
+            #definition_iter
             #def_trait_impls
             #repo_marker
         };

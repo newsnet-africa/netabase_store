@@ -175,6 +175,9 @@ pub struct VersionedModelSchema {
     /// Whether this version implements MigrateFrom the previous version.
     #[serde(default = "default_true")]
     pub supports_upgrade: bool,
+    /// Whether this version supports Libp2p features.
+    #[serde(default)]
+    pub is_libp2p_enabled: bool,
 }
 
 fn default_true() -> bool {
@@ -362,6 +365,9 @@ pub struct ModelSchema {
     /// Whether this is the current (latest) version.
     #[serde(default)]
     pub is_current: bool,
+    /// Whether this model supports Libp2p features.
+    #[serde(default)]
+    pub is_libp2p_enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
