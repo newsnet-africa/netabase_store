@@ -19,60 +19,6 @@
 
 ### Implementation Steps
 
-#### 1.1 Update Table Schema Generation
-**File**: `netabase_macros/src/generators/model/tables.rs`
-- Change relational table from `(PrimaryKey, RelationalKey)` to `(RelationalKey, PrimaryKey)`
-- This makes RelationalKey the lookup key (similar to secondary keys)
-
-#### 1.2 Update CRUD Operations
-**Files**: 
-- `src/databases/redb/model/crud.rs`
-- Model trait boilerplate generation
-
-**Changes**:
-- `create()`: Insert `(relational_key, primary_key)` instead of `(primary_key, relational_key)`
-- `update()`: Handle removal of old relational links, insertion of new ones
-- `delete()`: Remove all relational links for the model
-- Support `Vec<RelationalLink>` by inserting multiple entries per model
-
-#### 1.3 Update Query Implementation
-**File**: `src/databases/redb/transaction/mod.rs`
-
-**Change from**:
-```rust
-// Scan all entries, filter by relational key
-for entry in relational_table.iter()? {
-    let (pk, rel_key) = entry?;
-    if rel_key == search_key {
-        results.push(pk);
-    }
-}
-```
-
-**Change to**:
-```rust
-// Direct lookup using range query (like secondary keys)
-let range = relational_table.range(search_key..=search_key)?;
-for entry in range {
-    let (_rel_key, pk) = entry?;
-    results.push(pk);
-}
-```
-
-#### 1.4 Update Model Traits
-**File**: `netabase_macros/src/generators/model/traits.rs`
-
-- Update `query_by_relational_key()` to use range query
-- Add support for models with `Vec<RelationalLink<T>>` fields
-- Generate multiple insertions/deletions for vector fields
-
-#### 1.5 Testing
-- Update existing relational query tests
-- Add tests for `Vec<RelationalLink>` patterns
-- Verify O(log n) performance
-
----
-
 ## Task 2: Complete Merkle Proof Verification (1-2 hours)
 
 ### Current State

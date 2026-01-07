@@ -209,10 +209,15 @@ impl SubscriptionMerkleTree {
         Some(self.tree.proof(&indices))
     }
 
-    /// Verify a proof
-    pub fn verify_proof(&self, hash: &ModelHash, proof: &MerkleProof<Sha256Hasher>, leaves_len: usize) -> bool {
+    /// Verify a proof for a specific hash
+    pub fn verify_proof(&self, hash: &ModelHash, proof: &MerkleProof<Sha256Hasher>) -> bool {
         if let Some(root) = self.root() {
-            proof.verify(root, &[0], &[hash.0], leaves_len)
+            // Find the index of the hash in the sorted hashes
+            if let Some(index) = self.hashes.iter().position(|h| h == hash) {
+                proof.verify(root, &[index], &[hash.0], self.hashes.len())
+            } else {
+                false
+            }
         } else {
             false
         }
@@ -347,6 +352,41 @@ mod tests {
         let hash = hashes[0];
         
         let proof = tree.proof(&hash).unwrap();
-        assert!(tree.verify_proof(&hash, &proof, tree.len()));
+        assert!(tree.verify_proof(&hash, &proof));
+    }
+
+    #[test]
+    fn test_merkle_proof_all_leaves() {
+        // Test proof verification for all leaves
+        let hashes = vec![
+            ModelHash::new([1u8; 32]),
+            ModelHash::new([2u8; 32]),
+            ModelHash::new([3u8; 32]),
+            ModelHash::new([4u8; 32]),
+            ModelHash::new([5u8; 32]),
+        ];
+
+        let tree = SubscriptionMerkleTree::from_hashes(hashes.clone());
+        
+        // Verify proof for each hash
+        for hash in &hashes {
+            let proof = tree.proof(hash).expect("Should generate proof");
+            assert!(tree.verify_proof(hash, &proof), "Proof should verify for hash");
+        }
+    }
+
+    #[test]
+    fn test_merkle_proof_invalid() {
+        let hashes = vec![
+            ModelHash::new([1u8; 32]),
+            ModelHash::new([2u8; 32]),
+            ModelHash::new([3u8; 32]),
+        ];
+
+        let tree = SubscriptionMerkleTree::from_hashes(hashes.clone());
+        
+        // Try to verify a hash that's not in the tree
+        let wrong_hash = ModelHash::new([99u8; 32]);
+        assert!(!tree.verify_proof(&wrong_hash, &tree.proof(&hashes[0]).unwrap()));
     }
 }

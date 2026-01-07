@@ -15,6 +15,9 @@ A type-safe, high-performance embedded database library for Rust with automatic 
 - [x] **Relational Links**: Type-safe relationships between models
 - [x] **Blob Storage**: Automatic chunking for large data (>60KB)
 - [x] **Repository Pattern**: Compile-time access control boundaries
+- [x] **Subscription System**: Topic-based model organization for P2P sync
+- [x] **Merkle Trees**: Content-addressed hashing with proof verification
+- [x] **Selective Subscriptions**: Fine-grained control over topic subscriptions
 
 ## Quick Start
 
@@ -266,6 +269,75 @@ let post = Post {
 // or owned (contain the actual model)
 ```
 
+### Subscription System & P2P Sync
+
+Subscribe models to topics for efficient P2P synchronization:
+
+```rust
+// Define subscription topics at the definition level
+#[netabase_definition(MyApp, subscriptions(Topic1, Topic2, Topic3))]
+mod my_app {
+    // Subscribe specific models to topics
+    #[derive(NetabaseModel, ...)]
+    #[subscribe(Topic1, Topic2)]
+    pub struct User {
+        #[primary_key]
+        pub id: String,
+        pub name: String,
+    }
+
+    #[derive(NetabaseModel, ...)]
+    #[subscribe(Topic3)]
+    pub struct Post {
+        #[primary_key]
+        pub id: String,
+        pub title: String,
+    }
+}
+
+// Query by subscription topic (returns models with hashes)
+let txn = store.begin_read()?;
+let results = txn.query_by_subscription::<User, _>(&MyAppSubscriptions::Topic1)?;
+
+for (user, hash) in results {
+    println!("User {}: hash {}", user.name, hash.to_hex());
+}
+
+// Build Merkle tree for efficient sync
+use netabase_store::subscription_hash::SubscriptionMerkleTree;
+
+let hashes: Vec<_> = results.iter().map(|(_, hash)| *hash).collect();
+let tree = SubscriptionMerkleTree::from_hashes(hashes);
+
+// Generate and verify proofs
+let proof = tree.proof(&hash).unwrap();
+assert!(tree.verify_proof(&hash, &proof));
+
+// Compare trees for synchronization
+let local_root = tree.root().unwrap();
+let diff = tree.diff(&peer_tree);
+println!("Missing in peer: {} items", diff.missing_in_other.len());
+```
+
+### Selective Subscription Control
+
+Control which topics a model subscribes to at creation time:
+
+```rust
+// Subscribe to all topics (default behavior)
+txn.create(&user)?;
+
+// Subscribe to specific topics only
+let topics = vec![MyAppSubscriptions::Topic1];
+txn.create_with_subscriptions(&user, Some(topics))?;
+
+// Subscribe to no topics
+txn.create_with_subscriptions(&user, Some(vec![]))?;
+
+// Later queries will only find models in their subscribed topics
+let users_in_topic1 = txn.query_by_subscription::<User, _>(&MyAppSubscriptions::Topic1)?;
+```
+
 ## Performance
 
 Benchmarks from the examples crate (on typical hardware):
@@ -304,6 +376,8 @@ Netabase Store is built on these key components:
 4. **Migration System** (`traits::migration`) - Version management
 5. **Blob Storage** (`blob`) - Large data handling
 6. **Relational Links** (`relational`) - Type-safe relationships
+7. **Subscription System** (`subscription_hash`) - Topic-based organization with Merkle trees
+8. **P2P Sync** (`subscription_hash::SubscriptionMerkleTree`) - Content-addressed synchronization
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed internals.
 

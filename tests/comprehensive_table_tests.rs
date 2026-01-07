@@ -362,12 +362,11 @@ fn test_merkle_tree_construction() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(tree.len(), 5);
     assert!(tree.root().is_some(), "Tree should have a root");
     
-    // Test proof generation
+    // Test proof generation and verification
     let hash = hashes[0];
     let proof = tree.proof(&hash).expect("Should generate proof");
-    // TODO: Fix proof verification - verify() signature needs investigation
-    // assert!(tree.verify_proof(&hash, &proof, tree.len()), "Proof should verify");
-    println!("Generated proof for hash (verification TODO)");
+    assert!(tree.verify_proof(&hash, &proof), "Proof should verify");
+    println!("✓ Merkle proof verified successfully");
     
     // Test tree diff
     let mut hashes2 = hashes.clone();

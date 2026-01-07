@@ -12,7 +12,9 @@ This guide will walk you through the `netabase_store_examples` crate, which demo
 6. [Blob Storage](#blob-storage)
 7. [Schema Migration](#schema-migration)
 8. [Repository Pattern](#repository-pattern)
-9. [Running Examples](#running-examples)
+9. [Subscription System](#subscription-system)
+10. [Merkle Trees & P2P Sync](#merkle-trees--p2p-sync)
+11. [Running Examples](#running-examples)
 
 ---
 
@@ -434,6 +436,244 @@ mod public_repo {}
 ```
 
 See `src/boilerplate_lib/repository_example.rs` for a complete example.
+
+---
+
+## Subscription System
+
+The subscription system organizes models into topics for efficient querying and P2P synchronization.
+
+### Declaring Subscriptions
+
+```rust
+// Define subscription topics at the definition level
+#[netabase_macros::netabase_definition(MyApp, subscriptions(News, Tech, Sports))]
+mod my_app {
+    use super::*;
+
+    // Subscribe User to News and Tech topics
+    #[derive(NetabaseModel, ...)]
+    #[subscribe(News, Tech)]
+    pub struct User {
+        #[primary_key]
+        pub id: String,
+        pub name: String,
+    }
+
+    // Subscribe Post to Sports topic
+    #[derive(NetabaseModel, ...)]
+    #[subscribe(Sports)]
+    pub struct Post {
+        #[primary_key]
+        pub id: String,
+        pub title: String,
+    }
+}
+```
+
+### Querying by Subscription
+
+Query returns models with their content hashes:
+
+```rust
+let txn = store.begin_read()?;
+
+// Query all Users subscribed to News topic
+let results = txn.query_by_subscription::<User, _>(&MyAppSubscriptions::News)?;
+// Returns: Vec<(User, ModelHash)>
+
+for (user, hash) in results {
+    println!("User: {} (hash: {})", user.name, hash.to_hex());
+}
+```
+
+### Selective Subscription Control
+
+Control which topics a model subscribes to at creation time:
+
+```rust
+// Default: Subscribe to all model topics (News + Tech for User)
+txn.create(&user)?;
+
+// Selective: Subscribe to specific topics only
+let topics = vec![MyAppSubscriptions::News];
+txn.create_with_subscriptions(&user, Some(topics))?;
+// User is only in News topic, not Tech
+
+// No subscriptions: Don't add to any topic
+txn.create_with_subscriptions(&user, Some(vec![]))?;
+// User can still be queried by primary key, but won't appear in subscription queries
+```
+
+### Use Cases
+
+**Selective Subscriptions are useful for**:
+- **Privacy control**: Some users might want to be in public topics, others private
+- **Feature flags**: Beta features only for users in "Beta" topic
+- **Sharding**: Different instances sync different topic subsets
+- **Access control**: Topic-based permissions
+
+**Example**:
+```rust
+// Premium users get all features
+let premium_topics = vec![
+    AppSubscriptions::Public,
+    AppSubscriptions::Premium,
+    AppSubscriptions::Beta,
+];
+txn.create_with_subscriptions(&premium_user, Some(premium_topics))?;
+
+// Free users get limited access
+let free_topics = vec![AppSubscriptions::Public];
+txn.create_with_subscriptions(&free_user, Some(free_topics))?;
+
+// Query only premium features
+let premium_users = txn.query_by_subscription::<User, _>(
+    &AppSubscriptions::Premium
+)?;
+```
+
+---
+
+## Merkle Trees & P2P Sync
+
+Content-addressed hashing enables efficient peer-to-peer synchronization using Merkle trees.
+
+### Building Merkle Trees
+
+```rust
+use netabase_store::subscription_hash::{SubscriptionMerkleTree, ModelHash};
+
+// Get all models in a topic with their hashes
+let txn = store.begin_read()?;
+let results = txn.query_by_subscription::<User, _>(&MyAppSubscriptions::News)?;
+
+// Extract hashes
+let hashes: Vec<ModelHash> = results.iter().map(|(_, hash)| *hash).collect();
+
+// Build Merkle tree
+let tree = SubscriptionMerkleTree::from_hashes(hashes);
+
+// Get root hash for comparison
+let root = tree.root().unwrap();
+println!("Merkle root: {}", hex::encode(root));
+```
+
+### Verifying Proofs
+
+Merkle proofs allow efficient verification that a model is in the tree:
+
+```rust
+// Generate proof for a specific hash
+let hash = hashes[0];
+let proof = tree.proof(&hash).expect("Hash should be in tree");
+
+// Verify the proof
+assert!(tree.verify_proof(&hash, &proof));
+println!("✓ Proof verified successfully");
+
+// Proof verification is O(log n), not O(n)
+```
+
+### Comparing Trees for Sync
+
+Compare local and peer trees to find differences:
+
+```rust
+// Build local tree
+let local_hashes: Vec<ModelHash> = local_results.iter()
+    .map(|(_, hash)| *hash)
+    .collect();
+let local_tree = SubscriptionMerkleTree::from_hashes(local_hashes);
+
+// Build peer tree (from network)
+let peer_tree = SubscriptionMerkleTree::from_hashes(peer_hashes);
+
+// Compare trees
+let diff = local_tree.diff(&peer_tree);
+
+if diff.has_differences() {
+    println!("Sync needed:");
+    println!("  Missing in peer: {} items", diff.missing_in_other.len());
+    println!("  Missing locally: {} items", diff.missing_in_self.len());
+    
+    // Request missing items from peer
+    for hash in diff.missing_in_self {
+        // request_from_peer(hash);
+    }
+} else {
+    println!("✓ Trees are in sync");
+}
+```
+
+### P2P Synchronization Workflow
+
+```rust
+// 1. Compare roots first (fast check)
+let local_root = local_tree.root().unwrap();
+let peer_root = peer_tree.root().unwrap();
+
+if local_root == peer_root {
+    println!("✓ Already in sync");
+} else {
+    // 2. Find differences
+    let diff = local_tree.diff(&peer_tree);
+    
+    // 3. Request missing items with proofs
+    for hash in diff.missing_in_self {
+        // Peer sends: (model_data, merkle_proof)
+        // let (model, proof) = request_from_peer(hash);
+        
+        // 4. Verify proof before accepting
+        // if peer_tree.verify_proof(&hash, &proof) {
+        //     txn.create(&model)?;
+        // }
+    }
+    
+    // 5. Send our missing items to peer
+    for hash in diff.missing_in_other {
+        // let proof = local_tree.proof(&hash)?;
+        // send_to_peer(model, proof);
+    }
+}
+```
+
+### Hash Properties
+
+```rust
+// Hashes are deterministic
+let hash1 = ModelHash::from_data(&user)?;
+let hash2 = ModelHash::from_data(&user)?;
+assert_eq!(hash1, hash2);
+
+// Convert to/from hex
+let hex_str = hash1.to_hex();
+let parsed = ModelHash::from_hex(&hex_str)?;
+assert_eq!(hash1, parsed);
+
+// Hashes are sortable (for deterministic ordering)
+let mut hashes = vec![hash3, hash1, hash2];
+hashes.sort();
+```
+
+### Integration with Subscriptions
+
+Every subscription query returns hashes automatically:
+
+```rust
+// Hashes are maintained automatically during CRUD
+txn.create(&user)?;   // Hash computed and stored
+txn.update(&user)?;   // Hash recomputed
+txn.delete(&user_id)?; // Hash removed
+
+// Query always returns current hashes
+let results = txn.query_by_subscription::<User, _>(&topic)?;
+for (user, hash) in results {
+    // hash is always up-to-date with model content
+}
+```
+
+See `tests/comprehensive_table_tests.rs::test_merkle_tree_construction` for a complete example.
 
 ---
 

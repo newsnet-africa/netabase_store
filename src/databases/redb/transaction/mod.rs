@@ -628,6 +628,79 @@ where
         model.create_entry(&mut tables)
     }
 
+    /// Create a record with selective subscription topics.
+    ///
+    /// This method allows you to control which subscription topics the model is added to.
+    /// 
+    /// # Arguments
+    ///
+    /// * `model` - The model instance to insert
+    /// * `subscription_topics` - Optional list of subscription topics:
+    ///   - `None`: Subscribe to all model-level topics (default behavior, same as `create()`)
+    ///   - `Some(vec![...])`: Subscribe only to the specified topics
+    ///   - `Some(vec![])`: Subscribe to no topics
+    ///
+    /// # Type Parameters
+    ///
+    /// * `M` - The model type to create
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// // Subscribe only to Topic1
+    /// let topics = vec![DefinitionSubscriptions::Topic1];
+    /// txn.create_with_subscriptions(&user, Some(topics))?;
+    ///
+    /// // Subscribe to all topics (same as txn.create(&user))
+    /// txn.create_with_subscriptions(&user, None)?;
+    ///
+    /// // Subscribe to no topics
+    /// txn.create_with_subscriptions(&user, Some(vec![]))?;
+    /// ```
+    #[inline]
+    pub fn create_with_subscriptions<'data: 'db, M>(
+        &'db self,
+        model: &'data M,
+        subscription_topics: Option<Vec<D::SubscriptionKeys>>,
+    ) -> NetabaseResult<()>
+    where
+        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
+        for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: Clone,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Secondary as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Blob as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary as redb::Value>::SelfType<'a>>,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Libp2p as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: 'static,
+        D: 'static,
+        D::SubscriptionKeys: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as redb::Value>::SelfType<'a>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem as redb::Value>::SelfType<'a>>,
+    {
+        let definitions = M::table_definitions();
+        let perms = ModelRelationPermissions {
+            relationa_tree_access: &[RelationPermission(M::TREE_NAMES, PermissionFlag::ReadWrite)],
+        };
+        let mut tables = self.open_model_tables(definitions, Some(perms))?;
+        model.create_entry_with_subscriptions(&mut tables, subscription_topics)
+    }
+
     /// Read a record by its primary key.
     ///
     /// Returns `Some(model)` if a record with the given key exists,

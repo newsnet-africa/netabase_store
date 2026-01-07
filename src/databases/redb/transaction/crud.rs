@@ -44,6 +44,16 @@ where
         tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()>;
 
+    /// Create entry with selective subscription topics
+    /// 
+    /// If `subscription_topics` is None, subscribes to all model topics (default behavior).
+    /// If Some(vec), subscribes only to the specified topics.
+    fn create_entry_with_subscriptions<'txn>(
+        &'db self,
+        tables: &mut ModelOpenTables<'txn, 'db, D, Self>,
+        subscription_topics: Option<Vec<D::SubscriptionKeys>>,
+    ) -> NetabaseResult<()>;
+
     fn read_entry<'txn>(
         key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary,
         tables: &'txn ModelOpenTables<'txn, 'db, D, Self>,
@@ -330,6 +340,16 @@ where
         tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()> 
     {
+        // Delegate to create_entry_with_subscriptions with None (default behavior)
+        self.create_entry_with_subscriptions(tables, None)
+    }
+
+    fn create_entry_with_subscriptions<'txn>(
+        &'db self,
+        tables: &mut ModelOpenTables<'txn, 'db, D, Self>,
+        subscription_topics: Option<Vec<D::SubscriptionKeys>>,
+    ) -> NetabaseResult<()> 
+    {
         // 1. Insert into Main Table
         match &mut tables.main {
             TablePermission::ReadWrite(ReadWriteTableType::Table(table)) => {
@@ -369,15 +389,23 @@ where
              }
         }
 
-        // 4. Insert into Subscription Tables
-        let subscription_keys = self.get_subscription_keys();
-        for ((table_perm, _name), key) in tables.subscription.iter_mut().zip(subscription_keys.into_iter()) {
+        // 4. Insert into Subscription Tables (with selective subscription support)
+        let subscription_keys_to_insert: Vec<D::SubscriptionKeys> = match subscription_topics {
+            // If None, use all model subscription keys (default behavior)
+            None => {
+                let all_keys = self.get_subscription_keys();
+                all_keys.into_iter()
+                    .map(|key| key.try_into().map_err(|_| NetabaseError::Other))
+                    .collect::<NetabaseResult<Vec<_>>>()?
+            }
+            // If Some, use only the provided topics
+            Some(topics) => topics,
+        };
+
+        for ((table_perm, _name), key) in tables.subscription.iter_mut().zip(subscription_keys_to_insert.into_iter()) {
              match table_perm {
                  TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
-                     // Convert model-specific subscription key to definition-level subscription key
-                     let model_key: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription = key;
-                     let def_key: D::SubscriptionKeys = model_key.try_into().map_err(|_| NetabaseError::Other)?;
-                     table.insert(def_key.borrow(), self.get_primary_key().borrow())
+                     table.insert(key.borrow(), self.get_primary_key().borrow())
                          .map_err(|e| NetabaseError::RedbError(e.into()))?;
                  }
                  _ => return Err(NetabaseError::Other),
