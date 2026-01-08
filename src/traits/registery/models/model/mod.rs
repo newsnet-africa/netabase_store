@@ -329,6 +329,8 @@ where
 
 
     fn get_primary_key(&self) -> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary;
+    /// Get a reference to the primary key, avoiding clones for allocation-heavy keys.
+    fn get_primary_key_ref(&self) -> &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary;
     fn get_secondary_keys(
         &self,
     ) -> Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Secondary>;

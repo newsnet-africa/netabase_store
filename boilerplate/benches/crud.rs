@@ -8,7 +8,12 @@ use netabase_store_examples::boilerplate_lib::definition::{
 use netabase_store_examples::boilerplate_lib::models::blob_types::{
     AnotherLargeUserFile, LargeUserFile,
 };
-use netabase_store_examples::boilerplate_lib::{CategoryID, Definition, DefinitionSubscriptions};
+use netabase_store_examples::boilerplate_lib::{CategoryID, Definition, DefinitionSubscriptions, DefinitionRecord};
+use netabase_store::databases::redb::libp2p::Libp2pRedbStore;
+use netabase_store::libp2p::kad::store::RecordStore;
+use netabase_store::libp2p::kad::Record;
+use netabase_store::traits::libp2p::libp2p_model::Libp2pMetadata;
+use netabase_store::libp2p::PeerId;
 use rand::prelude::*;
 use redb::{MultimapTableDefinition, ReadableDatabase, ReadableTable, TableDefinition};
 use std::hint::black_box;
@@ -96,6 +101,12 @@ pub fn generate_random_user() -> User {
         bio,
         another,
     }
+}
+
+fn user_to_record(user: User) -> Record {
+    let meta = Libp2pMetadata::default();
+    let wrapper = DefinitionRecord(Definition::User(user), meta);
+    wrapper.into()
 }
 
 // --- Benchmarks ---
@@ -286,6 +297,27 @@ fn bench_crud_operations(c: &mut Criterion) {
                 BatchSize::PerIteration,
             );
         });
+
+        // Libp2p Store Insert (RecordStore::put)
+        insert_group.bench_with_input(BenchmarkId::new("Libp2p", size), size, |b, &size| {
+            b.iter_batched(
+                || {
+                    let users: Vec<User> = (0..size).map(|_| generate_random_user()).collect();
+                    let records: Vec<Record> = users.into_iter().map(user_to_record).collect();
+                    let name = format!("bench_libp2p_insert_{}_{}", size, rand::random::<u64>());
+                    let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
+                    let local_id = PeerId::random();
+                    let record_store = Libp2pRedbStore::new(store, local_id);
+                    (record_store, records)
+                },
+                |(mut record_store, records)| {
+                    for r in records {
+                        record_store.put(r).expect("Put failed");
+                    }
+                },
+                BatchSize::PerIteration,
+            );
+        });
     }
     insert_group.finish();
 
@@ -455,6 +487,32 @@ fn bench_crud_operations(c: &mut Criterion) {
                         black_box(main_table.get(black_box(&user.id)))
                             .expect("Failed to get user")
                             .map(|g| g.value());
+                    }
+                },
+                BatchSize::PerIteration,
+            );
+        });
+
+        // Libp2p Store Read (RecordStore::get)
+        read_group.bench_with_input(BenchmarkId::new("Libp2p", size), size, |b, &size| {
+            b.iter_batched(
+                || {
+                    let users: Vec<User> = (0..size).map(|_| generate_random_user()).collect();
+                    let records: Vec<Record> = users.into_iter().map(user_to_record).collect();
+                    let name = format!("bench_libp2p_read_{}_{}", size, rand::random::<u64>());
+                    let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
+                    let local_id = PeerId::random();
+                    let mut record_store = Libp2pRedbStore::new(store, local_id);
+                    
+                    for r in &records {
+                        record_store.put(r.clone()).expect("Setup put failed");
+                    }
+                    
+                    (record_store, records)
+                },
+                |(record_store, records)| {
+                    for r in records {
+                        let _ = black_box(record_store.get(&r.key));
                     }
                 },
                 BatchSize::PerIteration,
@@ -731,6 +789,32 @@ fn bench_crud_operations(c: &mut Criterion) {
                         }
                     }
                     txn.commit().expect("Failed to commit");
+                },
+                BatchSize::PerIteration,
+            );
+        });
+
+        // Libp2p Store Delete (RecordStore::remove)
+        delete_group.bench_with_input(BenchmarkId::new("Libp2p", size), size, |b, &size| {
+            b.iter_batched(
+                || {
+                    let users: Vec<User> = (0..size).map(|_| generate_random_user()).collect();
+                    let records: Vec<Record> = users.into_iter().map(user_to_record).collect();
+                    let name = format!("bench_libp2p_delete_{}_{}", size, rand::random::<u64>());
+                    let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
+                    let local_id = PeerId::random();
+                    let mut record_store = Libp2pRedbStore::new(store, local_id);
+                    
+                    for r in &records {
+                        record_store.put(r.clone()).expect("Setup put failed");
+                    }
+                    
+                    (record_store, records)
+                },
+                |(mut record_store, records)| {
+                    for r in records {
+                        record_store.remove(&r.key);
+                    }
                 },
                 BatchSize::PerIteration,
             );

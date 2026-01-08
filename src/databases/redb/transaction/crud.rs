@@ -365,7 +365,7 @@ where
              match table_perm {
                  TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
                      let k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary = key;
-                     table.insert(k.borrow(), self.get_primary_key().borrow())
+                     table.insert(k.borrow(), self.get_primary_key_ref().borrow())
                          .map_err(|e| NetabaseError::RedbError(e.into()))?;
                  }
                  _ => return Err(NetabaseError::Other),
@@ -405,7 +405,7 @@ where
         for ((table_perm, _name), key) in tables.subscription.iter_mut().zip(subscription_keys_to_insert.into_iter()) {
              match table_perm {
                  TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
-                     table.insert(key.borrow(), self.get_primary_key().borrow())
+                     table.insert(key.borrow(), self.get_primary_key_ref().borrow())
                          .map_err(|e| NetabaseError::RedbError(e.into()))?;
                  }
                  _ => return Err(NetabaseError::Other),
@@ -460,7 +460,7 @@ where
         // redb's insert() returns the old value if the key existed
         let old_model = match &mut tables.main {
             TablePermission::ReadWrite(ReadWriteTableType::Table(table)) => {
-                table.insert(self.get_primary_key().borrow(), self)
+                table.insert(self.get_primary_key_ref().borrow(), self)
                     .map_err(|e| NetabaseError::RedbError(e.into()))?
                     .map(|access_guard| access_guard.value())
             }

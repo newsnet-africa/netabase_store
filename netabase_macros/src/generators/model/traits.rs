@@ -56,6 +56,11 @@ impl<'a> TraitGenerator<'a> {
             fn get_primary_key<'b>(&'b self) -> #id_type {
                 self.#pk_field_name.clone()
             }
+
+            #[inline]
+            fn get_primary_key_ref<'b>(&'b self) -> &#id_type {
+                &self.#pk_field_name
+            }
         };
 
         // Generate get_secondary_keys method

@@ -13,6 +13,7 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use netabase_macros::NetabaseModel;
 use netabase_store::databases::redb::RedbStore;
 use netabase_store::traits::database::store::NBStore;
+use netabase_store::databases::redb::transaction::RedbModelCrud;
 use redb::{Database, ReadableDatabase, TableDefinition};
 use serde::{Deserialize, Serialize};
 use std::hint::black_box;
@@ -44,9 +45,9 @@ fn bench_minimal_insert(c: &mut Criterion) {
             })
             .collect();
         
-        // Abstracted implementation
+        // Abstracted implementation (Naive)
         group.bench_with_input(
-            BenchmarkId::new("Abstracted", count),
+            BenchmarkId::new("Abstracted (Naive)", count),
             count,
             |b, _| {
                 b.iter_batched(
@@ -59,6 +60,33 @@ fn bench_minimal_insert(c: &mut Criterion) {
                         let txn = store.begin_write().expect("Failed to begin write");
                         for item in &items {
                             txn.create::<Item>(item).expect("Failed to insert");
+                        }
+                        txn.commit().expect("Failed to commit");
+                        black_box(());
+                    },
+                    criterion::BatchSize::PerIteration,
+                );
+            },
+        );
+
+        // Abstracted implementation (Batch/Optimized)
+        group.bench_with_input(
+            BenchmarkId::new("Abstracted (Batch)", count),
+            count,
+            |b, _| {
+                b.iter_batched(
+                    || {
+                        let store = RedbStore::<MinimalDefinition>::new_in_memory()
+                            .expect("Failed to create store");
+                        (store, items.clone())
+                    },
+                    |(store, items)| {
+                        let txn = store.begin_write().expect("Failed to begin write");
+                        {
+                            let mut tables = txn.prepare_model::<Item>().expect("Failed to prepare tables");
+                            for item in &items {
+                                item.create_entry(&mut tables).expect("Failed to insert");
+                            }
                         }
                         txn.commit().expect("Failed to commit");
                         black_box(());
@@ -114,9 +142,9 @@ fn bench_minimal_read(c: &mut Criterion) {
             })
             .collect();
         
-        // Abstracted implementation
+        // Abstracted implementation (Naive)
         group.bench_with_input(
-            BenchmarkId::new("Abstracted", count),
+            BenchmarkId::new("Abstracted (Naive)", count),
             count,
             |b, _| {
                 b.iter_batched(
@@ -126,8 +154,11 @@ fn bench_minimal_read(c: &mut Criterion) {
                         
                         // Insert data
                         let txn = store.begin_write().expect("Failed to begin write");
-                        for item in &items {
-                            txn.create::<Item>(item).expect("Failed to insert");
+                        {
+                            let mut tables = txn.prepare_model::<Item>().expect("Failed to prepare");
+                            for item in &items {
+                                item.create_entry(&mut tables).expect("Failed to insert");
+                            }
                         }
                         txn.commit().expect("Failed to commit");
                         
@@ -138,6 +169,44 @@ fn bench_minimal_read(c: &mut Criterion) {
                         for i in 0..*count {
                             let id = ItemID(format!("item_{:06}", i));
                             let _ = black_box(txn.read::<Item>(&id).expect("Failed to read"));
+                        }
+                        black_box(());
+                    },
+                    criterion::BatchSize::PerIteration,
+                );
+            },
+        );
+
+        // Abstracted implementation (Batch/Optimized)
+        group.bench_with_input(
+            BenchmarkId::new("Abstracted (Batch)", count),
+            count,
+            |b, _| {
+                b.iter_batched(
+                    || {
+                        let store = RedbStore::<MinimalDefinition>::new_in_memory()
+                            .expect("Failed to create store");
+                        
+                        // Insert data
+                        let txn = store.begin_write().expect("Failed to begin write");
+                        {
+                            let mut tables = txn.prepare_model::<Item>().expect("Failed to prepare");
+                            for item in &items {
+                                item.create_entry(&mut tables).expect("Failed to insert");
+                            }
+                        }
+                        txn.commit().expect("Failed to commit");
+                        
+                        store
+                    },
+                    |store| {
+                        let txn = store.begin_read().expect("Failed to begin read");
+                        {
+                            let tables = txn.prepare_model::<Item>().expect("Failed to prepare");
+                            for i in 0..*count {
+                                let id = ItemID(format!("item_{:06}", i));
+                                let _ = black_box(Item::read_default(&id, &tables).expect("Failed to read"));
+                            }
                         }
                         black_box(());
                     },
