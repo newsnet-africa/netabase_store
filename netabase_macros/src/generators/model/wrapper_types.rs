@@ -55,8 +55,16 @@ impl<'a> WrapperTypeGenerator<'a> {
         // Use family name for ID type if this is a versioned model
         let id_type_name = primary_key_type_name_for_model(self.visitor);
 
-        let pk_field = self.visitor.primary_key.as_ref().unwrap();
-        let inner_type = &pk_field.ty;
+        let inner_type = if let Some(pk_field) = &self.visitor.primary_key {
+            pk_field.ty.clone()
+        } else if let Some(ca_config) = &self.visitor.content_addressed_config {
+            // Content-addressed model: use key_type or default to [u8; 32]
+            ca_config.key_type.clone().unwrap_or_else(|| {
+                syn::parse_str::<Type>("[u8; 32]").unwrap()
+            })
+        } else {
+            panic!("Model must have a primary key or be content-addressed");
+        };
 
         quote! {
             #[derive(

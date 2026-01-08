@@ -311,6 +311,103 @@ pub struct VersionAttributeConfig {
     pub supports_downgrade: bool,
 }
 
+/// Content-addressed configuration parsed from #[netabase_content_addressed(...)] attribute.
+#[derive(Debug, Clone)]
+pub struct ContentAddressedAttributeConfig {
+    /// The generic hasher type (e.g., "Sha256").
+    pub hasher: syn::Type,
+    /// The path to the user-defined hash function (e.g., "my_hash_fn").
+    pub function: syn::Path,
+    /// Optional key type (defaults to [u8; 32])
+    pub key_type: Option<syn::Type>,
+}
+
+/// Parse #[netabase_content_addressed(hasher = "Type", function = "path", key_type = "Type")] attribute.
+pub fn parse_content_addressed_attribute(attr: &Attribute) -> Result<ContentAddressedAttributeConfig> {
+    use syn::Token;
+    use syn::parse::Parse;
+
+    struct ContentAddressedAttr {
+        hasher: syn::Type,
+        function: syn::Path,
+        key_type: Option<syn::Type>,
+    }
+
+    impl Parse for ContentAddressedAttr {
+        fn parse(input: syn::parse::ParseStream) -> Result<Self> {
+            let mut hasher = None;
+            let mut function = None;
+            let mut key_type = None;
+
+            while !input.is_empty() {
+                let ident: syn::Ident = input.parse()?;
+
+                if ident == "hasher" {
+                    let _eq: Token![=] = input.parse()?;
+                    let lit: syn::LitStr = input.parse()?;
+                    hasher = Some(syn::parse_str::<syn::Type>(&lit.value())?);
+                } else if ident == "function" {
+                    let _eq: Token![=] = input.parse()?;
+                    let lit: syn::LitStr = input.parse()?;
+                    function = Some(syn::parse_str::<syn::Path>(&lit.value())?);
+                } else if ident == "key_type" {
+                    let _eq: Token![=] = input.parse()?;
+                    let lit: syn::LitStr = input.parse()?;
+                    key_type = Some(syn::parse_str::<syn::Type>(&lit.value())?);
+                } else {
+                    return Err(Error::new(
+                        ident.span(),
+                        format!(
+                            "unexpected attribute key '{}', expected 'hasher', 'function' or 'key_type'",
+                            ident
+                        ),
+                    ));
+                }
+
+                // Consume optional comma
+                if input.peek(Token![,]) {
+                    let _comma: Token![,] = input.parse()?;
+                }
+            }
+
+            let hasher = hasher.ok_or_else(|| {
+                Error::new(
+                    input.span(),
+                    "missing 'hasher' in netabase_content_addressed attribute",
+                )
+            })?;
+            let function = function.ok_or_else(|| {
+                Error::new(
+                    input.span(),
+                    "missing 'function' in netabase_content_addressed attribute",
+                )
+            })?;
+
+            Ok(ContentAddressedAttr {
+                hasher,
+                function,
+                key_type,
+            })
+        }
+    }
+
+    let meta = &attr.meta;
+
+    if let Meta::List(meta_list) = meta {
+        let args: ContentAddressedAttr = syn::parse2(meta_list.tokens.clone())?;
+        Ok(ContentAddressedAttributeConfig {
+            hasher: args.hasher,
+            function: args.function,
+            key_type: args.key_type,
+        })
+    } else {
+        Err(Error::new_spanned(
+            attr,
+            "netabase_content_addressed must be in the form #[netabase_content_addressed(hasher = \"Type\", function = \"path\")]",
+        ))
+    }
+}
+
 /// Parse #[netabase_version(family = "User", version = 2)] attribute.
 ///
 /// # Supported forms:

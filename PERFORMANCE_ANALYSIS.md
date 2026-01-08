@@ -58,13 +58,28 @@ The full CRUD benchmark tests realistic usage with:
 
 | Implementation | Time (10k ops) | Time/Op | Overhead vs Raw |
 |----------------|----------------|---------|-----------------|
-| Raw Redb       | 1.059 s        | 105.9 µs| -               |
-| **Abstracted (Batch)** | **1.037 s** | **103.7 µs** | **-2.1% (Faster)** |
-| Libp2p (Naive) | 2.038 s        | 203.8 µs| +92.4%          |
+| Raw Redb       | 1.87 s         | 187 µs  | -               |
+| **Abstracted (Batch)** | **1.91 s** | **191 µs** | **+2.1%** |
+| Libp2p (Naive) | 4.09 s         | 409 µs  | +118%           |
 
 **Analysis**:
-- **Batching Wins**: The Abstracted (Batch) implementation is actually *faster* than the Raw implementation in this run (-2.1%). This is likely due to efficient internal handling of complex table logic versus the manual setup in the Raw benchmark.
-- **Libp2p Overhead**: The `Libp2pRedbStore` implementation creates a new transaction for every `put` operation (dictated by the `RecordStore` trait). This "Naive" pattern doubles the execution time (~2x overhead), confirming that transaction/table management is the primary cost driver.
+- **Batching Wins**: The Abstracted (Batch) implementation maintains near-parity with Raw implementation (~2% overhead). This confirms that the abstraction cost is negligible compared to the cost of maintaining complex indexes and writing data.
+- **Libp2p Overhead**: The `Libp2pRedbStore` implementation continues to show ~2x overhead due to the transaction-per-record requirement of the trait.
+
+### Content-Addressed Models (Immutable Data)
+
+New benchmark testing the performance of `#[netabase_content_addressed]` models. These models use their hash as the primary key and are immutable.
+
+#### Insert Performance (10,000 items)
+
+| Implementation | Time (10k ops) | Time/Op | Notes |
+|----------------|----------------|---------|-------|
+| **Content-Addressed** | **142 ms** | **14.2 µs** | **Simulating P2P Sync (Pre-hashed)** |
+
+**Analysis**:
+- **High Throughput**: Inserting 10,000 content-addressed items takes only ~142ms.
+- **Scenario**: This benchmark simulates a P2P sync scenario where we receive `Envelopes` (data + hash) from a peer. The hashing cost is already paid.
+- **Efficiency**: The low cost (14.2µs vs 191µs for User) reflects the simpler structure (fewer indexes, no blobs) and efficient `Envelope` storage.
 
 ---
 

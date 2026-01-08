@@ -33,25 +33,26 @@ Switched benchmarks to use in-memory redb configuration to:
 ## Current Performance Characteristics (In-Memory)
 
 ### Minimal Benchmark (Single table, primary key only)
-| Operation | Count | Abstracted | Raw | Overhead |
-|-----------|-------|------------|-----|----------|
-| Insert | 100 | 212µs | 117µs | **+81%** |
-| Insert | 1,000 | 1.81ms | 755µs | **+140%** |
-| Insert | 10,000 | 20.4ms | 8.2ms | **+148%** |
-| Read | 100 | 164µs | 93µs | **+76%** |
+| Operation | Count | Abstracted (Batch) | Raw | Overhead |
+|-----------|-------|-------------------|-----|----------|
+| Insert | 10,000 | 12.98ms | 8.28ms | **+57%** |
+| Read | 10,000 | 8.91ms | 4.14ms | **+115%** |
 
-**Key Finding**: The abstraction overhead is 80-150% for operations. This is primarily due to:
-1. Multiple trait method calls per operation
-2. Enum construction and pattern matching
-3. Vector allocations for key collections
-4. Subscription deduplication logic (stores duplicate data)
+**Key Finding**: The abstraction overhead is reduced to ~60% for batched writes using `prepare_model`. Read overhead remains ~115% due to key cloning and wrapper construction. Naive usage (without batching) incurs higher overhead (~135-150%).
 
-### Full CRUD Benchmark (With secondary keys, relations, subscriptions, blobs)
-The full benchmark shows similar overhead patterns but with additional costs from:
-- Secondary index maintenance  
-- Relational key tracking
-- Subscription topic indexing
-- Blob splitting and storage
+### Full CRUD Benchmark (Complex models)
+| Operation | Count | Abstracted (Batch) | Raw | Overhead |
+|-----------|-------|-------------------|-----|----------|
+| Insert | 10,000 | 1.91s | 1.87s | **+2.1%** |
+
+**Key Finding**: For complex models with multiple indexes and blobs, the abstraction overhead becomes negligible (~2%) when using batching. The cost of maintaining indexes dominates the execution time.
+
+### Content-Addressed Models (New)
+| Operation | Count | Time | Throughput |
+|-----------|-------|------|------------|
+| Insert | 10,000 | 142ms | **70k ops/sec** |
+
+**Key Finding**: Content-addressed models (using `#[netabase_content_addressed]`) offer extremely high throughput for immutable data ingestion, especially in sync scenarios where hashes are pre-calculated.
 
 ## Recommendations
 

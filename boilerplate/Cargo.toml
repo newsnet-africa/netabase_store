@@ -59,6 +59,10 @@ path = "tests/macro_test.rs"
 name = "migration_logic"
 path = "tests/migration_logic.rs"
 
+[[test]]
+name = "content_addressed_test"
+path = "tests/content_addressed_test.rs"
+
 # Examples demonstrating new API features
 [[example]]
 name = "selective_subscriptions"

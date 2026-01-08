@@ -37,6 +37,28 @@ fn generate_random_record() -> Record {
     wrapper.into()
 }
 
+fn generate_random_content_addressed_record() -> Record {
+    let mut rng = rand::rng();
+    
+    // random string
+    let mut random_string = |len: usize| {
+        (0..len)
+            .map(|_| rng.random_range(b'a'..=b'z') as char)
+            .collect::<String>()
+    };
+
+    let post = netabase_store_examples::ImmutablePost {
+        author: random_string(10),
+        content: random_string(100),
+        timestamp: rng.random(),
+    };
+    
+    let envelope = netabase_store_examples::ImmutablePostEnvelope::from(post);
+    let meta = Libp2pMetadata::default();
+    let wrapper = DefinitionRecord(Definition::ImmutablePost(envelope), meta);
+    wrapper.into()
+}
+
 fn bench_record_store(c: &mut Criterion) {
     let sizes = [100, 1000];
     let local_id = PeerId::random();
@@ -80,6 +102,48 @@ fn bench_record_store(c: &mut Criterion) {
                 |(record_store, records)| {
                     for r in records {
                         let _ = record_store.get(&r.key); // Expect removed to avoid allocation in loop check
+                    }
+                },
+                BatchSize::PerIteration,
+            );
+        });
+
+        // Content Addressed Benchmarks
+        group.bench_with_input(BenchmarkId::new("Put_ContentAddressed", size), size, |b, &size| {
+            b.iter_batched(
+                || {
+                    let records: Vec<Record> = (0..size).map(|_| generate_random_content_addressed_record()).collect();
+                    let name = format!("bench_ca_record_put_{}_{}", size, rand::random::<u64>());
+                    let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
+                    let record_store = Libp2pRedbStore::new(store, local_id);
+                    (record_store, records)
+                },
+                |(mut record_store, records)| {
+                    for r in records {
+                        record_store.put(r).expect("Put failed");
+                    }
+                },
+                BatchSize::PerIteration,
+            );
+        });
+        
+        group.bench_with_input(BenchmarkId::new("Get_ContentAddressed", size), size, |b, &size| {
+            b.iter_batched(
+                || {
+                    let records: Vec<Record> = (0..size).map(|_| generate_random_content_addressed_record()).collect();
+                    let name = format!("bench_ca_record_get_{}_{}", size, rand::random::<u64>());
+                    let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
+                    let mut record_store = Libp2pRedbStore::new(store, local_id);
+                    
+                    for r in &records {
+                        record_store.put(r.clone()).expect("Setup put failed");
+                    }
+                    
+                    (record_store, records)
+                },
+                |(record_store, records)| {
+                    for r in records {
+                        let _ = record_store.get(&r.key); 
                     }
                 },
                 BatchSize::PerIteration,

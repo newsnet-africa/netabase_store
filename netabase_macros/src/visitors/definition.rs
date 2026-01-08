@@ -16,6 +16,11 @@ impl ModelInfo {
         self.visitor.version_info.as_ref()
     }
 
+    /// Check if this model is content-addressed.
+    pub fn is_content_addressed(&self) -> bool {
+        self.visitor.content_addressed_config.is_some()
+    }
+
     /// Get the family name if versioned, otherwise use the struct name.
     pub fn family_name(&self) -> String {
         self.version_info()

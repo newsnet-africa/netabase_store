@@ -1,6 +1,6 @@
 use crate::utils::attributes::{
-    VersionAttributeConfig, find_attribute, get_version_info, has_attribute, parse_link_attribute,
-    parse_subscribe_attribute,
+    VersionAttributeConfig, ContentAddressedAttributeConfig, find_attribute, get_version_info, has_attribute, parse_link_attribute,
+    parse_subscribe_attribute, parse_content_addressed_attribute,
 };
 use crate::utils::errors;
 use syn::{Field, Ident, Path, Result, Type};
@@ -67,6 +67,8 @@ pub struct ModelFieldVisitor {
     pub version_info: Option<ModelVersionInfo>,
     /// Whether this model supports libp2p features
     pub is_libp2p_enabled: bool,
+    /// Configuration for content-addressed models (implicit primary key)
+    pub content_addressed_config: Option<ContentAddressedAttributeConfig>,
 }
 
 impl ModelFieldVisitor {
@@ -81,6 +83,7 @@ impl ModelFieldVisitor {
             subscriptions: None,
             version_info: None,
             is_libp2p_enabled: false,
+            content_addressed_config: None,
         }
     }
 
@@ -200,13 +203,18 @@ impl ModelFieldVisitor {
             self.is_libp2p_enabled = true;
         }
 
+        // Check for content_addressed support
+        if let Some(attr) = find_attribute(attrs, "netabase_content_addressed") {
+            self.content_addressed_config = Some(parse_content_addressed_attribute(attr)?);
+        }
+
         Ok(())
     }
 
     /// Validate that the visitor collected valid information
     pub fn validate(&self) -> Result<()> {
-        // Must have exactly one primary key
-        if self.primary_key.is_none() {
+        // Must have exactly one primary key, unless content addressed
+        if self.primary_key.is_none() && self.content_addressed_config.is_none() {
             return Err(errors::no_primary_key(self.model_name.span()));
         }
 

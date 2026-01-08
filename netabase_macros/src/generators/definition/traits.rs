@@ -115,6 +115,13 @@ impl<'a> DefinitionTraitGenerator<'a> {
         for model in &self.visitor.models {
             let model_name = &model.name;
             let libp2p_provider_key_enum = libp2p_provider_key_enum_name(model_name);
+            
+            let is_content_addressed = model.is_content_addressed();
+            let target_type = if is_content_addressed {
+                 quote::format_ident!("{}Envelope", model_name)
+            } else {
+                 model_name.clone()
+            };
 
             // put_record block
             put_record_arms.push(quote! {
@@ -129,21 +136,21 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     };
                     use redb::{ReadableTable, ReadableMultimapTable};
 
-                    type Keys = <#model_name as NetabaseModel<#definition_name>>::Keys;
-                    type Pk = <Keys as NetabaseModelKeys<#definition_name, #model_name>>::Primary;
-                    type Sk = <Keys as NetabaseModelKeys<#definition_name, #model_name>>::Secondary;
-                    type Rk = <Keys as NetabaseModelKeys<#definition_name, #model_name>>::Relational;
-                    type Bk = <Keys as NetabaseModelKeys<#definition_name, #model_name>>::Blob;
-                    type Bi = <Bk as NetabaseModelBlobKey<#definition_name, #model_name>>::BlobItem;
+                    type Keys = <#target_type as NetabaseModel<#definition_name>>::Keys;
+                    type Pk = <Keys as NetabaseModelKeys<#definition_name, #target_type>>::Primary;
+                    type Sk = <Keys as NetabaseModelKeys<#definition_name, #target_type>>::Secondary;
+                    type Rk = <Keys as NetabaseModelKeys<#definition_name, #target_type>>::Relational;
+                    type Bk = <Keys as NetabaseModelKeys<#definition_name, #target_type>>::Blob;
+                    type Bi = <Bk as NetabaseModelBlobKey<#definition_name, #target_type>>::BlobItem;
                     type SubK = <#definition_name as ::netabase_store::traits::registery::definition::NetabaseDefinition>::SubscriptionKeys;
 
                     // Helper to open table
                     let open_rw_table = |name| {
-                        let def = redb::TableDefinition::<Pk, #model_name>::new(name);
+                        let def = redb::TableDefinition::<Pk, #target_type>::new(name);
                         txn.open_table(def).map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e))
                     };
                     
-                    let tree_names = <#model_name as NetabaseModel<#definition_name>>::TREE_NAMES;
+                    let tree_names = <#target_type as NetabaseModel<#definition_name>>::TREE_NAMES;
 
                     // Main
                     let main_table = open_rw_table(tree_names.main.table_name)?;
@@ -192,6 +199,10 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     };
 
                     // Check existence
+                    // Note: For content-addressed models, model is the Envelope.
+                    // But in the Definition enum, #model_name(#envelope_name) if content-addressed.
+                    // So `ref model` is `&Envelope`.
+                    
                     let exists = match &tables.main {
                         TablePermission::ReadWrite(ReadWriteTableType::Table(t)) => {
                             t.get(&model.get_primary_key()).map_err(|e| ::netabase_store::errors::NetabaseError::RedbStorageError(e))?.is_some()
@@ -211,15 +222,15 @@ impl<'a> DefinitionTraitGenerator<'a> {
             find_record_arms.push(quote! {
                 {
                     use redb::ReadableTable;
-                    type Pk = <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #model_name>>::Primary;
+                    type Pk = <<#target_type as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #target_type>>::Primary;
                     if let Ok(pk) = ::netabase_store::postcard::from_bytes::<Pk>(key_bytes) {
-                        let table_name = <#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES.main.table_name;
-                        let table_def = redb::TableDefinition::<Pk, #model_name>::new(table_name);
+                        let table_name = <#target_type as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES.main.table_name;
+                        let table_def = redb::TableDefinition::<Pk, #target_type>::new(table_name);
                         
                         if let Ok(table) = txn.open_table(table_def) {
                             if let Ok(Some(val)) = table.get(&pk) {
                                 let model = val.value();
-                                let meta = <#model_name as ::netabase_store::traits::libp2p::libp2p_model::Libp2pModel>::get_libp2p_metadata(&model)
+                                let meta = <#target_type as ::netabase_store::traits::libp2p::libp2p_model::Libp2pModel>::get_libp2p_metadata(&model)
                                     .cloned()
                                     .unwrap_or_default();
                                 
@@ -234,10 +245,10 @@ impl<'a> DefinitionTraitGenerator<'a> {
             // add_provider block
             add_provider_arms.push(quote! {
                 {
-                    type Pk = <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #model_name>>::Primary;
+                    type Pk = <<#target_type as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #target_type>>::Primary;
                     if let Ok(pk) = ::netabase_store::postcard::from_bytes::<Pk>(key_bytes) {
                         let provider_key = #libp2p_provider_key_enum::Full(pk);
-                        let tree_providers = <#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES.providers;
+                        let tree_providers = <#target_type as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES.providers;
                         if let Some(first_provider) = tree_providers.first() {
                             let table_name = first_provider.table_name;
                             let table_def = redb::MultimapTableDefinition::<#libp2p_provider_key_enum, ::netabase_store::databases::redb::transaction::value_wrappers::Libp2pProviderRecordWrapper>::new(table_name);
@@ -255,10 +266,10 @@ impl<'a> DefinitionTraitGenerator<'a> {
             get_providers_arms.push(quote! {
                 {
                     use redb::ReadableMultimapTable;
-                    type Pk = <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #model_name>>::Primary;
+                    type Pk = <<#target_type as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #target_type>>::Primary;
                     if let Ok(pk) = ::netabase_store::postcard::from_bytes::<Pk>(key_bytes) {
                         let provider_key = #libp2p_provider_key_enum::Full(pk);
-                        let tree_providers = <#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES.providers;
+                        let tree_providers = <#target_type as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES.providers;
                         if let Some(first_provider) = tree_providers.first() {
                             let table_name = first_provider.table_name;
                             let table_def = redb::MultimapTableDefinition::<#libp2p_provider_key_enum, ::netabase_store::databases::redb::transaction::value_wrappers::Libp2pProviderRecordWrapper>::new(table_name);
@@ -280,10 +291,10 @@ impl<'a> DefinitionTraitGenerator<'a> {
             // remove_record block
             remove_record_arms.push(quote! {
                 {
-                    type Pk = <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #model_name>>::Primary;
+                    type Pk = <<#target_type as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #target_type>>::Primary;
                     if let Ok(pk) = ::netabase_store::postcard::from_bytes::<Pk>(key_bytes) {
-                        let table_name = <#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES.main.table_name;
-                        let table_def = redb::TableDefinition::<Pk, #model_name>::new(table_name);
+                        let table_name = <#target_type as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES.main.table_name;
+                        let table_def = redb::TableDefinition::<Pk, #target_type>::new(table_name);
                         
                         if let Ok(mut table) = txn.open_table(table_def) {
                             let _ = table.remove(&pk);
@@ -296,10 +307,10 @@ impl<'a> DefinitionTraitGenerator<'a> {
             remove_provider_arms.push(quote! {
                 {
                     use redb::ReadableMultimapTable;
-                    type Pk = <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #model_name>>::Primary;
+                    type Pk = <<#target_type as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #target_type>>::Primary;
                     if let Ok(pk) = ::netabase_store::postcard::from_bytes::<Pk>(key_bytes) {
                         let provider_key = #libp2p_provider_key_enum::Full(pk);
-                        let tree_providers = <#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES.providers;
+                        let tree_providers = <#target_type as ::netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES.providers;
                         if let Some(first_provider) = tree_providers.first() {
                             let table_name = first_provider.table_name;
                             let table_def = redb::MultimapTableDefinition::<#libp2p_provider_key_enum, ::netabase_store::databases::redb::transaction::value_wrappers::Libp2pProviderRecordWrapper>::new(table_name);
@@ -530,6 +541,13 @@ impl<'a> DefinitionTraitGenerator<'a> {
         for model_info in &self.visitor.models {
             let model_name = &model_info.visitor.model_name;
             let model_str = model_name.to_string();
+            
+            let is_content_addressed = model_info.is_content_addressed();
+            let target_type = if is_content_addressed {
+                 quote::format_ident!("{}Envelope", model_name)
+            } else {
+                 model_name.clone()
+            };
 
             // Main table
             let main_table_name = table_name(def_str, &model_str, "Primary", "Main");
@@ -537,8 +555,8 @@ impl<'a> DefinitionTraitGenerator<'a> {
                 // Initialize main table for #model_name
                 {
                     let table_def = redb::TableDefinition::<
-                        <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<Self, #model_name>>::Primary,
-                        #model_name
+                        <<#target_type as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<Self, #target_type>>::Primary,
+                        #target_type
                     >::new(#main_table_name);
                     let _ = write_txn.open_table(table_def)
                         .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e))?;
@@ -556,8 +574,8 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     // Initialize secondary table for #model_name::#field_name
                     {
                         let table_def = redb::MultimapTableDefinition::<
-                            <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<Self, #model_name>>::Secondary,
-                            <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<Self, #model_name>>::Primary
+                            <<#target_type as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<Self, #target_type>>::Secondary,
+                            <<#target_type as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<Self, #target_type>>::Primary
                         >::new(#sec_table_name);
                         let _ = write_txn.open_multimap_table(table_def)
                             .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e))?;
@@ -595,8 +613,8 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     // Initialize relational table for #model_name::#field_name
                     {
                         let table_def = redb::MultimapTableDefinition::<
-                            <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<Self, #model_name>>::Primary,
-                            <<#model_name as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<Self, #model_name>>::Relational
+                            <<#target_type as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<Self, #target_type>>::Primary,
+                            <<#target_type as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<Self, #target_type>>::Relational
                         >::new(#rel_table_name);
                         let _ = write_txn.open_multimap_table(table_def)
                             .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e))?;
@@ -607,19 +625,27 @@ impl<'a> DefinitionTraitGenerator<'a> {
             // Subscription tables (if model has subscriptions)
             let def_subscriptions_name = definition_subscriptions_enum_name(&self.visitor.definition_name);
             let primary_key_name = primary_key_type_name_for_model(&model_info.visitor);
+            // Wait, primary_key_name comes from wrapper_types. 
+            // If content-addressed, primary_key_name is ImmutablePostID.
+            // And I implemented PrimaryKey trait for ImmutablePostID for Envelope.
+            // So I should use the trait associated type instead of the struct name directly?
+            // Using struct name is fine if it implements Key.
+            // But let's be consistent and use associated type from target_type.
+            
             if let Some(sub_info) = &model_info.visitor.subscriptions {
                 for topic in &sub_info.topics {
-                    // Extract just the topic name from the path (last segment)
                     let topic_str = topic.segments.last()
                         .map(|seg| seg.ident.to_string())
                         .unwrap_or_default();
-                    // Subscription tables are per-model for modularity and faster lookups
                     let sub_table_name = subscription_table_name(def_str, &model_str, &topic_str);
                     
                     code.extend(quote! {
                         // Initialize subscription table for #model_name::#topic
                         {
-                            let table_def = redb::MultimapTableDefinition::<#def_subscriptions_name, #primary_key_name>::new(#sub_table_name);
+                            let table_def = redb::MultimapTableDefinition::<
+                                #def_subscriptions_name, 
+                                <<#target_type as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<Self, #target_type>>::Primary
+                            >::new(#sub_table_name);
                             let _ = write_txn.open_multimap_table(table_def)
                                 .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e))?;
                         }
@@ -953,33 +979,43 @@ impl<'a> DefinitionTraitGenerator<'a> {
         let model_name = &model_info.name;
         let visitor = &model_info.visitor;
         let is_versioned = visitor.version_info.is_some();
+        let is_content_addressed = model_info.is_content_addressed();
+
+        let target_type = if is_content_addressed {
+             quote::format_ident!("{}Envelope", model_name)
+        } else {
+             model_name.clone()
+        };
 
         // Generate marker traits (StoreKeyMarker, StoreValueMarker, etc.)
         // Skip ID-related markers for versioned models to avoid duplicates
-        let marker_traits = self.generate_marker_traits(definition_name, model_name, visitor, !is_versioned);
+        let marker_traits = self.generate_marker_traits(definition_name, model_name, &target_type, visitor, !is_versioned);
 
         // Generate Store traits (StoreKey, StoreValue)
-        let store_traits = self.generate_store_traits(definition_name, model_name, visitor);
+        let store_traits = self.generate_store_traits(definition_name, model_name, &target_type, visitor);
 
         // Generate key type traits (NetabaseModelKeys, PrimaryKey, SecondaryKey, etc.)
-        let trait_gen = TraitGenerator::new(visitor);
+        let trait_gen = crate::generators::model::TraitGenerator::new(visitor);
         let model_keys_trait = trait_gen.generate_model_keys_trait(definition_name);
-        let key_traits = self.generate_key_type_traits(definition_name, model_name, visitor);
+        let key_traits = self.generate_key_type_traits(definition_name, model_name, &target_type, visitor);
 
         // Generate NetabaseModel trait
         let netabase_model_trait = trait_gen.generate_netabase_model_trait(definition_name);
 
         // Generate RedbNetabaseModel trait
-        let redb_trait = self.generate_redb_netabase_model_trait(definition_name, model_name);
+        let redb_trait = self.generate_redb_netabase_model_trait(definition_name, model_name, &target_type, is_content_addressed);
 
         // Generate subscription conversion traits
         let subscription_traits = self.generate_subscription_traits(definition_name, model_name, visitor);
 
         // Generate Libp2pModel trait
         let libp2p_trait = trait_gen.generate_libp2p_model_trait();
+        
+        // Generate ContentAddressedModel trait
+        let ca_trait = trait_gen.generate_content_addressed_model_trait(definition_name);
 
         // Generate tuple conversion for Model -> (Definition, Metadata)
-        let tuple_conversion = self.generate_model_tuple_conversion(definition_name, model_info);
+        let tuple_conversion = self.generate_model_tuple_conversion(definition_name, model_info, &target_type);
 
         quote! {
             #marker_traits
@@ -990,18 +1026,19 @@ impl<'a> DefinitionTraitGenerator<'a> {
             #redb_trait
             #subscription_traits
             #libp2p_trait
+            #ca_trait
             #tuple_conversion
         }
     }
 
-    fn generate_model_tuple_conversion(&self, definition_name: &syn::Ident, model_info: &ModelInfo) -> TokenStream {
+    fn generate_model_tuple_conversion(&self, definition_name: &syn::Ident, model_info: &ModelInfo, target_type: &syn::Ident) -> TokenStream {
         let model_name = &model_info.name;
         let record_wrapper_name = syn::Ident::new(&format!("{}Record", definition_name), definition_name.span());
         
         quote! {
-            impl From<#model_name> for #record_wrapper_name {
-                fn from(model: #model_name) -> Self {
-                    let meta = <#model_name as ::netabase_store::traits::libp2p::libp2p_model::Libp2pModel>::get_libp2p_metadata(&model)
+            impl From<#target_type> for #record_wrapper_name {
+                fn from(model: #target_type) -> Self {
+                    let meta = <#target_type as ::netabase_store::traits::libp2p::libp2p_model::Libp2pModel>::get_libp2p_metadata(&model)
                         .cloned()
                         .unwrap_or_default();
                     #record_wrapper_name(#definition_name::#model_name(model), meta)
@@ -1014,6 +1051,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
         &self,
         definition_name: &syn::Ident,
         model_name: &syn::Ident,
+        target_type: &syn::Ident,
         visitor: &crate::visitors::model::field::ModelFieldVisitor,
         generate_id_markers: bool,
     ) -> TokenStream {
@@ -1030,14 +1068,14 @@ impl<'a> DefinitionTraitGenerator<'a> {
             });
         }
 
-        // StoreValueMarker for model
+        // StoreValueMarker for model (Envelope if content-addressed)
         impls.push(quote! {
-            impl netabase_store::traits::registery::models::StoreValueMarker<#definition_name> for #model_name {}
+            impl netabase_store::traits::registery::models::StoreValueMarker<#definition_name> for #target_type {}
         });
 
         // NetabaseModelMarker
         impls.push(quote! {
-            impl netabase_store::traits::registery::models::model::NetabaseModelMarker<#definition_name> for #model_name {}
+            impl netabase_store::traits::registery::models::model::NetabaseModelMarker<#definition_name> for #target_type {}
         });
 
         // Secondary keys
@@ -1059,12 +1097,6 @@ impl<'a> DefinitionTraitGenerator<'a> {
         });
 
         // Blob keys
-        // For blob keys, if empty, we still generate enums?
-        // KeyEnumGenerator generates blob enums ONLY if !blob_fields.is_empty().
-        // I changed generate_unified_keys_enum to remove check, but generate_blob_keys_enum logic?
-        // Wait, I only modified generate_unified_keys_enum and generate in key_enums.rs.
-        // generate_blob_keys_enum in key_enums.rs loops over blob_fields. If empty, it generates empty enum.
-        // So they ARE generated.
         let blob_keys = blob_keys_enum_name(model_name);
         let blob_item = blob_item_enum_name(model_name);
         impls.push(quote! {
@@ -1076,7 +1108,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
         let libp2p_keys = libp2p_provider_key_enum_name(model_name);
         impls.push(quote! {
             impl netabase_store::traits::registery::models::StoreKeyMarker<#definition_name> for #libp2p_keys {}
-            impl netabase_store::traits::registery::models::keys::libp2p::NetabaseModelLibp2pProviderKey<#definition_name, #model_name> for #libp2p_keys {}
+            impl netabase_store::traits::registery::models::keys::libp2p::NetabaseModelLibp2pProviderKey<#definition_name, #target_type> for #libp2p_keys {}
         });
 
         quote! { #(#impls)* }
@@ -1086,6 +1118,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
         &self,
         definition_name: &syn::Ident,
         model_name: &syn::Ident,
+        target_type: &syn::Ident,
         visitor: &crate::visitors::model::field::ModelFieldVisitor,
     ) -> TokenStream {
         let id_type = primary_key_type_name_for_model(visitor);
@@ -1095,8 +1128,8 @@ impl<'a> DefinitionTraitGenerator<'a> {
         // StoreKey<Definition, Model> for ID
         // StoreValue<Definition, ID> for Model
         impls.push(quote! {
-            impl netabase_store::traits::registery::models::StoreKey<#definition_name, #model_name> for #id_type {}
-            impl netabase_store::traits::registery::models::StoreValue<#definition_name, #id_type> for #model_name {}
+            impl netabase_store::traits::registery::models::StoreKey<#definition_name, #target_type> for #id_type {}
+            impl netabase_store::traits::registery::models::StoreValue<#definition_name, #id_type> for #target_type {}
         });
 
         // Secondary keys
@@ -1127,45 +1160,46 @@ impl<'a> DefinitionTraitGenerator<'a> {
         &self,
         definition_name: &syn::Ident,
         model_name: &syn::Ident,
+        target_type: &syn::Ident,
         visitor: &crate::visitors::model::field::ModelFieldVisitor,
     ) -> TokenStream {
         let id_type = primary_key_type_name_for_model(visitor);
 
         let mut impls = vec![];
 
-        // NetabaseModelPrimaryKey - now without K parameter (simplified to avoid GAT lifetime issues)
+        // NetabaseModelPrimaryKey
         impls.push(quote! {
-            impl netabase_store::traits::registery::models::keys::NetabaseModelPrimaryKey<#definition_name, #model_name> for #id_type {}
+            impl netabase_store::traits::registery::models::keys::NetabaseModelPrimaryKey<#definition_name, #target_type> for #id_type {}
         });
 
-        // NetabaseModelSecondaryKey - now without K parameter
+        // NetabaseModelSecondaryKey
         let secondary_enum = secondary_keys_enum_name(model_name);
         impls.push(quote! {
-            impl netabase_store::traits::registery::models::keys::NetabaseModelSecondaryKey<#definition_name, #model_name> for #secondary_enum {
+            impl netabase_store::traits::registery::models::keys::NetabaseModelSecondaryKey<#definition_name, #target_type> for #secondary_enum {
                 type PrimaryKey = #id_type;
             }
         });
 
-        // NetabaseModelRelationalKey - now without K parameter
+        // NetabaseModelRelationalKey
         let relational_enum = relational_keys_enum_name(model_name);
         impls.push(quote! {
-            impl netabase_store::traits::registery::models::keys::NetabaseModelRelationalKey<#definition_name, #model_name> for #relational_enum {}
+            impl netabase_store::traits::registery::models::keys::NetabaseModelRelationalKey<#definition_name, #target_type> for #relational_enum {}
         });
 
-        // NetabaseModelBlobKey - now without K parameter
+        // NetabaseModelBlobKey
         let blob_keys = blob_keys_enum_name(model_name);
         let blob_item = blob_item_enum_name(model_name);
         impls.push(quote! {
-            impl netabase_store::traits::registery::models::keys::blob::NetabaseModelBlobKey<#definition_name, #model_name> for #blob_keys {
+            impl netabase_store::traits::registery::models::keys::blob::NetabaseModelBlobKey<#definition_name, #target_type> for #blob_keys {
                 type PrimaryKey = #id_type;
                 type BlobItem = #blob_item;
             }
         });
 
-        // NetabaseModelSubscriptionKey - now without K parameter
+        // NetabaseModelSubscriptionKey
         let subscription_enum = subscriptions_enum_name(model_name);
         impls.push(quote! {
-            impl netabase_store::traits::registery::models::keys::NetabaseModelSubscriptionKey<#definition_name, #model_name> for #subscription_enum {}
+            impl netabase_store::traits::registery::models::keys::NetabaseModelSubscriptionKey<#definition_name, #target_type> for #subscription_enum {}
         });
 
         quote! { #(#impls)* }
@@ -1175,11 +1209,13 @@ impl<'a> DefinitionTraitGenerator<'a> {
         &self,
         definition_name: &syn::Ident,
         model_name: &syn::Ident,
+        target_type: &syn::Ident,
+        is_content_addressed: bool,
     ) -> TokenStream {
         quote! {
-            impl<'db> ::netabase_store::traits::registery::models::model::RedbNetbaseModel<'db, #definition_name> for #model_name {
+            impl<'db> ::netabase_store::traits::registery::models::model::RedbNetbaseModel<'db, #definition_name> for #target_type {
                 type RedbTables = ::netabase_store::databases::redb::transaction::ModelOpenTables<'db, 'db, #definition_name, Self>;
-                type TableV = #model_name;
+                type TableV = #target_type;
             }
         }
     }

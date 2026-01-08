@@ -4,7 +4,14 @@ use serde::{Deserialize, Serialize};
 pub mod keys;
 pub mod model;
 pub mod treenames;
+pub mod content_addressed;
 
+pub use keys::NetabaseModelKeys;
+pub use model::NetabaseModel;
+pub use treenames::DiscriminantTableName;
+// NetabaseDefinitionTreeNames is in definition module, not models::treenames
+pub use crate::traits::registery::definition::NetabaseDefinitionTreeNames;
+pub use content_addressed::ContentAddressedModel;
 // Marker traits to avoid cyclical dependencies
 pub trait StoreKeyMarker<D: NetabaseDefinition>:
     Serialize + for<'de> Deserialize<'de> + Eq + std::hash::Hash + PartialOrd + Ord

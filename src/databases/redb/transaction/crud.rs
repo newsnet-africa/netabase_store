@@ -353,7 +353,7 @@ where
         // 1. Insert into Main Table
         match &mut tables.main {
             TablePermission::ReadWrite(ReadWriteTableType::Table(table)) => {
-                table.insert(self.get_primary_key().borrow(), self.borrow())
+                table.insert(self.get_primary_key_ref().borrow(), self)
                     .map_err(|e| NetabaseError::RedbError(e.into()))?;
             }
             _ => return Err(NetabaseError::Other),

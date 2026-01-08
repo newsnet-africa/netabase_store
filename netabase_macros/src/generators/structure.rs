@@ -171,10 +171,8 @@ impl StructureGenerator {
             }
         }
 
-        // Note: We intentionally do NOT regenerate auxiliary structs (like blob types) here.
-        // When importing a schema, these structs are expected to be in scope via `use super::*;`
-        // from the calling context. The structs section is only used for schema export/documentation.
-        // If the caller needs blob types, they should import them from the original definition.
+// No change needed here for now as StructureGenerator is for schema import.
+// I will read serialization.rs next.
 
         tokens
     }

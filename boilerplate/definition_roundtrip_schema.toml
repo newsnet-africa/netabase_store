@@ -237,6 +237,30 @@ name = "matrix"
 type_name = "Vec < u64 >"
 kind = "Regular"
 
+[[models]]
+name = "ImmutablePost"
+subscriptions = [
+    "Topic1",
+    "Topic2",
+]
+is_current = false
+is_libp2p_enabled = false
+
+[[models.fields]]
+name = "author"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "content"
+type_name = "String"
+kind = "Regular"
+
+[[models.fields]]
+name = "timestamp"
+type_name = "u64"
+kind = "Regular"
+
 [[structs]]
 name = "LargeUserFile"
 is_tuple = false

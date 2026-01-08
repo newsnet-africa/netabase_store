@@ -3,13 +3,14 @@ use netabase_store::databases::redb::transaction::RedbModelCrud;
 use netabase_store::relational::RelationalLink;
 use netabase_store_examples::boilerplate_lib::definition::{
     User, UserAge, UserBlobItem, UserBlobKeys, UserCategory, UserFirstName, UserID, UserPartner,
-    UserRelationalKeys, UserSecondaryKeys,
+    UserRelationalKeys, UserSecondaryKeys, ImmutablePost, ImmutablePostEnvelope, ImmutablePostID,
 };
 use netabase_store_examples::boilerplate_lib::models::blob_types::{
     AnotherLargeUserFile, LargeUserFile,
 };
 use netabase_store_examples::boilerplate_lib::{CategoryID, Definition, DefinitionSubscriptions, DefinitionRecord};
 use netabase_store::databases::redb::libp2p::Libp2pRedbStore;
+use netabase_store::databases::redb::RedbStore;
 use netabase_store::libp2p::kad::store::RecordStore;
 use netabase_store::libp2p::kad::Record;
 use netabase_store::traits::libp2p::libp2p_model::Libp2pMetadata;
@@ -103,6 +104,23 @@ pub fn generate_random_user() -> User {
     }
 }
 
+pub fn generate_random_post() -> ImmutablePost {
+    let mut rng = rand::rng();
+    
+    // random string
+    let mut random_string = |len: usize| {
+        (0..len)
+            .map(|_| rng.random_range(b'a'..=b'z') as char)
+            .collect::<String>()
+    };
+
+    ImmutablePost {
+        author: random_string(10),
+        content: random_string(100),
+        timestamp: rng.random(),
+    }
+}
+
 fn user_to_record(user: User) -> Record {
     let meta = Libp2pMetadata::default();
     let wrapper = DefinitionRecord(Definition::User(user), meta);
@@ -140,7 +158,7 @@ fn bench_crud_operations(c: &mut Criterion) {
     insert_group.measurement_time(std::time::Duration::from_secs(10));
 
     for size in sizes.iter() {
-        // Abstracted Insert
+        // Abstracted Insert (User)
         insert_group.bench_with_input(BenchmarkId::new("Abstracted", size), size, |b, &size| {
             b.iter_batched(
                 || {
@@ -160,6 +178,33 @@ fn bench_crud_operations(c: &mut Criterion) {
                             let user: &User = black_box(user);
                             user.create_entry(&mut tables)
                                 .expect("Failed to create user");
+                        }
+                    }
+                    txn.commit().expect("Failed to commit");
+                },
+                BatchSize::PerIteration,
+            );
+        });
+
+        // Content-Addressed Insert (ImmutablePost)
+        insert_group.bench_with_input(BenchmarkId::new("ContentAddressed", size), size, |b, &size| {
+            b.iter_batched(
+                || {
+                    let posts: Vec<ImmutablePost> = (0..size).map(|_| generate_random_post()).collect();
+                    let envelopes: Vec<ImmutablePostEnvelope> = posts.into_iter().map(|p| ImmutablePostEnvelope::from(p)).collect();
+                    let name = format!("bench_ca_insert_{}_{}", size, rand::random::<u64>());
+                    let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
+                    (store, envelopes)
+                },
+                |(store, envelopes)| {
+                    let txn = store.begin_write().expect("Failed to begin txn");
+                    {
+                        let mut tables = txn
+                            .prepare_model::<ImmutablePostEnvelope>()
+                            .expect("Failed to prepare model");
+                        for envelope in &envelopes {
+                            envelope.create_entry(&mut tables)
+                                .expect("Failed to create post");
                         }
                     }
                     txn.commit().expect("Failed to commit");
@@ -327,7 +372,7 @@ fn bench_crud_operations(c: &mut Criterion) {
     read_group.measurement_time(std::time::Duration::from_secs(10));
 
     for size in sizes.iter() {
-        // Abstracted Read
+        // Abstracted Read (User)
         read_group.bench_with_input(BenchmarkId::new("Abstracted", size), size, |b, &size| {
             b.iter_batched(
                 || {
@@ -360,6 +405,48 @@ fn bench_crud_operations(c: &mut Criterion) {
                         for user in &users {
                             black_box(User::read_default(black_box(&user.id), &tables))
                                 .expect("Failed to read user");
+                        }
+                    }
+                    txn.commit().expect("Failed to commit");
+                },
+                BatchSize::PerIteration,
+            );
+        });
+
+        // Content-Addressed Read (ImmutablePost)
+        read_group.bench_with_input(BenchmarkId::new("ContentAddressed", size), size, |b, &size| {
+            b.iter_batched(
+                || {
+                    let posts: Vec<ImmutablePost> = (0..size).map(|_| generate_random_post()).collect();
+                    let envelopes: Vec<ImmutablePostEnvelope> = posts.into_iter().map(|p| ImmutablePostEnvelope::from(p)).collect();
+                    let name = format!("bench_ca_read_{}_{}", size, rand::random::<u64>());
+                    let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
+
+                    let hashes: Vec<ImmutablePostID> = envelopes.iter().map(|e| e.hash.clone()).collect();
+
+                    let txn = store.begin_write().expect("Failed to begin txn");
+                    {
+                        let mut tables = txn
+                            .prepare_model::<ImmutablePostEnvelope>()
+                            .expect("Failed to prepare model");
+                        for envelope in &envelopes {
+                            envelope.create_entry(&mut tables)
+                                .expect("Failed to create post");
+                        }
+                    }
+                    txn.commit().expect("Failed to commit");
+
+                    (store, hashes)
+                },
+                |(store, hashes): (RedbStore<Definition>, Vec<ImmutablePostID>)| {
+                    let txn = store.begin_read().expect("Failed to begin txn");
+                    {
+                        let tables = txn
+                            .prepare_model::<ImmutablePostEnvelope>()
+                            .expect("Failed to prepare model");
+                        for hash in &hashes {
+                            black_box(ImmutablePostEnvelope::read_default(black_box(hash), &tables))
+                                .expect("Failed to read post");
                         }
                     }
                     txn.commit().expect("Failed to commit");

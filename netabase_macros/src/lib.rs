@@ -226,6 +226,11 @@ pub fn netabase_libp2p(attr: TokenStream, item: TokenStream) -> TokenStream {
         .into()
 }
 
+#[proc_macro_attribute]
+pub fn netabase_content_addressed(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 use quote::{format_ident, quote};
 use serde::Deserialize;
 use std::fs;

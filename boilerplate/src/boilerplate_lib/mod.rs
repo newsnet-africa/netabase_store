@@ -348,6 +348,33 @@ pub mod definition {
 
         pub matrix: Vec<u64>,
     }
+
+    /// Content-addressed immutable post model.
+    /// This model has no explicit primary key; its hash is its ID.
+    #[derive(
+        netabase_macros::NetabaseModel,
+        Debug,
+        Clone,
+        Serialize,
+        Deserialize,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+    )]
+    #[netabase_content_addressed(hasher = "crate::boilerplate_lib::models::FastHasher", function = "crate::boilerplate_lib::models::hash_model", key_type = "u64")]
+    #[subscribe(Topic1, Topic2)]
+    pub struct ImmutablePost {
+        // No primary key!
+        
+        #[secondary_key]
+        pub author: String,
+        
+        pub content: String,
+        
+        pub timestamp: u64,
+    }
 }
 
 // Repository that combines Definition and DefinitionTwo

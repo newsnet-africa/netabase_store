@@ -27,8 +27,14 @@ impl<'a> TraitGenerator<'a> {
         let blob_type = blob_keys_enum_name(model_name);
         let libp2p_type = libp2p_provider_key_enum_name(model_name);
 
+        let target_type = if self.visitor.content_addressed_config.is_some() {
+             quote::format_ident!("{}Envelope", model_name)
+        } else {
+             model_name.clone()
+        };
+
         quote! {
-            impl netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #model_name> for #keys_enum {
+            impl netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #target_type> for #keys_enum {
                 type Primary = #id_type;
                 type Secondary = #secondary_type;
                 type Relational = #relational_type;
@@ -45,21 +51,43 @@ impl<'a> TraitGenerator<'a> {
         let keys_enum = unified_keys_enum_name(model_name);
         let id_type = primary_key_type_name_for_model(self.visitor);
 
+        // Determine if we are implementing for Envelope or Model
+        let is_content_addressed = self.visitor.content_addressed_config.is_some();
+        let target_type = if is_content_addressed {
+             quote::format_ident!("{}Envelope", model_name)
+        } else {
+             model_name.clone()
+        };
+
         // Generate TREE_NAMES
         let tree_names = self.generate_tree_names(definition_name);
 
         // Generate get_primary_key method
-        let pk_field = self.visitor.primary_key.as_ref().unwrap();
-        let pk_field_name = &pk_field.name;
-        let get_primary_key = quote! {
-            #[inline]
-            fn get_primary_key<'b>(&'b self) -> #id_type {
-                self.#pk_field_name.clone()
-            }
+        let get_primary_key = if is_content_addressed {
+            quote! {
+                #[inline]
+                fn get_primary_key<'b>(&'b self) -> #id_type {
+                    self.hash.clone()
+                }
 
-            #[inline]
-            fn get_primary_key_ref<'b>(&'b self) -> &#id_type {
-                &self.#pk_field_name
+                #[inline]
+                fn get_primary_key_ref<'b>(&'b self) -> &#id_type {
+                    &self.hash
+                }
+            }
+        } else {
+            let pk_field = self.visitor.primary_key.as_ref().unwrap();
+            let pk_field_name = &pk_field.name;
+            quote! {
+                #[inline]
+                fn get_primary_key<'b>(&'b self) -> #id_type {
+                    self.#pk_field_name.clone()
+                }
+
+                #[inline]
+                fn get_primary_key_ref<'b>(&'b self) -> &#id_type {
+                    &self.#pk_field_name
+                }
             }
         };
 
@@ -76,7 +104,7 @@ impl<'a> TraitGenerator<'a> {
         let get_blob_entries = self.generate_get_blob_entries(definition_name);
 
         quote! {
-            impl netabase_store::traits::registery::models::model::NetabaseModel<#definition_name> for #model_name {
+            impl netabase_store::traits::registery::models::model::NetabaseModel<#definition_name> for #target_type {
                 type Keys = #keys_enum;
 
                 #tree_names
@@ -241,6 +269,7 @@ impl<'a> TraitGenerator<'a> {
     fn generate_get_secondary_keys(&self) -> TokenStream {
         let model_name = &self.visitor.model_name;
         let enum_name = secondary_keys_enum_name(model_name);
+        let is_content_addressed = self.visitor.content_addressed_config.is_some();
 
         let key_constructions: Vec<_> = self
             .visitor
@@ -252,8 +281,14 @@ impl<'a> TraitGenerator<'a> {
                 let variant_ident = syn::Ident::new(&variant_name, field.name.span());
                 let wrapper_type = field_wrapper_name(model_name, field_name);
 
-                quote! {
-                    #enum_name::#variant_ident(#wrapper_type(self.#field_name.clone()))
+                if is_content_addressed {
+                    quote! {
+                        #enum_name::#variant_ident(#wrapper_type(self.inner.#field_name.clone()))
+                    }
+                } else {
+                    quote! {
+                        #enum_name::#variant_ident(#wrapper_type(self.#field_name.clone()))
+                    }
                 }
             })
             .collect();
@@ -269,6 +304,7 @@ impl<'a> TraitGenerator<'a> {
     fn generate_get_relational_keys(&self) -> TokenStream {
         let model_name = &self.visitor.model_name;
         let enum_name = relational_keys_enum_name(model_name);
+        let is_content_addressed = self.visitor.content_addressed_config.is_some();
 
         let key_constructions: Vec<_> = self.visitor.relational_keys
             .iter()
@@ -278,8 +314,14 @@ impl<'a> TraitGenerator<'a> {
                 let variant_ident = syn::Ident::new(&variant_name, field.name.span());
                 let wrapper_type = field_wrapper_name(model_name, field_name);
 
-                quote! {
-                    #enum_name::#variant_ident(#wrapper_type(self.#field_name.get_primary_key().clone()))
+                if is_content_addressed {
+                    quote! {
+                        #enum_name::#variant_ident(#wrapper_type(self.inner.#field_name.get_primary_key().clone()))
+                    }
+                } else {
+                    quote! {
+                        #enum_name::#variant_ident(#wrapper_type(self.#field_name.get_primary_key().clone()))
+                    }
                 }
             })
             .collect();
@@ -340,6 +382,7 @@ impl<'a> TraitGenerator<'a> {
         let model_name = &self.visitor.model_name;
         let blob_keys_enum = blob_keys_enum_name(model_name);
         let blob_item_enum = blob_item_enum_name(model_name);
+        let is_content_addressed = self.visitor.content_addressed_config.is_some();
 
         let blob_entries: Vec<_> = self
             .visitor
@@ -350,16 +393,31 @@ impl<'a> TraitGenerator<'a> {
                 let variant_name = to_pascal_case(&field.name.to_string());
                 let variant_ident = syn::Ident::new(&variant_name, field.name.span());
 
-                quote! {
-                    {
-                        let mut entries = Vec::new();
-                        for blob in self.#field_name.split_into_blobs() {
-                            entries.push((
-                                #blob_keys_enum::#variant_ident { owner: self.get_primary_key() },
-                                blob
-                            ));
+                if is_content_addressed {
+                    quote! {
+                        {
+                            let mut entries = Vec::new();
+                            for blob in self.inner.#field_name.split_into_blobs() {
+                                entries.push((
+                                    #blob_keys_enum::#variant_ident { owner: self.get_primary_key() },
+                                    blob
+                                ));
+                            }
+                            entries
                         }
-                        entries
+                    }
+                } else {
+                    quote! {
+                        {
+                            let mut entries = Vec::new();
+                            for blob in self.#field_name.split_into_blobs() {
+                                entries.push((
+                                    #blob_keys_enum::#variant_ident { owner: self.get_primary_key() },
+                                    blob
+                                ));
+                            }
+                            entries
+                        }
                     }
                 }
             })
@@ -373,22 +431,55 @@ impl<'a> TraitGenerator<'a> {
         }
     }
 
+    /// Generate ContentAddressedModel trait implementation
+    pub fn generate_content_addressed_model_trait(&self, _definition_name: &syn::Ident) -> TokenStream {
+        let model_name = &self.visitor.model_name;
+
+        if let Some(config) = &self.visitor.content_addressed_config {
+            let hasher = &config.hasher;
+            let function = &config.function;
+            
+            // The ID type (wrapper) IS the key type
+            let id_type = primary_key_type_name_for_model(self.visitor);
+
+            quote! {
+                impl ::netabase_store::traits::registery::models::content_addressed::ContentAddressedModel for #model_name {
+                    type Hasher = #hasher;
+                    type Key = #id_type;
+
+                    fn compute_hash(&self) -> Self::Key {
+                        #id_type(#function(self))
+                    }
+                }
+            }
+        } else {
+            TokenStream::new()
+        }
+    }
+
     /// Generate Libp2pModel trait implementation
     pub fn generate_libp2p_model_trait(&self) -> TokenStream {
         let model_name = &self.visitor.model_name;
+        let is_content_addressed = self.visitor.content_addressed_config.is_some();
+        
+        let target_type = if is_content_addressed {
+             quote::format_ident!("{}Envelope", model_name)
+        } else {
+             model_name.clone()
+        };
         
         let body = if self.visitor.is_libp2p_enabled {
-            quote! {
-                self.libp2p_metadata.as_ref()
+            if is_content_addressed {
+                quote! { self.inner.libp2p_metadata.as_ref() }
+            } else {
+                quote! { self.libp2p_metadata.as_ref() }
             }
         } else {
-            quote! {
-                None
-            }
+            quote! { None }
         };
 
         quote! {
-            impl netabase_store::traits::libp2p::libp2p_model::Libp2pModel for #model_name {
+            impl netabase_store::traits::libp2p::libp2p_model::Libp2pModel for #target_type {
                 #[inline]
                 fn get_libp2p_metadata(&self) -> Option<&netabase_store::traits::libp2p::libp2p_model::Libp2pMetadata> {
                     #body

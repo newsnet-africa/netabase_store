@@ -62,6 +62,7 @@ impl VisitMut for ModelMutator {
 
         // Remove netabase attributes from struct
         remove_attribute(&mut item_struct.attrs, "subscribe");
+        remove_attribute(&mut item_struct.attrs, "netabase_content_addressed");
         // netabase_libp2p is removed by process_libp2p_attribute
         // We also need to remove the derive(NetabaseModel) to prevent re-expansion issues
         // or just let it stay if it's a marker.

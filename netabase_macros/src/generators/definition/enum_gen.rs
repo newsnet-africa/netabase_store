@@ -26,7 +26,12 @@ impl<'a> DefinitionEnumGenerator<'a> {
         // Models
         for model in &self.visitor.models {
             let model_name = &model.name;
-            variants.push(quote! { #model_name(#model_name) });
+            if model.is_content_addressed() {
+                let envelope_name = format_ident!("{}Envelope", model_name);
+                variants.push(quote! { #model_name(#envelope_name) });
+            } else {
+                variants.push(quote! { #model_name(#model_name) });
+            }
         }
 
         // Nested Definitions
@@ -234,13 +239,19 @@ impl<'a> DefinitionEnumGenerator<'a> {
              let model_name = &model.name;
              let pk_type = primary_key_type_name_for_model(&model.visitor);
              
+             let table_value_type = if model.is_content_addressed() {
+                 format_ident!("{}Envelope", model_name)
+             } else {
+                 model_name.clone()
+             };
+             
              // Field names
              let table_field_ident = format_ident!("table_{}", model_name);
              let iter_field_ident = format_ident!("iter_{}", model_name);
              
              // Table Field Definition
              table_field_defs.push(quote! {
-                 pub #table_field_ident: redb::ReadOnlyTable<#pk_type, #model_name>
+                 pub #table_field_ident: redb::ReadOnlyTable<#pk_type, #table_value_type>
              });
              table_field_names.push(table_field_ident.clone());
              
@@ -255,7 +266,7 @@ impl<'a> DefinitionEnumGenerator<'a> {
              
              // Iter Field Definition
              iter_field_defs.push(quote! {
-                 pub #iter_field_ident: Option<redb::Range<'a, #pk_type, #model_name>>
+                 pub #iter_field_ident: Option<redb::Range<'a, #pk_type, #table_value_type>>
              });
              
              // Iter Init Logic
@@ -380,11 +391,17 @@ impl<'a> DefinitionEnumGenerator<'a> {
         // Models
         for model in &self.visitor.models {
             let model_name = &model.name;
+            let target_type = if model.is_content_addressed() {
+                 format_ident!("{}Envelope", model_name)
+            } else {
+                 model_name.clone()
+            };
+
             variants.push(quote! { 
-                #model_name(netabase_store::traits::registery::models::treenames::ModelTreeNames<'static, #definition_name, #model_name>) 
+                #model_name(netabase_store::traits::registery::models::treenames::ModelTreeNames<'static, #definition_name, #target_type>) 
             });
             get_tree_names_arms.push(quote! {
-                #discriminant_name::#model_name => vec![#enum_name::#model_name(<#model_name as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES)]
+                #discriminant_name::#model_name => vec![#enum_name::#model_name(<#target_type as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES)]
             });
         }
 
@@ -405,8 +422,15 @@ impl<'a> DefinitionEnumGenerator<'a> {
 
         // Default implementation (use first model or nested def)
         let default_variant = if !self.visitor.models.is_empty() {
-             let first_model = &self.visitor.models[0].name;
-             quote! { #enum_name::#first_model(<#first_model as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES) }
+             let first_model = &self.visitor.models[0];
+             let first_model_name = &first_model.name;
+             let target_type = if first_model.is_content_addressed() {
+                 format_ident!("{}Envelope", first_model_name)
+             } else {
+                 first_model_name.clone()
+             };
+             
+             quote! { #enum_name::#first_model_name(<#target_type as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES) }
         } else if !self.visitor.nested_definitions.is_empty() {
              let first_nested = &self.visitor.nested_definitions[0].definition_name;
              let nested_tree_names = definition_tree_names_enum_name(first_nested);

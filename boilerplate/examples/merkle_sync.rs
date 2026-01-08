@@ -12,6 +12,7 @@ use netabase_store_examples::boilerplate_lib::definition::{
 };
 use netabase_store_examples::boilerplate_lib::{
     CategoryID, Definition, DefinitionSubscriptions, User, UserID,
+    ImmutablePost, ImmutablePostEnvelope,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -220,6 +221,53 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  • Distributed databases");
     println!("  • Blockchain-like verification");
     println!("  • Content-addressed storage");
+
+    // Verify sync of content-addressed models (ImmutablePost)
+    println!("\n--- Syncing Content-Addressed Models ---");
+    
+    let post = ImmutablePost {
+        author: "SyncUser".to_string(),
+        content: "Synced Content".to_string(),
+        timestamp: 12345,
+    };
+    
+    // Create post in Peer 1
+    {
+        let txn = peer1_store.begin_write()?;
+        let envelope = ImmutablePostEnvelope::from(&post);
+        txn.create(&envelope)?;
+        txn.commit()?;
+    }
+    
+    // Sync Peer 1 -> Peer 2
+    // In a real Merkle sync, we would compare root hashes.
+    // Here we simulate detecting the missing hash and transferring it.
+    use netabase_store_examples::boilerplate_lib::models::hash_model;
+    use netabase_store_examples::boilerplate_lib::definition::ImmutablePostID;
+    
+    let hash = ImmutablePostID(hash_model(&post));
+    println!("Detected new content hash: {}", hash);
+    
+    // Transfer logic: Read from Peer 1, Write to Peer 2
+    {
+        let txn_1 = peer1_store.begin_read()?;
+        // Read the envelope using the wrapper ID
+        let envelope = txn_1.read::<ImmutablePostEnvelope>(&hash)?.unwrap();
+        
+        let txn_2 = peer2_store.begin_write()?;
+        // Insert into Peer 2 (idempotent)
+        txn_2.create(&envelope)?;
+        txn_2.commit()?;
+    }
+    
+    // Verify Peer 2 has the post
+    {
+        let txn = peer2_store.begin_read()?;
+        // We can check existence by reading
+        let result = txn.read::<ImmutablePostEnvelope>(&hash)?;
+        assert!(result.is_some(), "Store B should have the synced post");
+        println!("Store B successfully synced content-addressed post!");
+    }
 
     Ok(())
 }

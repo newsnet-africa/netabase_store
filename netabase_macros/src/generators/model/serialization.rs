@@ -1,7 +1,7 @@
 use crate::utils::naming::*;
 use crate::visitors::model::field::ModelFieldVisitor;
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, format_ident};
 
 /// Generator for serialization trait implementations (redb Value/Key)
 pub struct SerializationGenerator<'a> {
@@ -30,47 +30,171 @@ impl<'a> SerializationGenerator<'a> {
     pub fn generate_model_value_key(&self) -> TokenStream {
         let model_name = &self.visitor.model_name;
 
-        quote! {
-            impl redb::Value for #model_name {
-                type SelfType<'a> = #model_name;
-                type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
-
-                #[inline]
-                fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
-                where
-                    Self: 'a,
-                {
-                    postcard::from_bytes(data).unwrap()
+        if let Some(_ca_config) = &self.visitor.content_addressed_config {
+            // Content-addressed: Generate Envelope and impl Value for Envelope
+            let envelope_name = format_ident!("{}Envelope", model_name);
+            
+            quote! {
+                /// Envelope for content-addressed model, storing the hash and the data.
+                #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, std::hash::Hash)]
+                pub struct #envelope_name {
+                    pub hash: <#model_name as ::netabase_store::traits::registery::models::content_addressed::ContentAddressedModel>::Key,
+                    pub inner: #model_name,
                 }
 
-                #[inline]
-                fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
-                where
-                    Self: 'a,
-                    Self: 'b,
-                {
-                    std::borrow::Cow::Owned(
-                        postcard::to_allocvec(value).unwrap()
-                    )
+                impl redb::Value for #envelope_name {
+                    type SelfType<'a> = #envelope_name;
+                    type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
+
+                    #[inline]
+                    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+                    where
+                        Self: 'a,
+                    {
+                        postcard::from_bytes(data).unwrap()
+                    }
+
+                    #[inline]
+                    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+                    where
+                        Self: 'a,
+                        Self: 'b,
+                    {
+                        std::borrow::Cow::Owned(
+                            postcard::to_allocvec(value).unwrap()
+                        )
+                    }
+
+                    #[inline]
+                    fn fixed_width() -> Option<usize> {
+                        None
+                    }
+
+                    #[inline]
+                    fn type_name() -> redb::TypeName {
+                        redb::TypeName::new(&format!("{}::{}", module_path!(), stringify!(#envelope_name)))
+                    }
                 }
 
-                #[inline]
-                fn fixed_width() -> Option<usize> {
-                    None
+                impl redb::Key for #envelope_name {
+                    #[inline]
+                    fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+                        let val1: #envelope_name = postcard::from_bytes(data1).unwrap();
+                        let val2: #envelope_name = postcard::from_bytes(data2).unwrap();
+                        val1.cmp(&val2)
+                    }
                 }
 
-                #[inline]
-                fn type_name() -> redb::TypeName {
-                    redb::TypeName::new(&format!("{}::{}", module_path!(), stringify!(#model_name)))
+                impl<'a> From<&'a #model_name> for #envelope_name {
+                    fn from(model: &'a #model_name) -> Self {
+                         use ::netabase_store::traits::registery::models::content_addressed::ContentAddressedModel;
+                         let hash = model.compute_hash();
+                         Self {
+                             hash,
+                             inner: model.clone(),
+                         }
+                    }
+                }
+
+                impl From<#model_name> for #envelope_name {
+                    fn from(model: #model_name) -> Self {
+                         use ::netabase_store::traits::registery::models::content_addressed::ContentAddressedModel;
+                         let hash = model.compute_hash();
+                         Self {
+                             hash,
+                             inner: model,
+                         }
+                    }
+                }
+
+                impl std::ops::Deref for #envelope_name {
+                    type Target = #model_name;
+
+                    fn deref(&self) -> &Self::Target {
+                        &self.inner
+                    }
+                }
+
+                // The model itself still implements redb::Value (direct serialization)
+                // This is useful if used nested or for computation
+                impl redb::Value for #model_name {
+                    type SelfType<'a> = #model_name;
+                    type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
+
+                    #[inline]
+                    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+                    where
+                        Self: 'a,
+                    {
+                        postcard::from_bytes(data).unwrap()
+                    }
+
+                    #[inline]
+                    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+                    where
+                        Self: 'a,
+                        Self: 'b,
+                    {
+                        std::borrow::Cow::Owned(
+                            postcard::to_allocvec(value).unwrap()
+                        )
+                    }
+
+                    #[inline]
+                    fn fixed_width() -> Option<usize> {
+                        None
+                    }
+
+                    #[inline]
+                    fn type_name() -> redb::TypeName {
+                        redb::TypeName::new(&format!("{}::{}", module_path!(), stringify!(#model_name)))
+                    }
                 }
             }
+        } else {
+            // Standard model
+            quote! {
+                impl redb::Value for #model_name {
+                    type SelfType<'a> = #model_name;
+                    type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
 
-            impl redb::Key for #model_name {
-                #[inline]
-                fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
-                    let val1: #model_name = postcard::from_bytes(data1).unwrap();
-                    let val2: #model_name = postcard::from_bytes(data2).unwrap();
-                    val1.cmp(&val2)
+                    #[inline]
+                    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+                    where
+                        Self: 'a,
+                    {
+                        postcard::from_bytes(data).unwrap()
+                    }
+
+                    #[inline]
+                    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+                    where
+                        Self: 'a,
+                        Self: 'b,
+                    {
+                        std::borrow::Cow::Owned(
+                            postcard::to_allocvec(value).unwrap()
+                        )
+                    }
+
+                    #[inline]
+                    fn fixed_width() -> Option<usize> {
+                        None
+                    }
+
+                    #[inline]
+                    fn type_name() -> redb::TypeName {
+                        redb::TypeName::new(&format!("{}::{}", module_path!(), stringify!(#model_name)))
+                    }
+                }
+
+                impl redb::Key for #model_name {
+                    #[inline]
+                    fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+                        let val1: #model_name = postcard::from_bytes(data1).unwrap();
+                        let val2: #model_name = postcard::from_bytes(data2).unwrap();
+                        val1.cmp(&val2)
+                    }
                 }
             }
         }
