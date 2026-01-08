@@ -35,6 +35,7 @@ impl<'a> SerializationGenerator<'a> {
                 type SelfType<'a> = #model_name;
                 type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
 
+                #[inline]
                 fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
                 where
                     Self: 'a,
@@ -42,6 +43,7 @@ impl<'a> SerializationGenerator<'a> {
                     postcard::from_bytes(data).unwrap()
                 }
 
+                #[inline]
                 fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
                 where
                     Self: 'a,
@@ -52,16 +54,19 @@ impl<'a> SerializationGenerator<'a> {
                     )
                 }
 
+                #[inline]
                 fn fixed_width() -> Option<usize> {
                     None
                 }
 
+                #[inline]
                 fn type_name() -> redb::TypeName {
                     redb::TypeName::new(&format!("{}::{}", module_path!(), stringify!(#model_name)))
                 }
             }
 
             impl redb::Key for #model_name {
+                #[inline]
                 fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
                     let val1: #model_name = postcard::from_bytes(data1).unwrap();
                     let val2: #model_name = postcard::from_bytes(data2).unwrap();
@@ -113,6 +118,7 @@ impl<'a> SerializationGenerator<'a> {
                 type SelfType<'a> = #type_name;
                 type AsBytes<'a> = std::borrow::Cow<'a, [u8]>;
 
+                #[inline]
                 fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
                 where
                     Self: 'a,
@@ -120,6 +126,7 @@ impl<'a> SerializationGenerator<'a> {
                     postcard::from_bytes(data).unwrap()
                 }
 
+                #[inline]
                 fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
                 where
                     Self: 'a,
@@ -130,16 +137,19 @@ impl<'a> SerializationGenerator<'a> {
                     )
                 }
 
+                #[inline]
                 fn fixed_width() -> Option<usize> {
                     None
                 }
 
+                #[inline]
                 fn type_name() -> redb::TypeName {
                     redb::TypeName::new(&format!("{}::{}", module_path!(), stringify!(#type_name)))
                 }
             }
 
             impl redb::Key for #type_name {
+                #[inline]
                 fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
                     let val1: #type_name = postcard::from_bytes(data1).unwrap();
                     let val2: #type_name = postcard::from_bytes(data2).unwrap();

@@ -52,6 +52,7 @@ impl<'a> TraitGenerator<'a> {
         let pk_field = self.visitor.primary_key.as_ref().unwrap();
         let pk_field_name = &pk_field.name;
         let get_primary_key = quote! {
+            #[inline]
             fn get_primary_key<'b>(&'b self) -> #id_type {
                 self.#pk_field_name.clone()
             }
@@ -253,6 +254,7 @@ impl<'a> TraitGenerator<'a> {
             .collect();
 
         quote! {
+            #[inline]
             fn get_secondary_keys<'b>(&'b self) -> Vec<#enum_name> {
                 vec![#(#key_constructions),*]
             }
@@ -278,6 +280,7 @@ impl<'a> TraitGenerator<'a> {
             .collect();
 
         quote! {
+            #[inline]
             fn get_relational_keys<'b>(&'b self) -> Vec<#enum_name> {
                 vec![#(#key_constructions),*]
             }
@@ -292,6 +295,7 @@ impl<'a> TraitGenerator<'a> {
         // If no subscriptions declared on the model, return empty
         let Some(subscription_info) = &self.visitor.subscriptions else {
             return quote! {
+                #[inline]
                 fn get_subscription_keys<'b>(&'b self) -> Vec<#enum_name> {
                     vec![]
                 }
@@ -318,6 +322,7 @@ impl<'a> TraitGenerator<'a> {
             .collect();
         
         quote! {
+            #[inline]
             fn get_subscription_keys<'b>(&'b self) -> Vec<#enum_name> {
                 vec![
                     #( #topic_constructions ),*
@@ -356,6 +361,7 @@ impl<'a> TraitGenerator<'a> {
             .collect();
 
         quote! {
+            #[inline]
             fn get_blob_entries<'a>(&'a self) -> Vec<Vec<(#blob_keys_enum, #blob_item_enum)>> {
                 vec![#(#blob_entries),*]
             }
@@ -378,6 +384,7 @@ impl<'a> TraitGenerator<'a> {
 
         quote! {
             impl netabase_store::traits::libp2p::libp2p_model::Libp2pModel for #model_name {
+                #[inline]
                 fn get_libp2p_metadata(&self) -> Option<&netabase_store::traits::libp2p::libp2p_model::Libp2pMetadata> {
                     #body
                 }

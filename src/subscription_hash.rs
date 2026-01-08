@@ -28,11 +28,13 @@ pub struct ModelHash(pub [u8; 32]);
 
 impl ModelHash {
     /// Create a new model hash from bytes
+    #[inline]
     pub fn new(bytes: [u8; 32]) -> Self {
         Self(bytes)
     }
 
     /// Create a model hash from serializable data
+    #[inline]
     pub fn from_data<T: Serialize>(data: &T) -> Result<Self, Box<dyn std::error::Error>> {
         let serialized = bincode::serialize(data)?;
         let mut hasher = Sha256::new();
@@ -41,16 +43,19 @@ impl ModelHash {
     }
 
     /// Get the hash as bytes
+    #[inline(always)]
     pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
 
     /// Convert to hex string
+    #[inline]
     pub fn to_hex(&self) -> String {
         hex::encode(self.0)
     }
 
     /// Parse from hex string
+    #[inline]
     pub fn from_hex(s: &str) -> Result<Self, hex::FromHexError> {
         let bytes = hex::decode(s)?;
         if bytes.len() != 32 {
@@ -64,6 +69,7 @@ impl ModelHash {
 
 // Implement redb::Key for ModelHash
 impl redb::Key for ModelHash {
+    #[inline(always)]
     fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
         data1.cmp(data2)
     }
@@ -73,10 +79,12 @@ impl redb::Value for ModelHash {
     type SelfType<'a> = ModelHash;
     type AsBytes<'a> = [u8; 32];
 
+    #[inline(always)]
     fn fixed_width() -> Option<usize> {
         Some(32)
     }
 
+    #[inline(always)]
     fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
     where
         Self: 'a,
@@ -86,6 +94,7 @@ impl redb::Value for ModelHash {
         ModelHash(bytes)
     }
 
+    #[inline(always)]
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
     where
         Self: 'a,
@@ -94,6 +103,7 @@ impl redb::Value for ModelHash {
         value.0
     }
 
+    #[inline(always)]
     fn type_name() -> redb::TypeName {
         redb::TypeName::new("ModelHash")
     }
@@ -116,6 +126,7 @@ pub struct SubscriptionValue {
 }
 
 impl SubscriptionValue {
+    #[inline]
     pub fn new(primary_key_hash: [u8; 32], model_hash: ModelHash) -> Self {
         Self { primary_key_hash, model_hash }
     }
@@ -125,10 +136,12 @@ impl redb::Value for SubscriptionValue {
     type SelfType<'a> = SubscriptionValue;
     type AsBytes<'a> = [u8; 64];
 
+    #[inline(always)]
     fn fixed_width() -> Option<usize> {
         Some(64)
     }
 
+    #[inline(always)]
     fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
     where
         Self: 'a,
@@ -143,6 +156,7 @@ impl redb::Value for SubscriptionValue {
         }
     }
 
+    #[inline(always)]
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
     where
         Self: 'a,
@@ -154,6 +168,7 @@ impl redb::Value for SubscriptionValue {
         bytes
     }
 
+    #[inline(always)]
     fn type_name() -> redb::TypeName {
         redb::TypeName::new("SubscriptionValue")
     }

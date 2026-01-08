@@ -50,6 +50,7 @@ pub struct CrudOptions {
 
 impl CrudOptions {
     /// Creates a new `CrudOptions` with default settings.
+    #[inline]
     pub fn new() -> Self {
         Self::default()
     }
@@ -65,6 +66,7 @@ impl CrudOptions {
     ///
     /// let options = CrudOptions::new().with_limit(100);
     /// ```
+    #[inline]
     pub fn with_limit(mut self, limit: usize) -> Self {
         self.list.limit = Some(limit);
         self
@@ -84,6 +86,7 @@ impl CrudOptions {
     ///     .with_offset(50)
     ///     .with_limit(25);
     /// ```
+    #[inline]
     pub fn with_offset(mut self, offset: usize) -> Self {
         self.list.offset = Some(offset);
         self

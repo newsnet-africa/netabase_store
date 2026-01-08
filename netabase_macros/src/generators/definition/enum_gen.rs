@@ -438,6 +438,7 @@ impl<'a> DefinitionEnumGenerator<'a> {
         // NetabaseDefinitionTreeNames trait implementation
         let netabase_definition_tree_names_impl = quote! {
             impl netabase_store::traits::registery::definition::NetabaseDefinitionTreeNames<#definition_name> for #enum_name {
+                #[inline]
                 fn get_tree_names(discriminant: #discriminant_name) -> Vec<Self> {
                     match discriminant {
                         #(#get_tree_names_arms),*
