@@ -1,0 +1,590 @@
+   Compiling proc-macro2 v1.0.103
+   Compiling unicode-ident v1.0.22
+   Compiling quote v1.0.42
+   Compiling serde_core v1.0.228
+   Compiling libc v0.2.178
+   Compiling cfg-if v1.0.4
+   Compiling stable_deref_trait v1.2.1
+   Compiling typenum v1.19.0
+   Compiling version_check v0.9.5
+   Compiling memchr v2.7.6
+   Compiling serde v1.0.228
+   Compiling semver v1.0.27
+   Compiling pin-project-lite v0.2.16
+   Compiling futures-sink v0.3.31
+   Compiling rustc_version v0.4.1
+   Compiling zerocopy v0.8.31
+   Compiling futures-core v0.3.31
+   Compiling subtle v2.6.1
+   Compiling generic-array v0.14.7
+   Compiling futures-channel v0.3.31
+   Compiling pin-utils v0.1.0
+   Compiling smallvec v1.15.1
+   Compiling futures-task v0.3.31
+   Compiling syn v1.0.109
+   Compiling litemap v0.8.1
+   Compiling writeable v0.6.2
+   Compiling byteorder v1.5.0
+   Compiling futures-io v0.3.31
+   Compiling slab v0.4.11
+   Compiling icu_normalizer_data v2.1.1
+   Compiling icu_properties_data v2.1.2
+   Compiling cpufeatures v0.2.17
+   Compiling thiserror v2.0.17
+   Compiling curve25519-dalek v4.1.3
+   Compiling scopeguard v1.2.0
+   Compiling once_cell v1.21.3
+   Compiling zeroize v1.8.2
+   Compiling signature v2.2.0
+   Compiling lock_api v0.4.14
+   Compiling data-encoding v2.9.0
+   Compiling unsigned-varint v0.8.0
+   Compiling ed25519 v2.2.3
+   Compiling tracing-core v0.1.36
+   Compiling quick-protobuf v0.8.1
+   Compiling core2 v0.4.0
+   Compiling const-str v0.4.3
+   Compiling percent-encoding v2.3.2
+   Compiling static_assertions v1.1.0
+   Compiling parking_lot_core v0.9.12
+   Compiling utf8_iter v1.0.4
+   Compiling form_urlencoded v1.2.2
+   Compiling base-x v0.2.11
+   Compiling bs58 v0.5.1
+   Compiling futures-timer v3.0.3
+   Compiling equivalent v1.0.2
+   Compiling foldhash v0.1.5
+   Compiling allocator-api2 v0.2.21
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling arrayref v0.3.9
+   Compiling unsigned-varint v0.7.2
+   Compiling digest v0.10.7
+   Compiling log v0.4.29
+   Compiling syn v2.0.111
+   Compiling fnv v1.0.7
+   Compiling getrandom v0.2.16
+   Compiling sha2 v0.10.9
+   Compiling num_cpus v1.17.0
+   Compiling hmac v0.12.1
+   Compiling hashbrown v0.15.5
+   Compiling rand_core v0.6.4
+   Compiling hkdf v0.12.4
+   Compiling parking_lot v0.12.5
+   Compiling web-time v1.1.0
+   Compiling either v1.15.0
+   Compiling getrandom v0.3.4
+   Compiling crunchy v0.2.4
+   Compiling thiserror v1.0.69
+   Compiling ppv-lite86 v0.2.21
+   Compiling lru v0.12.5
+   Compiling heck v0.5.0
+   Compiling utf8parse v0.2.2
+   Compiling anstyle-parse v0.2.7
+   Compiling heapless v0.7.17
+   Compiling rand_chacha v0.3.1
+   Compiling anstyle v1.0.13
+   Compiling colorchoice v1.0.4
+   Compiling unicode-segmentation v1.12.0
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling winnow v0.7.14
+   Compiling rand v0.8.5
+   Compiling hex v0.4.3
+   Compiling anstyle-query v1.1.5
+   Compiling rustix v1.1.3
+   Compiling anstream v0.6.21
+   Compiling convert_case v0.10.0
+   Compiling uint v0.10.0
+   Compiling rand_core v0.9.3
+   Compiling spin v0.9.8
+   Compiling hash32 v0.2.1
+   Compiling bitflags v2.10.0
+   Compiling toml_writer v1.0.6+spec-1.1.0
+   Compiling redb v3.1.0
+   Compiling unicode-xid v0.2.6
+   Compiling strsim v0.11.1
+   Compiling clap_lex v0.7.6
+   Compiling linux-raw-sys v0.11.0
+   Compiling rand_chacha v0.9.0
+   Compiling serde_spanned v1.0.4
+   Compiling clap_builder v4.5.53
+   Compiling toml_datetime v0.7.5+spec-1.1.0
+   Compiling fastrand v2.3.0
+   Compiling rand v0.9.2
+   Compiling rs_merkle v1.5.0
+   Compiling rustc-hash v2.1.1
+   Compiling toml_parser v1.0.6+spec-1.1.0
+   Compiling toml v0.9.10+spec-1.1.0
+   Compiling match-lookup v0.1.1
+   Compiling loop-code v0.5.2
+   Compiling synstructure v0.13.2
+   Compiling base256emoji v1.0.2
+   Compiling zerofrom-derive v0.1.6
+   Compiling yoke-derive v0.8.1
+   Compiling serde_derive v1.0.228
+   Compiling zerovec-derive v0.11.2
+   Compiling displaydoc v0.2.5
+   Compiling futures-macro v0.3.31
+   Compiling thiserror-impl v2.0.17
+   Compiling curve25519-dalek-derive v0.1.1
+   Compiling pin-project-internal v1.1.10
+   Compiling futures-util v0.3.31
+   Compiling data-encoding-macro-internal v0.1.16
+   Compiling tracing-attributes v0.1.31
+   Compiling zerofrom v0.1.6
+   Compiling data-encoding-macro v0.1.18
+   Compiling thiserror-impl v1.0.69
+   Compiling multibase v0.9.2
+   Compiling yoke v0.8.1
+   Compiling cobs v0.3.0
+   Compiling clap_derive v4.5.49
+   Compiling derive_more-impl v2.1.0
+   Compiling strum_macros v0.27.2
+   Compiling zerovec v0.11.5
+   Compiling zerotrie v0.2.3
+   Compiling tinystr v0.8.2
+   Compiling potential_utf v0.1.4
+   Compiling icu_collections v2.1.1
+   Compiling icu_locale_core v2.1.1
+   Compiling tracing v0.1.44
+   Compiling ed25519-dalek v2.2.0
+   Compiling pin-project v1.1.10
+   Compiling tempfile v3.24.0
+   Compiling from_proc v0.1.2
+   Compiling icu_provider v2.1.1
+   Compiling icu_properties v2.1.2
+   Compiling icu_normalizer v2.1.1
+   Compiling bytes v1.11.0
+   Compiling futures-executor v0.3.31
+   Compiling multihash v0.19.3
+   Compiling futures v0.3.31
+   Compiling libp2p-identity v0.2.13
+   Compiling rw-stream-sink v0.4.0
+   Compiling futures-bounded v0.2.4
+   Compiling multistream-select v0.13.0
+   Compiling asynchronous-codec v0.7.0
+   Compiling idna_adapter v1.2.1
+   Compiling idna v1.1.0
+   Compiling quick-protobuf-codec v0.3.1
+   Compiling derive_more v2.1.0
+   Compiling netabase_macros v0.1.4 (/home/rusta/Projects/NewsNet/netabase_store/netabase_macros)
+   Compiling bincode v1.3.3
+   Compiling strum v0.27.2
+   Compiling url v2.5.8
+   Compiling clap v4.5.53
+   Compiling postcard v1.1.3
+   Compiling multiaddr v0.18.2
+   Compiling libp2p-core v0.43.2
+   Compiling from v0.1.4
+   Compiling libp2p-swarm v0.47.0
+   Compiling libp2p-connection-limits v0.6.0
+   Compiling libp2p-kad v0.48.0
+   Compiling libp2p-allow-block-list v0.6.0
+   Compiling libp2p v0.56.0
+   Compiling netabase_store v0.1.0 (/home/rusta/Projects/NewsNet/netabase_store)
+warning: unused imports: `blob::NetabaseBlobItem` and `keys::NetabaseModelPrimaryKey`
+ --> src/traits/registery/models/keys/libp2p.rs:4:5
+  |
+4 |     blob::NetabaseBlobItem,
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+...
+7 |         StoreKeyMarker, keys::NetabaseModelPrimaryKey, model::NetabaseModelMarker,
+  |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `traits::database::store::NBStore`
+  --> src/databases/redb/libp2p.rs:10:33
+   |
+10 |     databases::redb::RedbStore, traits::database::store::NBStore,
+   |                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: structure field `table_User` should have a snake case name
+  --> src/doc_examples.rs:80:16
+   |
+80 |     pub struct User {
+   |                ^^^^ help: convert the identifier to snake case: `table_user`
+   |
+   = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: structure field `table_Product` should have a snake case name
+   --> src/doc_examples.rs:107:16
+    |
+107 |     pub struct Product {
+    |                ^^^^^^^ help: convert the identifier to snake case: `table_product`
+
+warning: structure field `table_Author` should have a snake case name
+   --> src/doc_examples.rs:129:16
+    |
+129 |     pub struct Author {
+    |                ^^^^^^ help: convert the identifier to snake case: `table_author`
+
+warning: structure field `table_Book` should have a snake case name
+   --> src/doc_examples.rs:150:16
+    |
+150 |     pub struct Book {
+    |                ^^^^ help: convert the identifier to snake case: `table_book`
+
+warning: variable `table_User` should have a snake case name
+  --> src/doc_examples.rs:80:16
+   |
+80 |     pub struct User {
+   |                ^^^^ help: convert the identifier to snake case: `table_user`
+
+warning: variable `table_Product` should have a snake case name
+   --> src/doc_examples.rs:107:16
+    |
+107 |     pub struct Product {
+    |                ^^^^^^^ help: convert the identifier to snake case: `table_product`
+
+warning: variable `table_Author` should have a snake case name
+   --> src/doc_examples.rs:129:16
+    |
+129 |     pub struct Author {
+    |                ^^^^^^ help: convert the identifier to snake case: `table_author`
+
+warning: variable `table_Book` should have a snake case name
+   --> src/doc_examples.rs:150:16
+    |
+150 |     pub struct Book {
+    |                ^^^^ help: convert the identifier to snake case: `table_book`
+
+warning: structure field `iter_User` should have a snake case name
+  --> src/doc_examples.rs:80:16
+   |
+80 |     pub struct User {
+   |                ^^^^ help: convert the identifier to snake case: `iter_user`
+
+warning: structure field `iter_Product` should have a snake case name
+   --> src/doc_examples.rs:107:16
+    |
+107 |     pub struct Product {
+    |                ^^^^^^^ help: convert the identifier to snake case: `iter_product`
+
+warning: structure field `iter_Author` should have a snake case name
+   --> src/doc_examples.rs:129:16
+    |
+129 |     pub struct Author {
+    |                ^^^^^^ help: convert the identifier to snake case: `iter_author`
+
+warning: structure field `iter_Book` should have a snake case name
+   --> src/doc_examples.rs:150:16
+    |
+150 |     pub struct Book {
+    |                ^^^^ help: convert the identifier to snake case: `iter_book`
+
+warning: constant `__NETABASE_REPO_REGISTRATION_ExampleDef` should have an upper case name
+  --> src/doc_examples.rs:58:40
+   |
+58 | #[netabase_macros::netabase_definition(ExampleDef)]
+   |                                        ^^^^^^^^^^ help: convert the identifier to upper case: `__NETABASE_REPO_REGISTRATION_EXAMPLE_DEF`
+   |
+   = note: `#[warn(non_upper_case_globals)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+   Compiling netabase_store_examples v0.1.0 (/home/rusta/Projects/NewsNet/netabase_store/boilerplate)
+Warning: Circular definition dependencies detected in repository `EmployeeRepo`: Employee → Employee
+Warning: Circular definition dependencies detected in repository `ManagerRepo`: Employee → Employee
+warning: unused imports: `relational::RelationalLink` and `traits::registery::models::keys::primary`
+  --> boilerplate/src/boilerplate_lib/simple_repo_example.rs:38:26
+   |
+38 |     use netabase_store::{relational::RelationalLink, traits::registery::models::keys::primary};
+   |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: structure field `table_User` should have a snake case name
+  --> boilerplate/src/boilerplate_lib/repository_example.rs:83:20
+   |
+83 |         pub struct User {
+   |                    ^^^^ help: convert the identifier to snake case: `table_user`
+   |
+   = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: structure field `table_Shift` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/repository_example.rs:109:20
+    |
+109 |         pub struct Shift {
+    |                    ^^^^^ help: convert the identifier to snake case: `table_shift`
+
+warning: variable `table_User` should have a snake case name
+  --> boilerplate/src/boilerplate_lib/repository_example.rs:83:20
+   |
+83 |         pub struct User {
+   |                    ^^^^ help: convert the identifier to snake case: `table_user`
+
+warning: variable `table_Shift` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/repository_example.rs:109:20
+    |
+109 |         pub struct Shift {
+    |                    ^^^^^ help: convert the identifier to snake case: `table_shift`
+
+warning: structure field `iter_User` should have a snake case name
+  --> boilerplate/src/boilerplate_lib/repository_example.rs:83:20
+   |
+83 |         pub struct User {
+   |                    ^^^^ help: convert the identifier to snake case: `iter_user`
+
+warning: structure field `iter_Shift` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/repository_example.rs:109:20
+    |
+109 |         pub struct Shift {
+    |                    ^^^^^ help: convert the identifier to snake case: `iter_shift`
+
+warning: constant `__NETABASE_REPO_REGISTRATION_Employee` should have an upper case name
+  --> boilerplate/src/boilerplate_lib/repository_example.rs:66:44
+   |
+66 |     #[netabase_macros::netabase_definition(Employee, repos(EmployeeRepo, ManagerRepo))]
+   |                                            ^^^^^^^^ help: convert the identifier to upper case: `__NETABASE_REPO_REGISTRATION_EMPLOYEE`
+   |
+   = note: `#[warn(non_upper_case_globals)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: structure field `table_Product` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/repository_example.rs:146:20
+    |
+146 |         pub struct Product {
+    |                    ^^^^^^^ help: convert the identifier to snake case: `table_product`
+
+warning: variable `table_Product` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/repository_example.rs:146:20
+    |
+146 |         pub struct Product {
+    |                    ^^^^^^^ help: convert the identifier to snake case: `table_product`
+
+warning: structure field `iter_Product` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/repository_example.rs:146:20
+    |
+146 |         pub struct Product {
+    |                    ^^^^^^^ help: convert the identifier to snake case: `iter_product`
+
+warning: constant `__NETABASE_REPO_REGISTRATION_Inventory` should have an upper case name
+   --> boilerplate/src/boilerplate_lib/repository_example.rs:128:44
+    |
+128 |     #[netabase_macros::netabase_definition(Inventory, repos(EmployeeRepo))]
+    |                                            ^^^^^^^^^ help: convert the identifier to upper case: `__NETABASE_REPO_REGISTRATION_INVENTORY`
+
+warning: structure field `table_Report` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/repository_example.rs:188:20
+    |
+188 |         pub struct Report {
+    |                    ^^^^^^ help: convert the identifier to snake case: `table_report`
+
+warning: variable `table_Report` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/repository_example.rs:188:20
+    |
+188 |         pub struct Report {
+    |                    ^^^^^^ help: convert the identifier to snake case: `table_report`
+
+warning: structure field `iter_Report` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/repository_example.rs:188:20
+    |
+188 |         pub struct Report {
+    |                    ^^^^^^ help: convert the identifier to snake case: `iter_report`
+
+warning: constant `__NETABASE_REPO_REGISTRATION_Reports` should have an upper case name
+   --> boilerplate/src/boilerplate_lib/repository_example.rs:170:44
+    |
+170 |     #[netabase_macros::netabase_definition(Reports, repos(ManagerRepo))]
+    |                                            ^^^^^^^ help: convert the identifier to upper case: `__NETABASE_REPO_REGISTRATION_REPORTS`
+
+warning: structure field `table_InventoryItem` should have a snake case name
+  --> boilerplate/src/boilerplate_lib/simple_repo_example.rs:54:16
+   |
+54 |     pub struct InventoryItem {
+   |                ^^^^^^^^^^^^^ help: convert the identifier to snake case: `table_inventory_item`
+
+warning: structure field `table_BranchInventory` should have a snake case name
+  --> boilerplate/src/boilerplate_lib/simple_repo_example.rs:80:16
+   |
+80 |     pub struct BranchInventory {
+   |                ^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `table_branch_inventory`
+
+warning: variable `table_InventoryItem` should have a snake case name
+  --> boilerplate/src/boilerplate_lib/simple_repo_example.rs:54:16
+   |
+54 |     pub struct InventoryItem {
+   |                ^^^^^^^^^^^^^ help: convert the identifier to snake case: `table_inventory_item`
+
+warning: variable `table_BranchInventory` should have a snake case name
+  --> boilerplate/src/boilerplate_lib/simple_repo_example.rs:80:16
+   |
+80 |     pub struct BranchInventory {
+   |                ^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `table_branch_inventory`
+
+warning: structure field `iter_InventoryItem` should have a snake case name
+  --> boilerplate/src/boilerplate_lib/simple_repo_example.rs:54:16
+   |
+54 |     pub struct InventoryItem {
+   |                ^^^^^^^^^^^^^ help: convert the identifier to snake case: `iter_inventory_item`
+
+warning: structure field `iter_BranchInventory` should have a snake case name
+  --> boilerplate/src/boilerplate_lib/simple_repo_example.rs:80:16
+   |
+80 |     pub struct BranchInventory {
+   |                ^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `iter_branch_inventory`
+
+warning: constant `__NETABASE_REPO_REGISTRATION_SimpleDefinition` should have an upper case name
+  --> boilerplate/src/boilerplate_lib/simple_repo_example.rs:36:40
+   |
+36 | #[netabase_macros::netabase_definition(SimpleDefinition)]
+   |                                        ^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `__NETABASE_REPO_REGISTRATION_SIMPLE_DEFINITION`
+
+warning: structure field `table_Category` should have a snake case name
+  --> boilerplate/src/boilerplate_lib/mod.rs:85:16
+   |
+85 |     pub struct Category {
+   |                ^^^^^^^^ help: convert the identifier to snake case: `table_category`
+
+warning: variable `table_Category` should have a snake case name
+  --> boilerplate/src/boilerplate_lib/mod.rs:85:16
+   |
+85 |     pub struct Category {
+   |                ^^^^^^^^ help: convert the identifier to snake case: `table_category`
+
+warning: structure field `iter_Category` should have a snake case name
+  --> boilerplate/src/boilerplate_lib/mod.rs:85:16
+   |
+85 |     pub struct Category {
+   |                ^^^^^^^^ help: convert the identifier to snake case: `iter_category`
+
+warning: constant `__NETABASE_REPO_REGISTRATION_DefinitionTwo` should have an upper case name
+  --> boilerplate/src/boilerplate_lib/mod.rs:67:40
+   |
+67 | #[netabase_macros::netabase_definition(DefinitionTwo, subscriptions(General))]
+   |                                        ^^^^^^^^^^^^^ help: convert the identifier to upper case: `__NETABASE_REPO_REGISTRATION_DEFINITION_TWO`
+
+warning: structure field `table_UserV1` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/mod.rs:142:16
+    |
+142 |     pub struct UserV1 {
+    |                ^^^^^^ help: convert the identifier to snake case: `table_user_v1`
+
+warning: structure field `table_User` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/mod.rs:171:16
+    |
+171 |     pub struct User {
+    |                ^^^^ help: convert the identifier to snake case: `table_user`
+
+warning: structure field `table_PostV1` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/mod.rs:243:16
+    |
+243 |     pub struct PostV1 {
+    |                ^^^^^^ help: convert the identifier to snake case: `table_post_v1`
+
+warning: structure field `table_Post` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/mod.rs:271:16
+    |
+271 |     pub struct Post {
+    |                ^^^^ help: convert the identifier to snake case: `table_post`
+
+warning: structure field `table_HeavyModel` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/mod.rs:327:16
+    |
+327 |     pub struct HeavyModel {
+    |                ^^^^^^^^^^ help: convert the identifier to snake case: `table_heavy_model`
+
+warning: variable `table_UserV1` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/mod.rs:142:16
+    |
+142 |     pub struct UserV1 {
+    |                ^^^^^^ help: convert the identifier to snake case: `table_user_v1`
+
+warning: variable `table_User` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/mod.rs:171:16
+    |
+171 |     pub struct User {
+    |                ^^^^ help: convert the identifier to snake case: `table_user`
+
+warning: variable `table_PostV1` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/mod.rs:243:16
+    |
+243 |     pub struct PostV1 {
+    |                ^^^^^^ help: convert the identifier to snake case: `table_post_v1`
+
+warning: variable `table_Post` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/mod.rs:271:16
+    |
+271 |     pub struct Post {
+    |                ^^^^ help: convert the identifier to snake case: `table_post`
+
+warning: variable `table_HeavyModel` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/mod.rs:327:16
+    |
+327 |     pub struct HeavyModel {
+    |                ^^^^^^^^^^ help: convert the identifier to snake case: `table_heavy_model`
+
+warning: structure field `iter_UserV1` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/mod.rs:142:16
+    |
+142 |     pub struct UserV1 {
+    |                ^^^^^^ help: convert the identifier to snake case: `iter_user_v1`
+
+warning: structure field `iter_User` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/mod.rs:171:16
+    |
+171 |     pub struct User {
+    |                ^^^^ help: convert the identifier to snake case: `iter_user`
+
+warning: structure field `iter_PostV1` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/mod.rs:243:16
+    |
+243 |     pub struct PostV1 {
+    |                ^^^^^^ help: convert the identifier to snake case: `iter_post_v1`
+
+warning: structure field `iter_Post` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/mod.rs:271:16
+    |
+271 |     pub struct Post {
+    |                ^^^^ help: convert the identifier to snake case: `iter_post`
+
+warning: structure field `iter_HeavyModel` should have a snake case name
+   --> boilerplate/src/boilerplate_lib/mod.rs:327:16
+    |
+327 |     pub struct HeavyModel {
+    |                ^^^^^^^^^^ help: convert the identifier to snake case: `iter_heavy_model`
+
+warning: constant `__NETABASE_REPO_REGISTRATION_Definition` should have an upper case name
+  --> boilerplate/src/boilerplate_lib/mod.rs:97:40
+   |
+97 | #[netabase_macros::netabase_definition(Definition, subscriptions(Topic1, Topic2, Topic3, Topic4))]
+   |                                        ^^^^^^^^^^ help: convert the identifier to upper case: `__NETABASE_REPO_REGISTRATION_DEFINITION`
+
+warning: `netabase_store` (lib) generated 15 warnings (run `cargo fix --lib -p netabase_store` to apply 1 suggestion)
+warning: `netabase_store_examples` (lib) generated 43 warnings (run `cargo fix --lib -p netabase_store_examples` to apply 1 suggestion)
+warning: `netabase_store` (lib test) generated 15 warnings (15 duplicates)
+    Finished `bench` profile [optimized] target(s) in 51.06s
+     Running unittests src/lib.rs (target/release/deps/netabase_store-a4e999fee735ebc0)
+
+running 18 tests
+test query::tests::test_query_config_builder ... ignored
+test query::tests::test_query_config_defaults ... ignored
+test query::tests::test_query_config_helpers ... ignored
+test query::tests::test_query_config_range_change ... ignored
+test subscription_hash::tests::test_merkle_proof ... ignored
+test subscription_hash::tests::test_merkle_proof_all_leaves ... ignored
+test subscription_hash::tests::test_merkle_proof_invalid ... ignored
+test subscription_hash::tests::test_merkle_tree_creation ... ignored
+test subscription_hash::tests::test_merkle_tree_diff ... ignored
+test subscription_hash::tests::test_model_hash_creation ... ignored
+test subscription_hash::tests::test_model_hash_from_data ... ignored
+test subscription_hash::tests::test_model_hash_hex ... ignored
+test traits::database::hash::tests::test_crypto_hash ... ignored
+test traits::database::hash::tests::test_default_hash ... ignored
+test traits::database::hash::tests::test_different_algorithms_produce_different_hashes ... ignored
+test traits::database::hash::tests::test_fast_hash ... ignored
+test traits::migration::chain::tests::test_common_ancestor ... ignored
+test traits::migration::chain::tests::test_is_descendant ... ignored
+
+test result: ok. 0 passed; 0 failed; 18 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/client/main.rs (target/release/deps/client-1471c17b5227f88b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/dummy_db.rs (target/release/deps/dummy_db-0eeaf2aafb2c40d5)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
