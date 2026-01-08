@@ -1,13 +1,18 @@
 use serde::{Serialize, Deserialize};
 use redb::{Value, Key, TypeName};
-use libp2p::kad::ProviderRecord;
-use libp2p::{PeerId, Multiaddr};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 
+#[cfg(feature = "libp2p")]
+use libp2p::kad::ProviderRecord;
+#[cfg(feature = "libp2p")]
+use libp2p::{PeerId, Multiaddr};
+
+#[cfg(feature = "libp2p")]
 #[derive(Debug, Clone)]
 pub struct Libp2pProviderRecordWrapper(pub ProviderRecord);
 
+#[cfg(feature = "libp2p")]
 #[derive(Serialize, Deserialize)]
 struct ProviderRecordDto {
     key: Vec<u8>,
@@ -16,6 +21,7 @@ struct ProviderRecordDto {
     addresses: Vec<Multiaddr>,
 }
 
+#[cfg(feature = "libp2p")]
 impl Serialize for Libp2pProviderRecordWrapper {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -31,6 +37,7 @@ impl Serialize for Libp2pProviderRecordWrapper {
     }
 }
 
+#[cfg(feature = "libp2p")]
 impl<'de> Deserialize<'de> for Libp2pProviderRecordWrapper {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -43,6 +50,7 @@ impl<'de> Deserialize<'de> for Libp2pProviderRecordWrapper {
     }
 }
 
+#[cfg(feature = "libp2p")]
 impl Value for Libp2pProviderRecordWrapper {
     type SelfType<'a> = Libp2pProviderRecordWrapper;
     type AsBytes<'a> = Cow<'a, [u8]>;
@@ -71,6 +79,7 @@ impl Value for Libp2pProviderRecordWrapper {
     }
 }
 
+#[cfg(feature = "libp2p")]
 impl Key for Libp2pProviderRecordWrapper {
     fn compare(data1: &[u8], data2: &[u8]) -> Ordering {
         data1.cmp(data2)

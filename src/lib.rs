@@ -193,6 +193,7 @@
 // code referencing `netabase_store::` paths
 extern crate self as netabase_store;
 
+#[cfg(feature = "libp2p")]
 pub use libp2p;
 pub use postcard;
 

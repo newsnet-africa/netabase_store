@@ -74,9 +74,12 @@
 //! - Blob data is automatically chunked for large values
 //! - Type-safe relational links between models
 
+#[cfg(feature = "migration")]
 pub mod migration;
+#[cfg(feature = "repository")]
 pub mod repository;
 pub mod transaction;
+#[cfg(feature = "libp2p")]
 pub mod libp2p;
 
 use crate::errors::{NetabaseError, NetabaseResult};
@@ -188,6 +191,7 @@ where
     /// 3. Optionally delete old tables
     ///
     /// Returns a `MigrationResult` with counts and any errors.
+    #[cfg(feature = "migration")]
     pub fn migrate(&self) -> NetabaseResult<migration::DatabaseMigrationResult> {
         let migrator = migration::DatabaseMigrator::<D>::new(&self.db, self.stored_schema.clone());
         migrator.run()
@@ -196,6 +200,7 @@ where
     /// Migrate with custom options.
     ///
     /// See [`migrate`](Self::migrate) for details on what migration does.
+    #[cfg(feature = "migration")]
     pub fn migrate_with_options(
         &self,
         options: migration::MigrationOptions,

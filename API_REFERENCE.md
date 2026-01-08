@@ -2,12 +2,34 @@
 
 This document provides a complete API reference for the newly implemented features in Netabase Store.
 
+## Feature Flags
+
+Netabase Store provides granular feature flags to minimize dependencies and optimize compilation:
+
+```toml
+[dependencies]
+netabase_store = { version = "0.1", default-features = false, features = ["secondary_keys"] }
+```
+
+**Available Features**:
+- `secondary_keys` - Enable secondary index support on models
+- `relational_keys` - Enable foreign key relationships between models
+- `blobs` - Enable blob field support for large binary data
+- `repository` - Enable repository pattern API
+- `migration` - Enable schema migration system (requires `toml` dependency)
+- `libp2p` - Enable libp2p integration for P2P networking (requires `libp2p` dependency)
+
+**Default Features**: All features are enabled by default for convenience.
+
+**Minimal Configuration**: For smallest binary size and fastest compilation, disable default features and only enable what you need.
+
 ## Table of Contents
 
-1. [Subscription System](#subscription-system)
-2. [Selective Subscription Control](#selective-subscription-control)
-3. [Merkle Tree API](#merkle-tree-api)
-4. [Content Hashing](#content-hashing)
+1. [Feature Flags](#feature-flags)
+2. [Subscription System](#subscription-system)
+3. [Selective Subscription Control](#selective-subscription-control)
+4. [Merkle Tree API](#merkle-tree-api)
+5. [Content Hashing](#content-hashing)
 
 ---
 
