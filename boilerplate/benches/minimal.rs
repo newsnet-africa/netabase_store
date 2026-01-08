@@ -16,7 +16,7 @@ use netabase_store::traits::database::store::NBStore;
 use redb::{Database, ReadableDatabase, TableDefinition};
 use serde::{Deserialize, Serialize};
 use std::hint::black_box;
-use std::path::PathBuf;
+
 
 // Minimal Definition
 #[netabase_macros::netabase_definition(MinimalDefinition)]
@@ -32,18 +32,6 @@ pub mod minimal_def {
 }
 
 use minimal_def::{Item, ItemID, MinimalDefinition};
-
-// Cleanup helper
-struct CleanupGuard(PathBuf);
-impl Drop for CleanupGuard {
-    fn drop(&mut self) {
-        if self.0.is_dir() {
-            std::fs::remove_dir_all(&self.0).ok();
-        } else if self.0.exists() {
-            std::fs::remove_file(&self.0).ok();
-        }
-    }
-}
 
 fn bench_minimal_insert(c: &mut Criterion) {
     let mut group = c.benchmark_group("Minimal/Insert");
@@ -63,13 +51,11 @@ fn bench_minimal_insert(c: &mut Criterion) {
             |b, _| {
                 b.iter_batched(
                     || {
-                        let name = format!("minimal_abs_{}", rand::random::<u64>());
-                        let path = PathBuf::from(format!("./tmp/netabase_test_{}", name));
-                        let store = RedbStore::<MinimalDefinition>::new(&path)
+                        let store = RedbStore::<MinimalDefinition>::new_in_memory()
                             .expect("Failed to create store");
-                        (store, items.clone(), CleanupGuard(path))
+                        (store, items.clone())
                     },
-                    |(store, items, _guard)| {
+                    |(store, items)| {
                         let txn = store.begin_write().expect("Failed to begin write");
                         for item in &items {
                             txn.create::<Item>(item).expect("Failed to insert");
@@ -89,15 +75,12 @@ fn bench_minimal_insert(c: &mut Criterion) {
             |b, _| {
                 b.iter_batched(
                     || {
-                        let name = format!("minimal_raw_{}", rand::random::<u64>());
-                        let path = PathBuf::from(format!("./tmp/netabase_test_{}.redb", name));
-                        if path.exists() {
-                            std::fs::remove_file(&path).ok();
-                        }
-                        let db = Database::create(&path).expect("Failed to create raw DB");
-                        (db, items.clone(), CleanupGuard(path))
+                        let db = Database::builder()
+                            .create_with_backend(redb::backends::InMemoryBackend::new())
+                            .expect("Failed to create raw DB");
+                        (db, items.clone())
                     },
-                    |(db, items, _guard)| {
+                    |(db, items)| {
                         const TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("items");
                         let write_txn = db.begin_write().expect("Failed to begin write");
                         {
@@ -138,9 +121,7 @@ fn bench_minimal_read(c: &mut Criterion) {
             |b, _| {
                 b.iter_batched(
                     || {
-                        let name = format!("minimal_abs_read_{}", rand::random::<u64>());
-                        let path = PathBuf::from(format!("./tmp/netabase_test_{}", name));
-                        let store = RedbStore::<MinimalDefinition>::new(&path)
+                        let store = RedbStore::<MinimalDefinition>::new_in_memory()
                             .expect("Failed to create store");
                         
                         // Insert data
@@ -150,9 +131,9 @@ fn bench_minimal_read(c: &mut Criterion) {
                         }
                         txn.commit().expect("Failed to commit");
                         
-                        (store, CleanupGuard(path))
+                        store
                     },
-                    |(store, _guard)| {
+                    |store| {
                         let txn = store.begin_read().expect("Failed to begin read");
                         for i in 0..*count {
                             let id = ItemID(format!("item_{:06}", i));
@@ -172,12 +153,9 @@ fn bench_minimal_read(c: &mut Criterion) {
             |b, _| {
                 b.iter_batched(
                     || {
-                        let name = format!("minimal_raw_read_{}", rand::random::<u64>());
-                        let path = PathBuf::from(format!("./tmp/netabase_test_{}.redb", name));
-                        if path.exists() {
-                            std::fs::remove_file(&path).ok();
-                        }
-                        let db = Database::create(&path).expect("Failed to create raw DB");
+                        let db = Database::builder()
+                            .create_with_backend(redb::backends::InMemoryBackend::new())
+                            .expect("Failed to create raw DB");
                         
                         // Insert data
                         const TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("items");
@@ -192,9 +170,9 @@ fn bench_minimal_read(c: &mut Criterion) {
                         }
                         write_txn.commit().expect("Failed to commit");
                         
-                        (db, CleanupGuard(path))
+                        db
                     },
-                    |(db, _guard)| {
+                    |db| {
                         const TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("items");
                         let read_txn = db.begin_read().expect("Failed to begin read");
                         let table = read_txn.open_table(TABLE).expect("Failed to open table");

@@ -12,7 +12,6 @@ use netabase_store_examples::boilerplate_lib::{CategoryID, Definition, Definitio
 use rand::prelude::*;
 use redb::{MultimapTableDefinition, ReadableDatabase, ReadableTable, TableDefinition};
 use std::hint::black_box;
-use std::path::PathBuf;
 
 // Include common test utils.
 mod common;
@@ -99,18 +98,6 @@ pub fn generate_random_user() -> User {
     }
 }
 
-// Helper struct to clean up the DB file when it goes out of scope
-struct CleanupGuard(PathBuf);
-impl Drop for CleanupGuard {
-    fn drop(&mut self) {
-        if self.0.is_dir() {
-            std::fs::remove_dir_all(&self.0).ok();
-        } else if self.0.exists() {
-            std::fs::remove_file(&self.0).ok();
-        }
-    }
-}
-
 // --- Benchmarks ---
 
 fn bench_crud_operations(c: &mut Criterion) {
@@ -148,11 +135,10 @@ fn bench_crud_operations(c: &mut Criterion) {
                 || {
                     let users: Vec<User> = (0..size).map(|_| generate_random_user()).collect();
                     let name = format!("bench_opt_insert_{}_{}", size, rand::random::<u64>());
-                    let (store, path) =
-                        create_test_db::<Definition>(&name).expect("Failed to create DB");
-                    (store, users, CleanupGuard(path))
+                    let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
+                    (store, users)
                 },
-                |(store, users, _guard)| {
+                |(store, users)| {
                     // MEASURED: Transaction, table opening, and insert loop
                     let txn = store.begin_write().expect("Failed to begin txn");
                     {
@@ -176,12 +162,12 @@ fn bench_crud_operations(c: &mut Criterion) {
             b.iter_batched(
                 || {
                     let users: Vec<User> = (0..size).map(|_| generate_random_user()).collect();
-                    let name = format!("bench_raw_insert_{}_{}", size, rand::random::<u64>());
-                    let path = PathBuf::from(format!("./tmp/netabase_test_{}.redb", name));
-                    let db = redb::Database::create(&path).expect("Failed to create raw DB");
-                    (db, users, CleanupGuard(path))
+                    let db = redb::Database::builder()
+                        .create_with_backend(redb::backends::InMemoryBackend::new())
+                        .expect("Failed to create raw DB");
+                    (db, users)
                 },
-                |(db, users, _guard)| {
+                |(db, users)| {
                     // MEASURED: Transaction, table opening, and insert loop
                     let txn = db.begin_write().expect("Failed to begin txn");
                     {
@@ -315,8 +301,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                 || {
                     let users: Vec<User> = (0..size).map(|_| generate_random_user()).collect();
                     let name = format!("bench_opt_read_{}_{}", size, rand::random::<u64>());
-                    let (store, path) =
-                        create_test_db::<Definition>(&name).expect("Failed to create DB");
+                    let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
 
                     // Insert data in setup
                     let txn = store.begin_write().expect("Failed to begin txn");
@@ -331,9 +316,9 @@ fn bench_crud_operations(c: &mut Criterion) {
                     }
                     txn.commit().expect("Failed to commit");
 
-                    (store, users, CleanupGuard(path))
+                    (store, users)
                 },
-                |(store, users, _guard)| {
+                |(store, users)| {
                     // MEASURED: Transaction, table opening, and read loop
                     let txn = store.begin_read().expect("Failed to begin txn");
                     {
@@ -356,12 +341,9 @@ fn bench_crud_operations(c: &mut Criterion) {
             b.iter_batched(
                 || {
                     let users: Vec<User> = (0..size).map(|_| generate_random_user()).collect();
-                    let name = format!("bench_raw_read_{}_{}", size, rand::random::<u64>());
-                    let path = PathBuf::from(format!("./tmp/netabase_test_{}.redb", name));
-                    if path.exists() {
-                        std::fs::remove_file(&path).ok();
-                    }
-                    let db = redb::Database::create(&path).expect("Failed to create raw DB");
+                    let db = redb::Database::builder()
+                        .create_with_backend(redb::backends::InMemoryBackend::new())
+                        .expect("Failed to create raw DB");
 
                     // Insert data in setup
                     let txn = db.begin_write().expect("Failed to begin txn");
@@ -463,9 +445,9 @@ fn bench_crud_operations(c: &mut Criterion) {
                     }
                     txn.commit().unwrap();
 
-                    (db, users, CleanupGuard(path))
+                    (db, users)
                 },
-                |(db, users, _guard)| {
+                |(db, users)| {
                     // MEASURED: Transaction, table opening, and read loop
                     let txn = db.begin_read().expect("Failed to begin txn");
                     let main_table = txn.open_table(MAIN).expect("Failed to open main");
@@ -493,8 +475,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                 || {
                     let users: Vec<User> = (0..size).map(|_| generate_random_user()).collect();
                     let name = format!("bench_opt_del_{}_{}", size, rand::random::<u64>());
-                    let (store, path) =
-                        create_test_db::<Definition>(&name).expect("Failed to create DB");
+                    let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
 
                     // Insert data in setup
                     let txn = store.begin_write().expect("Failed to begin txn");
@@ -509,9 +490,9 @@ fn bench_crud_operations(c: &mut Criterion) {
                     }
                     txn.commit().expect("Failed to commit");
 
-                    (store, users, CleanupGuard(path))
+                    (store, users)
                 },
-                |(store, users, _guard)| {
+                |(store, users)| {
                     // MEASURED: Transaction, table opening, and delete loop
                     let txn = store.begin_write().expect("Failed to begin txn");
                     {
@@ -535,12 +516,9 @@ fn bench_crud_operations(c: &mut Criterion) {
             b.iter_batched(
                 || {
                     let users: Vec<User> = (0..size).map(|_| generate_random_user()).collect();
-                    let name = format!("bench_raw_del_{}_{}", size, rand::random::<u64>());
-                    let path = PathBuf::from(format!("./tmp/netabase_test_{}.redb", name));
-                    if path.exists() {
-                        std::fs::remove_file(&path).ok();
-                    }
-                    let db = redb::Database::create(&path).expect("Failed to create raw DB");
+                    let db = redb::Database::builder()
+                        .create_with_backend(redb::backends::InMemoryBackend::new())
+                        .expect("Failed to create raw DB");
 
                     // Insert data in setup
                     let txn = db.begin_write().expect("Failed to begin txn");
@@ -642,9 +620,9 @@ fn bench_crud_operations(c: &mut Criterion) {
                     }
                     txn.commit().unwrap();
 
-                    (db, users, CleanupGuard(path))
+                    (db, users)
                 },
-                |(db, users, _guard)| {
+                |(db, users)| {
                     // MEASURED: Transaction, table opening, and delete loop
                     let txn = db.begin_write().expect("Failed to begin txn");
                     {
