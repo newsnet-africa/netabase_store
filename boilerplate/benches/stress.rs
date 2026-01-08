@@ -10,7 +10,6 @@ use netabase_store_examples::boilerplate_lib::models::blob_types::{
 use netabase_store_examples::boilerplate_lib::{CategoryID, Definition, DefinitionSubscriptions};
 use rand::prelude::*;
 use std::hint::black_box;
-use std::path::PathBuf;
 
 // Include common test utils.
 mod common;
@@ -124,17 +123,6 @@ fn generate_random_heavy(
     }
 }
 
-struct CleanupGuard(PathBuf);
-impl Drop for CleanupGuard {
-    fn drop(&mut self) {
-        if self.0.is_dir() {
-            std::fs::remove_dir_all(&self.0).ok();
-        } else if self.0.exists() {
-            std::fs::remove_file(&self.0).ok();
-        }
-    }
-}
-
 // --- Benchmarks ---
 
 fn bench_stress_operations(c: &mut Criterion) {
@@ -161,8 +149,7 @@ fn bench_stress_operations(c: &mut Criterion) {
                     }
 
                     let name = format!("stress_insert_{}_{}", size, rng.random::<u64>());
-                    let (store, path) =
-                        create_test_db::<Definition>(&name).expect("Failed to create DB");
+                    let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
 
                     // Insert users first so foreign keys technically exist (though not enforced by DB strictly yet)
                     let txn = store.begin_write().expect("Failed to begin txn");
@@ -174,9 +161,9 @@ fn bench_stress_operations(c: &mut Criterion) {
                     }
                     txn.commit().unwrap();
 
-                    (store, heavies, CleanupGuard(path))
+                    (store, heavies)
                 },
-                |(store, heavies, _guard)| {
+                |(store, heavies)| {
                     let txn = store.begin_write().expect("Failed to begin txn");
                     {
                         let mut tables = txn.prepare_model::<HeavyModel>().unwrap();
@@ -205,8 +192,7 @@ fn bench_stress_operations(c: &mut Criterion) {
                     }
 
                     let name = format!("stress_read_pk_{}_{}", size, rng.random::<u64>());
-                    let (store, path) =
-                        create_test_db::<Definition>(&name).expect("Failed to create DB");
+                    let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
 
                     let txn = store.begin_write().unwrap();
                     {
@@ -221,9 +207,9 @@ fn bench_stress_operations(c: &mut Criterion) {
                     }
                     txn.commit().unwrap();
 
-                    (store, heavies, CleanupGuard(path))
+                    (store, heavies)
                 },
-                |(store, heavies, _guard)| {
+                |(store, heavies)| {
                     let txn = store.begin_read().unwrap();
                     let tables = txn.prepare_model::<HeavyModel>().unwrap();
                     for item in &heavies {
@@ -249,8 +235,7 @@ fn bench_stress_operations(c: &mut Criterion) {
                     }
 
                     let name = format!("stress_read_hydra_{}_{}", size, rng.random::<u64>());
-                    let (store, path) =
-                        create_test_db::<Definition>(&name).expect("Failed to create DB");
+                    let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
 
                     let txn = store.begin_write().unwrap();
                     {
@@ -265,9 +250,9 @@ fn bench_stress_operations(c: &mut Criterion) {
                     }
                     txn.commit().unwrap();
 
-                    (store, heavies, CleanupGuard(path))
+                    (store, heavies)
                 },
-                |(store, heavies, _guard)| {
+                |(store, heavies)| {
                     let txn = store.begin_read().unwrap();
                     let heavy_tables = txn.prepare_model::<HeavyModel>().unwrap();
                     let user_tables = txn.prepare_model::<User>().unwrap();

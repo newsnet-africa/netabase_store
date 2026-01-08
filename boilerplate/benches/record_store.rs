@@ -8,7 +8,6 @@ use netabase_store_examples::boilerplate_lib::{Definition, User, UserID, Definit
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use rand::prelude::*;
 use std::borrow::Cow;
-use std::path::PathBuf;
 
 mod common;
 use common::*;
@@ -51,11 +50,11 @@ fn bench_record_store(c: &mut Criterion) {
                 || {
                     let records: Vec<Record> = (0..size).map(|_| generate_random_record()).collect();
                     let name = format!("bench_record_put_{}_{}", size, rand::random::<u64>());
-                    let (store, path) = create_test_db::<Definition>(&name).expect("Failed to create DB");
+                    let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
                     let record_store = Libp2pRedbStore::new(store, local_id);
-                    (record_store, records, CleanupGuard(path))
+                    (record_store, records)
                 },
-                |(mut record_store, records, _guard)| {
+                |(mut record_store, records)| {
                     for r in records {
                         record_store.put(r).expect("Put failed");
                     }
@@ -69,16 +68,16 @@ fn bench_record_store(c: &mut Criterion) {
                 || {
                     let records: Vec<Record> = (0..size).map(|_| generate_random_record()).collect();
                     let name = format!("bench_record_get_{}_{}", size, rand::random::<u64>());
-                    let (store, path) = create_test_db::<Definition>(&name).expect("Failed to create DB");
+                    let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
                     let mut record_store = Libp2pRedbStore::new(store, local_id);
                     
                     for r in &records {
                         record_store.put(r.clone()).expect("Setup put failed");
                     }
                     
-                    (record_store, records, CleanupGuard(path))
+                    (record_store, records)
                 },
-                |(record_store, records, _guard)| {
+                |(record_store, records)| {
                     for r in records {
                         let _ = record_store.get(&r.key); // Expect removed to avoid allocation in loop check
                     }
@@ -88,18 +87,6 @@ fn bench_record_store(c: &mut Criterion) {
         });
     }
     group.finish();
-}
-
-// Helper struct to clean up the DB file
-struct CleanupGuard(PathBuf);
-impl Drop for CleanupGuard {
-    fn drop(&mut self) {
-        if self.0.is_dir() {
-            std::fs::remove_dir_all(&self.0).ok();
-        } else if self.0.exists() {
-            std::fs::remove_file(&self.0).ok();
-        }
-    }
 }
 
 criterion_group!(benches, bench_record_store);
