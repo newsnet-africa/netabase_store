@@ -89,7 +89,7 @@ Query all models of a specific type subscribed to a topic.
 pub fn query_by_subscription<M, K>(
     &self,
     subscription_key: &K,
-) -> NetabaseResult<Vec<(M, ModelHash)>>
+) -> NetabaseResult<Vec<ModelHash>>
 where
     M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D>,
     K: Into<D::SubscriptionKeys> + Clone,
@@ -100,8 +100,8 @@ where
 - `subscription_key` - Topic to query (e.g., `&MyAppSubscriptions::Topic1`)
 
 **Returns**:
-- `Vec<(M, ModelHash)>` - List of (model, content_hash) tuples
-- Models are sorted by hash for deterministic ordering
+- `Vec<ModelHash>` - List of content hashes
+- Hashes are sorted for deterministic ordering
 
 **Example**:
 ```rust
@@ -110,8 +110,8 @@ let results = txn.query_by_subscription::<User, _>(
     &MyAppSubscriptions::Topic1
 )?;
 
-for (user, hash) in results {
-    println!("User: {} (hash: {})", user.name, hash.to_hex());
+for hash in results {
+    println!("User hash: {}", hash.to_hex());
 }
 ```
 
@@ -489,25 +489,17 @@ txn.update(&user)?;
 txn.delete(&user_id)?;
 ```
 
-### Backward Compatibility
-
-All new APIs are additive and fully backward compatible:
+### Usage Patterns
 
 - `create()` still works exactly as before (subscribes to all topics)
 - `create_with_subscriptions()` is a new optional method
-- Subscription queries return hashes but can be destructured:
+- Subscription queries return hashes for efficient sync:
   ```rust
-  let results = txn.query_by_subscription::<User, _>(&topic)?;
+  let hashes = txn.query_by_subscription::<User, _>(&topic)?;
   
-  // Use both model and hash
-  for (user, hash) in &results {
-      println!("{}: {}", user.name, hash.to_hex());
+  for hash in hashes {
+      println!("Hash: {}", hash.to_hex());
   }
-  
-  // Or extract just models
-  let models: Vec<User> = results.into_iter()
-      .map(|(model, _)| model)
-      .collect();
   ```
 
 ---
@@ -520,9 +512,8 @@ All new APIs are additive and fully backward compatible:
 use netabase_store::subscription_hash::{SubscriptionMerkleTree, ModelHash};
 
 // Build local tree from subscription
-let local_results = local_txn.query_by_subscription::<User, _>(&topic)?;
-let local_hashes: Vec<_> = local_results.iter().map(|(_, h)| *h).collect();
-let local_tree = SubscriptionMerkleTree::from_hashes(local_hashes);
+let local_hashes = local_txn.query_by_subscription::<User, _>(&topic)?;
+let local_tree = SubscriptionMerkleTree::from_hashes(local_hashes.clone());
 
 // Get peer tree (from network)
 let peer_tree = receive_tree_from_peer();
@@ -552,11 +543,14 @@ for hash in diff.missing_in_self {
 for hash in diff.missing_in_other {
     let proof = local_tree.proof(&hash).unwrap();
     
-    // Find the model with this hash
-    if let Some((model, _)) = local_results.iter()
-        .find(|(_, h)| h == &hash) 
-    {
-        let model_bytes = postcard::to_allocvec(model)?;
+    // Check if we have this hash (it's in our local_hashes list)
+    if local_hashes.contains(&hash) {
+        // Need to retrieve the model data. 
+        // Note: For content-addressed models, the hash IS the key.
+        // For regular models, you'd need a way to look up by hash (e.g. secondary index)
+        // or scan.
+        let model = find_model_by_hash(&local_txn, hash)?;
+        let model_bytes = postcard::to_allocvec(&model)?;
         send_to_peer(model_bytes, proof);
     }
 }

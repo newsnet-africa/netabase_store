@@ -1,8 +1,8 @@
+use crate::macros::netabase_libp2p::process_libp2p_attribute;
 use crate::utils::attributes::{
     find_attribute, has_attribute, parse_link_attribute, remove_attribute,
 };
 use crate::utils::naming::*;
-use crate::macros::netabase_libp2p::process_libp2p_attribute;
 use syn::{Field, Ident, ItemStruct, parse_quote, visit_mut::VisitMut};
 
 /// Mutator that transforms the model structs
@@ -54,7 +54,7 @@ impl VisitMut for ModelMutator {
         // Subscriptions are trait-level, not instance-level
         // The #[subscribe(...)] attribute defines which topics the MODEL TYPE subscribes to
         // No field is added to instances - get_subscription_keys() returns static values
-        
+
         // Process libp2p attribute and inject field if needed
         // The result isn't needed here as ModelMutator modifies in place
         // and we already have visitor info from ModelFieldVisitor

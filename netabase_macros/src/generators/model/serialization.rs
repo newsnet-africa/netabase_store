@@ -1,7 +1,7 @@
 use crate::utils::naming::*;
 use crate::visitors::model::field::ModelFieldVisitor;
 use proc_macro2::TokenStream;
-use quote::{quote, format_ident};
+use quote::{format_ident, quote};
 
 /// Generator for serialization trait implementations (redb Value/Key)
 pub struct SerializationGenerator<'a> {
@@ -33,7 +33,7 @@ impl<'a> SerializationGenerator<'a> {
         if let Some(_ca_config) = &self.visitor.content_addressed_config {
             // Content-addressed: Generate Envelope and impl Value for Envelope
             let envelope_name = format_ident!("{}Envelope", model_name);
-            
+
             quote! {
                 /// Envelope for content-addressed model, storing the hash and the data.
                 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, std::hash::Hash)]

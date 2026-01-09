@@ -7,6 +7,7 @@ name = "Category"
 subscriptions = ["General"]
 is_current = false
 is_libp2p_enabled = false
+is_content_addressed = false
 
 [[models.fields]]
 name = "id"

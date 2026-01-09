@@ -1,6 +1,6 @@
 use crate::visitors::model::field::ModelFieldVisitor;
 use proc_macro2::TokenStream;
-use quote::{quote, format_ident};
+use quote::{format_ident, quote};
 
 /// Generator for immutable model constructors and accessors
 pub struct ConstructorGenerator<'a> {
@@ -31,31 +31,40 @@ impl<'a> ConstructorGenerator<'a> {
 
         // Collect all fields for the constructor args and struct initialization
         let fields = self.visitor.all_fields();
-        
-        let ctor_args: Vec<_> = fields.iter().map(|f| {
-            let name = &f.name;
-            let ty = &f.ty;
-            quote! { #name: #ty }
-        }).collect();
 
-        let field_inits: Vec<_> = fields.iter().map(|f| {
-            let name = &f.name;
-            quote! { #name }
-        }).collect();
+        let ctor_args: Vec<_> = fields
+            .iter()
+            .map(|f| {
+                let name = &f.name;
+                let ty = &f.ty;
+                quote! { #name: #ty }
+            })
+            .collect();
+
+        let field_inits: Vec<_> = fields
+            .iter()
+            .map(|f| {
+                let name = &f.name;
+                quote! { #name }
+            })
+            .collect();
 
         // Generate getters for all fields
-        let getters: Vec<_> = fields.iter().map(|f| {
-            let name = &f.name;
-            let ty = &f.ty;
-            let getter_name = format_ident!("get_{}", name);
-            
-            quote! {
-                #[inline]
-                pub fn #getter_name(&self) -> &#ty {
-                    &self.#name
+        let getters: Vec<_> = fields
+            .iter()
+            .map(|f| {
+                let name = &f.name;
+                let ty = &f.ty;
+                let getter_name = format_ident!("get_{}", name);
+
+                quote! {
+                    #[inline]
+                    pub fn #getter_name(&self) -> &#ty {
+                        &self.#name
+                    }
                 }
-            }
-        }).collect();
+            })
+            .collect();
 
         quote! {
             pub mod #module_name {
@@ -68,9 +77,9 @@ impl<'a> ConstructorGenerator<'a> {
                     let model = #model_name {
                         #(#field_inits),*
                     };
-                    
+
                     let hash = netabase_store::subscription_hash::ModelHash::from_data(&model)?;
-                    
+
                     Ok((hash, model))
                 }
             }

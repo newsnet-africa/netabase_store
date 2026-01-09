@@ -1,9 +1,9 @@
+use crate::generators::model::TraitGenerator;
+use crate::utils::naming::*;
+use crate::visitors::definition::{DefinitionVisitor, ModelInfo};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Ident;
-use crate::visitors::definition::{DefinitionVisitor, ModelInfo};
-use crate::generators::model::TraitGenerator;
-use crate::utils::naming::*;
 
 /// Generator for definition-level trait implementations
 /// These are traits that need to know both the Definition and Model types
@@ -99,10 +99,13 @@ impl<'a> DefinitionTraitGenerator<'a> {
     fn generate_redb_definition_trait(&self) -> TokenStream {
         let definition_name = &self.visitor.definition_name;
         let def_str = definition_name.to_string();
-        
+
         let iter_record_name = quote::format_ident!("{}RecordIter", definition_name);
         let tables_name = quote::format_ident!("{}ReadOnlyTables", definition_name);
-        let record_wrapper_name = syn::Ident::new(&format!("{}Record", definition_name), definition_name.span());
+        let record_wrapper_name = syn::Ident::new(
+            &format!("{}Record", definition_name),
+            definition_name.span(),
+        );
 
         // Prepare Libp2p method bodies
         let mut find_record_arms = Vec::new();
@@ -115,12 +118,12 @@ impl<'a> DefinitionTraitGenerator<'a> {
         for model in &self.visitor.models {
             let model_name = &model.name;
             let libp2p_provider_key_enum = libp2p_provider_key_enum_name(model_name);
-            
+
             let is_content_addressed = model.is_content_addressed();
             let target_type = if is_content_addressed {
-                 quote::format_ident!("{}Envelope", model_name)
+                quote::format_ident!("{}Envelope", model_name)
             } else {
-                 model_name.clone()
+                model_name.clone()
             };
 
             // put_record block
@@ -343,7 +346,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
 
             // Generate version detection probes for each model family
             let detect_version_probes = self.generate_detect_version_probes(&def_str);
-            
+
             // Generate migration code for each model family
             let migration_code = self.generate_probing_migration_code(&def_str);
 
@@ -361,7 +364,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
                         use redb::{ReadableDatabase, ReadableTableMetadata};
 
                         let mut detected = Vec::new();
-                        
+
                         // Try to open a read transaction to probe tables
                         let read_txn = db.begin_read()
                             .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTransactionError(e))?;
@@ -397,7 +400,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
 
                     fn init_tables(db: &redb::Database) -> ::netabase_store::errors::NetabaseResult<()> {
                         use ::netabase_store::traits::registery::models::model::NetabaseModel;
-                        
+
                         // Open a write transaction to create all tables
                         let write_txn = db.begin_write()
                             .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTransactionError(e))?;
@@ -499,16 +502,16 @@ impl<'a> DefinitionTraitGenerator<'a> {
 
         for family in self.visitor.model_families.values() {
             let family_str = &family.family;
-            
+
             // For each version in the family (oldest to newest), generate a probe
             for model_info in &family.versions {
                 let model_name = &model_info.name;
                 let model_str = model_name.to_string();
                 let version = model_info.version();
-                
+
                 // Generate table name using the same format as model traits
                 let table_name = table_name(def_str, &model_str, "Primary", "Main");
-                
+
                 probes.extend(quote! {
                     // Probe for #model_name (version #version)
                     {
@@ -541,12 +544,12 @@ impl<'a> DefinitionTraitGenerator<'a> {
         for model_info in &self.visitor.models {
             let model_name = &model_info.visitor.model_name;
             let model_str = model_name.to_string();
-            
+
             let is_content_addressed = model_info.is_content_addressed();
             let target_type = if is_content_addressed {
-                 quote::format_ident!("{}Envelope", model_name)
+                quote::format_ident!("{}Envelope", model_name)
             } else {
-                 model_name.clone()
+                model_name.clone()
             };
 
             // Main table
@@ -569,7 +572,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
                 let field_name_str = field_name.to_string();
                 let pascal_field = to_pascal_case(&field_name_str);
                 let sec_table_name = table_name(def_str, &model_str, "Secondary", &pascal_field);
-                
+
                 code.extend(quote! {
                     // Initialize secondary table for #model_name::#field_name
                     {
@@ -591,7 +594,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
                 let field_name_str = field_name.to_string();
                 let pascal_field = to_pascal_case(&field_name_str);
                 let blob_table_name = table_name(def_str, &model_str, "Blob", &pascal_field);
-                
+
                 code.extend(quote! {
                     // Initialize blob table for #model_name::#field_name
                     {
@@ -608,7 +611,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
                 let field_name_str = field_name.to_string();
                 let pascal_field = to_pascal_case(&field_name_str);
                 let rel_table_name = table_name(def_str, &model_str, "Relational", &pascal_field);
-                
+
                 code.extend(quote! {
                     // Initialize relational table for #model_name::#field_name
                     {
@@ -623,22 +626,25 @@ impl<'a> DefinitionTraitGenerator<'a> {
             }
 
             // Subscription tables (if model has subscriptions)
-            let def_subscriptions_name = definition_subscriptions_enum_name(&self.visitor.definition_name);
+            let def_subscriptions_name =
+                definition_subscriptions_enum_name(&self.visitor.definition_name);
             let primary_key_name = primary_key_type_name_for_model(&model_info.visitor);
-            // Wait, primary_key_name comes from wrapper_types. 
+            // Wait, primary_key_name comes from wrapper_types.
             // If content-addressed, primary_key_name is ImmutablePostID.
             // And I implemented PrimaryKey trait for ImmutablePostID for Envelope.
             // So I should use the trait associated type instead of the struct name directly?
             // Using struct name is fine if it implements Key.
             // But let's be consistent and use associated type from target_type.
-            
+
             if let Some(sub_info) = &model_info.visitor.subscriptions {
                 for topic in &sub_info.topics {
-                    let topic_str = topic.segments.last()
+                    let topic_str = topic
+                        .segments
+                        .last()
                         .map(|seg| seg.ident.to_string())
                         .unwrap_or_default();
                     let sub_table_name = subscription_table_name(def_str, &model_str, &topic_str);
-                    
+
                     code.extend(quote! {
                         // Initialize subscription table for #model_name::#topic
                         {
@@ -691,20 +697,21 @@ impl<'a> DefinitionTraitGenerator<'a> {
 
             // Generate probes for each OLD version (not current)
             let mut version_probes = TokenStream::new();
-            
+
             for (source_index, model_info) in family.versions.iter().enumerate() {
                 let version = model_info.version();
                 if version >= current_version {
                     continue; // Skip current version
                 }
-                
+
                 let old_model_name = &model_info.name;
                 let old_model_str = old_model_name.to_string();
                 let old_table_name = table_name(def_str, &old_model_str, "Primary", "Main");
-                
+
                 // Generate the migration chain call for this version to current
-                let migration_chain = self.generate_migration_chain_for_version(family, source_index);
-                
+                let migration_chain =
+                    self.generate_migration_chain_for_version(family, source_index);
+
                 version_probes.extend(quote! {
                     // Check if version #version table exists
                     {
@@ -813,13 +820,21 @@ impl<'a> DefinitionTraitGenerator<'a> {
         chain
     }
 
-    fn generate_subscription_enum(&self, definition_name: &syn::Ident, model_info: &ModelInfo) -> TokenStream {
+    fn generate_subscription_enum(
+        &self,
+        definition_name: &syn::Ident,
+        model_info: &ModelInfo,
+    ) -> TokenStream {
         let model_name = &model_info.name;
         let visitor = &model_info.visitor;
 
         // If no subscriptions, treat as empty topics list
         let empty_topics = Vec::new();
-        let topics = visitor.subscriptions.as_ref().map(|s| &s.topics).unwrap_or(&empty_topics);
+        let topics = visitor
+            .subscriptions
+            .as_ref()
+            .map(|s| &s.topics)
+            .unwrap_or(&empty_topics);
 
         let enum_name = subscriptions_enum_name(model_name);
         let tree_name = tree_name_type(&enum_name);
@@ -899,7 +914,9 @@ impl<'a> DefinitionTraitGenerator<'a> {
         let tree_name_variants: Vec<_> = topics
             .iter()
             .map(|topic| {
-                path_last_segment(topic).expect("Invalid subscription topic").clone()
+                path_last_segment(topic)
+                    .expect("Invalid subscription topic")
+                    .clone()
             })
             .collect();
 
@@ -923,7 +940,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
             pub enum #enum_name {
                 #(#variants),*
             }
-            
+
             // Implement IntoDiscriminant manually for empty/non-empty enums
             impl strum::IntoDiscriminant for #enum_name {
                 type Discriminant = #tree_name;
@@ -975,29 +992,41 @@ impl<'a> DefinitionTraitGenerator<'a> {
         }
     }
 
-    fn generate_model_traits(&self, definition_name: &syn::Ident, model_info: &ModelInfo) -> TokenStream {
+    fn generate_model_traits(
+        &self,
+        definition_name: &syn::Ident,
+        model_info: &ModelInfo,
+    ) -> TokenStream {
         let model_name = &model_info.name;
         let visitor = &model_info.visitor;
         let is_versioned = visitor.version_info.is_some();
         let is_content_addressed = model_info.is_content_addressed();
 
         let target_type = if is_content_addressed {
-             quote::format_ident!("{}Envelope", model_name)
+            quote::format_ident!("{}Envelope", model_name)
         } else {
-             model_name.clone()
+            model_name.clone()
         };
 
         // Generate marker traits (StoreKeyMarker, StoreValueMarker, etc.)
         // Skip ID-related markers for versioned models to avoid duplicates
-        let marker_traits = self.generate_marker_traits(definition_name, model_name, &target_type, visitor, !is_versioned);
+        let marker_traits = self.generate_marker_traits(
+            definition_name,
+            model_name,
+            &target_type,
+            visitor,
+            !is_versioned,
+        );
 
         // Generate Store traits (StoreKey, StoreValue)
-        let store_traits = self.generate_store_traits(definition_name, model_name, &target_type, visitor);
+        let store_traits =
+            self.generate_store_traits(definition_name, model_name, &target_type, visitor);
 
         // Generate key type traits (NetabaseModelKeys, PrimaryKey, SecondaryKey, etc.)
         let trait_gen = crate::generators::model::TraitGenerator::new(visitor);
         let model_keys_trait = trait_gen.generate_model_keys_trait(definition_name);
-        let key_traits = self.generate_key_type_traits(definition_name, model_name, &target_type, visitor);
+        let key_traits =
+            self.generate_key_type_traits(definition_name, model_name, &target_type, visitor);
 
         // Generate NetabaseModel trait
         let netabase_model_trait = trait_gen.generate_netabase_model_trait(definition_name);
@@ -1005,19 +1034,27 @@ impl<'a> DefinitionTraitGenerator<'a> {
         let id_type = primary_key_type_name_for_model(visitor);
 
         // Generate RedbNetabaseModel trait
-        let redb_trait = self.generate_redb_netabase_model_trait(definition_name, model_name, &target_type, &id_type, is_content_addressed);
+        let redb_trait = self.generate_redb_netabase_model_trait(
+            definition_name,
+            model_name,
+            &target_type,
+            &id_type,
+            is_content_addressed,
+        );
 
         // Generate subscription conversion traits
-        let subscription_traits = self.generate_subscription_traits(definition_name, model_name, visitor);
+        let subscription_traits =
+            self.generate_subscription_traits(definition_name, model_name, visitor);
 
         // Generate Libp2pModel trait
         let libp2p_trait = trait_gen.generate_libp2p_model_trait();
-        
+
         // Generate ContentAddressedModel trait
         let ca_trait = trait_gen.generate_content_addressed_model_trait(definition_name);
 
         // Generate tuple conversion for Model -> (Definition, Metadata)
-        let tuple_conversion = self.generate_model_tuple_conversion(definition_name, model_info, &target_type);
+        let tuple_conversion =
+            self.generate_model_tuple_conversion(definition_name, model_info, &target_type);
 
         quote! {
             #marker_traits
@@ -1033,10 +1070,18 @@ impl<'a> DefinitionTraitGenerator<'a> {
         }
     }
 
-    fn generate_model_tuple_conversion(&self, definition_name: &syn::Ident, model_info: &ModelInfo, target_type: &syn::Ident) -> TokenStream {
+    fn generate_model_tuple_conversion(
+        &self,
+        definition_name: &syn::Ident,
+        model_info: &ModelInfo,
+        target_type: &syn::Ident,
+    ) -> TokenStream {
         let model_name = &model_info.name;
-        let record_wrapper_name = syn::Ident::new(&format!("{}Record", definition_name), definition_name.span());
-        
+        let record_wrapper_name = syn::Ident::new(
+            &format!("{}Record", definition_name),
+            definition_name.span(),
+        );
+
         quote! {
             impl From<#target_type> for #record_wrapper_name {
                 fn from(model: #target_type) -> Self {
@@ -1348,7 +1393,11 @@ impl<'a> DefinitionTraitGenerator<'a> {
     ) -> TokenStream {
         // If no subscriptions, treat as empty
         let empty_topics = Vec::new();
-        let topics = visitor.subscriptions.as_ref().map(|s| &s.topics).unwrap_or(&empty_topics);
+        let topics = visitor
+            .subscriptions
+            .as_ref()
+            .map(|s| &s.topics)
+            .unwrap_or(&empty_topics);
 
         let subscription_enum = subscriptions_enum_name(model_name);
         let def_subscription_enum = definition_subscriptions_enum_name(definition_name);
@@ -1413,24 +1462,31 @@ impl<'a> DefinitionTraitGenerator<'a> {
         } else {
             let disc_name = Ident::new(
                 &format!("{}Discriminants", subscription_enum),
-                subscription_enum.span()
+                subscription_enum.span(),
             );
             quote! { #disc_name }
         };
 
         // Subscription Registry
-        let registry_entries: Vec<_> = self.visitor.subscriptions.topics
+        let registry_entries: Vec<_> = self
+            .visitor
+            .subscriptions
+            .topics
             .iter()
             .map(|topic| {
                 let topic_ident = path_last_segment(topic).expect("Invalid topic path");
                 let topic_str = topic_ident.to_string();
 
                 // Find all models that subscribe to this topic
-                let subscribers: Vec<_> = self.visitor.models
+                let subscribers: Vec<_> = self
+                    .visitor
+                    .models
                     .iter()
                     .filter(|m| {
                         if let Some(subs) = &m.visitor.subscriptions {
-                            subs.topics.iter().any(|t| path_last_segment(t).map_or(false, |i| i == topic_ident))
+                            subs.topics
+                                .iter()
+                                .any(|t| path_last_segment(t).map_or(false, |i| i == topic_ident))
                         } else {
                             false
                         }
@@ -1481,8 +1537,12 @@ impl<'a> DefinitionTraitGenerator<'a> {
 
     fn generate_schema_impl(&self) -> TokenStream {
         let def_name_str = self.visitor.definition_name.to_string();
-        
-        let sub_strs: Vec<_> = self.visitor.subscriptions.topics.iter()
+
+        let sub_strs: Vec<_> = self
+            .visitor
+            .subscriptions
+            .topics
+            .iter()
             .map(|t| {
                 let s = path_last_segment(t).unwrap().to_string();
                 quote! { #s.to_string() }
@@ -1569,6 +1629,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
                 .collect();
 
             let is_libp2p_expr = visitor.is_libp2p_enabled;
+            let is_content_addressed_expr = model_info.is_content_addressed();
 
             quote! {
                 netabase_store::traits::registery::definition::schema::ModelSchema {
@@ -1583,15 +1644,20 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     version: #version_expr,
                     is_current: #is_current_expr,
                     is_libp2p_enabled: #is_libp2p_expr,
+                    is_content_addressed: #is_content_addressed_expr,
                 }
             }
         }).collect();
 
-        let struct_schemas: Vec<_> = self.visitor.regular_structs.iter().map(|s_info| {
-            let name_str = s_info.name.to_string();
-            let is_tuple = s_info.is_tuple;
-            
-            let field_schemas: Vec<_> = s_info.fields.iter().map(|(fname, fty)| {
+        let struct_schemas: Vec<_> = self
+            .visitor
+            .regular_structs
+            .iter()
+            .map(|s_info| {
+                let name_str = s_info.name.to_string();
+                let is_tuple = s_info.is_tuple;
+
+                let field_schemas: Vec<_> = s_info.fields.iter().map(|(fname, fty)| {
                 let name = if let Some(n) = fname {
                     n.to_string()
                 } else {
@@ -1607,15 +1673,16 @@ impl<'a> DefinitionTraitGenerator<'a> {
                 }
             }).collect();
 
-            quote! {
-                netabase_store::traits::registery::definition::schema::StructSchema {
-                    name: #name_str.to_string(),
-                    fields: vec![#(#field_schemas),*],
-                    is_tuple: #is_tuple,
+                quote! {
+                    netabase_store::traits::registery::definition::schema::StructSchema {
+                        name: #name_str.to_string(),
+                        fields: vec![#(#field_schemas),*],
+                        is_tuple: #is_tuple,
+                    }
                 }
-            }
-        }).collect();
-        
+            })
+            .collect();
+
         // Generate model history for versioned models
         let model_history_schemas: Vec<_> = self.visitor.model_families.values()
             .filter(|family| family.versions.first().map(|m| m.version_info().is_some()).unwrap_or(false))
@@ -1688,6 +1755,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     // supports_upgrade is true for all versions except the first one
                     let supports_upgrade = version > 1;
                     let is_libp2p_expr = visitor.is_libp2p_enabled;
+                    let is_content_addressed_expr = model_info.is_content_addressed();
                     
                     quote! {
                         netabase_store::traits::registery::definition::schema::VersionedModelSchema {
@@ -1699,6 +1767,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
                             supports_downgrade: #supports_downgrade,
                             supports_upgrade: #supports_upgrade,
                             is_libp2p_enabled: #is_libp2p_expr,
+                            is_content_addressed: #is_content_addressed_expr,
                         }
                     }
                 }).collect();
@@ -1776,11 +1845,11 @@ impl<'a> DefinitionTraitGenerator<'a> {
                 }
             });
         }
-        
+
         for nested in &self.visitor.nested_definitions {
             let n_name = &nested.definition_name;
             key_match_arms.push(quote! {
-                #name::#n_name(_) => Vec::new() 
+                #name::#n_name(_) => Vec::new()
             });
         }
 
@@ -1792,7 +1861,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     ::netabase_store::postcard::from_bytes(&value.value)
                 }
             }
-            
+
             /// Wrapper struct to handle conversion to Libp2p Record with metadata
             pub struct #record_wrapper_name(pub #name, pub ::netabase_store::traits::libp2p::libp2p_model::Libp2pMetadata);
 
@@ -1802,13 +1871,13 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     let key_bytes = match def {
                         #(#key_match_arms),*
                     };
-                    
+
                     let expires = meta.expires.map(|t| {
                         let now = std::time::SystemTime::now();
                         if t > now {
                             std::time::Instant::now() + t.duration_since(now).unwrap()
                         } else {
-                            std::time::Instant::now() 
+                            std::time::Instant::now()
                         }
                     });
 
@@ -1822,16 +1891,16 @@ impl<'a> DefinitionTraitGenerator<'a> {
             }
         }
     }
-    
+
     /// Compute a hash for a model based on its field structure.
     fn compute_model_hash(&self, model: &ModelInfo) -> u64 {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         model.name.to_string().hash(&mut hasher);
         model.version().hash(&mut hasher);
-        
+
         let visitor = &model.visitor;
         if let Some(ref pk) = visitor.primary_key {
             pk.name.to_string().hash(&mut hasher);
@@ -1848,7 +1917,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
         for field in &visitor.regular_fields {
             field.name.to_string().hash(&mut hasher);
         }
-        
+
         hasher.finish()
     }
 }

@@ -1,7 +1,6 @@
 use netabase_store::databases::redb::transaction::crud::RedbModelCrud;
 use netabase_store_examples::boilerplate_lib::{
-    MainRepositoryStores, ImmutablePost, ImmutablePostEnvelope, 
-    definition::DefinitionSubscriptions,
+    ImmutablePost, ImmutablePostEnvelope, MainRepositoryStores, definition::DefinitionSubscriptions,
 };
 
 #[test]
@@ -40,7 +39,7 @@ fn test_content_addressed_crud() -> Result<(), Box<dyn std::error::Error>> {
     {
         // Access the specific definition store
         let txn = stores.definition.begin_write()?;
-        
+
         // Wrap posts in envelopes for insertion
         let env1 = ImmutablePostEnvelope::from(&post1);
         let env2 = ImmutablePostEnvelope::from(&post2);
@@ -56,11 +55,11 @@ fn test_content_addressed_crud() -> Result<(), Box<dyn std::error::Error>> {
     // 2. Read back by hash (Primary Key)
     {
         let txn = stores.definition.begin_read()?;
-        
+
         // Compute hashes manually to query
-        use netabase_store_examples::boilerplate_lib::models::hash_model;
         use netabase_store_examples::boilerplate_lib::definition::ImmutablePostID;
-        
+        use netabase_store_examples::boilerplate_lib::models::hash_model;
+
         let hash1 = ImmutablePostID(hash_model(&post1));
         let hash2 = ImmutablePostID(hash_model(&post2));
 
@@ -79,18 +78,20 @@ fn test_content_addressed_crud() -> Result<(), Box<dyn std::error::Error>> {
     // 3. Query by Secondary Key
     {
         let txn = stores.definition.begin_read()?;
-        
-        use netabase_store_examples::boilerplate_lib::definition::{ImmutablePostSecondaryKeys, ImmutablePostAuthor};
-        
+
+        use netabase_store_examples::boilerplate_lib::definition::{
+            ImmutablePostAuthor, ImmutablePostSecondaryKeys,
+        };
+
         // Find Alice's posts
         let alice_keys = txn.query_by_secondary_key::<ImmutablePostEnvelope>(
-            &ImmutablePostSecondaryKeys::Author(ImmutablePostAuthor("Alice".to_string()))
+            &ImmutablePostSecondaryKeys::Author(ImmutablePostAuthor("Alice".to_string())),
         )?;
         assert_eq!(alice_keys.len(), 2); // post1 and post3
 
         // Find Bob's posts
         let bob_keys = txn.query_by_secondary_key::<ImmutablePostEnvelope>(
-            &ImmutablePostSecondaryKeys::Author(ImmutablePostAuthor("Bob".to_string()))
+            &ImmutablePostSecondaryKeys::Author(ImmutablePostAuthor("Bob".to_string())),
         )?;
         assert_eq!(bob_keys.len(), 1); // post2
     }
@@ -102,7 +103,7 @@ fn test_content_addressed_crud() -> Result<(), Box<dyn std::error::Error>> {
 
         // Insert post1 again
         txn.create(&env1)?;
-        
+
         txn.commit()?;
     }
 
@@ -132,7 +133,7 @@ fn test_content_addressed_subscription() -> Result<(), Box<dyn std::error::Error
             .as_nanos()
     ));
     std::fs::create_dir_all(&temp_dir)?;
-    
+
     let stores = MainRepositoryStores::new(&temp_dir)?;
 
     let post = ImmutablePost {
@@ -154,27 +155,46 @@ fn test_content_addressed_subscription() -> Result<(), Box<dyn std::error::Error
         let txn = stores.definition.begin_read()?;
 
         // Query Topic1
-        let topic1_results = txn.query_by_subscription::<ImmutablePostEnvelope, _>(
-            &DefinitionSubscriptions::Topic1
-        )?;
+        let topic1_results = txn
+            .query_by_subscription::<ImmutablePostEnvelope, _>(&DefinitionSubscriptions::Topic1)?;
         assert_eq!(topic1_results.len(), 1);
-        let (envelope, _model_hash) = &topic1_results[0];
-        
-        // Hash should match
+        let model_hash = &topic1_results[0];
+
+        // For content-addressed with u64 key, the ModelHash in subscription table
+        // contains the bytes of the u64 PK.
         use netabase_store_examples::boilerplate_lib::models::hash_model;
+        let expected_u64_hash = hash_model(&post);
+
+        // Wrap in ID type and serialize to match how it's stored in ModelHash
         use netabase_store_examples::boilerplate_lib::definition::ImmutablePostID;
-        assert_eq!(envelope.hash, ImmutablePostID(hash_model(&post)));
-        
+        let id = ImmutablePostID(expected_u64_hash);
+        let expected_bytes = netabase_store::postcard::to_allocvec(&id).unwrap();
+
+        // stored_bytes in ModelHash are padded with zeros to 32 bytes
+        let stored_bytes = model_hash.as_bytes();
+        assert_eq!(
+            &stored_bytes[0..expected_bytes.len()],
+            expected_bytes.as_slice()
+        );
+
+        // Verify remaining bytes are zero
+        for b in &stored_bytes[expected_bytes.len()..] {
+            assert_eq!(*b, 0);
+        }
+
+        // Can read the actual record using the hash
+        let retrieved = txn.read::<ImmutablePostEnvelope>(&id)?;
+        assert!(retrieved.is_some());
+        assert_eq!(retrieved.unwrap().inner.author, "Alice");
+
         // Query Topic2 (also subscribed)
-        let topic2_results = txn.query_by_subscription::<ImmutablePostEnvelope, _>(
-            &DefinitionSubscriptions::Topic2
-        )?;
+        let topic2_results = txn
+            .query_by_subscription::<ImmutablePostEnvelope, _>(&DefinitionSubscriptions::Topic2)?;
         assert_eq!(topic2_results.len(), 1);
 
         // Query Topic3 (not subscribed)
-        let topic3_results = txn.query_by_subscription::<ImmutablePostEnvelope, _>(
-            &DefinitionSubscriptions::Topic3
-        )?;
+        let topic3_results = txn
+            .query_by_subscription::<ImmutablePostEnvelope, _>(&DefinitionSubscriptions::Topic3)?;
         assert!(topic3_results.is_empty());
     }
 

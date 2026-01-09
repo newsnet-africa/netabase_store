@@ -59,9 +59,10 @@ impl<'a> WrapperTypeGenerator<'a> {
             pk_field.ty.clone()
         } else if let Some(ca_config) = &self.visitor.content_addressed_config {
             // Content-addressed model: use key_type or default to [u8; 32]
-            ca_config.key_type.clone().unwrap_or_else(|| {
-                syn::parse_str::<Type>("[u8; 32]").unwrap()
-            })
+            ca_config
+                .key_type
+                .clone()
+                .unwrap_or_else(|| syn::parse_str::<Type>("[u8; 32]").unwrap())
         } else {
             panic!("Model must have a primary key or be content-addressed");
         };

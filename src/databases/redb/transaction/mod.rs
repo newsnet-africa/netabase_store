@@ -136,8 +136,8 @@
 pub mod crud;
 pub mod options;
 pub mod tables;
-pub mod wrappers;
 pub mod value_wrappers;
+pub mod wrappers;
 
 use redb::{ReadableDatabase, TransactionError};
 use strum::IntoDiscriminant;
@@ -319,22 +319,26 @@ where
                     })
                     .collect();
 
-                let subscription_tables: Result<Vec<_>, NetabaseError> =
-                    match M::TREE_NAMES.subscription {
-                        Some(subs) => subs
-                            .iter()
-                            .map(|disc_table| -> Result<_, NetabaseError> {
-                                let def = redb::MultimapTableDefinition::<D::SubscriptionKeys, crate::subscription_hash::ModelHash>::new(disc_table.table_name);
-                                read_txn.open_multimap_table(def).map(|table| {
-                                    (
-                                        TablePermission::ReadOnly(TableType::MultimapTable(table)),
-                                        disc_table.table_name,
-                                    )
-                                })
+                let subscription_tables: Result<Vec<_>, NetabaseError> = match M::TREE_NAMES
+                    .subscription
+                {
+                    Some(subs) => subs
+                        .iter()
+                        .map(|disc_table| -> Result<_, NetabaseError> {
+                            let def = redb::MultimapTableDefinition::<
+                                D::SubscriptionKeys,
+                                crate::subscription_hash::ModelHash,
+                            >::new(disc_table.table_name);
+                            read_txn.open_multimap_table(def).map(|table| {
+                                (
+                                    TablePermission::ReadOnly(TableType::MultimapTable(table)),
+                                    disc_table.table_name,
+                                )
                             })
-                            .collect(),
-                        None => Ok(Vec::new()),
-                    };
+                        })
+                        .collect(),
+                    None => Ok(Vec::new()),
+                };
 
                 Ok(ModelOpenTables {
                     main: main_table,
@@ -421,24 +425,28 @@ where
                     })
                     .collect();
 
-                let subscription_tables: Result<Vec<_>, NetabaseError> =
-                    match M::TREE_NAMES.subscription {
-                        Some(subs) => subs
-                            .iter()
-                            .map(|disc_table| -> Result<_, NetabaseError> {
-                                let def = redb::MultimapTableDefinition::<D::SubscriptionKeys, crate::subscription_hash::ModelHash>::new(disc_table.table_name);
-                                write_txn.open_multimap_table(def).map(|table| {
-                                    (
-                                        TablePermission::ReadWrite(
-                                            ReadWriteTableType::MultimapTable(table),
-                                        ),
-                                        disc_table.table_name,
-                                    )
-                                })
+                let subscription_tables: Result<Vec<_>, NetabaseError> = match M::TREE_NAMES
+                    .subscription
+                {
+                    Some(subs) => subs
+                        .iter()
+                        .map(|disc_table| -> Result<_, NetabaseError> {
+                            let def = redb::MultimapTableDefinition::<
+                                D::SubscriptionKeys,
+                                crate::subscription_hash::ModelHash,
+                            >::new(disc_table.table_name);
+                            write_txn.open_multimap_table(def).map(|table| {
+                                (
+                                    TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(
+                                        table,
+                                    )),
+                                    disc_table.table_name,
+                                )
                             })
-                            .collect(),
-                        None => Ok(Vec::new()),
-                    };
+                        })
+                        .collect(),
+                    None => Ok(Vec::new()),
+                };
 
                 Ok(ModelOpenTables {
                     main: main_table,
@@ -631,7 +639,7 @@ where
     /// Create a record with selective subscription topics.
     ///
     /// This method allows you to control which subscription topics the model is added to.
-    /// 
+    ///
     /// # Arguments
     ///
     /// * `model` - The model instance to insert
@@ -825,21 +833,21 @@ where
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use models::*;
     /// let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
-    /// 
+    ///
     /// // Create some users
     /// let txn = store.begin_write()?;
-    /// txn.create(&User { 
-    ///     id: UserID("1".into()), 
+    /// txn.create(&User {
+    ///     id: UserID("1".into()),
     ///     name: "Alice".into(),
     ///     email: "alice@example.com".into()
     /// })?;
-    /// txn.create(&User { 
-    ///     id: UserID("2".into()), 
+    /// txn.create(&User {
+    ///     id: UserID("2".into()),
     ///     name: "Bob".into(),
     ///     email: "bob@example.com".into()
     /// })?;
     /// txn.commit()?;
-    /// 
+    ///
     /// // Query by email (secondary key)
     /// let txn = store.begin_read()?;
     /// let users = txn.query_by_secondary_key::<User>(
@@ -887,10 +895,10 @@ where
     {
         let definitions = M::table_definitions();
         let tables = self.open_model_tables(definitions, None)?;
-        
+
         // Get primary keys matching the secondary key
         let primary_keys = M::query_by_secondary_key(secondary_key, &tables)?;
-        
+
         // Load the full models
         let mut results = Vec::with_capacity(primary_keys.len());
         for pk in primary_keys {
@@ -898,7 +906,7 @@ where
                 results.push(model);
             }
         }
-        
+
         Ok(results)
     }
 
@@ -939,27 +947,27 @@ where
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// use models::*;
     /// let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
-    /// 
+    ///
     /// // Create users - they automatically subscribe to Topic1 (trait-level)
     /// let txn = store.begin_write()?;
-    /// txn.create(&User { 
-    ///     id: UserID("1".into()), 
+    /// txn.create(&User {
+    ///     id: UserID("1".into()),
     ///     name: "Alice".into(),
     /// })?;
-    /// txn.create(&User { 
-    ///     id: UserID("2".into()), 
+    /// txn.create(&User {
+    ///     id: UserID("2".into()),
     ///     name: "Bob".into(),
     /// })?;
     /// txn.commit()?;
-    /// 
+    ///
     /// // Query by subscription - returns all Users with hashes
     /// let txn = store.begin_read()?;
     /// let results = txn.query_by_subscription::<User, _>(
     ///     &MyAppSubscriptions::Topic1
     /// )?;
     /// assert_eq!(results.len(), 2);
-    /// assert_eq!(results[0].0.name, "Alice");
-    /// assert_eq!(results[1].0.name, "Bob");
+    /// // Hashes are present
+    /// assert_eq!(results[0].as_bytes().len(), 32);
     /// # Ok(())
     /// # }
     /// ```
@@ -1004,7 +1012,7 @@ where
     {
         let definitions = M::table_definitions();
         let tables = self.open_model_tables(definitions, None)?;
-        
+
         // Get hashes directly
         M::query_by_subscription(subscription_key, &tables)
     }
@@ -1039,7 +1047,7 @@ where
     /// let users = txn.query_by_relational_key::<User>(
     ///     &UserRelationalKeys::Category(CategoryID("tech".into()))
     /// )?;
-    /// 
+    ///
     /// for user in users {
     ///     println!("User {} is in category tech", user.name);
     /// }
@@ -1082,10 +1090,10 @@ where
     {
         let definitions = M::table_definitions();
         let tables = self.open_model_tables(definitions, None)?;
-        
+
         // Get primary keys matching the relational key
         let primary_keys = M::query_by_relational_key(relational_key, &tables)?;
-        
+
         // Load the full models
         let mut results = Vec::with_capacity(primary_keys.len());
         for pk in primary_keys {
@@ -1093,7 +1101,7 @@ where
                 results.push(model);
             }
         }
-        
+
         Ok(results)
     }
 

@@ -1,6 +1,7 @@
 use crate::utils::attributes::{
-    VersionAttributeConfig, ContentAddressedAttributeConfig, find_attribute, get_version_info, has_attribute, parse_link_attribute,
-    parse_subscribe_attribute, parse_content_addressed_attribute,
+    ContentAddressedAttributeConfig, VersionAttributeConfig, find_attribute, get_version_info,
+    has_attribute, parse_content_addressed_attribute, parse_link_attribute,
+    parse_subscribe_attribute,
 };
 use crate::utils::errors;
 use syn::{Field, Ident, Path, Result, Type};
@@ -196,7 +197,7 @@ impl ModelFieldVisitor {
     pub fn visit_model_attributes(&mut self, attrs: &[syn::Attribute]) -> Result<()> {
         if let Some(subscribe_attr) = find_attribute(attrs, "subscribe") {
             let config = parse_subscribe_attribute(subscribe_attr)?;
-            self.subscriptions = Some(SubscriptionInfo { 
+            self.subscriptions = Some(SubscriptionInfo {
                 topics: config.topics,
                 immutable: config.immutable,
             });

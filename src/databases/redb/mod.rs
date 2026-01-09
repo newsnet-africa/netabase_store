@@ -42,9 +42,9 @@
 //!
 //! // Write data
 //! let txn = store.begin_write()?;
-//! txn.create(&User { 
-//!     id: UserID("alice".into()), 
-//!     name: "Alice".into() 
+//! txn.create(&User {
+//!     id: UserID("alice".into()),
+//!     name: "Alice".into()
 //! })?;
 //! txn.commit()?;
 //!
@@ -74,13 +74,13 @@
 //! - Blob data is automatically chunked for large values
 //! - Type-safe relational links between models
 
+#[cfg(feature = "libp2p")]
+pub mod libp2p;
 #[cfg(feature = "migration")]
 pub mod migration;
 #[cfg(feature = "repository")]
 pub mod repository;
 pub mod transaction;
-#[cfg(feature = "libp2p")]
-pub mod libp2p;
 
 use crate::errors::{NetabaseError, NetabaseResult};
 use crate::traits::registery::definition::redb_definition::RedbDefinition;
@@ -445,7 +445,10 @@ where
         D::init_tables(&db)?;
 
         // Schema file inside the folder
-        let schema_file_name = config.schema_file_name.as_deref().unwrap_or(SCHEMA_FILE_NAME);
+        let schema_file_name = config
+            .schema_file_name
+            .as_deref()
+            .unwrap_or(SCHEMA_FILE_NAME);
         let schema_path = folder_path.join(schema_file_name);
 
         // Try to read existing schema
@@ -467,8 +470,11 @@ where
 
         // Export client binary if configured
         if let Some(binary_path_opt) = config.client_binary {
-            let binary_name = config.client_binary_name.as_deref().unwrap_or(CLI_BINARY_NAME);
-            
+            let binary_name = config
+                .client_binary_name
+                .as_deref()
+                .unwrap_or(CLI_BINARY_NAME);
+
             let source_path = if let Some(path) = binary_path_opt {
                 path
             } else {
@@ -479,10 +485,13 @@ where
             };
 
             if !source_path.exists() {
-                eprintln!("Warning: Binary {:?} does not exist, skipping export", source_path);
+                eprintln!(
+                    "Warning: Binary {:?} does not exist, skipping export",
+                    source_path
+                );
             } else {
                 let dest_path = folder_path.join(binary_name);
-                
+
                 if let Err(e) = std::fs::copy(&source_path, &dest_path) {
                     eprintln!("Warning: Failed to copy binary: {}", e);
                 } else {
@@ -503,14 +512,14 @@ where
         // Write README if configured
         if let Some(readme_content) = config.readme_content {
             let readme_path = folder_path.join(README_FILE_NAME);
-            
+
             // If content is empty, auto-generate
             let content = if readme_content.is_empty() {
                 Self::generate_readme()
             } else {
                 readme_content
             };
-            
+
             if let Err(e) = std::fs::write(&readme_path, content) {
                 eprintln!("Warning: Failed to write README: {}", e);
             }
@@ -529,7 +538,7 @@ where
             .split("::")
             .last()
             .unwrap_or("Database");
-        
+
         format!(
             r#"# {} Database
 

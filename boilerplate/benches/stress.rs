@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
+use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main};
 use netabase_store::databases::redb::transaction::RedbModelCrud;
 use netabase_store::relational::RelationalLink;
 use netabase_store_examples::boilerplate_lib::definition::{

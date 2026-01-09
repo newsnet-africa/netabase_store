@@ -363,16 +363,19 @@ pub mod definition {
         PartialOrd,
         Ord,
     )]
-    #[netabase_content_addressed(hasher = "crate::boilerplate_lib::models::FastHasher", function = "crate::boilerplate_lib::models::hash_model", key_type = "u64")]
+    #[netabase_content_addressed(
+        hasher = "crate::boilerplate_lib::models::FastHasher",
+        function = "crate::boilerplate_lib::models::hash_model",
+        key_type = "u64"
+    )]
     #[subscribe(Topic1, Topic2)]
     pub struct ImmutablePost {
         // No primary key!
-        
         #[secondary_key]
         pub author: String,
-        
+
         pub content: String,
-        
+
         pub timestamp: u64,
     }
 
@@ -389,14 +392,18 @@ pub mod definition {
         PartialOrd,
         Ord,
     )]
-    #[netabase_content_addressed(hasher = "netabase_store::traits::database::hash::FastHash", function = "crate::boilerplate_lib::models::hash_model_fast", key_type = "u64")]
+    #[netabase_content_addressed(
+        hasher = "netabase_store::traits::database::hash::FastHash",
+        function = "crate::boilerplate_lib::models::hash_model_fast",
+        key_type = "u64"
+    )]
     #[subscribe(Topic1, Topic2)]
     pub struct ImmutablePostFast {
         #[secondary_key]
         pub author: String,
-        
+
         pub content: String,
-        
+
         pub timestamp: u64,
     }
 
@@ -413,14 +420,18 @@ pub mod definition {
         PartialOrd,
         Ord,
     )]
-    #[netabase_content_addressed(hasher = "netabase_store::traits::database::hash::CryptoHash", function = "crate::boilerplate_lib::models::hash_model_crypto", key_type = "u64")]
+    #[netabase_content_addressed(
+        hasher = "netabase_store::traits::database::hash::CryptoHash",
+        function = "crate::boilerplate_lib::models::hash_model_crypto",
+        key_type = "u64"
+    )]
     #[subscribe(Topic1, Topic2)]
     pub struct ImmutablePostCrypto {
         #[secondary_key]
         pub author: String,
-        
+
         pub content: String,
-        
+
         pub timestamp: u64,
     }
 }

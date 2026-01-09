@@ -1,8 +1,8 @@
 use netabase_store::relational::RelationalLink;
-use netabase_store_examples::boilerplate_lib::{
-    AnotherLargeUserFile, LargeUserFile, User, UserID, UserV1, CategoryID,
-};
 use netabase_store::traits::migration::{MigrateFrom, MigrateTo};
+use netabase_store_examples::boilerplate_lib::{
+    AnotherLargeUserFile, CategoryID, LargeUserFile, User, UserID, UserV1,
+};
 
 #[test]
 fn test_user_migration_v1_to_v2() {
@@ -22,11 +22,11 @@ fn test_user_migration_v1_to_v2() {
     assert_eq!(user_v2.first_name, "Alice");
     assert_eq!(user_v2.last_name, "Smith");
     assert_eq!(user_v2.age, user_v1.age);
-    
+
     // Verify default values for new fields
     assert_eq!(user_v2.bio, LargeUserFile::default());
     assert_eq!(user_v2.another, AnotherLargeUserFile::default());
-    
+
     // Verify dehydrated link creation
     match user_v2.partner {
         RelationalLink::Dehydrated { primary_key, .. } => assert_eq!(primary_key.0, "user_123"),
@@ -71,7 +71,7 @@ fn test_user_migration_v2_to_v1_downgrade() {
     assert_eq!(user_v1.id.0, "user_789");
     assert_eq!(user_v1.name, "Bob Builder");
     assert_eq!(user_v1.age, 40);
-    
+
     // Verify category link is preserved
     match user_v1.category {
         RelationalLink::Dehydrated { primary_key, .. } => assert_eq!(primary_key.0, "cat_build"),

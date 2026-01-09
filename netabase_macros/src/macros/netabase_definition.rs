@@ -83,14 +83,15 @@
 //! ```
 
 use proc_macro2::TokenStream;
-use quote::{quote, format_ident};
+use quote::{format_ident, quote};
 use std::fs;
 use std::path::PathBuf;
 use syn::{ItemMod, Result, parse2, visit_mut::VisitMut};
 
 use crate::generators::definition::{DefinitionEnumGenerator, DefinitionTraitGenerator};
 use crate::generators::model::{
-    KeyEnumGenerator, MigrationGenerator, SerializationGenerator, WrapperTypeGenerator, ConstructorGenerator,
+    ConstructorGenerator, KeyEnumGenerator, MigrationGenerator, SerializationGenerator,
+    WrapperTypeGenerator,
 };
 use crate::generators::structure::StructureGenerator;
 use crate::utils::attributes::{parse_definition_attribute_from_tokens, remove_attribute};
@@ -103,11 +104,11 @@ use crate::visitors::model::ModelMutator;
 fn generate_repository_registration_marker(visitor: &DefinitionVisitor) -> TokenStream {
     let definition_name = &visitor.definition_name;
     let marker_name = format_ident!("__NETABASE_REPO_REGISTRATION_{}", definition_name);
-    
+
     // Get repository names this definition is registered to
     let repo_names: Vec<_> = visitor.repositories.iter().map(|r| r.to_string()).collect();
     let repo_names_lit = repo_names.join(",");
-    
+
     quote! {
         // Compile-time constant that repositories can discover
         #[doc(hidden)]

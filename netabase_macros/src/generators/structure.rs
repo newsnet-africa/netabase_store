@@ -171,8 +171,8 @@ impl StructureGenerator {
             }
         }
 
-// No change needed here for now as StructureGenerator is for schema import.
-// I will read serialization.rs next.
+        // No change needed here for now as StructureGenerator is for schema import.
+        // I will read serialization.rs next.
 
         tokens
     }

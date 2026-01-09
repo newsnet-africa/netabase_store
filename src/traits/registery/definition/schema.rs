@@ -178,6 +178,9 @@ pub struct VersionedModelSchema {
     /// Whether this version supports Libp2p features.
     #[serde(default)]
     pub is_libp2p_enabled: bool,
+    /// Whether this model is content-addressed (immutable, hash-based ID).
+    #[serde(default)]
+    pub is_content_addressed: bool,
 }
 
 fn default_true() -> bool {
@@ -368,6 +371,9 @@ pub struct ModelSchema {
     /// Whether this model supports Libp2p features.
     #[serde(default)]
     pub is_libp2p_enabled: bool,
+    /// Whether this model is content-addressed (immutable, hash-based ID).
+    #[serde(default)]
+    pub is_content_addressed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

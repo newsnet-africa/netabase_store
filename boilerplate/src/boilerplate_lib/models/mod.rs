@@ -1,7 +1,7 @@
 // Models module - contains blob type definitions
 pub mod blob_types;
 
-use netabase_store::traits::database::hash::{HashAlgorithm, FastHash, DefaultHash, CryptoHash};
+use netabase_store::traits::database::hash::{CryptoHash, DefaultHash, FastHash, HashAlgorithm};
 use std::hash::{Hash, Hasher};
 
 /// A fast hasher wrapper using standard library DefaultHasher

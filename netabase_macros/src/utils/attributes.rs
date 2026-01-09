@@ -52,8 +52,8 @@ pub fn parse_link_attribute(attr: &Attribute) -> Result<(Path, Path)> {
 
 /// Parse #[subscribe(immutable, Topic1, Topic2, ...)] attribute
 pub fn parse_subscribe_attribute(attr: &Attribute) -> Result<SubscriptionAttributeConfig> {
-    use syn::parse::Parse;
     use syn::Token;
+    use syn::parse::Parse;
 
     struct SubscribeArgs {
         topics: Vec<Path>,
@@ -318,7 +318,11 @@ pub fn remove_attribute(attrs: &mut Vec<Attribute>, name: &str) {
 
 /// Remove a specific attribute from a list by matching both name and tokens
 /// This allows removing one specific instance when multiple attributes with the same name exist
-pub fn remove_attribute_with_tokens(attrs: &mut Vec<Attribute>, name: &str, tokens: &proc_macro2::TokenStream) {
+pub fn remove_attribute_with_tokens(
+    attrs: &mut Vec<Attribute>,
+    name: &str,
+    tokens: &proc_macro2::TokenStream,
+) {
     let tokens_str = tokens.to_string();
     attrs.retain(|attr| {
         if !is_attribute(attr, name) {
@@ -358,7 +362,9 @@ pub struct ContentAddressedAttributeConfig {
 }
 
 /// Parse #[netabase_content_addressed(hasher = "Type", function = "path", key_type = "Type")] attribute.
-pub fn parse_content_addressed_attribute(attr: &Attribute) -> Result<ContentAddressedAttributeConfig> {
+pub fn parse_content_addressed_attribute(
+    attr: &Attribute,
+) -> Result<ContentAddressedAttributeConfig> {
     use syn::Token;
     use syn::parse::Parse;
 

@@ -1,12 +1,12 @@
-use serde::{Serialize, Deserialize};
-use redb::{Value, Key, TypeName};
+use redb::{Key, TypeName, Value};
+use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 
 #[cfg(feature = "libp2p")]
 use libp2p::kad::ProviderRecord;
 #[cfg(feature = "libp2p")]
-use libp2p::{PeerId, Multiaddr};
+use libp2p::{Multiaddr, PeerId};
 
 #[cfg(feature = "libp2p")]
 #[derive(Debug, Clone)]

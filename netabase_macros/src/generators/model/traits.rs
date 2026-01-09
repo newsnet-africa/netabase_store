@@ -28,9 +28,9 @@ impl<'a> TraitGenerator<'a> {
         let libp2p_type = libp2p_provider_key_enum_name(model_name);
 
         let target_type = if self.visitor.content_addressed_config.is_some() {
-             quote::format_ident!("{}Envelope", model_name)
+            quote::format_ident!("{}Envelope", model_name)
         } else {
-             model_name.clone()
+            model_name.clone()
         };
 
         quote! {
@@ -54,9 +54,9 @@ impl<'a> TraitGenerator<'a> {
         // Determine if we are implementing for Envelope or Model
         let is_content_addressed = self.visitor.content_addressed_config.is_some();
         let target_type = if is_content_addressed {
-             quote::format_ident!("{}Envelope", model_name)
+            quote::format_ident!("{}Envelope", model_name)
         } else {
-             model_name.clone()
+            model_name.clone()
         };
 
         // Generate TREE_NAMES
@@ -353,21 +353,20 @@ impl<'a> TraitGenerator<'a> {
         // via #[subscribe(Topic1, Topic2, ...)] attribute
         // The topics are just identifiers, we need to fully qualify them
         // as DefinitionSubscriptions::TopicIdent and wrap in ModelSubscriptions
-        let topic_constructions: Vec<_> = subscription_info.topics
+        let topic_constructions: Vec<_> = subscription_info
+            .topics
             .iter()
             .map(|topic_path| {
                 // Extract the identifier from the path
-                let topic_ident = &topic_path.segments.last()
-                    .expect("Empty topic path")
-                    .ident;
-                
+                let topic_ident = &topic_path.segments.last().expect("Empty topic path").ident;
+
                 // Generate: UserSubscriptions::Topic1(DefinitionSubscriptions::Topic1)
                 quote! {
                     #enum_name::#topic_ident(#def_subs_enum::#topic_ident)
                 }
             })
             .collect();
-        
+
         quote! {
             #[inline]
             fn get_subscription_keys<'b>(&'b self) -> Vec<#enum_name> {
@@ -432,13 +431,16 @@ impl<'a> TraitGenerator<'a> {
     }
 
     /// Generate ContentAddressedModel trait implementation
-    pub fn generate_content_addressed_model_trait(&self, _definition_name: &syn::Ident) -> TokenStream {
+    pub fn generate_content_addressed_model_trait(
+        &self,
+        _definition_name: &syn::Ident,
+    ) -> TokenStream {
         let model_name = &self.visitor.model_name;
 
         if let Some(config) = &self.visitor.content_addressed_config {
             let hasher = &config.hasher;
             let function = &config.function;
-            
+
             // The ID type (wrapper) IS the key type
             let id_type = primary_key_type_name_for_model(self.visitor);
 
@@ -461,13 +463,13 @@ impl<'a> TraitGenerator<'a> {
     pub fn generate_libp2p_model_trait(&self) -> TokenStream {
         let model_name = &self.visitor.model_name;
         let is_content_addressed = self.visitor.content_addressed_config.is_some();
-        
+
         let target_type = if is_content_addressed {
-             quote::format_ident!("{}Envelope", model_name)
+            quote::format_ident!("{}Envelope", model_name)
         } else {
-             model_name.clone()
+            model_name.clone()
         };
-        
+
         let body = if self.visitor.is_libp2p_enabled {
             if is_content_addressed {
                 quote! { self.inner.libp2p_metadata.as_ref() }

@@ -7,12 +7,10 @@ use netabase_store::databases::redb::RedbStore;
 use netabase_store::relational::RelationalLink;
 use netabase_store::subscription_hash::SubscriptionMerkleTree;
 use netabase_store::traits::database::store::NBStore;
-use netabase_store_examples::boilerplate_lib::definition::{
-    AnotherLargeUserFile, LargeUserFile,
-};
+use netabase_store_examples::boilerplate_lib::definition::{AnotherLargeUserFile, LargeUserFile};
 use netabase_store_examples::boilerplate_lib::{
-    CategoryID, Definition, DefinitionSubscriptions, User, UserID,
-    ImmutablePost, ImmutablePostEnvelope,
+    CategoryID, Definition, DefinitionSubscriptions, ImmutablePost, ImmutablePostEnvelope, User,
+    UserID,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -90,7 +88,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let results = txn.query_by_subscription::<User, _>(&DefinitionSubscriptions::Topic1)?;
         println!("  Peer 1: {} users in Topic1", results.len());
 
-        let hashes = results.iter().map(|(_, hash)| *hash).collect();
+        let hashes = results.clone();
         SubscriptionMerkleTree::from_hashes(hashes)
     };
 
@@ -100,7 +98,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let results = txn.query_by_subscription::<User, _>(&DefinitionSubscriptions::Topic1)?;
         println!("  Peer 2: {} users in Topic1", results.len());
 
-        let hashes = results.iter().map(|(_, hash)| *hash).collect();
+        let hashes = results.clone();
         SubscriptionMerkleTree::from_hashes(hashes)
     };
 
@@ -124,8 +122,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if diff.has_differences() {
         println!("  Synchronization required:");
-        println!("    - Missing in Peer 2: {} items", diff.missing_in_other.len());
-        println!("    - Missing in Peer 1: {} items", diff.missing_in_self.len());
+        println!(
+            "    - Missing in Peer 2: {} items",
+            diff.missing_in_other.len()
+        );
+        println!(
+            "    - Missing in Peer 1: {} items",
+            diff.missing_in_self.len()
+        );
 
         // Show which items are missing
         if !diff.missing_in_other.is_empty() {
@@ -154,7 +158,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Generate proof
         let proof = peer1_tree.proof(hash).expect("Hash should be in tree");
-        println!("  ✓ Proof generated (size: {} hashes)", proof.proof_hashes().len());
+        println!(
+            "  ✓ Proof generated (size: {} hashes)",
+            proof.proof_hashes().len()
+        );
 
         // Verify proof
         let valid = peer1_tree.verify_proof(hash, &proof);
@@ -224,13 +231,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Verify sync of content-addressed models (ImmutablePost)
     println!("\n--- Syncing Content-Addressed Models ---");
-    
+
     let post = ImmutablePost {
         author: "SyncUser".to_string(),
         content: "Synced Content".to_string(),
         timestamp: 12345,
     };
-    
+
     // Create post in Peer 1
     {
         let txn = peer1_store.begin_write()?;
@@ -238,28 +245,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         txn.create(&envelope)?;
         txn.commit()?;
     }
-    
+
     // Sync Peer 1 -> Peer 2
     // In a real Merkle sync, we would compare root hashes.
     // Here we simulate detecting the missing hash and transferring it.
-    use netabase_store_examples::boilerplate_lib::models::hash_model;
     use netabase_store_examples::boilerplate_lib::definition::ImmutablePostID;
-    
+    use netabase_store_examples::boilerplate_lib::models::hash_model;
+
     let hash = ImmutablePostID(hash_model(&post));
     println!("Detected new content hash: {}", hash);
-    
+
     // Transfer logic: Read from Peer 1, Write to Peer 2
     {
         let txn_1 = peer1_store.begin_read()?;
         // Read the envelope using the wrapper ID
         let envelope = txn_1.read::<ImmutablePostEnvelope>(&hash)?.unwrap();
-        
+
         let txn_2 = peer2_store.begin_write()?;
         // Insert into Peer 2 (idempotent)
         txn_2.create(&envelope)?;
         txn_2.commit()?;
     }
-    
+
     // Verify Peer 2 has the post
     {
         let txn = peer2_store.begin_read()?;

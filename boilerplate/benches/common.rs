@@ -6,7 +6,7 @@ pub use netabase_store::traits::database::store::NBStore;
 use strum::IntoDiscriminant;
 
 /// Create an in-memory database for benchmarking
-/// 
+///
 /// This uses redb's InMemoryBackend to avoid disk I/O overhead,
 /// measuring only the abstraction overhead, not I/O performance.
 pub fn create_test_db<D>(_name: &str) -> NetabaseResult<RedbStore<D>>

@@ -191,8 +191,8 @@ pub use crate::traits::registery::models::model::NetabaseModel;
 
 // Database and transactions
 pub use crate::databases::redb::RedbStore;
-pub use crate::databases::redb::transaction::RedbTransaction;
 pub use crate::databases::redb::StoreConfig;
+pub use crate::databases::redb::transaction::RedbTransaction;
 
 // Query configuration
 pub use crate::query::{FetchOptions, Pagination, QueryConfig, QueryMode, QueryResult};

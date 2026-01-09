@@ -7,9 +7,7 @@
 use netabase_store::databases::redb::RedbStore;
 use netabase_store::relational::RelationalLink;
 use netabase_store::traits::database::store::NBStore;
-use netabase_store_examples::boilerplate_lib::definition::{
-    AnotherLargeUserFile, LargeUserFile,
-};
+use netabase_store_examples::boilerplate_lib::definition::{AnotherLargeUserFile, LargeUserFile};
 use netabase_store_examples::boilerplate_lib::{
     CategoryID, Definition, DefinitionSubscriptions, User, UserID,
 };
@@ -93,13 +91,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let txn = store.begin_read()?;
         let results = txn.query_by_subscription::<User, _>(&DefinitionSubscriptions::Topic1)?;
         println!("Topic1 subscribers: {} users", results.len());
-        for (user, hash) in &results {
-            println!(
-                "  - {} {} (hash: {}...)",
-                user.first_name,
-                user.last_name,
-                &hash.to_hex()[..16]
-            );
+        for hash in &results {
+            println!("  - User (hash: {}...)", &hash.to_hex()[..16]);
         }
     }
 
@@ -108,13 +101,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let txn = store.begin_read()?;
         let results = txn.query_by_subscription::<User, _>(&DefinitionSubscriptions::Topic2)?;
         println!("\nTopic2 subscribers: {} users", results.len());
-        for (user, hash) in &results {
-            println!(
-                "  - {} {} (hash: {}...)",
-                user.first_name,
-                user.last_name,
-                &hash.to_hex()[..16]
-            );
+        for hash in &results {
+            println!("  - User (hash: {}...)", &hash.to_hex()[..16]);
         }
     }
 

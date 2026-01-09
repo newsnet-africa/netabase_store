@@ -92,14 +92,15 @@ impl RepositoryVisitor {
             for item in items {
                 if let syn::Item::Mod(nested_mod) = item {
                     // Check for netabase_definition attribute (with or without path prefix)
-                    if let Some(attr) = nested_mod
-                        .attrs
-                        .iter()
-                        .find(|a| {
-                            // Check if path ends with "netabase_definition"
-                            a.path().segments.last().map(|s| &s.ident).map(|i| i == "netabase_definition").unwrap_or(false)
-                        })
-                    {
+                    if let Some(attr) = nested_mod.attrs.iter().find(|a| {
+                        // Check if path ends with "netabase_definition"
+                        a.path()
+                            .segments
+                            .last()
+                            .map(|s| &s.ident)
+                            .map(|i| i == "netabase_definition")
+                            .unwrap_or(false)
+                    }) {
                         // Parse the attribute to check if it registers to our repository
                         self.visit_definition_module(nested_mod, attr)?;
                     }
@@ -134,7 +135,7 @@ impl RepositoryVisitor {
                 config.subscriptions.clone(),
                 config.repositories.clone(),
             );
-            
+
             // Visit the UNexpanded module to collect model information
             // This works because we only need struct names and attributes, not generated code
             def_visitor.visit_module(module)?;

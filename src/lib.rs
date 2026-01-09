@@ -197,7 +197,6 @@ extern crate self as netabase_store;
 pub use libp2p;
 pub use postcard;
 
-pub mod subscription_hash;
 pub mod blob;
 pub mod databases;
 pub mod doc_examples;
@@ -205,5 +204,6 @@ pub mod errors;
 pub mod prelude;
 pub mod query;
 pub mod relational;
+pub mod subscription_hash;
 pub mod traits;
 pub mod utils;

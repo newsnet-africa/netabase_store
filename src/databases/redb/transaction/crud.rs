@@ -1,8 +1,11 @@
 use redb::{self, AccessGuard, ReadableTable, ReadableTableMetadata};
-use strum::IntoDiscriminant;
 use std::borrow::Borrow;
+use strum::IntoDiscriminant;
 
+use super::options::CrudOptions;
+use super::tables::{ModelOpenTables, ReadWriteTableType, TablePermission, TableType};
 use crate::{
+    errors::{NetabaseError, NetabaseResult},
     traits::registery::{
         definition::redb_definition::RedbDefinition,
         models::{
@@ -10,10 +13,7 @@ use crate::{
             model::{NetabaseModel, redb_model::RedbNetbaseModel},
         },
     },
-    errors::{NetabaseResult, NetabaseError},
 };
-use super::tables::{ModelOpenTables, TablePermission, ReadWriteTableType, TableType};
-use super::options::CrudOptions;
 
 /// Trait to handle automatic insertion/update of models into their respective tables
 pub trait RedbModelCrud<'db,  D>: RedbNetbaseModel<'db, D>

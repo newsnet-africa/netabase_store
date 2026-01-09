@@ -1,8 +1,8 @@
+use crate::utils::naming::*;
+use crate::visitors::definition::DefinitionVisitor;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::Ident;
-use crate::visitors::definition::DefinitionVisitor;
-use crate::utils::naming::*;
 
 // TODO: Add support for more complex relational links: Vec<RelationalLink>, Option<RelationalLink> etc.
 
@@ -97,12 +97,10 @@ impl<'a> DefinitionEnumGenerator<'a> {
     pub fn generate_subscriptions_enum(&self) -> TokenStream {
         let definition_name = &self.visitor.definition_name;
         let enum_name = definition_subscriptions_enum_name(definition_name);
-        
+
         // Define the discriminant name (e.g. DefinitionSubscriptionsDiscriminants)
-        let discriminant_name = Ident::new(
-            &format!("{}Discriminants", enum_name),
-            enum_name.span()
-        );
+        let discriminant_name =
+            Ident::new(&format!("{}Discriminants", enum_name), enum_name.span());
 
         if self.visitor.subscriptions.topics.is_empty() {
             // Generate an empty enum with necessary trait implementations
@@ -161,11 +159,13 @@ impl<'a> DefinitionEnumGenerator<'a> {
             };
         }
 
-        let variants: Vec<_> = self.visitor.subscriptions.topics
+        let variants: Vec<_> = self
+            .visitor
+            .subscriptions
+            .topics
             .iter()
             .map(|topic| {
-                let topic_ident = path_last_segment(topic)
-                    .expect("Invalid subscription topic");
+                let topic_ident = path_last_segment(topic).expect("Invalid subscription topic");
 
                 quote! { #topic_ident }
             })
@@ -183,7 +183,7 @@ impl<'a> DefinitionEnumGenerator<'a> {
             pub enum #enum_name {
                 #(#variants),*
             }
-            
+
             // Generate helper to implement Value/Key for owned types
             impl redb::Value for #enum_name {
                 type SelfType<'a> = Self;
@@ -221,61 +221,60 @@ impl<'a> DefinitionEnumGenerator<'a> {
         }
     }
 
-
     pub fn generate_iter(&self) -> TokenStream {
         let def_name = &self.visitor.definition_name;
         let tables_name = format_ident!("{}ReadOnlyTables", def_name);
         let iter_name = format_ident!("{}Iter", def_name);
-        
+
         let mut table_field_defs = Vec::new();
         let mut table_inits = Vec::new();
         let mut table_field_names = Vec::new();
-        
+
         let mut iter_field_defs = Vec::new();
         let mut iter_inits = Vec::new();
         let mut next_arms = Vec::new();
-        
+
         for (idx, model) in self.visitor.models.iter().enumerate() {
-             let model_name = &model.name;
-             let pk_type = primary_key_type_name_for_model(&model.visitor);
-             
-             let table_value_type = if model.is_content_addressed() {
-                 format_ident!("{}Envelope", model_name)
-             } else {
-                 model_name.clone()
-             };
-             
-             // Field names
-             let table_field_ident = format_ident!("table_{}", model_name);
-             let iter_field_ident = format_ident!("iter_{}", model_name);
-             
-             // Table Field Definition
-             table_field_defs.push(quote! {
-                 pub #table_field_ident: redb::ReadOnlyTable<#pk_type, #table_value_type>
-             });
-             table_field_names.push(table_field_ident.clone());
-             
-             // Table Init Logic
-             let def_str = def_name.to_string();
-             let model_str = model_name.to_string();
-             let table_name_str = table_name(&def_str, &model_str, "Primary", "Main");
-             
-             table_inits.push(quote! {
+            let model_name = &model.name;
+            let pk_type = primary_key_type_name_for_model(&model.visitor);
+
+            let table_value_type = if model.is_content_addressed() {
+                format_ident!("{}Envelope", model_name)
+            } else {
+                model_name.clone()
+            };
+
+            // Field names
+            let table_field_ident = format_ident!("table_{}", model_name);
+            let iter_field_ident = format_ident!("iter_{}", model_name);
+
+            // Table Field Definition
+            table_field_defs.push(quote! {
+                pub #table_field_ident: redb::ReadOnlyTable<#pk_type, #table_value_type>
+            });
+            table_field_names.push(table_field_ident.clone());
+
+            // Table Init Logic
+            let def_str = def_name.to_string();
+            let model_str = model_name.to_string();
+            let table_name_str = table_name(&def_str, &model_str, "Primary", "Main");
+
+            table_inits.push(quote! {
                   let #table_field_ident = txn.open_table(redb::TableDefinition::new(#table_name_str))?;
              });
-             
-             // Iter Field Definition
-             iter_field_defs.push(quote! {
-                 pub #iter_field_ident: Option<redb::Range<'a, #pk_type, #table_value_type>>
-             });
-             
-             // Iter Init Logic
-             iter_inits.push(quote! {
-                 #iter_field_ident: Some(self.#table_field_ident.range::<#pk_type>(..)?)
-             });
-             
-             // Next Arm
-             next_arms.push(quote! {
+
+            // Iter Field Definition
+            iter_field_defs.push(quote! {
+                pub #iter_field_ident: Option<redb::Range<'a, #pk_type, #table_value_type>>
+            });
+
+            // Iter Init Logic
+            iter_inits.push(quote! {
+                #iter_field_ident: Some(self.#table_field_ident.range::<#pk_type>(..)?)
+            });
+
+            // Next Arm
+            next_arms.push(quote! {
                  #idx => {
                      if let Some(range) = &mut self.#iter_field_ident {
                          match range.next() {
@@ -292,10 +291,10 @@ impl<'a> DefinitionEnumGenerator<'a> {
                  }
              });
         }
-        
+
         let iter_record_name = format_ident!("{}RecordIter", def_name);
         let record_wrapper_name = format_ident!("{}Record", def_name);
-        
+
         let mut record_match_arms = Vec::new();
         for model in &self.visitor.models {
             let model_name = &model.name;
@@ -312,7 +311,7 @@ impl<'a> DefinitionEnumGenerator<'a> {
             pub struct #tables_name {
                 #(#table_field_defs),*
             }
-            
+
             impl #tables_name {
                 pub fn new(txn: &redb::ReadTransaction) -> Result<Self, redb::Error> {
                      #(#table_inits)*
@@ -320,7 +319,7 @@ impl<'a> DefinitionEnumGenerator<'a> {
                          #(#table_field_names),*
                      })
                 }
-                
+
                 pub fn iter<'a>(&'a self) -> Result<#iter_name<'a>, redb::Error> {
                     Ok(#iter_name {
                         #(#iter_inits),*,
@@ -334,16 +333,16 @@ impl<'a> DefinitionEnumGenerator<'a> {
                     })
                 }
             }
-            
+
             /// Iterator over all models in the definition
             pub struct #iter_name<'a> {
                 #(#iter_field_defs),*,
                 state: usize,
             }
-            
+
             impl<'a> Iterator for #iter_name<'a> {
                 type Item = netabase_store::errors::NetabaseResult<#def_name>;
-                
+
                 fn next(&mut self) -> Option<Self::Item> {
                     loop {
                         match self.state {
@@ -392,9 +391,9 @@ impl<'a> DefinitionEnumGenerator<'a> {
         for model in &self.visitor.models {
             let model_name = &model.name;
             let target_type = if model.is_content_addressed() {
-                 format_ident!("{}Envelope", model_name)
+                format_ident!("{}Envelope", model_name)
             } else {
-                 model_name.clone()
+                model_name.clone()
             };
 
             variants.push(quote! { 
@@ -409,11 +408,11 @@ impl<'a> DefinitionEnumGenerator<'a> {
         for nested in &self.visitor.nested_definitions {
             let nested_name = &nested.definition_name;
             let nested_tree_names = definition_tree_names_enum_name(nested_name);
-            
-            variants.push(quote! { 
+
+            variants.push(quote! {
                 #nested_name(#nested_tree_names)
             });
-            
+
             // For nested definitions, we return the default tree names for that definition wrapped in the variant
             get_tree_names_arms.push(quote! {
                 #discriminant_name::#nested_name => vec![#enum_name::#nested_name(#nested_tree_names::default())]
@@ -422,22 +421,22 @@ impl<'a> DefinitionEnumGenerator<'a> {
 
         // Default implementation (use first model or nested def)
         let default_variant = if !self.visitor.models.is_empty() {
-             let first_model = &self.visitor.models[0];
-             let first_model_name = &first_model.name;
-             let target_type = if first_model.is_content_addressed() {
-                 format_ident!("{}Envelope", first_model_name)
-             } else {
-                 first_model_name.clone()
-             };
-             
-             quote! { #enum_name::#first_model_name(<#target_type as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES) }
+            let first_model = &self.visitor.models[0];
+            let first_model_name = &first_model.name;
+            let target_type = if first_model.is_content_addressed() {
+                format_ident!("{}Envelope", first_model_name)
+            } else {
+                first_model_name.clone()
+            };
+
+            quote! { #enum_name::#first_model_name(<#target_type as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES) }
         } else if !self.visitor.nested_definitions.is_empty() {
-             let first_nested = &self.visitor.nested_definitions[0].definition_name;
-             let nested_tree_names = definition_tree_names_enum_name(first_nested);
-             quote! { #enum_name::#first_nested(#nested_tree_names::default()) }
+            let first_nested = &self.visitor.nested_definitions[0].definition_name;
+            let nested_tree_names = definition_tree_names_enum_name(first_nested);
+            quote! { #enum_name::#first_nested(#nested_tree_names::default()) }
         } else {
-             // Empty definition?
-             quote! { panic!("Empty definition") }
+            // Empty definition?
+            quote! { panic!("Empty definition") }
         };
 
         let default_impl = quote! {

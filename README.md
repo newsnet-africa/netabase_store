@@ -297,16 +297,15 @@ mod my_app {
 
 // Query by subscription topic (returns models with hashes)
 let txn = store.begin_read()?;
-let results = txn.query_by_subscription::<User, _>(&MyAppSubscriptions::Topic1)?;
+let hashes = txn.query_by_subscription::<User, _>(&MyAppSubscriptions::Topic1)?;
 
-for (user, hash) in results {
-    println!("User {}: hash {}", user.name, hash.to_hex());
+for hash in &hashes {
+    println!("User hash: {}", hash.to_hex());
 }
 
 // Build Merkle tree for efficient sync
 use netabase_store::subscription_hash::SubscriptionMerkleTree;
 
-let hashes: Vec<_> = results.iter().map(|(_, hash)| *hash).collect();
 let tree = SubscriptionMerkleTree::from_hashes(hashes);
 
 // Generate and verify proofs

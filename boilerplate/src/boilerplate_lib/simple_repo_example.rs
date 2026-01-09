@@ -55,11 +55,11 @@ pub mod simple_definition {
         /// Unique inventory item identifier
         #[primary_key]
         pub id: u128,
-        
+
         /// Item name - indexed for fast lookup
         #[secondary_key]
         pub name: String,
-        
+
         /// Warehouse location
         pub warehouse: String,
     }
@@ -81,10 +81,10 @@ pub mod simple_definition {
         /// Unique branch identifier
         #[primary_key]
         pub branch_id: u128,
-        
+
         /// List of inventory item IDs at this branch
         pub items: Vec<InventoryItemID>,
-        
+
         /// Example link to a specific inventory item
         #[link(SimpleDefinition, InventoryItem)]
         pub one_item: u128,

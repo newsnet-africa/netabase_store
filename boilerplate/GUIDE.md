@@ -480,10 +480,10 @@ let txn = store.begin_read()?;
 
 // Query all Users subscribed to News topic
 let results = txn.query_by_subscription::<User, _>(&MyAppSubscriptions::News)?;
-// Returns: Vec<(User, ModelHash)>
+// Returns: Vec<ModelHash>
 
-for (user, hash) in results {
-    println!("User: {} (hash: {})", user.name, hash.to_hex());
+for hash in results {
+    println!("User hash: {}", hash.to_hex());
 }
 ```
 
@@ -544,12 +544,9 @@ Content-addressed hashing enables efficient peer-to-peer synchronization using M
 ```rust
 use netabase_store::subscription_hash::{SubscriptionMerkleTree, ModelHash};
 
-// Get all models in a topic with their hashes
+// Get all model hashes in a topic
 let txn = store.begin_read()?;
-let results = txn.query_by_subscription::<User, _>(&MyAppSubscriptions::News)?;
-
-// Extract hashes
-let hashes: Vec<ModelHash> = results.iter().map(|(_, hash)| *hash).collect();
+let hashes = txn.query_by_subscription::<User, _>(&MyAppSubscriptions::News)?;
 
 // Build Merkle tree
 let tree = SubscriptionMerkleTree::from_hashes(hashes);
@@ -581,9 +578,7 @@ Compare local and peer trees to find differences:
 
 ```rust
 // Build local tree
-let local_hashes: Vec<ModelHash> = local_results.iter()
-    .map(|(_, hash)| *hash)
-    .collect();
+let local_hashes = local_results; // Already Vec<ModelHash>
 let local_tree = SubscriptionMerkleTree::from_hashes(local_hashes);
 
 // Build peer tree (from network)
@@ -668,7 +663,7 @@ txn.delete(&user_id)?; // Hash removed
 
 // Query always returns current hashes
 let results = txn.query_by_subscription::<User, _>(&topic)?;
-for (user, hash) in results {
+for hash in results {
     // hash is always up-to-date with model content
 }
 ```

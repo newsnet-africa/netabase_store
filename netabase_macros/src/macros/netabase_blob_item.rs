@@ -10,7 +10,7 @@ use syn::{Data, DeriveInput, Fields, Result, parse2};
 /// # Example
 /// ```rust,ignore
 /// use netabase_macros::NetabaseBlobItem;
-/// 
+///
 /// #[derive(NetabaseBlobItem, Clone, Default)]
 /// pub struct MyBlob {
 ///     pub data: Vec<u8>,

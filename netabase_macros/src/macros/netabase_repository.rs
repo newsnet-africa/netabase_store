@@ -29,7 +29,9 @@ use quote::quote;
 use syn::{ItemMod, Result, parse2};
 
 use crate::generators::repository::RepositoryGenerator;
-use crate::utils::attributes::{parse_repository_attribute_from_tokens, remove_attribute_with_tokens};
+use crate::utils::attributes::{
+    parse_repository_attribute_from_tokens, remove_attribute_with_tokens,
+};
 use crate::visitors::repository::RepositoryVisitor;
 
 /// Implementation of the netabase_repository attribute macro

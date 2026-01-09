@@ -78,27 +78,29 @@ where
 
     fn get(&self, k: &Key) -> Option<Cow<'_, Record>> {
         if let Ok(txn) = self._store.begin_read() {
-            return txn.with_read_transaction(|rt| {
-                D::find_record(rt, k)
-            }).ok().flatten().map(Cow::Owned);
+            return txn
+                .with_read_transaction(|rt| D::find_record(rt, k))
+                .ok()
+                .flatten()
+                .map(Cow::Owned);
         }
         None
     }
 
     fn put(&mut self, r: Record) -> Result<(), StoreError> {
-        let txn = self._store.begin_write().map_err(|_| StoreError::MaxRecords)?;
-        txn.with_write_transaction(|wt| {
-            D::put_record(wt, r)
-        }).map_err(|_| StoreError::ValueTooLarge)?;
+        let txn = self
+            ._store
+            .begin_write()
+            .map_err(|_| StoreError::MaxRecords)?;
+        txn.with_write_transaction(|wt| D::put_record(wt, r))
+            .map_err(|_| StoreError::ValueTooLarge)?;
         txn.commit().map_err(|_| StoreError::MaxRecords)?;
         Ok(())
     }
 
     fn remove(&mut self, k: &Key) {
         if let Ok(txn) = self._store.begin_write() {
-            let _ = txn.with_write_transaction(|wt| {
-                D::remove_record(wt, k)
-            });
+            let _ = txn.with_write_transaction(|wt| D::remove_record(wt, k));
             let _ = txn.commit();
         }
     }
@@ -128,19 +130,20 @@ where
     }
 
     fn add_provider(&mut self, record: ProviderRecord) -> Result<(), StoreError> {
-        let txn = self._store.begin_write().map_err(|_| StoreError::MaxRecords)?;
-        txn.with_write_transaction(|wt| {
-            D::add_provider(wt, record)
-        }).map_err(|_| StoreError::MaxProvidedKeys)?;
+        let txn = self
+            ._store
+            .begin_write()
+            .map_err(|_| StoreError::MaxRecords)?;
+        txn.with_write_transaction(|wt| D::add_provider(wt, record))
+            .map_err(|_| StoreError::MaxProvidedKeys)?;
         txn.commit().map_err(|_| StoreError::MaxRecords)?;
         Ok(())
     }
 
     fn providers(&self, key: &Key) -> Vec<ProviderRecord> {
         if let Ok(txn) = self._store.begin_read() {
-            txn.with_read_transaction(|rt| {
-                D::get_providers(rt, key)
-            }).unwrap_or_default()
+            txn.with_read_transaction(|rt| D::get_providers(rt, key))
+                .unwrap_or_default()
         } else {
             Vec::new()
         }
@@ -155,9 +158,7 @@ where
 
     fn remove_provider(&mut self, k: &Key, p: &PeerId) {
         if let Ok(txn) = self._store.begin_write() {
-            let _ = txn.with_write_transaction(|wt| {
-                D::remove_provider(wt, k, p)
-            });
+            let _ = txn.with_write_transaction(|wt| D::remove_provider(wt, k, p));
             let _ = txn.commit();
         }
     }
