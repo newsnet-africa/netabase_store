@@ -1,7 +1,7 @@
 // Models module - contains blob type definitions
 pub mod blob_types;
 
-use netabase_store::traits::database::hash::HashAlgorithm;
+use netabase_store::traits::database::hash::{HashAlgorithm, FastHash, DefaultHash, CryptoHash};
 use std::hash::{Hash, Hasher};
 
 /// A fast hasher wrapper using standard library DefaultHasher
@@ -12,15 +12,25 @@ impl HashAlgorithm for FastHasher {
     type Hasher = std::collections::hash_map::DefaultHasher;
 }
 
-/// Helper function to compute hash for a model
+/// Helper function to compute hash for a model (DefaultHasher)
 pub fn hash_model<T: serde::Serialize>(model: &T) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    // Serialize to bytes first to ensure consistent hashing across platforms/runs
-    // (though DefaultHasher is not guaranteed to be consistent across runs, it's fine for testing)
-    // For production, use a stable hasher like Sha256 or similar.
-    // Here we just hash the debug string or similar for simplicity if T implements Hash?
-    // But T is NetabaseModel which requires serde::Serialize.
-    // Let's use postcard to bytes then hash bytes.
+    let bytes = postcard::to_allocvec(model).unwrap_or_default();
+    bytes.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Helper function to compute hash for a model using FxHash (Fast)
+pub fn hash_model_fast<T: serde::Serialize>(model: &T) -> u64 {
+    let mut hasher = <FastHash as HashAlgorithm>::new_hasher();
+    let bytes = postcard::to_allocvec(model).unwrap_or_default();
+    bytes.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Helper function to compute hash for a model using SHA256 (Crypto - truncated to u64)
+pub fn hash_model_crypto<T: serde::Serialize>(model: &T) -> u64 {
+    let mut hasher = <CryptoHash as HashAlgorithm>::new_hasher();
     let bytes = postcard::to_allocvec(model).unwrap_or_default();
     bytes.hash(&mut hasher);
     hasher.finish()

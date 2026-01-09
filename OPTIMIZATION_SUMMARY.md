@@ -35,24 +35,33 @@ Switched benchmarks to use in-memory redb configuration to:
 ### Minimal Benchmark (Single table, primary key only)
 | Operation | Count | Abstracted (Batch) | Raw | Overhead |
 |-----------|-------|-------------------|-----|----------|
-| Insert | 10,000 | 12.98ms | 8.28ms | **+57%** |
-| Read | 10,000 | 8.91ms | 4.14ms | **+115%** |
+| Insert | 10,000 | 18.56ms | 12.73ms | **+45.8%** |
+| Read | 10,000 | 15.32ms | 7.71ms | **+98.7%** |
 
-**Key Finding**: The abstraction overhead is reduced to ~60% for batched writes using `prepare_model`. Read overhead remains ~115% due to key cloning and wrapper construction. Naive usage (without batching) incurs higher overhead (~135-150%).
+**Key Finding**: The abstraction overhead is reduced to ~46% for batched writes using `prepare_model`. Read overhead remains ~99% due to key cloning and wrapper construction. Naive usage (without batching) incurs higher overhead (~135-150%).
 
 ### Full CRUD Benchmark (Complex models)
 | Operation | Count | Abstracted (Batch) | Raw | Overhead |
 |-----------|-------|-------------------|-----|----------|
-| Insert | 10,000 | 1.91s | 1.87s | **+2.1%** |
+| Insert | 10,000 | 1.83s | 1.73s | **+5.8%** |
 
-**Key Finding**: For complex models with multiple indexes and blobs, the abstraction overhead becomes negligible (~2%) when using batching. The cost of maintaining indexes dominates the execution time.
+**Key Finding**: For complex models with multiple indexes and blobs, the abstraction overhead becomes negligible (~6%) when using batching. The cost of maintaining indexes dominates the execution time.
 
 ### Content-Addressed Models (New)
 | Operation | Count | Time | Throughput |
 |-----------|-------|------|------------|
-| Insert | 10,000 | 142ms | **70k ops/sec** |
+| Insert | 10,000 | 116ms | **86k ops/sec** |
 
 **Key Finding**: Content-addressed models (using `#[netabase_content_addressed]`) offer extremely high throughput for immutable data ingestion, especially in sync scenarios where hashes are pre-calculated.
+
+### Hashing Algorithm Impact
+| Algorithm | Insert Time (10k) | Per Op | Impact |
+|-----------|-------------------|--------|--------|
+| FxHash    | 103ms             | 10.3µs | Baseline |
+| SHA-256   | 111ms             | 11.1µs | +7.8% |
+| Default   | 116ms             | 11.6µs | +12.6% |
+
+**Key Finding**: The choice of hashing algorithm (Fast vs Crypto) has a measurable but small impact on overall insertion performance (< 15%). The database IO and structure management costs still dominate.
 
 ## Recommendations
 

@@ -1222,7 +1222,10 @@ impl<'a> DefinitionTraitGenerator<'a> {
                 {
                     let pk = self.hash.clone();
                     let bytes = <#primary_key_type as redb::Value>::as_bytes(&pk);
-                    ::netabase_store::subscription_hash::ModelHash::from_bytes(&bytes)
+                    let mut hash_bytes = [0u8; 32];
+                    let len = bytes.len().min(32);
+                    hash_bytes[0..len].copy_from_slice(&bytes[0..len]);
+                    ::netabase_store::subscription_hash::ModelHash::from_bytes(&hash_bytes)
                 }
             }
         } else {
@@ -1241,7 +1244,10 @@ impl<'a> DefinitionTraitGenerator<'a> {
                 {
                     let pk = old_model.hash.clone();
                     let bytes = <#primary_key_type as redb::Value>::as_bytes(&pk);
-                    ::netabase_store::subscription_hash::ModelHash::from_bytes(&bytes)
+                    let mut hash_bytes = [0u8; 32];
+                    let len = bytes.len().min(32);
+                    hash_bytes[0..len].copy_from_slice(&bytes[0..len]);
+                    ::netabase_store::subscription_hash::ModelHash::from_bytes(&hash_bytes)
                 }
             }
         } else {
@@ -1253,7 +1259,10 @@ impl<'a> DefinitionTraitGenerator<'a> {
                 {
                     let pk = self.hash.clone();
                     let bytes = <#primary_key_type as redb::Value>::as_bytes(&pk);
-                    ::netabase_store::subscription_hash::ModelHash::from_bytes(&bytes)
+                    let mut hash_bytes = [0u8; 32];
+                    let len = bytes.len().min(32);
+                    hash_bytes[0..len].copy_from_slice(&bytes[0..len]);
+                    ::netabase_store::subscription_hash::ModelHash::from_bytes(&hash_bytes)
                 }
             }
         } else {

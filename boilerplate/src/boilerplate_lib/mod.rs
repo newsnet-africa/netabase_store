@@ -375,6 +375,54 @@ pub mod definition {
         
         pub timestamp: u64,
     }
+
+    /// Content-addressed immutable post model using FxHash (Fast).
+    #[derive(
+        netabase_macros::NetabaseModel,
+        Debug,
+        Clone,
+        Serialize,
+        Deserialize,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+    )]
+    #[netabase_content_addressed(hasher = "netabase_store::traits::database::hash::FastHash", function = "crate::boilerplate_lib::models::hash_model_fast", key_type = "u64")]
+    #[subscribe(Topic1, Topic2)]
+    pub struct ImmutablePostFast {
+        #[secondary_key]
+        pub author: String,
+        
+        pub content: String,
+        
+        pub timestamp: u64,
+    }
+
+    /// Content-addressed immutable post model using SHA256 (Crypto).
+    #[derive(
+        netabase_macros::NetabaseModel,
+        Debug,
+        Clone,
+        Serialize,
+        Deserialize,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+    )]
+    #[netabase_content_addressed(hasher = "netabase_store::traits::database::hash::CryptoHash", function = "crate::boilerplate_lib::models::hash_model_crypto", key_type = "u64")]
+    #[subscribe(Topic1, Topic2)]
+    pub struct ImmutablePostCrypto {
+        #[secondary_key]
+        pub author: String,
+        
+        pub content: String,
+        
+        pub timestamp: u64,
+    }
 }
 
 // Repository that combines Definition and DefinitionTwo

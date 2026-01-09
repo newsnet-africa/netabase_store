@@ -21,26 +21,26 @@ This benchmark tests the purest abstraction overhead with a single table contain
 
 | Implementation | Time (10k ops) | Time/Op | Overhead vs Raw |
 |----------------|----------------|---------|-----------------|
-| Raw Redb       | 8.28 ms        | 0.82 µs | -               |
-| Abstracted (Naive) | 19.35 ms   | 1.93 µs | +135%           |
-| **Abstracted (Batch)** | **12.98 ms** | **1.29 µs** | **+57%** |
+| Raw Redb       | 12.73 ms       | 1.27 µs | -               |
+| Abstracted (Naive) | 29.42 ms   | 2.94 µs | +131%           |
+| **Abstracted (Batch)** | **18.56 ms** | **1.86 µs** | **+46%** |
 
 **Analysis**: 
-- **Naive Usage**: Calling `txn.create()` for each item re-opens all tables (main, secondary, etc.) for every operation. This adds ~0.5µs overhead per op.
+- **Naive Usage**: Calling `txn.create()` for each item re-opens all tables (main, secondary, etc.) for every operation. This adds ~1.7µs overhead per op.
 - **Batch Usage**: Using `txn.prepare_model()` once significantly reduces overhead.
-- **Key Optimization**: Implementing `get_primary_key_ref` (avoiding clones) reduced the overhead from +66% to +57% in batch mode. The remaining overhead is likely due to trait dispatch and serialization wrappers.
+- **Key Optimization**: Implementing `get_primary_key_ref` (avoiding clones) reduced the overhead in batch mode. The remaining overhead is likely due to trait dispatch and serialization wrappers.
 
 #### Read Performance (10,000 items)
 
 | Implementation | Time (10k ops) | Time/Op | Overhead vs Raw |
 |----------------|----------------|---------|-----------------|
-| Raw Redb       | 4.14 ms        | 0.41 µs | -               |
-| Abstracted (Naive) | 12.98 ms   | 1.30 µs | +213%           |
-| **Abstracted (Batch)** | **8.91 ms** | **0.89 µs** | **+115%** |
+| Raw Redb       | 7.71 ms        | 0.77 µs | -               |
+| Abstracted (Naive) | 23.20 ms   | 2.32 µs | +201%           |
+| **Abstracted (Batch)** | **15.32 ms** | **1.53 µs** | **+99%** |
 
 **Analysis**:
-- Similar to writes, repeatedly opening tables adds significant cost (~0.4µs/op).
-- **Batch Optimization**: Pre-opening tables with `prepare_model` improves performance by ~30%.
+- Similar to writes, repeatedly opening tables adds significant cost.
+- **Batch Optimization**: Pre-opening tables with `prepare_model` improves performance significantly.
 - **Remaining Overhead**: Read operations also suffer from key cloning (`read(&key)` vs raw `table.get(key_ref)`).
 
 ---
@@ -58,28 +58,32 @@ The full CRUD benchmark tests realistic usage with:
 
 | Implementation | Time (10k ops) | Time/Op | Overhead vs Raw |
 |----------------|----------------|---------|-----------------|
-| Raw Redb       | 1.87 s         | 187 µs  | -               |
-| **Abstracted (Batch)** | **1.91 s** | **191 µs** | **+2.1%** |
-| Libp2p (Naive) | 4.09 s         | 409 µs  | +118%           |
+| Raw Redb       | 1.73 s         | 173 µs  | -               |
+| **Abstracted (Batch)** | **1.83 s** | **183 µs** | **+5.8%** |
+| Libp2p (Naive) | 3.60 s         | 360 µs  | +108%           |
 
 **Analysis**:
-- **Batching Wins**: The Abstracted (Batch) implementation maintains near-parity with Raw implementation (~2% overhead). This confirms that the abstraction cost is negligible compared to the cost of maintaining complex indexes and writing data.
+- **Batching Wins**: The Abstracted (Batch) implementation maintains near-parity with Raw implementation (~6% overhead). This confirms that the abstraction cost is negligible compared to the cost of maintaining complex indexes and writing data.
 - **Libp2p Overhead**: The `Libp2pRedbStore` implementation continues to show ~2x overhead due to the transaction-per-record requirement of the trait.
 
 ### Content-Addressed Models (Immutable Data)
 
-New benchmark testing the performance of `#[netabase_content_addressed]` models. These models use their hash as the primary key and are immutable.
+Benchmarks testing the performance of `#[netabase_content_addressed]` models with different hashing algorithms.
 
-#### Insert Performance (10,000 items)
+#### Insert Performance
 
-| Implementation | Time (10k ops) | Time/Op | Notes |
-|----------------|----------------|---------|-------|
-| **Content-Addressed** | **142 ms** | **14.2 µs** | **Simulating P2P Sync (Pre-hashed)** |
+| Implementation | Time/Op | Hash Algorithm | Notes |
+|----------------|---------|----------------|-------|
+| **Default (SipHash)** | **11.6 µs** | SipHash 1-3 | Standard Rust hasher |
+| **Fast (FxHash)** | **10.3 µs** | FxHash | Non-cryptographic, fast |
+| **Crypto (SHA-256)** | **11.1 µs** | SHA-256 | Cryptographic security |
+| Libp2p (Crypto) | **75.8 µs** | SHA-256 | With Libp2p Store overhead |
 
 **Analysis**:
-- **High Throughput**: Inserting 10,000 content-addressed items takes only ~142ms.
-- **Scenario**: This benchmark simulates a P2P sync scenario where we receive `Envelopes` (data + hash) from a peer. The hashing cost is already paid.
-- **Efficiency**: The low cost (14.2µs vs 191µs for User) reflects the simpler structure (fewer indexes, no blobs) and efficient `Envelope` storage.
+- **Throughput**: ~86,000 ops/sec (In-memory).
+- **Hashing Overhead**: The difference between the fastest and slowest hashing algorithm is small (< 15%).
+- **Libp2p Overhead**: Wrapping content-addressed models in `Libp2pRedbStore` adds significant overhead (~7x slower), due to transaction management per record.
+- **Recommendation**: Users can safely default to `CryptoHash` (SHA-256) for P2P security without fearing significant performance penalties compared to faster non-cryptographic hashes.
 
 ---
 

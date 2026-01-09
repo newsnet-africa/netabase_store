@@ -1,20 +1,24 @@
-use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
+use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main};
+use netabase_store::databases::redb::RedbStore;
+use netabase_store::databases::redb::libp2p::Libp2pRedbStore;
 use netabase_store::databases::redb::transaction::RedbModelCrud;
+use netabase_store::libp2p::PeerId;
+use netabase_store::libp2p::kad::Record;
+use netabase_store::libp2p::kad::store::RecordStore;
 use netabase_store::relational::RelationalLink;
+use netabase_store::traits::libp2p::libp2p_model::Libp2pMetadata;
 use netabase_store_examples::boilerplate_lib::definition::{
-    User, UserAge, UserBlobItem, UserBlobKeys, UserCategory, UserFirstName, UserLastName, UserID, UserPartner,
-    UserRelationalKeys, UserSecondaryKeys, ImmutablePost, ImmutablePostEnvelope, ImmutablePostID,
+    ImmutablePost, ImmutablePostCrypto, ImmutablePostCryptoEnvelope, ImmutablePostCryptoID,
+    ImmutablePostEnvelope, ImmutablePostFast, ImmutablePostFastEnvelope, ImmutablePostFastID,
+    ImmutablePostID, User, UserAge, UserBlobItem, UserBlobKeys, UserCategory, UserFirstName,
+    UserID, UserLastName, UserPartner, UserRelationalKeys, UserSecondaryKeys,
 };
 use netabase_store_examples::boilerplate_lib::models::blob_types::{
     AnotherLargeUserFile, LargeUserFile,
 };
-use netabase_store_examples::boilerplate_lib::{CategoryID, Definition, DefinitionSubscriptions, DefinitionRecord};
-use netabase_store::databases::redb::libp2p::Libp2pRedbStore;
-use netabase_store::databases::redb::RedbStore;
-use netabase_store::libp2p::kad::store::RecordStore;
-use netabase_store::libp2p::kad::Record;
-use netabase_store::traits::libp2p::libp2p_model::Libp2pMetadata;
-use netabase_store::libp2p::PeerId;
+use netabase_store_examples::boilerplate_lib::{
+    CategoryID, Definition, DefinitionRecord, DefinitionSubscriptions,
+};
 use rand::prelude::*;
 use redb::{MultimapTableDefinition, ReadableDatabase, ReadableTable, TableDefinition};
 use std::hint::black_box;
@@ -106,7 +110,7 @@ pub fn generate_random_user() -> User {
 
 pub fn generate_random_post() -> ImmutablePost {
     let mut rng = rand::rng();
-    
+
     // random string
     let mut random_string = |len: usize| {
         (0..len)
@@ -121,16 +125,71 @@ pub fn generate_random_post() -> ImmutablePost {
     }
 }
 
+pub fn generate_random_post_fast() -> ImmutablePostFast {
+    let mut rng = rand::rng();
+
+    // random string
+    let mut random_string = |len: usize| {
+        (0..len)
+            .map(|_| rng.random_range(b'a'..=b'z') as char)
+            .collect::<String>()
+    };
+
+    ImmutablePostFast {
+        author: random_string(10),
+        content: random_string(100),
+        timestamp: rng.random(),
+    }
+}
+
+pub fn generate_random_post_crypto() -> ImmutablePostCrypto {
+    let mut rng = rand::rng();
+
+    // random string
+    let mut random_string = |len: usize| {
+        (0..len)
+            .map(|_| rng.random_range(b'a'..=b'z') as char)
+            .collect::<String>()
+    };
+
+    ImmutablePostCrypto {
+        author: random_string(10),
+        content: random_string(100),
+        timestamp: rng.random(),
+    }
+}
+
 fn user_to_record(user: User) -> Record {
     let meta = Libp2pMetadata::default();
     let wrapper = DefinitionRecord(Definition::User(user), meta);
     wrapper.into()
 }
 
+fn post_to_record(post: ImmutablePost) -> Record {
+    let envelope = ImmutablePostEnvelope::from(post);
+    let meta = Libp2pMetadata::default();
+    let wrapper = DefinitionRecord(Definition::ImmutablePost(envelope), meta);
+    wrapper.into()
+}
+
+fn post_fast_to_record(post: ImmutablePostFast) -> Record {
+    let envelope = ImmutablePostFastEnvelope::from(post);
+    let meta = Libp2pMetadata::default();
+    let wrapper = DefinitionRecord(Definition::ImmutablePostFast(envelope), meta);
+    wrapper.into()
+}
+
+fn post_crypto_to_record(post: ImmutablePostCrypto) -> Record {
+    let envelope = ImmutablePostCryptoEnvelope::from(post);
+    let meta = Libp2pMetadata::default();
+    let wrapper = DefinitionRecord(Definition::ImmutablePostCrypto(envelope), meta);
+    wrapper.into()
+}
+
 // --- Benchmarks ---
 
 fn bench_crud_operations(c: &mut Criterion) {
-    let sizes = [0, 100, 1_000, 10_000, 100_000];
+    let sizes = [0, 100, 1_000, 10_000];
 
     // Define table definitions matching User::TREE_NAMES for raw redb operations
     const MAIN: TableDefinition<UserID, User> = TableDefinition::new("User:User:Primary:Main");
@@ -189,31 +248,117 @@ fn bench_crud_operations(c: &mut Criterion) {
         });
 
         // Content-Addressed Insert (ImmutablePost)
-        insert_group.bench_with_input(BenchmarkId::new("ContentAddressed", size), size, |b, &size| {
-            b.iter_batched(
-                || {
-                    let posts: Vec<ImmutablePost> = (0..size).map(|_| generate_random_post()).collect();
-                    let envelopes: Vec<ImmutablePostEnvelope> = posts.into_iter().map(|p| ImmutablePostEnvelope::from(p)).collect();
-                    let name = format!("bench_ca_insert_{}_{}", size, rand::random::<u64>());
-                    let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
-                    (store, envelopes)
-                },
-                |(store, envelopes)| {
-                    let txn = store.begin_write().expect("Failed to begin txn");
-                    {
-                        let mut tables = txn
-                            .prepare_model::<ImmutablePostEnvelope>()
-                            .expect("Failed to prepare model");
-                        for envelope in &envelopes {
-                            envelope.create_entry(&mut tables)
-                                .expect("Failed to create post");
+        insert_group.bench_with_input(
+            BenchmarkId::new("ContentAddressed", size),
+            size,
+            |b, &size| {
+                b.iter_batched(
+                    || {
+                        let posts: Vec<ImmutablePost> =
+                            (0..size).map(|_| generate_random_post()).collect();
+                        let envelopes: Vec<ImmutablePostEnvelope> = posts
+                            .into_iter()
+                            .map(|p| ImmutablePostEnvelope::from(p))
+                            .collect();
+                        let name = format!("bench_ca_insert_{}_{}", size, rand::random::<u64>());
+                        let store =
+                            create_test_db::<Definition>(&name).expect("Failed to create DB");
+                        (store, envelopes)
+                    },
+                    |(store, envelopes)| {
+                        let txn = store.begin_write().expect("Failed to begin txn");
+                        {
+                            let mut tables = txn
+                                .prepare_model::<ImmutablePostEnvelope>()
+                                .expect("Failed to prepare model");
+                            for envelope in &envelopes {
+                                envelope
+                                    .create_entry(&mut tables)
+                                    .expect("Failed to create post");
+                            }
                         }
-                    }
-                    txn.commit().expect("Failed to commit");
-                },
-                BatchSize::PerIteration,
-            );
-        });
+                        txn.commit().expect("Failed to commit");
+                    },
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+
+        // Content-Addressed Insert (ImmutablePostFast - FxHash)
+        insert_group.bench_with_input(
+            BenchmarkId::new("ContentAddressed_Fast", size),
+            size,
+            |b, &size| {
+                b.iter_batched(
+                    || {
+                        let posts: Vec<ImmutablePostFast> =
+                            (0..size).map(|_| generate_random_post_fast()).collect();
+                        let envelopes: Vec<ImmutablePostFastEnvelope> = posts
+                            .into_iter()
+                            .map(|p| ImmutablePostFastEnvelope::from(p))
+                            .collect();
+                        let name =
+                            format!("bench_ca_fast_insert_{}_{}", size, rand::random::<u64>());
+                        let store =
+                            create_test_db::<Definition>(&name).expect("Failed to create DB");
+                        (store, envelopes)
+                    },
+                    |(store, envelopes)| {
+                        let txn = store.begin_write().expect("Failed to begin txn");
+                        {
+                            let mut tables = txn
+                                .prepare_model::<ImmutablePostFastEnvelope>()
+                                .expect("Failed to prepare model");
+                            for envelope in &envelopes {
+                                envelope
+                                    .create_entry(&mut tables)
+                                    .expect("Failed to create post");
+                            }
+                        }
+                        txn.commit().expect("Failed to commit");
+                    },
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+
+        // Content-Addressed Insert (ImmutablePostCrypto - SHA256)
+        insert_group.bench_with_input(
+            BenchmarkId::new("ContentAddressed_Crypto", size),
+            size,
+            |b, &size| {
+                b.iter_batched(
+                    || {
+                        let posts: Vec<ImmutablePostCrypto> =
+                            (0..size).map(|_| generate_random_post_crypto()).collect();
+                        let envelopes: Vec<ImmutablePostCryptoEnvelope> = posts
+                            .into_iter()
+                            .map(|p| ImmutablePostCryptoEnvelope::from(p))
+                            .collect();
+                        let name =
+                            format!("bench_ca_crypto_insert_{}_{}", size, rand::random::<u64>());
+                        let store =
+                            create_test_db::<Definition>(&name).expect("Failed to create DB");
+                        (store, envelopes)
+                    },
+                    |(store, envelopes)| {
+                        let txn = store.begin_write().expect("Failed to begin txn");
+                        {
+                            let mut tables = txn
+                                .prepare_model::<ImmutablePostCryptoEnvelope>()
+                                .expect("Failed to prepare model");
+                            for envelope in &envelopes {
+                                envelope
+                                    .create_entry(&mut tables)
+                                    .expect("Failed to create post");
+                            }
+                        }
+                        txn.commit().expect("Failed to commit");
+                    },
+                    BatchSize::PerIteration,
+                );
+            },
+        );
 
         // Raw Redb Insert
         insert_group.bench_with_input(BenchmarkId::new("Raw", size), size, |b, &size| {
@@ -376,6 +521,98 @@ fn bench_crud_operations(c: &mut Criterion) {
                 BatchSize::PerIteration,
             );
         });
+
+        // Libp2p Store Insert (ImmutablePost)
+        insert_group.bench_with_input(
+            BenchmarkId::new("Libp2p_ContentAddressed", size),
+            size,
+            |b, &size| {
+                b.iter_batched(
+                    || {
+                        let posts: Vec<ImmutablePost> =
+                            (0..size).map(|_| generate_random_post()).collect();
+                        let records: Vec<Record> = posts.into_iter().map(post_to_record).collect();
+                        let name =
+                            format!("bench_libp2p_ca_insert_{}_{}", size, rand::random::<u64>());
+                        let store =
+                            create_test_db::<Definition>(&name).expect("Failed to create DB");
+                        let local_id = PeerId::random();
+                        let record_store = Libp2pRedbStore::new(store, local_id);
+                        (record_store, records)
+                    },
+                    |(mut record_store, records)| {
+                        for r in records {
+                            record_store.put(r).expect("Put failed");
+                        }
+                    },
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+
+        // Libp2p Store Insert (ImmutablePostFast)
+        insert_group.bench_with_input(
+            BenchmarkId::new("Libp2p_ContentAddressed_Fast", size),
+            size,
+            |b, &size| {
+                b.iter_batched(
+                    || {
+                        let posts: Vec<ImmutablePostFast> =
+                            (0..size).map(|_| generate_random_post_fast()).collect();
+                        let records: Vec<Record> =
+                            posts.into_iter().map(post_fast_to_record).collect();
+                        let name = format!(
+                            "bench_libp2p_ca_fast_insert_{}_{}",
+                            size,
+                            rand::random::<u64>()
+                        );
+                        let store =
+                            create_test_db::<Definition>(&name).expect("Failed to create DB");
+                        let local_id = PeerId::random();
+                        let record_store = Libp2pRedbStore::new(store, local_id);
+                        (record_store, records)
+                    },
+                    |(mut record_store, records)| {
+                        for r in records {
+                            record_store.put(r).expect("Put failed");
+                        }
+                    },
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+
+        // Libp2p Store Insert (ImmutablePostCrypto)
+        insert_group.bench_with_input(
+            BenchmarkId::new("Libp2p_ContentAddressed_Crypto", size),
+            size,
+            |b, &size| {
+                b.iter_batched(
+                    || {
+                        let posts: Vec<ImmutablePostCrypto> =
+                            (0..size).map(|_| generate_random_post_crypto()).collect();
+                        let records: Vec<Record> =
+                            posts.into_iter().map(post_crypto_to_record).collect();
+                        let name = format!(
+                            "bench_libp2p_ca_crypto_insert_{}_{}",
+                            size,
+                            rand::random::<u64>()
+                        );
+                        let store =
+                            create_test_db::<Definition>(&name).expect("Failed to create DB");
+                        let local_id = PeerId::random();
+                        let record_store = Libp2pRedbStore::new(store, local_id);
+                        (record_store, records)
+                    },
+                    |(mut record_store, records)| {
+                        for r in records {
+                            record_store.put(r).expect("Put failed");
+                        }
+                    },
+                    BatchSize::PerIteration,
+                );
+            },
+        );
     }
     insert_group.finish();
 
@@ -427,46 +664,173 @@ fn bench_crud_operations(c: &mut Criterion) {
         });
 
         // Content-Addressed Read (ImmutablePost)
-        read_group.bench_with_input(BenchmarkId::new("ContentAddressed", size), size, |b, &size| {
-            b.iter_batched(
-                || {
-                    let posts: Vec<ImmutablePost> = (0..size).map(|_| generate_random_post()).collect();
-                    let envelopes: Vec<ImmutablePostEnvelope> = posts.into_iter().map(|p| ImmutablePostEnvelope::from(p)).collect();
-                    let name = format!("bench_ca_read_{}_{}", size, rand::random::<u64>());
-                    let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
+        read_group.bench_with_input(
+            BenchmarkId::new("ContentAddressed", size),
+            size,
+            |b, &size| {
+                b.iter_batched(
+                    || {
+                        let posts: Vec<ImmutablePost> =
+                            (0..size).map(|_| generate_random_post()).collect();
+                        let envelopes: Vec<ImmutablePostEnvelope> = posts
+                            .into_iter()
+                            .map(|p| ImmutablePostEnvelope::from(p))
+                            .collect();
+                        let name = format!("bench_ca_read_{}_{}", size, rand::random::<u64>());
+                        let store =
+                            create_test_db::<Definition>(&name).expect("Failed to create DB");
 
-                    let hashes: Vec<ImmutablePostID> = envelopes.iter().map(|e| e.hash.clone()).collect();
+                        let hashes: Vec<ImmutablePostID> =
+                            envelopes.iter().map(|e| e.hash.clone()).collect();
 
-                    let txn = store.begin_write().expect("Failed to begin txn");
-                    {
-                        let mut tables = txn
-                            .prepare_model::<ImmutablePostEnvelope>()
-                            .expect("Failed to prepare model");
-                        for envelope in &envelopes {
-                            envelope.create_entry(&mut tables)
-                                .expect("Failed to create post");
+                        let txn = store.begin_write().expect("Failed to begin txn");
+                        {
+                            let mut tables = txn
+                                .prepare_model::<ImmutablePostEnvelope>()
+                                .expect("Failed to prepare model");
+                            for envelope in &envelopes {
+                                envelope
+                                    .create_entry(&mut tables)
+                                    .expect("Failed to create post");
+                            }
                         }
-                    }
-                    txn.commit().expect("Failed to commit");
+                        txn.commit().expect("Failed to commit");
 
-                    (store, hashes)
-                },
-                |(store, hashes): (RedbStore<Definition>, Vec<ImmutablePostID>)| {
-                    let txn = store.begin_read().expect("Failed to begin txn");
-                    {
-                        let tables = txn
-                            .prepare_model::<ImmutablePostEnvelope>()
-                            .expect("Failed to prepare model");
-                        for hash in &hashes {
-                            black_box(ImmutablePostEnvelope::read_default(black_box(hash), &tables))
+                        (store, hashes)
+                    },
+                    |(store, hashes): (RedbStore<Definition>, Vec<ImmutablePostID>)| {
+                        let txn = store.begin_read().expect("Failed to begin txn");
+                        {
+                            let tables = txn
+                                .prepare_model::<ImmutablePostEnvelope>()
+                                .expect("Failed to prepare model");
+                            for hash in &hashes {
+                                black_box(ImmutablePostEnvelope::read_default(
+                                    black_box(hash),
+                                    &tables,
+                                ))
                                 .expect("Failed to read post");
+                            }
                         }
-                    }
-                    txn.commit().expect("Failed to commit");
-                },
-                BatchSize::PerIteration,
-            );
-        });
+                        txn.commit().expect("Failed to commit");
+                    },
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+
+        // Content-Addressed Read (ImmutablePostFast - FxHash)
+        read_group.bench_with_input(
+            BenchmarkId::new("ContentAddressed_Fast", size),
+            size,
+            |b, &size| {
+                b.iter_batched(
+                    || {
+                        let posts: Vec<ImmutablePostFast> =
+                            (0..size).map(|_| generate_random_post_fast()).collect();
+                        let envelopes: Vec<ImmutablePostFastEnvelope> = posts
+                            .into_iter()
+                            .map(|p| ImmutablePostFastEnvelope::from(p))
+                            .collect();
+                        let name = format!("bench_ca_fast_read_{}_{}", size, rand::random::<u64>());
+                        let store =
+                            create_test_db::<Definition>(&name).expect("Failed to create DB");
+
+                        let hashes: Vec<ImmutablePostFastID> =
+                            envelopes.iter().map(|e| e.hash.clone()).collect();
+
+                        let txn = store.begin_write().expect("Failed to begin txn");
+                        {
+                            let mut tables = txn
+                                .prepare_model::<ImmutablePostFastEnvelope>()
+                                .expect("Failed to prepare model");
+                            for envelope in &envelopes {
+                                envelope
+                                    .create_entry(&mut tables)
+                                    .expect("Failed to create post");
+                            }
+                        }
+                        txn.commit().expect("Failed to commit");
+
+                        (store, hashes)
+                    },
+                    |(store, hashes): (RedbStore<Definition>, Vec<ImmutablePostFastID>)| {
+                        let txn = store.begin_read().expect("Failed to begin txn");
+                        {
+                            let tables = txn
+                                .prepare_model::<ImmutablePostFastEnvelope>()
+                                .expect("Failed to prepare model");
+                            for hash in &hashes {
+                                black_box(ImmutablePostFastEnvelope::read_default(
+                                    black_box(hash),
+                                    &tables,
+                                ))
+                                .expect("Failed to read post");
+                            }
+                        }
+                        txn.commit().expect("Failed to commit");
+                    },
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+
+        // Content-Addressed Read (ImmutablePostCrypto - SHA256)
+        read_group.bench_with_input(
+            BenchmarkId::new("ContentAddressed_Crypto", size),
+            size,
+            |b, &size| {
+                b.iter_batched(
+                    || {
+                        let posts: Vec<ImmutablePostCrypto> =
+                            (0..size).map(|_| generate_random_post_crypto()).collect();
+                        let envelopes: Vec<ImmutablePostCryptoEnvelope> = posts
+                            .into_iter()
+                            .map(|p| ImmutablePostCryptoEnvelope::from(p))
+                            .collect();
+                        let name =
+                            format!("bench_ca_crypto_read_{}_{}", size, rand::random::<u64>());
+                        let store =
+                            create_test_db::<Definition>(&name).expect("Failed to create DB");
+
+                        let hashes: Vec<ImmutablePostCryptoID> =
+                            envelopes.iter().map(|e| e.hash.clone()).collect();
+
+                        let txn = store.begin_write().expect("Failed to begin txn");
+                        {
+                            let mut tables = txn
+                                .prepare_model::<ImmutablePostCryptoEnvelope>()
+                                .expect("Failed to prepare model");
+                            for envelope in &envelopes {
+                                envelope
+                                    .create_entry(&mut tables)
+                                    .expect("Failed to create post");
+                            }
+                        }
+                        txn.commit().expect("Failed to commit");
+
+                        (store, hashes)
+                    },
+                    |(store, hashes): (RedbStore<Definition>, Vec<ImmutablePostCryptoID>)| {
+                        let txn = store.begin_read().expect("Failed to begin txn");
+                        {
+                            let tables = txn
+                                .prepare_model::<ImmutablePostCryptoEnvelope>()
+                                .expect("Failed to prepare model");
+                            for hash in &hashes {
+                                black_box(ImmutablePostCryptoEnvelope::read_default(
+                                    black_box(hash),
+                                    &tables,
+                                ))
+                                .expect("Failed to read post");
+                            }
+                        }
+                        txn.commit().expect("Failed to commit");
+                    },
+                    BatchSize::PerIteration,
+                );
+            },
+        );
 
         // Raw Redb Read
         read_group.bench_with_input(BenchmarkId::new("Raw", size), size, |b, &size| {
@@ -539,9 +903,13 @@ fn bench_crud_operations(c: &mut Criterion) {
 
                             // Insert Subscriptions - now all models subscribe to all topics by default
                             // Topic1
-                            sub_topic1.insert(&DefinitionSubscriptions::Topic1, user_id).unwrap();
+                            sub_topic1
+                                .insert(&DefinitionSubscriptions::Topic1, user_id)
+                                .unwrap();
                             // Topic2
-                            sub_topic2.insert(&DefinitionSubscriptions::Topic2, user_id).unwrap();
+                            sub_topic2
+                                .insert(&DefinitionSubscriptions::Topic2, user_id)
+                                .unwrap();
 
                             // Insert Blobs - properly split like the abstracted version
                             let bio_chunks = split_blob_into_chunks(&user.bio);
@@ -603,11 +971,11 @@ fn bench_crud_operations(c: &mut Criterion) {
                     let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
                     let local_id = PeerId::random();
                     let mut record_store = Libp2pRedbStore::new(store, local_id);
-                    
+
                     for r in &records {
                         record_store.put(r.clone()).expect("Setup put failed");
                     }
-                    
+
                     (record_store, records)
                 },
                 |(record_store, records)| {
@@ -618,6 +986,113 @@ fn bench_crud_operations(c: &mut Criterion) {
                 BatchSize::PerIteration,
             );
         });
+
+        // Libp2p Store Read (ImmutablePost)
+        read_group.bench_with_input(
+            BenchmarkId::new("Libp2p_ContentAddressed", size),
+            size,
+            |b, &size| {
+                b.iter_batched(
+                    || {
+                        let posts: Vec<ImmutablePost> =
+                            (0..size).map(|_| generate_random_post()).collect();
+                        let records: Vec<Record> = posts.into_iter().map(post_to_record).collect();
+                        let name =
+                            format!("bench_libp2p_ca_read_{}_{}", size, rand::random::<u64>());
+                        let store =
+                            create_test_db::<Definition>(&name).expect("Failed to create DB");
+                        let local_id = PeerId::random();
+                        let mut record_store = Libp2pRedbStore::new(store, local_id);
+
+                        for r in &records {
+                            record_store.put(r.clone()).expect("Setup put failed");
+                        }
+
+                        (record_store, records)
+                    },
+                    |(record_store, records)| {
+                        for r in records {
+                            let _ = black_box(record_store.get(&r.key));
+                        }
+                    },
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+
+        // Libp2p Store Read (ImmutablePostFast)
+        read_group.bench_with_input(
+            BenchmarkId::new("Libp2p_ContentAddressed_Fast", size),
+            size,
+            |b, &size| {
+                b.iter_batched(
+                    || {
+                        let posts: Vec<ImmutablePostFast> =
+                            (0..size).map(|_| generate_random_post_fast()).collect();
+                        let records: Vec<Record> =
+                            posts.into_iter().map(post_fast_to_record).collect();
+                        let name = format!(
+                            "bench_libp2p_ca_fast_read_{}_{}",
+                            size,
+                            rand::random::<u64>()
+                        );
+                        let store =
+                            create_test_db::<Definition>(&name).expect("Failed to create DB");
+                        let local_id = PeerId::random();
+                        let mut record_store = Libp2pRedbStore::new(store, local_id);
+
+                        for r in &records {
+                            record_store.put(r.clone()).expect("Setup put failed");
+                        }
+
+                        (record_store, records)
+                    },
+                    |(record_store, records)| {
+                        for r in records {
+                            let _ = black_box(record_store.get(&r.key));
+                        }
+                    },
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+
+        // Libp2p Store Read (ImmutablePostCrypto)
+        read_group.bench_with_input(
+            BenchmarkId::new("Libp2p_ContentAddressed_Crypto", size),
+            size,
+            |b, &size| {
+                b.iter_batched(
+                    || {
+                        let posts: Vec<ImmutablePostCrypto> =
+                            (0..size).map(|_| generate_random_post_crypto()).collect();
+                        let records: Vec<Record> =
+                            posts.into_iter().map(post_crypto_to_record).collect();
+                        let name = format!(
+                            "bench_libp2p_ca_crypto_read_{}_{}",
+                            size,
+                            rand::random::<u64>()
+                        );
+                        let store =
+                            create_test_db::<Definition>(&name).expect("Failed to create DB");
+                        let local_id = PeerId::random();
+                        let mut record_store = Libp2pRedbStore::new(store, local_id);
+
+                        for r in &records {
+                            record_store.put(r.clone()).expect("Setup put failed");
+                        }
+
+                        (record_store, records)
+                    },
+                    |(record_store, records)| {
+                        for r in records {
+                            let _ = black_box(record_store.get(&r.key));
+                        }
+                    },
+                    BatchSize::PerIteration,
+                );
+            },
+        );
     }
     read_group.finish();
 
@@ -740,9 +1215,13 @@ fn bench_crud_operations(c: &mut Criterion) {
 
                             // Insert Subscriptions - now all models subscribe to all topics by default
                             // Topic1
-                            sub_topic1.insert(&DefinitionSubscriptions::Topic1, user_id).unwrap();
+                            sub_topic1
+                                .insert(&DefinitionSubscriptions::Topic1, user_id)
+                                .unwrap();
                             // Topic2
-                            sub_topic2.insert(&DefinitionSubscriptions::Topic2, user_id).unwrap();
+                            sub_topic2
+                                .insert(&DefinitionSubscriptions::Topic2, user_id)
+                                .unwrap();
 
                             // Insert Blobs - properly split like the abstracted version
                             let bio_chunks = split_blob_into_chunks(&user.bio);
@@ -863,9 +1342,13 @@ fn bench_crud_operations(c: &mut Criterion) {
 
                             // Remove Subscriptions - remove all default topics
                             // Topic1
-                            sub_topic1.remove(&DefinitionSubscriptions::Topic1, user_id).unwrap();
+                            sub_topic1
+                                .remove(&DefinitionSubscriptions::Topic1, user_id)
+                                .unwrap();
                             // Topic2
-                            sub_topic2.remove(&DefinitionSubscriptions::Topic2, user_id).unwrap();
+                            sub_topic2
+                                .remove(&DefinitionSubscriptions::Topic2, user_id)
+                                .unwrap();
 
                             // Remove Blobs - properly remove all chunks like the abstracted version
                             let bio_chunks = split_blob_into_chunks(&stored_user.bio);
@@ -915,11 +1398,11 @@ fn bench_crud_operations(c: &mut Criterion) {
                     let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
                     let local_id = PeerId::random();
                     let mut record_store = Libp2pRedbStore::new(store, local_id);
-                    
+
                     for r in &records {
                         record_store.put(r.clone()).expect("Setup put failed");
                     }
-                    
+
                     (record_store, records)
                 },
                 |(mut record_store, records)| {
@@ -930,6 +1413,113 @@ fn bench_crud_operations(c: &mut Criterion) {
                 BatchSize::PerIteration,
             );
         });
+
+        // Libp2p Store Delete (ImmutablePost)
+        delete_group.bench_with_input(
+            BenchmarkId::new("Libp2p_ContentAddressed", size),
+            size,
+            |b, &size| {
+                b.iter_batched(
+                    || {
+                        let posts: Vec<ImmutablePost> =
+                            (0..size).map(|_| generate_random_post()).collect();
+                        let records: Vec<Record> = posts.into_iter().map(post_to_record).collect();
+                        let name =
+                            format!("bench_libp2p_ca_delete_{}_{}", size, rand::random::<u64>());
+                        let store =
+                            create_test_db::<Definition>(&name).expect("Failed to create DB");
+                        let local_id = PeerId::random();
+                        let mut record_store = Libp2pRedbStore::new(store, local_id);
+
+                        for r in &records {
+                            record_store.put(r.clone()).expect("Setup put failed");
+                        }
+
+                        (record_store, records)
+                    },
+                    |(mut record_store, records)| {
+                        for r in records {
+                            record_store.remove(&r.key);
+                        }
+                    },
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+
+        // Libp2p Store Delete (ImmutablePostFast)
+        delete_group.bench_with_input(
+            BenchmarkId::new("Libp2p_ContentAddressed_Fast", size),
+            size,
+            |b, &size| {
+                b.iter_batched(
+                    || {
+                        let posts: Vec<ImmutablePostFast> =
+                            (0..size).map(|_| generate_random_post_fast()).collect();
+                        let records: Vec<Record> =
+                            posts.into_iter().map(post_fast_to_record).collect();
+                        let name = format!(
+                            "bench_libp2p_ca_fast_delete_{}_{}",
+                            size,
+                            rand::random::<u64>()
+                        );
+                        let store =
+                            create_test_db::<Definition>(&name).expect("Failed to create DB");
+                        let local_id = PeerId::random();
+                        let mut record_store = Libp2pRedbStore::new(store, local_id);
+
+                        for r in &records {
+                            record_store.put(r.clone()).expect("Setup put failed");
+                        }
+
+                        (record_store, records)
+                    },
+                    |(mut record_store, records)| {
+                        for r in records {
+                            record_store.remove(&r.key);
+                        }
+                    },
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+
+        // Libp2p Store Delete (ImmutablePostCrypto)
+        delete_group.bench_with_input(
+            BenchmarkId::new("Libp2p_ContentAddressed_Crypto", size),
+            size,
+            |b, &size| {
+                b.iter_batched(
+                    || {
+                        let posts: Vec<ImmutablePostCrypto> =
+                            (0..size).map(|_| generate_random_post_crypto()).collect();
+                        let records: Vec<Record> =
+                            posts.into_iter().map(post_crypto_to_record).collect();
+                        let name = format!(
+                            "bench_libp2p_ca_crypto_delete_{}_{}",
+                            size,
+                            rand::random::<u64>()
+                        );
+                        let store =
+                            create_test_db::<Definition>(&name).expect("Failed to create DB");
+                        let local_id = PeerId::random();
+                        let mut record_store = Libp2pRedbStore::new(store, local_id);
+
+                        for r in &records {
+                            record_store.put(r.clone()).expect("Setup put failed");
+                        }
+
+                        (record_store, records)
+                    },
+                    |(mut record_store, records)| {
+                        for r in records {
+                            record_store.remove(&r.key);
+                        }
+                    },
+                    BatchSize::PerIteration,
+                );
+            },
+        );
     }
     delete_group.finish();
 }
