@@ -23,6 +23,7 @@ where
     <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: redb::Key + 'static,
     <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: redb::Key + 'static,
     <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: redb::Key + 'static,
+    D::SubscriptionKeys: redb::Key + 'static,
     M: 'db
 {
     pub main: TableDefinition<'db, <M::Keys as NetabaseModelKeys<D, M>>::Primary, M::TableV>,
@@ -44,7 +45,7 @@ where
     )>,
 
     pub subscription: Vec<(
-        MultimapTableDefinition<'db, <M::Keys as NetabaseModelKeys<D, M>>::Subscription, <M::Keys as NetabaseModelKeys<D, M>>::Primary>,
+        MultimapTableDefinition<'db, D::SubscriptionKeys, crate::subscription_hash::ModelHash>,
         &'db str
     )>,
 }
@@ -69,10 +70,35 @@ where
     <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Libp2p as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    D::SubscriptionKeys: redb::Key + 'static,
     Self: 'db
 {
     type RedbTables;
     type TableV: redb::Value + redb::Key + 'static;
+
+    fn insert_subscription_entry(
+        &self,
+        key: D::SubscriptionKeys,
+        table: &mut redb::MultimapTable<D::SubscriptionKeys, crate::subscription_hash::ModelHash>,
+        hash: Option<&crate::subscription_hash::ModelHash>,
+    ) -> crate::errors::NetabaseResult<()>;
+
+    fn delete_subscription_entry(
+        &self,
+        key: D::SubscriptionKeys,
+        table: &mut redb::MultimapTable<D::SubscriptionKeys, crate::subscription_hash::ModelHash>,
+        hash: Option<&crate::subscription_hash::ModelHash>,
+    ) -> crate::errors::NetabaseResult<()>;
+
+    /// Update subscription entry for the same topic.
+    fn update_subscription_entry(
+        &self,
+        key: D::SubscriptionKeys,
+        table: &mut redb::MultimapTable<D::SubscriptionKeys, crate::subscription_hash::ModelHash>,
+        old_model: &Self,
+        new_hash: Option<&crate::subscription_hash::ModelHash>,
+        old_hash: Option<&crate::subscription_hash::ModelHash>,
+    ) -> crate::errors::NetabaseResult<()>;
 
     fn table_definitions() -> RedbModelTableDefinitions<'db, Self, D> 
     where 

@@ -2,7 +2,7 @@ use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criteri
 use netabase_store::databases::redb::transaction::RedbModelCrud;
 use netabase_store::relational::RelationalLink;
 use netabase_store_examples::boilerplate_lib::definition::{
-    User, UserAge, UserBlobItem, UserBlobKeys, UserCategory, UserFirstName, UserID, UserPartner,
+    User, UserAge, UserBlobItem, UserBlobKeys, UserCategory, UserFirstName, UserLastName, UserID, UserPartner,
     UserRelationalKeys, UserSecondaryKeys, ImmutablePost, ImmutablePostEnvelope, ImmutablePostID,
 };
 use netabase_store_examples::boilerplate_lib::models::blob_types::{
@@ -136,6 +136,8 @@ fn bench_crud_operations(c: &mut Criterion) {
     const MAIN: TableDefinition<UserID, User> = TableDefinition::new("User:User:Primary:Main");
     const SEC_NAME: MultimapTableDefinition<UserSecondaryKeys, UserID> =
         MultimapTableDefinition::new("Definition:User:Secondary:Name");
+    const SEC_LAST_NAME: MultimapTableDefinition<UserSecondaryKeys, UserID> =
+        MultimapTableDefinition::new("Definition:User:Secondary:LastName");
     const SEC_AGE: MultimapTableDefinition<UserSecondaryKeys, UserID> =
         MultimapTableDefinition::new("Definition:User:Secondary:Age");
     const REL_PARTNER: MultimapTableDefinition<UserRelationalKeys, UserID> =
@@ -231,6 +233,9 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut sec_name = txn
                             .open_multimap_table(SEC_NAME)
                             .expect("Failed to open sec name");
+                        let mut sec_last_name = txn
+                            .open_multimap_table(SEC_LAST_NAME)
+                            .expect("Failed to open sec last name");
                         let mut sec_age = txn
                             .open_multimap_table(SEC_AGE)
                             .expect("Failed to open sec age");
@@ -271,6 +276,14 @@ fn bench_crud_operations(c: &mut Criterion) {
                                     user_id,
                                 )
                                 .expect("Failed to insert sec name");
+                            sec_last_name
+                                .insert(
+                                    &UserSecondaryKeys::LastName(UserLastName(
+                                        user.last_name.clone(),
+                                    )),
+                                    user_id,
+                                )
+                                .expect("Failed to insert sec last name");
                             sec_age
                                 .insert(&UserSecondaryKeys::Age(UserAge(user.age)), user_id)
                                 .expect("Failed to insert sec age");
@@ -775,6 +788,9 @@ fn bench_crud_operations(c: &mut Criterion) {
                         let mut sec_name = txn
                             .open_multimap_table(SEC_NAME)
                             .expect("Failed to open sec name");
+                        let mut sec_last_name = txn
+                            .open_multimap_table(SEC_LAST_NAME)
+                            .expect("Failed to open sec last name");
                         let mut sec_age = txn
                             .open_multimap_table(SEC_AGE)
                             .expect("Failed to open sec age");
@@ -810,6 +826,14 @@ fn bench_crud_operations(c: &mut Criterion) {
                                 .remove(
                                     &UserSecondaryKeys::FirstName(UserFirstName(black_box(
                                         stored_user.first_name,
+                                    ))),
+                                    user_id,
+                                )
+                                .unwrap();
+                            sec_last_name
+                                .remove(
+                                    &UserSecondaryKeys::LastName(UserLastName(black_box(
+                                        stored_user.last_name,
                                     ))),
                                     user_id,
                                 )

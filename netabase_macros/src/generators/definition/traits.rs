@@ -184,7 +184,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     let mut subscription = Vec::new();
                     if let Some(subs) = tree_names.subscription {
                         for t in subs {
-                            let def = redb::MultimapTableDefinition::<SubK, Pk>::new(t.table_name);
+                            let def = redb::MultimapTableDefinition::<SubK, ::netabase_store::subscription_hash::ModelHash>::new(t.table_name);
                             let table = txn.open_multimap_table(def).map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e))?;
                             subscription.push((TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)), t.table_name));
                         }
@@ -644,7 +644,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
                         {
                             let table_def = redb::MultimapTableDefinition::<
                                 #def_subscriptions_name, 
-                                <<#target_type as ::netabase_store::traits::registery::models::model::NetabaseModel<Self>>::Keys as ::netabase_store::traits::registery::models::keys::NetabaseModelKeys<Self, #target_type>>::Primary
+                                ::netabase_store::subscription_hash::ModelHash
                             >::new(#sub_table_name);
                             let _ = write_txn.open_multimap_table(table_def)
                                 .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e))?;
@@ -1002,8 +1002,10 @@ impl<'a> DefinitionTraitGenerator<'a> {
         // Generate NetabaseModel trait
         let netabase_model_trait = trait_gen.generate_netabase_model_trait(definition_name);
 
+        let id_type = primary_key_type_name_for_model(visitor);
+
         // Generate RedbNetabaseModel trait
-        let redb_trait = self.generate_redb_netabase_model_trait(definition_name, model_name, &target_type, is_content_addressed);
+        let redb_trait = self.generate_redb_netabase_model_trait(definition_name, model_name, &target_type, &id_type, is_content_addressed);
 
         // Generate subscription conversion traits
         let subscription_traits = self.generate_subscription_traits(definition_name, model_name, visitor);
@@ -1210,12 +1212,121 @@ impl<'a> DefinitionTraitGenerator<'a> {
         definition_name: &syn::Ident,
         model_name: &syn::Ident,
         target_type: &syn::Ident,
+        primary_key_type: &syn::Ident,
         is_content_addressed: bool,
     ) -> TokenStream {
+        let hash_logic = if is_content_addressed {
+            // Content addressed: Hash is the primary key (or wrapped)
+            // We need to convert it to ModelHash generic type for the table
+            quote! {
+                {
+                    let pk = self.hash.clone();
+                    let bytes = <#primary_key_type as redb::Value>::as_bytes(&pk);
+                    ::netabase_store::subscription_hash::ModelHash::from_bytes(&bytes)
+                }
+            }
+        } else {
+            // Normal model: Use provided hash or compute
+            quote! {
+                if let Some(h) = hash {
+                    h.clone()
+                } else {
+                    ::netabase_store::subscription_hash::ModelHash::from_data(self).map_err(|_| ::netabase_store::errors::NetabaseError::Other)?
+                }
+            }
+        };
+
+        let old_hash_logic = if is_content_addressed {
+            quote! {
+                {
+                    let pk = old_model.hash.clone();
+                    let bytes = <#primary_key_type as redb::Value>::as_bytes(&pk);
+                    ::netabase_store::subscription_hash::ModelHash::from_bytes(&bytes)
+                }
+            }
+        } else {
+            quote! { ::netabase_store::subscription_hash::ModelHash::from_data(old_model).map_err(|_| ::netabase_store::errors::NetabaseError::Other)? }
+        };
+
+        let update_new_hash_logic = if is_content_addressed {
+            quote! {
+                {
+                    let pk = self.hash.clone();
+                    let bytes = <#primary_key_type as redb::Value>::as_bytes(&pk);
+                    ::netabase_store::subscription_hash::ModelHash::from_bytes(&bytes)
+                }
+            }
+        } else {
+            quote! {
+                if let Some(h) = new_hash {
+                    h.clone()
+                } else {
+                    ::netabase_store::subscription_hash::ModelHash::from_data(self).map_err(|_| ::netabase_store::errors::NetabaseError::Other)?
+                }
+            }
+        };
+
+        let insert_impl = quote! {
+            fn insert_subscription_entry(
+                &self,
+                key: <#definition_name as ::netabase_store::traits::registery::definition::NetabaseDefinition>::SubscriptionKeys,
+                table: &mut redb::MultimapTable<<#definition_name as ::netabase_store::traits::registery::definition::NetabaseDefinition>::SubscriptionKeys, ::netabase_store::subscription_hash::ModelHash>,
+                hash: Option<&::netabase_store::subscription_hash::ModelHash>,
+            ) -> ::netabase_store::errors::NetabaseResult<()> {
+                let hash_val = #hash_logic;
+                table.insert(key, hash_val).map_err(|e| ::netabase_store::errors::NetabaseError::RedbError(e.into()))?;
+                Ok(())
+            }
+        };
+
+        let delete_impl = quote! {
+            fn delete_subscription_entry(
+                &self,
+                key: <#definition_name as ::netabase_store::traits::registery::definition::NetabaseDefinition>::SubscriptionKeys,
+                table: &mut redb::MultimapTable<<#definition_name as ::netabase_store::traits::registery::definition::NetabaseDefinition>::SubscriptionKeys, ::netabase_store::subscription_hash::ModelHash>,
+                hash: Option<&::netabase_store::subscription_hash::ModelHash>,
+            ) -> ::netabase_store::errors::NetabaseResult<()> {
+                let hash_val = #hash_logic;
+                table.remove(key, hash_val).map_err(|e| ::netabase_store::errors::NetabaseError::RedbError(e.into()))?;
+                Ok(())
+            }
+        };
+
+        let update_impl = quote! {
+            fn update_subscription_entry(
+                &self,
+                key: <#definition_name as ::netabase_store::traits::registery::definition::NetabaseDefinition>::SubscriptionKeys,
+                table: &mut redb::MultimapTable<<#definition_name as ::netabase_store::traits::registery::definition::NetabaseDefinition>::SubscriptionKeys, ::netabase_store::subscription_hash::ModelHash>,
+                old_model: &Self,
+                new_hash: Option<&::netabase_store::subscription_hash::ModelHash>,
+                old_hash: Option<&::netabase_store::subscription_hash::ModelHash>,
+            ) -> ::netabase_store::errors::NetabaseResult<()> {
+                // Calculate/Get old hash from old_model
+                let old_hash_val = if let Some(h) = old_hash {
+                    h.clone()
+                } else {
+                    #old_hash_logic
+                };
+
+                // Calculate/Get new hash from self
+                let new_hash_val = #update_new_hash_logic;
+
+                if old_hash_val != new_hash_val {
+                    table.remove(key.clone(), old_hash_val).map_err(|e| ::netabase_store::errors::NetabaseError::RedbError(e.into()))?;
+                    table.insert(key, new_hash_val).map_err(|e| ::netabase_store::errors::NetabaseError::RedbError(e.into()))?;
+                }
+                Ok(())
+            }
+        };
+
         quote! {
             impl<'db> ::netabase_store::traits::registery::models::model::RedbNetbaseModel<'db, #definition_name> for #target_type {
                 type RedbTables = ::netabase_store::databases::redb::transaction::ModelOpenTables<'db, 'db, #definition_name, Self>;
                 type TableV = #target_type;
+
+                #insert_impl
+                #delete_impl
+                #update_impl
             }
         }
     }

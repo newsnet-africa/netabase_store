@@ -324,7 +324,7 @@ where
                         Some(subs) => subs
                             .iter()
                             .map(|disc_table| -> Result<_, NetabaseError> {
-                                let def = redb::MultimapTableDefinition::new(disc_table.table_name);
+                                let def = redb::MultimapTableDefinition::<D::SubscriptionKeys, crate::subscription_hash::ModelHash>::new(disc_table.table_name);
                                 read_txn.open_multimap_table(def).map(|table| {
                                     (
                                         TablePermission::ReadOnly(TableType::MultimapTable(table)),
@@ -426,7 +426,7 @@ where
                         Some(subs) => subs
                             .iter()
                             .map(|disc_table| -> Result<_, NetabaseError> {
-                                let def = redb::MultimapTableDefinition::new(disc_table.table_name);
+                                let def = redb::MultimapTableDefinition::<D::SubscriptionKeys, crate::subscription_hash::ModelHash>::new(disc_table.table_name);
                                 write_txn.open_multimap_table(def).map(|table| {
                                     (
                                         TablePermission::ReadWrite(
@@ -965,12 +965,12 @@ where
     /// ```
     /// Query models by subscription with hashes.
     ///
-    /// Returns models subscribed to a topic along with their content hashes.
+    /// Returns model hashes subscribed to a topic.
     /// Hashes enable efficient change detection and merkle tree construction.
     pub fn query_by_subscription<'data: 'db, M, S>(
         &'db self,
         subscription_key: &'data S,
-    ) -> NetabaseResult<Vec<(M, crate::subscription_hash::ModelHash)>>
+    ) -> NetabaseResult<Vec<crate::subscription_hash::ModelHash>>
     where
         M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
         S: Into<D::SubscriptionKeys> + Clone,
@@ -1005,19 +1005,8 @@ where
         let definitions = M::table_definitions();
         let tables = self.open_model_tables(definitions, None)?;
         
-        // Get primary keys and hashes
-        let results_with_hashes = M::query_by_subscription(subscription_key, &tables)?;
-        
-        // The query already loaded models to compute hashes, but we need them again
-        // For now, just return the hashes with empty models - we'll optimize later
-        let mut results = Vec::with_capacity(results_with_hashes.len());
-        for (pk, hash) in results_with_hashes {
-            if let Some(model) = M::read_default(&pk, &tables)? {
-                results.push((model, hash));
-            }
-        }
-        
-        Ok(results)
+        // Get hashes directly
+        M::query_by_subscription(subscription_key, &tables)
     }
 
     /// Query records by relational link.

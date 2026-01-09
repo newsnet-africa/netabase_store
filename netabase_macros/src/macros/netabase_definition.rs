@@ -90,7 +90,7 @@ use syn::{ItemMod, Result, parse2, visit_mut::VisitMut};
 
 use crate::generators::definition::{DefinitionEnumGenerator, DefinitionTraitGenerator};
 use crate::generators::model::{
-    KeyEnumGenerator, MigrationGenerator, SerializationGenerator, WrapperTypeGenerator,
+    KeyEnumGenerator, MigrationGenerator, SerializationGenerator, WrapperTypeGenerator, ConstructorGenerator,
 };
 use crate::generators::structure::StructureGenerator;
 use crate::utils::attributes::{parse_definition_attribute_from_tokens, remove_attribute};
@@ -295,6 +295,10 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
         model_generated_code.push(model_ser);
         model_generated_code.push(key_ser);
         model_generated_code.push(blob_traits);
+
+        // Constructor for immutable models
+        let constructor = ConstructorGenerator::new(model_visitor).generate();
+        model_generated_code.push(constructor);
     }
 
     // 3.5. Generate Migration-related code if we have versioned models

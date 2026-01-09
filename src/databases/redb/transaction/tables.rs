@@ -96,7 +96,7 @@ where
     )>,
 
     pub subscription: Vec<(
-        TablePermission<'txn, D::SubscriptionKeys, <M::Keys as NetabaseModelKeys<D, M>>::Primary>,
+        TablePermission<'txn, D::SubscriptionKeys, crate::subscription_hash::ModelHash>,
         &'db str,
     )>,
 }

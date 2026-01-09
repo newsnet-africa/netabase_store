@@ -50,19 +50,44 @@ pub fn parse_link_attribute(attr: &Attribute) -> Result<(Path, Path)> {
     }
 }
 
-/// Parse #[subscribe(Topic1, Topic2, ...)] attribute and extract topic paths
-pub fn parse_subscribe_attribute(attr: &Attribute) -> Result<Vec<Path>> {
+/// Parse #[subscribe(immutable, Topic1, Topic2, ...)] attribute
+pub fn parse_subscribe_attribute(attr: &Attribute) -> Result<SubscriptionAttributeConfig> {
     use syn::parse::Parse;
+    use syn::Token;
 
     struct SubscribeArgs {
-        topics: syn::punctuated::Punctuated<Path, syn::Token![,]>,
+        topics: Vec<Path>,
+        immutable: bool,
     }
 
     impl Parse for SubscribeArgs {
         fn parse(input: syn::parse::ParseStream) -> Result<Self> {
-            Ok(SubscribeArgs {
-                topics: input.parse_terminated(Parse::parse, syn::Token![,])?,
-            })
+            let mut topics = Vec::new();
+            let mut immutable = false;
+
+            // Check if the first argument is "immutable"
+            if input.peek(syn::Ident) {
+                let fork = input.fork();
+                let ident: syn::Ident = fork.parse()?;
+                if ident == "immutable" {
+                    immutable = true;
+                    // Consume the ident and the comma if present
+                    let _: syn::Ident = input.parse()?;
+                    if input.peek(Token![,]) {
+                        let _: Token![,] = input.parse()?;
+                    }
+                }
+            }
+
+            // Parse remaining arguments as topics
+            if !input.is_empty() {
+                let vars = input.parse_terminated(syn::Path::parse, Token![,])?;
+                for path in vars {
+                    topics.push(path);
+                }
+            }
+
+            Ok(SubscribeArgs { topics, immutable })
         }
     }
 
@@ -70,13 +95,23 @@ pub fn parse_subscribe_attribute(attr: &Attribute) -> Result<Vec<Path>> {
 
     if let Meta::List(meta_list) = meta {
         let args: SubscribeArgs = syn::parse2(meta_list.tokens.clone())?;
-        Ok(args.topics.into_iter().collect())
+        Ok(SubscriptionAttributeConfig {
+            topics: args.topics,
+            immutable: args.immutable,
+        })
     } else {
         Err(Error::new_spanned(
             attr,
-            "subscribe attribute must be in the form #[subscribe(Topic1, Topic2, ...)]",
+            "subscribe attribute must be in the form #[subscribe(immutable, Topic1, ...)] or #[subscribe(Topic1, ...)]",
         ))
     }
+}
+
+/// Configuration parsed from #[subscribe(...)] attribute
+#[derive(Debug, Clone)]
+pub struct SubscriptionAttributeConfig {
+    pub topics: Vec<Path>,
+    pub immutable: bool,
 }
 
 /// Parsed definition attribute containing all configuration

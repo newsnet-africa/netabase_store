@@ -33,6 +33,17 @@ impl ModelHash {
         Self(bytes)
     }
 
+    /// Create from bytes (wrapper around redb::Value::from_bytes logic)
+    #[inline]
+    pub fn from_bytes(data: &[u8]) -> Self {
+        // Since redb::Value::from_bytes is what we want, but we can't easily call trait method without import
+        // We just reimplement the logic (it's trivial copy) or use fully qualified syntax.
+        // Reimplementing is safest for macro usage.
+        let mut bytes = [0u8; 32];
+        bytes.copy_from_slice(data);
+        ModelHash(bytes)
+    }
+
     /// Create a model hash from serializable data
     #[inline]
     pub fn from_data<T: Serialize>(data: &T) -> Result<Self, Box<dyn std::error::Error>> {

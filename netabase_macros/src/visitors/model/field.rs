@@ -27,6 +27,7 @@ pub struct FieldInfo {
 #[derive(Debug, Clone)]
 pub struct SubscriptionInfo {
     pub topics: Vec<Path>,
+    pub immutable: bool,
 }
 
 /// Version information collected from #[netabase_version] attribute.
@@ -69,6 +70,8 @@ pub struct ModelFieldVisitor {
     pub is_libp2p_enabled: bool,
     /// Configuration for content-addressed models (implicit primary key)
     pub content_addressed_config: Option<ContentAddressedAttributeConfig>,
+    /// Private fields for checking immutability
+    pub all_fields_raw: Vec<Field>,
 }
 
 impl ModelFieldVisitor {
@@ -84,11 +87,14 @@ impl ModelFieldVisitor {
             version_info: None,
             is_libp2p_enabled: false,
             content_addressed_config: None,
+            all_fields_raw: Vec::new(),
         }
     }
 
     /// Visit a field and collect its information
     pub fn visit_field(&mut self, field: &Field) -> Result<()> {
+        self.all_fields_raw.push(field.clone());
+
         let field_name = field
             .ident
             .as_ref()
@@ -189,8 +195,11 @@ impl ModelFieldVisitor {
     /// Parse subscribe attribute on the model struct itself
     pub fn visit_model_attributes(&mut self, attrs: &[syn::Attribute]) -> Result<()> {
         if let Some(subscribe_attr) = find_attribute(attrs, "subscribe") {
-            let topics = parse_subscribe_attribute(subscribe_attr)?;
-            self.subscriptions = Some(SubscriptionInfo { topics });
+            let config = parse_subscribe_attribute(subscribe_attr)?;
+            self.subscriptions = Some(SubscriptionInfo { 
+                topics: config.topics,
+                immutable: config.immutable,
+            });
         }
 
         // Parse version attribute if present
@@ -216,6 +225,20 @@ impl ModelFieldVisitor {
         // Must have exactly one primary key, unless content addressed
         if self.primary_key.is_none() && self.content_addressed_config.is_none() {
             return Err(errors::no_primary_key(self.model_name.span()));
+        }
+
+        // Validate immutability if requested
+        if let Some(subs) = &self.subscriptions {
+            if subs.immutable {
+                for field in &self.all_fields_raw {
+                    if let syn::Visibility::Public(_) = field.vis {
+                        return Err(syn::Error::new_spanned(
+                            field,
+                            "immutable models must have private fields (remove 'pub')",
+                        ));
+                    }
+                }
+            }
         }
 
         Ok(())

@@ -44,6 +44,16 @@ where
         tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()>;
 
+    /// Create entry with pre-calculated hash (for immutable models)
+    fn create_entry_with_hash<'txn>(
+        &'db self,
+        hash: &crate::subscription_hash::ModelHash,
+        tables: &mut ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<()> {
+        // Delegate to create_entry_with_subscriptions_and_hash with None (default behavior)
+        self.create_entry_with_subscriptions_and_hash(tables, None, Some(hash))
+    }
+
     /// Create entry with selective subscription topics
     /// 
     /// If `subscription_topics` is None, subscribes to all model topics (default behavior).
@@ -52,6 +62,19 @@ where
         &'db self,
         tables: &mut ModelOpenTables<'txn, 'db, D, Self>,
         subscription_topics: Option<Vec<D::SubscriptionKeys>>,
+    ) -> NetabaseResult<()> {
+        self.create_entry_with_subscriptions_and_hash(tables, subscription_topics, None)
+    }
+
+    /// Internal helper for creation with optional hash
+    ///
+    /// This method is exposed for advanced usage where you might want to manually
+    /// specify subscription topics AND provide a pre-calculated hash.
+    fn create_entry_with_subscriptions_and_hash<'txn>(
+        &'db self,
+        tables: &mut ModelOpenTables<'txn, 'db, D, Self>,
+        subscription_topics: Option<Vec<D::SubscriptionKeys>>,
+        pre_calculated_hash: Option<&crate::subscription_hash::ModelHash>,
     ) -> NetabaseResult<()>;
 
     fn read_entry<'txn>(
@@ -75,6 +98,13 @@ where
 
     fn update_entry<'txn>(
         &'db self,
+        tables: &mut ModelOpenTables<'txn, 'db, D, Self>
+    ) -> NetabaseResult<()>;
+
+    /// Update entry with pre-calculated hash (for immutable models)
+    fn update_entry_with_hash<'txn>(
+        &'db self,
+        hash: &crate::subscription_hash::ModelHash,
         tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()>;
 
@@ -108,21 +138,15 @@ where
 
     /// Query primary keys by subscription topic.
     /// 
-    /// Returns a list of primary keys for all models subscribed to the given topic.
-    /// Use the subscription enum variant (e.g., `DefinitionSubscriptions::Topic1`) as the key.
-    /// Query by subscription topic with model hashes.
-    /// 
-    /// Returns primary keys and model hashes for all models subscribed to a topic.
+    /// Returns a list of model hashes for all models subscribed to the given topic.
     /// This enables efficient sync and change detection without loading full models.
     fn query_by_subscription<'a, 'txn, S>(
         subscription_key: &S,
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
-    ) -> NetabaseResult<Vec<(<Self::Keys as NetabaseModelKeys<D, Self>>::Primary, crate::subscription_hash::ModelHash)>>
+    ) -> NetabaseResult<Vec<crate::subscription_hash::ModelHash>>
     where
         S: Into<D::SubscriptionKeys> + Clone,
-        D::SubscriptionKeys: redb::Key + 'static,
-        <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: Clone,
-        for<'v> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: redb::Value<SelfType<'v> = <Self::Keys as NetabaseModelKeys<D, Self>>::Primary>;
+        D::SubscriptionKeys: redb::Key + 'static;
 
     /// Query primary keys by secondary key.
     /// 
@@ -344,10 +368,11 @@ where
         self.create_entry_with_subscriptions(tables, None)
     }
 
-    fn create_entry_with_subscriptions<'txn>(
+    fn create_entry_with_subscriptions_and_hash<'txn>(
         &'db self,
         tables: &mut ModelOpenTables<'txn, 'db, D, Self>,
         subscription_topics: Option<Vec<D::SubscriptionKeys>>,
+        pre_calculated_hash: Option<&crate::subscription_hash::ModelHash>,
     ) -> NetabaseResult<()> 
     {
         // 1. Insert into Main Table
@@ -373,15 +398,12 @@ where
         }
 
         // 3. Insert into Relational Tables
-        // Store as: PrimaryKey -> RelationalKey (swapped from previous implementation)
-        // This allows looking up related foreign keys from a model's primary key
         let relational_keys = self.get_relational_keys();
         let primary_key = self.get_primary_key();
         for ((table_perm, _name), key) in tables.relational.iter_mut().zip(relational_keys.into_iter()) {
              match table_perm {
                  TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
                      let k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational = key;
-                     // Swapped: primary_key is now the key, relational key is the value
                      table.insert(primary_key.borrow(), k.borrow())
                          .map_err(|e| NetabaseError::RedbError(e.into()))?;
                  }
@@ -389,24 +411,32 @@ where
              }
         }
 
-        // 4. Insert into Subscription Tables (with selective subscription support)
+        // 4. Insert into Subscription Tables
         let subscription_keys_to_insert: Vec<D::SubscriptionKeys> = match subscription_topics {
-            // If None, use all model subscription keys (default behavior)
             None => {
                 let all_keys = self.get_subscription_keys();
                 all_keys.into_iter()
                     .map(|key| key.try_into().map_err(|_| NetabaseError::Other))
                     .collect::<NetabaseResult<Vec<_>>>()?
             }
-            // If Some, use only the provided topics
             Some(topics) => topics,
+        };
+
+        // Calculate hash if needed
+        let hash_storage; // Lift lifetime
+        let hash_ref = if let Some(h) = pre_calculated_hash {
+            h
+        } else {
+            // Compute hash
+            hash_storage = crate::subscription_hash::ModelHash::from_data(self).map_err(|_| NetabaseError::Other)?;
+            &hash_storage
         };
 
         for ((table_perm, _name), key) in tables.subscription.iter_mut().zip(subscription_keys_to_insert.into_iter()) {
              match table_perm {
                  TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
-                     table.insert(key.borrow(), self.get_primary_key_ref().borrow())
-                         .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                     // Delegate to model implementation of insertion
+                     self.insert_subscription_entry(key.clone(), table, Some(hash_ref))?;
                  }
                  _ => return Err(NetabaseError::Other),
              }
@@ -456,8 +486,16 @@ where
         tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()>
     {
+        let hash = crate::subscription_hash::ModelHash::from_data(self).map_err(|_| NetabaseError::Other)?;
+        self.update_entry_with_hash(&hash, tables)
+    }
+
+    fn update_entry_with_hash<'txn>(
+        &'db self,
+        hash: &crate::subscription_hash::ModelHash,
+        tables: &mut ModelOpenTables<'txn, 'db, D, Self>
+    ) -> NetabaseResult<()> {
         // 1. Update Main Table and get old model in one operation
-        // redb's insert() returns the old value if the key existed
         let old_model = match &mut tables.main {
             TablePermission::ReadWrite(ReadWriteTableType::Table(table)) => {
                 table.insert(self.get_primary_key_ref().borrow(), self)
@@ -468,9 +506,10 @@ where
         };
 
         let primary_key = self.get_primary_key();
+        let new_hash = hash;
 
         if let Some(old_model) = old_model {
-            // Model existed, update secondary/relational/subscription tables by comparing old and new keys
+            // Model existed, update secondary/relational/subscription tables
 
             // 2. Update Secondary Tables
             let old_secondary: Vec<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary> = old_model.get_secondary_keys();
@@ -524,6 +563,8 @@ where
             let old_subscription = old_model.get_subscription_keys();
             let new_subscription = self.get_subscription_keys();
 
+            let old_hash = crate::subscription_hash::ModelHash::from_data(&old_model).map_err(|_| NetabaseError::Other)?;
+
             for (((table_perm, _name), old_key), new_key) in tables.subscription.iter_mut()
                 .zip(old_subscription.into_iter())
                 .zip(new_subscription.into_iter())
@@ -537,10 +578,10 @@ where
                         let new_def_k: D::SubscriptionKeys = new_model_k.try_into().map_err(|_| NetabaseError::Other)?;
 
                         if old_def_k != new_def_k {
-                            table.remove(old_def_k.borrow(), primary_key.borrow())
-                                .map_err(|e| NetabaseError::RedbError(e.into()))?;
-                            table.insert(new_def_k.borrow(), primary_key.borrow())
-                                .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                            old_model.delete_subscription_entry(old_def_k, table, Some(&old_hash))?;
+                            self.insert_subscription_entry(new_def_k, table, Some(new_hash))?;
+                        } else {
+                            self.update_subscription_entry(new_def_k, table, &old_model, Some(new_hash), Some(&old_hash))?;
                         }
                     }
                     _ => return Err(NetabaseError::Other),
@@ -574,9 +615,8 @@ where
                  }
             }
         } else {
-            // Model didn't exist before, insert into secondary/relational/subscription tables
-            // (main table already updated above)
-
+            // Model didn't exist, insert into everything
+            
             // Insert into Secondary Tables
             let secondary_keys = self.get_secondary_keys();
             for ((table_perm, _name), key) in tables.secondary.iter_mut().zip(secondary_keys.into_iter()) {
@@ -610,8 +650,8 @@ where
                     TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
                         let model_key: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription = key;
                         let def_key: D::SubscriptionKeys = model_key.try_into().map_err(|_| NetabaseError::Other)?;
-                        table.insert(def_key.borrow(), primary_key.borrow())
-                            .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                        
+                        self.insert_subscription_entry(def_key, table, Some(new_hash))?;
                     }
                     _ => return Err(NetabaseError::Other),
                 }
@@ -681,14 +721,17 @@ where
 
             // 5. Remove from Subscription Tables
             let subscription_keys = model.get_subscription_keys();
+            let hash = crate::subscription_hash::ModelHash::from_data(&model).map_err(|_| NetabaseError::Other)?;
+
             for ((table_perm, _name), subscription_key) in tables.subscription.iter_mut().zip(subscription_keys.into_iter()) {
                 match table_perm {
                     TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
                         // Convert model-specific subscription key to definition-level subscription key
                         let model_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription = subscription_key;
                         let def_k: D::SubscriptionKeys = model_k.try_into().map_err(|_| NetabaseError::Other)?;
-                        table.remove(def_k.borrow(), key.borrow())
-                            .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                        
+                        // Remove (Topic, Hash)
+                        model.delete_subscription_entry(def_k, table, Some(&hash))?;
                     }
                     _ => return Err(NetabaseError::Other),
                 }
@@ -795,12 +838,10 @@ where
     fn query_by_subscription<'a, 'txn, S>(
         subscription_key: &S,
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
-    ) -> NetabaseResult<Vec<(<Self::Keys as NetabaseModelKeys<D, Self>>::Primary, crate::subscription_hash::ModelHash)>>
+    ) -> NetabaseResult<Vec<crate::subscription_hash::ModelHash>>
     where
         S: Into<D::SubscriptionKeys> + Clone,
         D::SubscriptionKeys: redb::Key + 'static,
-        <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: Clone,
-        for<'v> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: redb::Value<SelfType<'v> = <Self::Keys as NetabaseModelKeys<D, Self>>::Primary>,
     {
         use redb::ReadableMultimapTable;
         
@@ -817,13 +858,7 @@ where
                             let mut result = Vec::new();
                             for item in values {
                                 let guard = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
-                                let pk = guard.value();
-                                
-                                // Load model to compute hash
-                                if let Some(model) = Self::read_default(&pk, tables)? {
-                                    let hash = model.compute_hash();
-                                    result.push((pk, hash));
-                                }
+                                result.push(guard.value());
                             }
                             if !result.is_empty() {
                                 return Ok(result);
@@ -838,13 +873,7 @@ where
                             let mut result = Vec::new();
                             for item in values {
                                 let guard = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
-                                let pk = guard.value();
-                                
-                                // Load model to compute hash
-                                if let Some(model) = Self::read_default(&pk, tables)? {
-                                    let hash = model.compute_hash();
-                                    result.push((pk, hash));
-                                }
+                                result.push(guard.value());
                             }
                             if !result.is_empty() {
                                 return Ok(result);
@@ -859,13 +888,7 @@ where
                             let mut result = Vec::new();
                             for item in values {
                                 let guard = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
-                                let pk = guard.value();
-                                
-                                // Load model to compute hash
-                                if let Some(model) = Self::read_default(&pk, tables)? {
-                                    let hash = model.compute_hash();
-                                    result.push((pk, hash));
-                                }
+                                result.push(guard.value());
                             }
                             if !result.is_empty() {
                                 return Ok(result);
