@@ -37,3 +37,9 @@ where
     type Blob: NetabaseModelBlobKey<D, M>;
     type Libp2p: NetabaseModelLibp2pProviderKey<D, M>;
 }
+
+pub trait NetabaseKeyWrapper {
+    type Inner: ?Sized;
+    fn as_inner(&self) -> &Self::Inner;
+    fn into_inner(self) -> Self::Inner;
+}

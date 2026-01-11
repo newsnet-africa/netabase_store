@@ -8,8 +8,8 @@ mod common;
 use netabase_store::relational::RelationalLink;
 use netabase_store::subscription_hash::{ModelHash, SubscriptionMerkleTree};
 use netabase_store_examples::boilerplate_lib::definition::{
-    AnotherLargeUserFile, LargeUserFile, User, UserID, UserSecondaryKeys,
-    UserFirstName, UserAge, UserRelationalKeys, UserCategory, UserLastName,
+    AnotherLargeUserFile, LargeUserFile, User, UserAge, UserCategory, UserFirstName, UserID,
+    UserLastName, UserRelationalKeys, UserSecondaryKeys,
 };
 use netabase_store_examples::boilerplate_lib::{CategoryID, Definition};
 
@@ -18,7 +18,7 @@ fn test_primary_key_crud() -> Result<(), Box<dyn std::error::Error>> {
     let (store, db_path) = common::create_test_db::<Definition>("primary_key")?;
 
     let user_id = UserID("user1".into());
-    
+
     // Create
     {
         let txn = store.begin_write()?;
@@ -85,7 +85,7 @@ fn test_secondary_key_queries() -> Result<(), Box<dyn std::error::Error>> {
     // Create multiple users
     {
         let txn = store.begin_write()?;
-        
+
         let user1 = User {
             id: UserID("user1".into()),
             first_name: "Alice".into(),
@@ -112,7 +112,7 @@ fn test_secondary_key_queries() -> Result<(), Box<dyn std::error::Error>> {
             id: UserID("user3".into()),
             first_name: "Bob".into(),
             last_name: "Smith".into(), // Same last name as user1
-            age: 30, // Same age as user1
+            age: 30,                   // Same age as user1
             partner: RelationalLink::new_dehydrated(UserID("none".into())),
             category: RelationalLink::new_dehydrated(CategoryID("cat1".into())),
             bio: LargeUserFile::default(),
@@ -128,10 +128,10 @@ fn test_secondary_key_queries() -> Result<(), Box<dyn std::error::Error>> {
     // Query by first_name
     {
         let txn = store.begin_read()?;
-        let users = txn.query_by_secondary_key::<User>(
-            &UserSecondaryKeys::FirstName(UserFirstName("Alice".into()))
-        )?;
-        
+        let users = txn.query_by_secondary_key::<User>(&UserSecondaryKeys::FirstName(
+            UserFirstName("Alice".into()),
+        ))?;
+
         assert_eq!(users.len(), 2, "Should find 2 users named Alice");
         assert!(users.iter().all(|u| u.first_name == "Alice"));
     }
@@ -139,30 +139,28 @@ fn test_secondary_key_queries() -> Result<(), Box<dyn std::error::Error>> {
     // Query by last_name
     {
         let txn = store.begin_read()?;
-        let users = txn.query_by_secondary_key::<User>(
-            &UserSecondaryKeys::LastName(UserLastName("Smith".into()))
-        )?;
-        
+        let users = txn.query_by_secondary_key::<User>(&UserSecondaryKeys::LastName(
+            UserLastName("Smith".into()),
+        ))?;
+
         assert_eq!(users.len(), 2, "Should find 2 users with last name Smith");
     }
 
     // Query by age
     {
         let txn = store.begin_read()?;
-        let users = txn.query_by_secondary_key::<User>(
-            &UserSecondaryKeys::Age(UserAge(30))
-        )?;
-        
+        let users = txn.query_by_secondary_key::<User>(&UserSecondaryKeys::Age(UserAge(30)))?;
+
         assert_eq!(users.len(), 2, "Should find 2 users aged 30");
     }
 
     // Query non-existent
     {
         let txn = store.begin_read()?;
-        let users = txn.query_by_secondary_key::<User>(
-            &UserSecondaryKeys::FirstName(UserFirstName("Charlie".into()))
-        )?;
-        
+        let users = txn.query_by_secondary_key::<User>(&UserSecondaryKeys::FirstName(
+            UserFirstName("Charlie".into()),
+        ))?;
+
         assert_eq!(users.len(), 0, "Should find no users named Charlie");
     }
 
@@ -188,7 +186,11 @@ fn test_relational_queries_forward() -> Result<(), Box<dyn std::error::Error>> {
                 last_name: "Test".into(),
                 age: 20 + i,
                 partner: RelationalLink::new_dehydrated(UserID("none".into())),
-                category: RelationalLink::new_dehydrated(if i < 3 { cat1.clone() } else { cat2.clone() }),
+                category: RelationalLink::new_dehydrated(if i < 3 {
+                    cat1.clone()
+                } else {
+                    cat2.clone()
+                }),
                 bio: LargeUserFile::default(),
                 another: AnotherLargeUserFile::default(),
             };
@@ -200,18 +202,30 @@ fn test_relational_queries_forward() -> Result<(), Box<dyn std::error::Error>> {
     // Query relations
     {
         let txn = store.begin_read()?;
-        
+
         // User 1 -> Tech
         let rels1 = txn.query_relations::<User>(&UserID("user1".into()))?;
-        assert!(rels1.iter().any(|r| r == &UserRelationalKeys::Category(UserCategory(cat1.clone()))));
+        assert!(
+            rels1
+                .iter()
+                .any(|r| r == &UserRelationalKeys::Category(UserCategory(cat1.clone())))
+        );
 
         // User 2 -> Tech
         let rels2 = txn.query_relations::<User>(&UserID("user2".into()))?;
-        assert!(rels2.iter().any(|r| r == &UserRelationalKeys::Category(UserCategory(cat1.clone()))));
+        assert!(
+            rels2
+                .iter()
+                .any(|r| r == &UserRelationalKeys::Category(UserCategory(cat1.clone())))
+        );
 
         // User 3 -> Sports
         let rels3 = txn.query_relations::<User>(&UserID("user3".into()))?;
-        assert!(rels3.iter().any(|r| r == &UserRelationalKeys::Category(UserCategory(cat2.clone()))));
+        assert!(
+            rels3
+                .iter()
+                .any(|r| r == &UserRelationalKeys::Category(UserCategory(cat2.clone())))
+        );
     }
 
     common::cleanup_test_db(db_path);
@@ -249,7 +263,7 @@ fn test_blob_storage() -> Result<(), Box<dyn std::error::Error>> {
     {
         let txn = store.begin_read()?;
         let user = txn.read::<User>(&user_id)?.unwrap();
-        
+
         assert_eq!(user.bio.data.len(), 100_000);
         assert_eq!(user.bio.data[0], 42);
         assert_eq!(user.bio.metadata, "Large bio data");
@@ -270,7 +284,7 @@ fn test_blob_storage() -> Result<(), Box<dyn std::error::Error>> {
     {
         let txn = store.begin_read()?;
         let user = txn.read::<User>(&user_id)?.unwrap();
-        
+
         assert_eq!(user.bio.data.len(), 50_000);
         assert_eq!(user.bio.data[0], 99);
         assert_eq!(user.bio.metadata, "Updated bio");
@@ -301,14 +315,14 @@ fn test_model_hash_computation() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test hash computation
     use netabase_store::traits::registery::models::model::NetabaseModel;
-    
+
     let hash1 = user1.compute_hash();
     let hash2 = user2.compute_hash();
     let hash3 = user3.compute_hash();
 
     // Same data should have same hash
     assert_eq!(hash1, hash2, "Identical models should have same hash");
-    
+
     // Different data should have different hash
     assert_ne!(hash1, hash3, "Different models should have different hash");
 
@@ -318,7 +332,7 @@ fn test_model_hash_computation() -> Result<(), Box<dyn std::error::Error>> {
     // Test hex conversion
     let hex = hash1.to_hex();
     assert_eq!(hex.len(), 64); // 32 bytes = 64 hex chars
-    
+
     let parsed = ModelHash::from_hex(&hex)?;
     assert_eq!(hash1, parsed);
 
@@ -334,7 +348,7 @@ fn test_merkle_tree_construction() -> Result<(), Box<dyn std::error::Error>> {
     let mut hashes = Vec::new();
     {
         let txn = store.begin_write()?;
-        
+
         for i in 1..=5 {
             let user = User {
                 id: UserID(format!("user{}", i)),
@@ -346,7 +360,7 @@ fn test_merkle_tree_construction() -> Result<(), Box<dyn std::error::Error>> {
                 bio: LargeUserFile::default(),
                 another: AnotherLargeUserFile::default(),
             };
-            
+
             use netabase_store::traits::registery::models::model::NetabaseModel;
             hashes.push(user.compute_hash());
             txn.create(&user)?;
@@ -356,24 +370,24 @@ fn test_merkle_tree_construction() -> Result<(), Box<dyn std::error::Error>> {
 
     // Build merkle tree
     let tree = SubscriptionMerkleTree::from_hashes(hashes.clone());
-    
+
     assert_eq!(tree.len(), 5);
     assert!(tree.root().is_some(), "Tree should have a root");
-    
+
     // Test proof generation and verification
     let hash = hashes[0];
     let proof = tree.proof(&hash).expect("Should generate proof");
     assert!(tree.verify_proof(&hash, &proof), "Proof should verify");
     println!("✓ Merkle proof verified successfully");
-    
+
     // Test tree diff
     let mut hashes2 = hashes.clone();
     hashes2.pop(); // Remove one
     hashes2.push(ModelHash::new([99u8; 32])); // Add different one
-    
+
     let tree2 = SubscriptionMerkleTree::from_hashes(hashes2);
     let diff = tree.diff(&tree2);
-    
+
     assert!(diff.has_differences());
     assert_eq!(diff.missing_in_other.len(), 1);
     assert_eq!(diff.missing_in_self.len(), 1);
@@ -408,15 +422,19 @@ fn test_index_maintenance_on_update() -> Result<(), Box<dyn std::error::Error>> 
     // Verify initial indexes
     {
         let txn = store.begin_read()?;
-        
-        let by_name = txn.query_by_secondary_key::<User>(
-            &UserSecondaryKeys::FirstName(UserFirstName("Alice".into()))
-        )?;
+
+        let by_name = txn.query_by_secondary_key::<User>(&UserSecondaryKeys::FirstName(
+            UserFirstName("Alice".into()),
+        ))?;
         assert_eq!(by_name.len(), 1);
-        
+
         let rels = txn.query_relations::<User>(&user_id)?;
         assert_eq!(rels.len(), 1);
-        assert!(rels.iter().any(|r| r == &UserRelationalKeys::Category(UserCategory(CategoryID("cat1".into())))));
+        assert!(
+            rels.iter().any(
+                |r| r == &UserRelationalKeys::Category(UserCategory(CategoryID("cat1".into())))
+            )
+        );
     }
 
     // Update - change secondary and relational keys
@@ -432,26 +450,30 @@ fn test_index_maintenance_on_update() -> Result<(), Box<dyn std::error::Error>> 
     // Verify indexes updated
     {
         let txn = store.begin_read()?;
-        
-        let by_old_name = txn.query_by_secondary_key::<User>(
-            &UserSecondaryKeys::FirstName(UserFirstName("Alice".into()))
-        )?;
+
+        let by_old_name = txn.query_by_secondary_key::<User>(&UserSecondaryKeys::FirstName(
+            UserFirstName("Alice".into()),
+        ))?;
         assert_eq!(by_old_name.len(), 0, "Old name index should be removed");
-        
+
         // Verify relations updated
         let rels = txn.query_relations::<User>(&user_id)?;
         assert_eq!(rels.len(), 1, "Should have exactly 1 relation");
-        assert!(rels.iter().any(|r| r == &UserRelationalKeys::Category(UserCategory(CategoryID("cat2".into())))));
+        assert!(
+            rels.iter().any(
+                |r| r == &UserRelationalKeys::Category(UserCategory(CategoryID("cat2".into())))
+            )
+        );
         // Implicitly verifies old one is gone because len == 1
     }
 
     // Verify new indexes added (Secondary)
     {
         let txn = store.begin_read()?;
-        
-        let by_new_name = txn.query_by_secondary_key::<User>(
-            &UserSecondaryKeys::FirstName(UserFirstName("Alicia".into()))
-        )?;
+
+        let by_new_name = txn.query_by_secondary_key::<User>(&UserSecondaryKeys::FirstName(
+            UserFirstName("Alicia".into()),
+        ))?;
         assert_eq!(by_new_name.len(), 1, "New name index should exist");
     }
 
