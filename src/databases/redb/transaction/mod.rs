@@ -1017,24 +1017,17 @@ where
         M::query_by_subscription(subscription_key, &tables)
     }
 
-    /// Query records by relational link.
+    /// Query relations associated with a model.
     ///
-    /// Returns a list of models that have a relational link with the specified key.
-    /// Relational links are defined using `#[link(Definition, Model)]` attributes.
+    /// Returns a list of relational keys associated with the given primary key.
     ///
     /// # Arguments
     ///
-    /// * `relational_key` - The relational key to search for
+    /// * `primary_key` - The primary key of the model
     ///
     /// # Returns
     ///
-    /// A vector of models with the matching relational link. Returns an empty vector
-    /// if no matches are found.
-    ///
-    /// # Note
-    ///
-    /// This method scans the relational index table. For frequently queried relationships,
-    /// consider using an explicit foreign key field with a secondary index for better performance.
+    /// A vector of relational keys.
     ///
     /// # Examples
     ///
@@ -1042,20 +1035,16 @@ where
     /// use netabase_store::prelude::*;
     /// use netabase_store::traits::database::store::NBStore;
     ///
-    /// // Find all users in a specific category
+    /// // Find all categories a user belongs to
     /// let txn = store.begin_read()?;
-    /// let users = txn.query_by_relational_key::<User>(
-    ///     &UserRelationalKeys::Category(CategoryID("tech".into()))
+    /// let categories = txn.query_relations::<User>(
+    ///     &UserID("alice".into())
     /// )?;
-    ///
-    /// for user in users {
-    ///     println!("User {} is in category tech", user.name);
-    /// }
     /// ```
-    pub fn query_by_relational_key<'data: 'db, M>(
+    pub fn query_relations<'data: 'db, M>(
         &'db self,
-        relational_key: &'data <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational,
-    ) -> NetabaseResult<Vec<M>>
+        primary_key: &'data <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary,
+    ) -> NetabaseResult<Vec<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational>>
     where
         M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
         for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
@@ -1087,22 +1076,66 @@ where
         <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: redb::Key + 'static,
         for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as redb::Value>::SelfType<'a>>,
         for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem as redb::Value>::SelfType<'a>>,
+        // Add Value bound for Relational Key to support to_owned/value()
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: redb::Value<SelfType<'a> = <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational>,
     {
         let definitions = M::table_definitions();
         let tables = self.open_model_tables(definitions, None)?;
 
-        // Get primary keys matching the relational key
-        let primary_keys = M::query_by_relational_key(relational_key, &tables)?;
+        // Get relational keys
+        let guards = M::query_relations(primary_key, &tables)?;
 
-        // Load the full models
-        let mut results = Vec::with_capacity(primary_keys.len());
-        for pk in primary_keys {
-            if let Some(model) = M::read_default(&pk, &tables)? {
-                results.push(model);
-            }
-        }
+        // Convert to owned
+        Ok(guards.into_iter().map(|g| g.value()).collect())
+    }
 
-        Ok(results)
+    /// Query relations of a specific type associated with a model.
+    ///
+    /// Returns a list of relational keys of the specified type associated with the given primary key.
+    pub fn query_relations_by_type<'data: 'db, M>(
+        &'db self,
+        primary_key: &'data <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary,
+        relation_type: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::RelationalDiscriminant, // Use simplified path if possible, or correct the complex one
+    ) -> NetabaseResult<Vec<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational>>
+    where
+        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
+        for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: Clone + PartialEq,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Secondary as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant:
+            'static + PartialEq,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Blob as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary as redb::Value>::SelfType<'a>>,
+        for<'v> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: redb::Value<SelfType<'v> = <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary>,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational as redb::Value>::SelfType<'a>>,
+        for<'v> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational as redb::Value>::SelfType<'v>: PartialEq<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational>,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Libp2p as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: 'static,
+        D: 'static,
+        D::SubscriptionKeys: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: redb::Key + 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as redb::Value>::SelfType<'a>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem as redb::Value>::SelfType<'a>>,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: redb::Value<SelfType<'a> = <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational>,
+    {
+        let definitions = M::table_definitions();
+        let tables = self.open_model_tables(definitions, None)?;
+
+        let guards = M::query_relations_by_type(primary_key, relation_type, &tables)?;
+
+        Ok(guards.into_iter().map(|g| g.value()).collect::<Vec<_>>())
     }
 
     /// Update an existing record in the database.

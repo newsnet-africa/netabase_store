@@ -1,7 +1,6 @@
 /// Test to demonstrate relational query performance
 /// 
-/// This test shows the difference between O(n) table scan and O(log n) index lookup
-/// for relational queries.
+/// This test verifies the O(1) forward lookup: Model -> Relations.
 
 use netabase_store_examples::{Definition, User, UserID, CategoryID, UserRelationalKeys, UserCategory};
 use netabase_store::relational::RelationalLink;
@@ -17,7 +16,6 @@ fn test_relational_query_performance() -> Result<(), Box<dyn std::error::Error>>
     let cat_sports = CategoryID("sports".into());
     let cat_news = CategoryID("news".into());
 
-    // Create a larger dataset to test performance
     let num_users = 100;
     {
         let txn = store.begin_write()?;
@@ -44,40 +42,36 @@ fn test_relational_query_performance() -> Result<(), Box<dyn std::error::Error>>
         txn.commit()?;
     }
 
-    // Query by category - this should use an index, not a table scan
+    // Query relations for a specific user
     {
         let txn = store.begin_read()?;
         
-        // Query for tech category
-        let tech_users = txn.query_by_relational_key::<User>(
-            &UserRelationalKeys::Category(UserCategory(cat_tech.clone()))
-        )?;
+        // Check user3 (should be tech: 3%3=0)
+        let user3_id = UserID("user3".into());
+        let relations = txn.query_relations::<User>(&user3_id)?;
         
-        // Should find approximately 1/3 of users
-        assert!(tech_users.len() >= 30 && tech_users.len() <= 35, 
-            "Should find roughly 1/3 of users in tech category, found {}", tech_users.len());
-    }
+        assert!(!relations.is_empty(), "Should find relations for user3");
+        
+        let found_category = relations.iter().any(|r| {
+            if let UserRelationalKeys::Category(UserCategory(c)) = r {
+                c == &cat_tech
+            } else {
+                false
+            }
+        });
+        assert!(found_category, "User3 should be in tech category");
 
-    // Query for sports category
-    {
-        let txn = store.begin_read()?;
-        let sports_users = txn.query_by_relational_key::<User>(
-            &UserRelationalKeys::Category(UserCategory(cat_sports.clone()))
-        )?;
-        
-        assert!(sports_users.len() >= 30 && sports_users.len() <= 35,
-            "Should find roughly 1/3 of users in sports category, found {}", sports_users.len());
-    }
-
-    // Query for news category  
-    {
-        let txn = store.begin_read()?;
-        let news_users = txn.query_by_relational_key::<User>(
-            &UserRelationalKeys::Category(UserCategory(cat_news.clone()))
-        )?;
-        
-        assert!(news_users.len() >= 30 && news_users.len() <= 40,
-            "Should find roughly 1/3 of users in news category, found {}", news_users.len());
+        // Check user4 (should be sports: 4%3=1)
+        let user4_id = UserID("user4".into());
+        let relations4 = txn.query_relations::<User>(&user4_id)?;
+        let found_sports = relations4.iter().any(|r| {
+            if let UserRelationalKeys::Category(UserCategory(c)) = r {
+                c == &cat_sports
+            } else {
+                false
+            }
+        });
+        assert!(found_sports, "User4 should be in sports category");
     }
 
     common::cleanup_test_db(db_path);
@@ -93,9 +87,8 @@ fn test_relational_query_with_vec() -> Result<(), Box<dyn std::error::Error>> {
 
     let _cat1 = CategoryID("cat1".into());
     
-    // In the future, if User had `tags: Vec<RelationalLink<Category>>`,
-    // we should be able to query: "find all users with tag cat1"
-    // This would require the inverse index: RelationalKey -> Vec<PrimaryKey>
+    // Future work: If models have Vec<RelationalLink>, query_relations(pk) 
+    // will return all of them.
 
     common::cleanup_test_db(db_path);
     Ok(())

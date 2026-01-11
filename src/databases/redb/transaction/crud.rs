@@ -177,30 +177,26 @@ where
         <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: Clone,
         for<'v> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: redb::Value<SelfType<'v> = <Self::Keys as NetabaseModelKeys<D, Self>>::Primary>;
 
-    /// Query primary keys by relational key.
-    /// 
-    /// Returns a list of primary keys for all models that have a relational link
-    /// with the given key value.
-    /// 
-    /// # Example
-    /// 
-    /// ```rust,ignore
-    /// // Find all posts by a specific author
-    /// let txn = store.begin_read()?;
-    /// let tables = txn.prepare_model::<Post>()?;
-    /// let post_ids = Post::query_by_relational_key(
-    ///     &PostRelationalKeys::Author(UserID("alice".into())),
-    ///     &tables
-    /// )?;
-    /// ```
-    fn query_by_relational_key<'a, 'txn>(
-        relational_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Relational,
+    /// Query relations associated with a model.
+    ///
+    /// Returns a list of relational keys associated with the given primary key.
+    /// This is an efficient O(1) lookup.
+    fn query_relations<'a, 'txn>(
+        primary_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary,
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
-    ) -> NetabaseResult<Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary>>
+    ) -> NetabaseResult<Vec<AccessGuard<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Relational>>>
     where
-        <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: Clone,
-        for<'v> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: redb::Value<SelfType<'v> = <Self::Keys as NetabaseModelKeys<D, Self>>::Primary>,
-        for<'v> <<Self::Keys as NetabaseModelKeys<D, Self>>::Relational as redb::Value>::SelfType<'v>: PartialEq<<Self::Keys as NetabaseModelKeys<D, Self>>::Relational>;
+        'db: 'txn;
+
+    /// Query relations of a specific type associated with a model.
+    fn query_relations_by_type<'a, 'txn>(
+        primary_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary,
+        relation_type: <<Self::Keys as NetabaseModelKeys<D, Self>>::Relational as IntoDiscriminant>::Discriminant,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Vec<AccessGuard<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Relational>>>
+    where
+        'db: 'txn,
+        <<Self::Keys as NetabaseModelKeys<D, Self>>::Relational as IntoDiscriminant>::Discriminant: PartialEq;
 
     // =========================================================================
     // Blob Query Methods (Read-Only)
@@ -536,26 +532,28 @@ where
             }
 
             // 3. Update Relational Tables
-            let old_relational = old_model.get_relational_keys();
-            let new_relational = self.get_relational_keys();
+            use std::collections::HashSet;
+            let old_relational: HashSet<_> = old_model.get_relational_keys().into_iter().collect();
+            let new_relational: HashSet<_> = self.get_relational_keys().into_iter().collect();
 
-            for (((table_perm, _name), old_key), new_key) in tables.relational.iter_mut()
-                .zip(old_relational.into_iter())
-                .zip(new_relational.into_iter())
-            {
-                match table_perm {
-                    TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
-                        let old_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational = old_key;
-                        let new_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational = new_key;
+            if old_relational != new_relational {
+                // Find keys to remove
+                for key_to_remove in old_relational.difference(&new_relational) {
+                    for (table_perm, _) in tables.relational.iter_mut() {
+                        if let TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) = table_perm {
+                            let _ = table.remove(primary_key.borrow(), key_to_remove.borrow());
+                        }
+                    }
+                }
 
-                        if old_k != new_k {
-                            table.remove(primary_key.borrow(), old_k.borrow())
-                                .map_err(|e| NetabaseError::RedbError(e.into()))?;
-                            table.insert(primary_key.borrow(), new_k.borrow())
+                // Find keys to add
+                for key_to_add in new_relational.difference(&old_relational) {
+                    for (table_perm, _) in tables.relational.iter_mut() {
+                         if let TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) = table_perm {
+                            table.insert(primary_key.borrow(), key_to_add.borrow())
                                 .map_err(|e| NetabaseError::RedbError(e.into()))?;
                         }
                     }
-                    _ => return Err(NetabaseError::Other),
                 }
             }
 
@@ -973,94 +971,102 @@ where
         Ok(Vec::new())
     }
 
-    fn query_by_relational_key<'a, 'txn>(
-        relational_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Relational,
+    fn query_relations<'a, 'txn>(
+        primary_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary,
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
-    ) -> NetabaseResult<Vec<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary>>
+    ) -> NetabaseResult<Vec<AccessGuard<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Relational>>>
     where
-        <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: Clone,
-        <Self::Keys as NetabaseModelKeys<D, Self>>::Relational: PartialEq,
-        for<'v> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: redb::Value<SelfType<'v> = <Self::Keys as NetabaseModelKeys<D, Self>>::Primary>,
-        for<'v> <<Self::Keys as NetabaseModelKeys<D, Self>>::Relational as redb::Value>::SelfType<'v>: PartialEq<<Self::Keys as NetabaseModelKeys<D, Self>>::Relational>,
+        'db: 'txn
     {
         use redb::ReadableMultimapTable;
         
-        // Relational tables are multimap: Primary Key -> Relational Keys
-        // We need to scan to find all primary keys that have this relational key value
         let mut results = Vec::new();
         
         for (table_perm, _table_name) in &tables.relational {
             match table_perm {
                 TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
-                    // Iterate through all primary keys
-                    let iter = table.iter().map_err(|e| NetabaseError::RedbError(e.into()))?;
-                    
-                    for pk_result in iter {
-                        let (pk, _) = pk_result.map_err(|e| NetabaseError::RedbError(e.into()))?;
-                        let pk_value = pk.value();
-                        
-                        // Get all relational keys for this primary key
-                        match table.get(pk_value.borrow()) {
-                            Ok(rel_keys) => {
-                                for rel_key_result in rel_keys {
-                                    let rel_key = rel_key_result.map_err(|e| NetabaseError::RedbError(e.into()))?;
-                                    
-                                    // Check if this relational key matches what we're looking for
-                                    if rel_key.value() == *relational_key {
-                                        results.push(pk_value.clone());
-                                        break; // Found a match for this primary key, move to next
-                                    }
-                                }
+                    if let Ok(iter) = table.get(primary_key.borrow()) {
+                        for item in iter {
+                            if let Ok(guard) = item {
+                                results.push(guard);
                             }
-                            Err(_) => continue,
                         }
                     }
                 }
                 TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
-                    let iter = table.iter().map_err(|e| NetabaseError::RedbError(e.into()))?;
-                    
-                    for pk_result in iter {
-                        let (pk, _) = pk_result.map_err(|e| NetabaseError::RedbError(e.into()))?;
-                        let pk_value = pk.value();
-                        
-                        match table.get(pk_value.borrow()) {
-                            Ok(rel_keys) => {
-                                for rel_key_result in rel_keys {
-                                    let rel_key = rel_key_result.map_err(|e| NetabaseError::RedbError(e.into()))?;
-                                    
-                                    if rel_key.value() == *relational_key {
-                                        results.push(pk_value.clone());
-                                        break;
-                                    }
-                                }
+                    if let Ok(iter) = table.get(primary_key.borrow()) {
+                        for item in iter {
+                            if let Ok(guard) = item {
+                                results.push(guard);
                             }
-                            Err(_) => continue,
                         }
                     }
                 }
                 TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
-                    let iter = table.iter().map_err(|e| NetabaseError::RedbError(e.into()))?;
-                    
-                    for pk_result in iter {
-                        let (pk, _) = pk_result.map_err(|e| NetabaseError::RedbError(e.into()))?;
-                        let pk_value = pk.value();
-                        
-                        match table.get(pk_value.borrow()) {
-                            Ok(rel_keys) => {
-                                for rel_key_result in rel_keys {
-                                    let rel_key = rel_key_result.map_err(|e| NetabaseError::RedbError(e.into()))?;
-                                    
-                                    if rel_key.value() == *relational_key {
-                                        results.push(pk_value.clone());
-                                        break;
-                                    }
-                                }
+                    if let Ok(iter) = table.get(primary_key.borrow()) {
+                        for item in iter {
+                            if let Ok(guard) = item {
+                                results.push(guard);
                             }
-                            Err(_) => continue,
                         }
                     }
                 }
                 _ => continue,
+            }
+        }
+        
+        Ok(results)
+    }
+
+    fn query_relations_by_type<'a, 'txn>(
+        primary_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary,
+        relation_type: <<Self::Keys as NetabaseModelKeys<D, Self>>::Relational as IntoDiscriminant>::Discriminant,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Vec<AccessGuard<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Relational>>>
+    where
+        'db: 'txn,
+        <<Self::Keys as NetabaseModelKeys<D, Self>>::Relational as IntoDiscriminant>::Discriminant: PartialEq
+    {
+        use redb::ReadableMultimapTable;
+        
+        let mut results = Vec::new();
+        
+        // Find the table index for this relation type
+        let tree_names = Self::TREE_NAMES;
+        let table_index = tree_names.relational.iter().position(|t| t.discriminant == relation_type);
+
+        if let Some(index) = table_index {
+            if let Some((table_perm, _)) = tables.relational.get(index) {
+                match table_perm {
+                    TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
+                        if let Ok(iter) = table.get(primary_key.borrow()) {
+                            for item in iter {
+                                if let Ok(guard) = item {
+                                    results.push(guard);
+                                }
+                            }
+                        }
+                    }
+                    TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                        if let Ok(iter) = table.get(primary_key.borrow()) {
+                            for item in iter {
+                                if let Ok(guard) = item {
+                                    results.push(guard);
+                                }
+                            }
+                        }
+                    }
+                    TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
+                        if let Ok(iter) = table.get(primary_key.borrow()) {
+                            for item in iter {
+                                if let Ok(guard) = item {
+                                    results.push(guard);
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
             }
         }
         

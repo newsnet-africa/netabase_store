@@ -171,7 +171,7 @@ fn test_secondary_key_queries() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
-fn test_relational_key_queries() -> Result<(), Box<dyn std::error::Error>> {
+fn test_relational_queries_forward() -> Result<(), Box<dyn std::error::Error>> {
     let (store, db_path) = common::create_test_db::<Definition>("relational_key")?;
 
     let cat1 = CategoryID("tech".into());
@@ -197,23 +197,21 @@ fn test_relational_key_queries() -> Result<(), Box<dyn std::error::Error>> {
         txn.commit()?;
     }
 
-    // Query by category
+    // Query relations
     {
         let txn = store.begin_read()?;
-        let users = txn.query_by_relational_key::<User>(
-            &UserRelationalKeys::Category(UserCategory(cat1.clone()))
-        )?;
         
-        assert_eq!(users.len(), 2, "Should find 2 users in tech category");
-    }
+        // User 1 -> Tech
+        let rels1 = txn.query_relations::<User>(&UserID("user1".into()))?;
+        assert!(rels1.iter().any(|r| r == &UserRelationalKeys::Category(UserCategory(cat1.clone()))));
 
-    {
-        let txn = store.begin_read()?;
-        let users = txn.query_by_relational_key::<User>(
-            &UserRelationalKeys::Category(UserCategory(cat2.clone()))
-        )?;
-        
-        assert_eq!(users.len(), 1, "Should find 1 user in sports category");
+        // User 2 -> Tech
+        let rels2 = txn.query_relations::<User>(&UserID("user2".into()))?;
+        assert!(rels2.iter().any(|r| r == &UserRelationalKeys::Category(UserCategory(cat1.clone()))));
+
+        // User 3 -> Sports
+        let rels3 = txn.query_relations::<User>(&UserID("user3".into()))?;
+        assert!(rels3.iter().any(|r| r == &UserRelationalKeys::Category(UserCategory(cat2.clone()))));
     }
 
     common::cleanup_test_db(db_path);
@@ -416,10 +414,9 @@ fn test_index_maintenance_on_update() -> Result<(), Box<dyn std::error::Error>> 
         )?;
         assert_eq!(by_name.len(), 1);
         
-        let by_cat = txn.query_by_relational_key::<User>(
-            &UserRelationalKeys::Category(UserCategory(CategoryID("cat1".into())))
-        )?;
-        assert_eq!(by_cat.len(), 1);
+        let rels = txn.query_relations::<User>(&user_id)?;
+        assert_eq!(rels.len(), 1);
+        assert!(rels.iter().any(|r| r == &UserRelationalKeys::Category(UserCategory(CategoryID("cat1".into())))));
     }
 
     // Update - change secondary and relational keys
@@ -432,7 +429,7 @@ fn test_index_maintenance_on_update() -> Result<(), Box<dyn std::error::Error>> 
         txn.commit()?;
     }
 
-    // Verify old indexes removed
+    // Verify indexes updated
     {
         let txn = store.begin_read()?;
         
@@ -441,13 +438,14 @@ fn test_index_maintenance_on_update() -> Result<(), Box<dyn std::error::Error>> 
         )?;
         assert_eq!(by_old_name.len(), 0, "Old name index should be removed");
         
-        let by_old_cat = txn.query_by_relational_key::<User>(
-            &UserRelationalKeys::Category(UserCategory(CategoryID("cat1".into())))
-        )?;
-        assert_eq!(by_old_cat.len(), 0, "Old category index should be removed");
+        // Verify relations updated
+        let rels = txn.query_relations::<User>(&user_id)?;
+        assert_eq!(rels.len(), 1, "Should have exactly 1 relation");
+        assert!(rels.iter().any(|r| r == &UserRelationalKeys::Category(UserCategory(CategoryID("cat2".into())))));
+        // Implicitly verifies old one is gone because len == 1
     }
 
-    // Verify new indexes added
+    // Verify new indexes added (Secondary)
     {
         let txn = store.begin_read()?;
         
@@ -455,11 +453,6 @@ fn test_index_maintenance_on_update() -> Result<(), Box<dyn std::error::Error>> 
             &UserSecondaryKeys::FirstName(UserFirstName("Alicia".into()))
         )?;
         assert_eq!(by_new_name.len(), 1, "New name index should exist");
-        
-        let by_new_cat = txn.query_by_relational_key::<User>(
-            &UserRelationalKeys::Category(UserCategory(CategoryID("cat2".into())))
-        )?;
-        assert_eq!(by_new_cat.len(), 1, "New category index should exist");
     }
 
     common::cleanup_test_db(db_path);

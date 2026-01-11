@@ -209,34 +209,82 @@ impl<'a> SerializationGenerator<'a> {
         // ID type - only generate if flagged (to avoid duplicates for versioned models)
         if self.generate_id_traits {
             let id_type = primary_key_type_name_for_model(self.visitor);
-            output.extend(self.generate_value_key_for_type(&id_type));
+            let inner_ty = self.visitor.primary_key.as_ref().map(|f| &f.ty);
+            output.extend(self.generate_value_key_for_type(&id_type, inner_ty));
         }
 
         // Secondary keys enum
         let secondary_enum = secondary_keys_enum_name(model_name);
-        output.extend(self.generate_value_key_for_type(&secondary_enum));
+        output.extend(self.generate_value_key_for_type(&secondary_enum, None));
 
         // Relational keys enum
         let relational_enum = relational_keys_enum_name(model_name);
-        output.extend(self.generate_value_key_for_type(&relational_enum));
+        output.extend(self.generate_value_key_for_type(&relational_enum, None));
 
         // Subscriptions enum - handled by definition/traits.rs to properly support
         // both empty and non-empty enums with correct trait implementations
 
         // Blob keys enum
         let blob_keys = blob_keys_enum_name(model_name);
-        output.extend(self.generate_value_key_for_type(&blob_keys));
+        output.extend(self.generate_value_key_for_type(&blob_keys, None));
 
         let blob_item = blob_item_enum_name(model_name);
-        output.extend(self.generate_value_key_for_type(&blob_item));
+        output.extend(self.generate_value_key_for_type(&blob_item, None));
 
         let libp2p_provider_key = libp2p_provider_key_enum_name(model_name);
-        output.extend(self.generate_value_key_for_type(&libp2p_provider_key));
+        output.extend(self.generate_value_key_for_type(&libp2p_provider_key, None));
 
         output
     }
 
-    fn generate_value_key_for_type(&self, type_name: &syn::Ident) -> TokenStream {
+    fn generate_value_key_for_type(&self, type_name: &syn::Ident, inner_type: Option<&syn::Type>) -> TokenStream {
+        // If inner type is a supported primitive, delegate to it (Transparent Key Optimization)
+        if let Some(ty) = inner_type {
+            if is_primitive_type(ty) {
+                return quote! {
+                    impl redb::Value for #type_name {
+                        type SelfType<'a> = #type_name;
+                        type AsBytes<'a> = <#ty as redb::Value>::AsBytes<'a>;
+
+                        #[inline]
+                        fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+                        where
+                            Self: 'a,
+                        {
+                            #type_name(<#ty as redb::Value>::from_bytes(data))
+                        }
+
+                        #[inline]
+                        fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+                        where
+                            Self: 'a,
+                            Self: 'b,
+                        {
+                            <#ty as redb::Value>::as_bytes(&value.0)
+                        }
+
+                        #[inline]
+                        fn fixed_width() -> Option<usize> {
+                            <#ty as redb::Value>::fixed_width()
+                        }
+
+                        #[inline]
+                        fn type_name() -> redb::TypeName {
+                            redb::TypeName::new(&format!("{}::{}", module_path!(), stringify!(#type_name)))
+                        }
+                    }
+
+                    impl redb::Key for #type_name {
+                        #[inline]
+                        fn compare(data1: &[u8], data2: &[u8]) -> std::cmp::Ordering {
+                            <#ty as redb::Key>::compare(data1, data2)
+                        }
+                    }
+                };
+            }
+        }
+
+        // Fallback to postcard serialization (Varint / Custom format)
         quote! {
             impl redb::Value for #type_name {
                 type SelfType<'a> = #type_name;
@@ -399,4 +447,17 @@ fn to_pascal_case(s: &str) -> String {
             }
         })
         .collect()
+}
+
+fn is_primitive_type(ty: &syn::Type) -> bool {
+    if let syn::Type::Path(p) = ty {
+        if let Some(ident) = p.path.get_ident() {
+            let s = ident.to_string();
+            return matches!(s.as_str(), 
+                "u8" | "u16" | "u32" | "u64" | "u128" | 
+                "i8" | "i16" | "i32" | "i64" | "i128" |
+                "String");
+        }
+    }
+    false
 }
