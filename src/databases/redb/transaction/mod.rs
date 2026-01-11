@@ -1095,7 +1095,7 @@ where
     pub fn query_relations_by_type<'data: 'db, M>(
         &'db self,
         primary_key: &'data <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary,
-        relation_type: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::RelationalDiscriminant, // Use simplified path if possible, or correct the complex one
+        relation_type: <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant,
     ) -> NetabaseResult<Vec<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational>>
     where
         M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
