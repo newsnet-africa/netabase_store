@@ -650,6 +650,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "example"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "criterion",
+ "derive_more",
+ "from",
+ "hex",
+ "netabase_macros",
+ "netabase_store",
+ "postcard",
+ "rand 0.9.2",
+ "redb",
+ "serde",
+ "strum",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1432,10 +1450,10 @@ dependencies = [
  "bincode",
  "clap",
  "derive_more",
+ "example",
  "hex",
  "libp2p",
  "netabase_macros",
- "netabase_store_examples",
  "postcard",
  "rand 0.9.2",
  "redb",
@@ -1447,24 +1465,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.17",
  "toml",
-]
-
-[[package]]
-name = "netabase_store_examples"
-version = "0.1.0"
-dependencies = [
- "clap",
- "criterion",
- "derive_more",
- "from",
- "hex",
- "netabase_macros",
- "netabase_store",
- "postcard",
- "rand 0.9.2",
- "redb",
- "serde",
- "strum",
 ]
 
 [[package]]
