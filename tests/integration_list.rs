@@ -10,7 +10,7 @@ use netabase_store::errors::NetabaseResult;
 use netabase_store::relational::RelationalLink;
 use netabase_store::traits::registery::models::model::RedbNetbaseModel;
 
-use netabase_store_examples::{
+use example::{
     AnotherLargeUserFile, CategoryID, Definition, LargeUserFile, User, UserID,
 };
 

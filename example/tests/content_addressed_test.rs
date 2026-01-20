@@ -1,5 +1,5 @@
 use netabase_store::databases::redb::transaction::crud::RedbModelCrud;
-use netabase_store_examples::boilerplate_lib::{
+use example::boilerplate_lib::{
     ImmutablePost, ImmutablePostEnvelope, MainRepositoryStores, definition::DefinitionSubscriptions,
 };
 
@@ -57,8 +57,8 @@ fn test_content_addressed_crud() -> Result<(), Box<dyn std::error::Error>> {
         let txn = stores.definition.begin_read()?;
 
         // Compute hashes manually to query
-        use netabase_store_examples::boilerplate_lib::definition::ImmutablePostID;
-        use netabase_store_examples::boilerplate_lib::models::hash_model;
+        use example::boilerplate_lib::definition::ImmutablePostID;
+        use example::boilerplate_lib::models::hash_model;
 
         let hash1 = ImmutablePostID(hash_model(&post1));
         let hash2 = ImmutablePostID(hash_model(&post2));
@@ -79,7 +79,7 @@ fn test_content_addressed_crud() -> Result<(), Box<dyn std::error::Error>> {
     {
         let txn = stores.definition.begin_read()?;
 
-        use netabase_store_examples::boilerplate_lib::definition::{
+        use example::boilerplate_lib::definition::{
             ImmutablePostAuthor, ImmutablePostSecondaryKeys,
         };
 
@@ -162,11 +162,11 @@ fn test_content_addressed_subscription() -> Result<(), Box<dyn std::error::Error
 
         // For content-addressed with u64 key, the ModelHash in subscription table
         // contains the bytes of the u64 PK.
-        use netabase_store_examples::boilerplate_lib::models::hash_model;
+        use example::boilerplate_lib::models::hash_model;
         let expected_u64_hash = hash_model(&post);
 
         // Wrap in ID type and serialize to match how it's stored in ModelHash
-        use netabase_store_examples::boilerplate_lib::definition::ImmutablePostID;
+        use example::boilerplate_lib::definition::ImmutablePostID;
         let id = ImmutablePostID(expected_u64_hash);
         let expected_bytes = netabase_store::postcard::to_allocvec(&id).unwrap();
 

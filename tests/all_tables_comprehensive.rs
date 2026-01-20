@@ -10,11 +10,11 @@
 mod common;
 
 use netabase_store::relational::RelationalLink;
-use netabase_store_examples::boilerplate_lib::definition::{
+use example::boilerplate_lib::definition::{
     AnotherLargeUserFile, LargeUserFile, User, UserID, UserSecondaryKeys,
     UserFirstName, UserAge, Post, PostID,
 };
-use netabase_store_examples::boilerplate_lib::{CategoryID, Definition, DefinitionSubscriptions};
+use example::boilerplate_lib::{CategoryID, Definition, DefinitionSubscriptions};
 
 #[test]
 fn test_all_table_types_work() -> Result<(), Box<dyn std::error::Error>> {

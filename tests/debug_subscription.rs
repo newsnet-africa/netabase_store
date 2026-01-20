@@ -2,10 +2,10 @@
 mod common;
 
 use netabase_store::relational::RelationalLink;
-use netabase_store_examples::boilerplate_lib::definition::{
+use example::boilerplate_lib::definition::{
     AnotherLargeUserFile, LargeUserFile, User, UserID,
 };
-use netabase_store_examples::boilerplate_lib::{CategoryID, Definition, DefinitionSubscriptions};
+use example::boilerplate_lib::{CategoryID, Definition, DefinitionSubscriptions};
 use netabase_store::databases::redb::transaction::RedbModelCrud;
 
 #[test]

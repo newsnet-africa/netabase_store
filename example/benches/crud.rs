@@ -7,16 +7,16 @@ use netabase_store::libp2p::kad::Record;
 use netabase_store::libp2p::kad::store::RecordStore;
 use netabase_store::relational::RelationalLink;
 use netabase_store::traits::libp2p::libp2p_model::Libp2pMetadata;
-use netabase_store_examples::boilerplate_lib::definition::{
+use example::boilerplate_lib::definition::{
     ImmutablePost, ImmutablePostCrypto, ImmutablePostCryptoEnvelope, ImmutablePostCryptoID,
     ImmutablePostEnvelope, ImmutablePostFast, ImmutablePostFastEnvelope, ImmutablePostFastID,
     ImmutablePostID, User, UserAge, UserBlobItem, UserBlobKeys, UserCategory, UserFirstName,
     UserID, UserLastName, UserPartner, UserRelationalKeys, UserSecondaryKeys,
 };
-use netabase_store_examples::boilerplate_lib::models::blob_types::{
+use example::boilerplate_lib::models::blob_types::{
     AnotherLargeUserFile, LargeUserFile,
 };
-use netabase_store_examples::boilerplate_lib::{
+use example::boilerplate_lib::{
     CategoryID, Definition, DefinitionRecord, DefinitionSubscriptions,
 };
 use rand::prelude::*;

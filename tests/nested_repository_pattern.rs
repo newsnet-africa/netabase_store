@@ -1,6 +1,6 @@
 //! Test nested repository pattern
 
-use netabase_store_examples::repository_example::{EmployeeRepo, ManagerRepo, Employee};
+use example::repository_example::{EmployeeRepo, ManagerRepo, Employee};
 
 #[test]
 fn test_employee_repo_name() {

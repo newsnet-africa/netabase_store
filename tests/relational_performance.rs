@@ -2,9 +2,9 @@
 /// 
 /// This test verifies the O(1) forward lookup: Model -> Relations.
 
-use netabase_store_examples::{Definition, User, UserID, CategoryID, UserRelationalKeys, UserCategory};
+use example::{Definition, User, UserID, CategoryID, UserRelationalKeys, UserCategory};
 use netabase_store::relational::RelationalLink;
-use netabase_store_examples::{LargeUserFile, AnotherLargeUserFile};
+use example::{LargeUserFile, AnotherLargeUserFile};
 
 mod common;
 

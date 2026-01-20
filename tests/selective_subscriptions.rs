@@ -3,9 +3,9 @@
 /// This tests the ability to subscribe to only specific topics when creating a model,
 /// rather than automatically subscribing to all model-level topics.
 
-use netabase_store_examples::{Definition, User, UserID, CategoryID, DefinitionSubscriptions};
+use example::{Definition, User, UserID, CategoryID, DefinitionSubscriptions};
 use netabase_store::relational::RelationalLink;
-use netabase_store_examples::{LargeUserFile, AnotherLargeUserFile};
+use example::{LargeUserFile, AnotherLargeUserFile};
 
 mod common;
 

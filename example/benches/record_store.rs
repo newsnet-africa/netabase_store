@@ -5,7 +5,7 @@ use netabase_store::libp2p::kad::store::RecordStore;
 use netabase_store::libp2p::kad::{Record, RecordKey};
 use netabase_store::traits::database::store::NBStore;
 use netabase_store::traits::libp2p::libp2p_model::Libp2pMetadata;
-use netabase_store_examples::boilerplate_lib::{Definition, DefinitionRecord, User, UserID};
+use example::boilerplate_lib::{Definition, DefinitionRecord, User, UserID};
 use rand::prelude::*;
 use std::borrow::Cow;
 
@@ -29,7 +29,7 @@ fn generate_random_record() -> Record {
             "none".to_string(),
         )),
         category: netabase_store::relational::RelationalLink::new_dehydrated(
-            netabase_store_examples::boilerplate_lib::CategoryID("none".to_string()),
+            example::boilerplate_lib::CategoryID("none".to_string()),
         ),
         bio: Default::default(),
         another: Default::default(),
@@ -51,13 +51,13 @@ fn generate_random_content_addressed_record() -> Record {
             .collect::<String>()
     };
 
-    let post = netabase_store_examples::ImmutablePost {
+    let post = example::ImmutablePost {
         author: random_string(10),
         content: random_string(100),
         timestamp: rng.random(),
     };
 
-    let envelope = netabase_store_examples::ImmutablePostEnvelope::from(post);
+    let envelope = example::ImmutablePostEnvelope::from(post);
     let meta = Libp2pMetadata::default();
     let wrapper = DefinitionRecord(Definition::ImmutablePost(envelope), meta);
     wrapper.into()
@@ -73,13 +73,13 @@ fn generate_random_content_addressed_fast_record() -> Record {
             .collect::<String>()
     };
 
-    let post = netabase_store_examples::ImmutablePostFast {
+    let post = example::ImmutablePostFast {
         author: random_string(10),
         content: random_string(100),
         timestamp: rng.random(),
     };
 
-    let envelope = netabase_store_examples::ImmutablePostFastEnvelope::from(post);
+    let envelope = example::ImmutablePostFastEnvelope::from(post);
     let meta = Libp2pMetadata::default();
     let wrapper = DefinitionRecord(Definition::ImmutablePostFast(envelope), meta);
     wrapper.into()
@@ -95,13 +95,13 @@ fn generate_random_content_addressed_crypto_record() -> Record {
             .collect::<String>()
     };
 
-    let post = netabase_store_examples::ImmutablePostCrypto {
+    let post = example::ImmutablePostCrypto {
         author: random_string(10),
         content: random_string(100),
         timestamp: rng.random(),
     };
 
-    let envelope = netabase_store_examples::ImmutablePostCryptoEnvelope::from(post);
+    let envelope = example::ImmutablePostCryptoEnvelope::from(post);
     let meta = Libp2pMetadata::default();
     let wrapper = DefinitionRecord(Definition::ImmutablePostCrypto(envelope), meta);
     wrapper.into()

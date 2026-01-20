@@ -1,5 +1,5 @@
 use netabase_store::traits::registery::definition::NetabaseDefinition;
-use netabase_store_examples::boilerplate_lib::{Definition, DefinitionTwo};
+use example::boilerplate_lib::{Definition, DefinitionTwo};
 use std::fs;
 use std::path::PathBuf;
 

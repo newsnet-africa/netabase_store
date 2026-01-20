@@ -7,10 +7,10 @@ mod common;
 
 use netabase_store::errors::NetabaseResult;
 use netabase_store::relational::RelationalLink;
-use netabase_store_examples::boilerplate_lib::definition::{
+use example::boilerplate_lib::definition::{
     AnotherLargeUserFile, LargeUserFile, User, UserID,
 };
-use netabase_store_examples::boilerplate_lib::{CategoryID, Definition};
+use example::boilerplate_lib::{CategoryID, Definition};
 
 #[test]
 fn test_blob_storage_single_large_field() -> NetabaseResult<()> {

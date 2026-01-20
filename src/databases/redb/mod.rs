@@ -239,7 +239,7 @@ const README_FILE_NAME: &str = "README.md";
 ///
 /// ```rust,no_run
 /// use netabase_store::databases::redb::{RedbStore, StoreConfig};
-/// use netabase_store::doc_examples::ExampleDef;
+/// use netabase_store::doc_example::ExampleDef;
 ///
 /// // Simple creation
 /// let store = StoreConfig::new("./my_database")
@@ -375,7 +375,7 @@ where
     ///
     /// ```rust,no_run
     /// use netabase_store::databases::redb::StoreConfig;
-    /// use netabase_store::doc_examples::ExampleDef;
+    /// use netabase_store::doc_example::ExampleDef;
     ///
     /// let store = StoreConfig::new("./my_database")
     ///     .with_client_binary(Some("./target/release/client"))
@@ -411,7 +411,7 @@ where
     ///
     /// ```rust,no_run
     /// use netabase_store::databases::redb::{RedbStore, StoreConfig};
-    /// use netabase_store::doc_examples::ExampleDef;
+    /// use netabase_store::doc_example::ExampleDef;
     ///
     /// let config = StoreConfig::new("./my_database")
     ///     .with_client_binary(Some("./target/release/client"))
@@ -622,7 +622,7 @@ This database was generated using Netabase Store.
     ///
     /// ```rust
     /// use netabase_store::databases::redb::RedbStore;
-    /// use netabase_store::doc_examples::ExampleDef;
+    /// use netabase_store::doc_example::ExampleDef;
     ///
     /// let (store, _temp) = RedbStore::<ExampleDef>::new_temporary().unwrap();
     /// // Use store for testing...
@@ -654,7 +654,7 @@ This database was generated using Netabase Store.
     /// # Examples
     ///
     /// ```rust
-    /// use netabase_store::doc_examples::*;
+    /// use netabase_store::doc_example::*;
     /// use netabase_store::databases::redb::RedbStore;
     /// use netabase_store::databases::redb::transaction::RedbModelCrud;
     /// use netabase_store::traits::database::store::NBStore;
@@ -707,7 +707,7 @@ This database was generated using Netabase Store.
     ///
     /// ```rust,no_run
     /// use netabase_store::databases::redb::RedbStore;
-    /// use netabase_store::doc_examples::ExampleDef;
+    /// use netabase_store::doc_example::ExampleDef;
     ///
     /// // Export the current binary to the database folder
     /// RedbStore::<ExampleDef>::export_binary("./my_database", None).unwrap();

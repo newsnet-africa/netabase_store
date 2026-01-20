@@ -12,7 +12,7 @@
 //! # Example
 //!
 //! ```rust
-//! use netabase_store_examples::simple_definition::*;
+//! use example::simple_definition::*;
 //! use netabase_store::relational::RelationalLink;
 //!
 //! // Create an inventory item

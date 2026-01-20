@@ -13,8 +13,8 @@ use netabase_store::relational::{
 use netabase_store::traits::registery::models::model::{NetabaseModel, RedbNetbaseModel};
 
 // Use boilerplate models from examples
-use netabase_store_examples::{AnotherLargeUserFile, LargeUserFile, User, UserID};
-use netabase_store_examples::{CategoryID, Definition, DefinitionSubscriptions};
+use example::{AnotherLargeUserFile, LargeUserFile, User, UserID};
+use example::{CategoryID, Definition, DefinitionSubscriptions};
 
 #[test]
 fn test_create_and_verify() -> NetabaseResult<()> {

@@ -7,8 +7,8 @@
 use netabase_store::databases::redb::RedbStore;
 use netabase_store::relational::RelationalLink;
 use netabase_store::traits::database::store::NBStore;
-use netabase_store_examples::boilerplate_lib::definition::{AnotherLargeUserFile, LargeUserFile};
-use netabase_store_examples::boilerplate_lib::{
+use example::boilerplate_lib::definition::{AnotherLargeUserFile, LargeUserFile};
+use example::boilerplate_lib::{
     CategoryID, Definition, DefinitionSubscriptions, User, UserID,
 };
 

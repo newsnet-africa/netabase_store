@@ -223,7 +223,7 @@ where
     /// ```rust
     /// # // Blob query methods are low-level internal APIs
     /// # // See tests/blob_query_methods.rs for high-level usage
-    /// # use netabase_store_examples::boilerplate_lib::definition::LargeUserFile;
+    /// # use example::boilerplate_lib::definition::LargeUserFile;
     /// // Example: Create a large file that would be stored as blob
     /// let large_file = LargeUserFile {
     ///     data: vec![42u8; 100_000],  // 100KB will be chunked
@@ -258,7 +258,7 @@ where
     /// ```rust
     /// # // Blob query methods are low-level internal APIs
     /// # // See tests/blob_query_methods.rs for high-level usage
-    /// # use netabase_store_examples::boilerplate_lib::definition::LargeUserFile;
+    /// # use example::boilerplate_lib::definition::LargeUserFile;
     /// // Example: Blob fields in models are automatically managed
     /// let files: Vec<LargeUserFile> = vec![
     ///     LargeUserFile { data: vec![1u8; 50_000], metadata: "File 1".into() },
@@ -307,7 +307,7 @@ where
     /// ```rust
     /// # // Blob query methods are low-level internal APIs
     /// # // See tests/blob_query_methods.rs for high-level usage
-    /// # use netabase_store_examples::boilerplate_lib::definition::{LargeUserFile, AnotherLargeUserFile};
+    /// # use example::boilerplate_lib::definition::{LargeUserFile, AnotherLargeUserFile};
     /// // Example: Models can have multiple blob fields
     /// let bio = LargeUserFile { data: vec![1u8; 70_000], metadata: "Bio".into() };
     /// let another = AnotherLargeUserFile(vec![2u8; 80_000]);

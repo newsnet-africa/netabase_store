@@ -25,7 +25,7 @@ use netabase_store::relational::RelationalLink;
 use netabase_store::traits::registery::models::model::RedbNetbaseModel;
 use netabase_store::traits::registery::repository::Standalone;
 
-use netabase_store_examples::{
+use example::{
     AnotherLargeUserFile, Category, CategoryID, Definition, DefinitionSubscriptions, DefinitionTwo,
     LargeUserFile, User, UserID,
 };

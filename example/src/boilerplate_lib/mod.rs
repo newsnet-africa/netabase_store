@@ -8,7 +8,7 @@
 //! Creating and using a User model:
 //!
 //! ```
-//! use netabase_store_examples::{User, UserID, CategoryID, LargeUserFile, AnotherLargeUserFile};
+//! use example::{User, UserID, CategoryID, LargeUserFile, AnotherLargeUserFile};
 //! use netabase_store::relational::RelationalLink;
 //!
 //! let user = User {
@@ -34,7 +34,7 @@
 //! Note: This example is conceptual. See `tests/migration_logic.rs` for the full test suite.
 //!
 //! ```rust,ignore
-//! use netabase_store_examples::{User, UserID, UserV1, CategoryID};
+//! use example::{User, UserID, UserV1, CategoryID};
 //! use netabase_store::traits::migration::MigrateFrom;
 //! use netabase_store::relational::RelationalLink;
 //!

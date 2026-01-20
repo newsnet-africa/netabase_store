@@ -1,7 +1,7 @@
 // Test schema export with migration data
 
 use netabase_store::traits::registery::definition::NetabaseDefinition;
-use netabase_store_examples::boilerplate_lib::Definition;
+use example::boilerplate_lib::Definition;
 
 #[test]
 fn test_schema_export_includes_migration_data() {

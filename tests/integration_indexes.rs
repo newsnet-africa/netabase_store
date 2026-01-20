@@ -14,7 +14,7 @@ use netabase_store::relational::{
 };
 use netabase_store::traits::registery::models::model::{NetabaseModel, RedbNetbaseModel};
 
-use netabase_store_examples::{
+use example::{
     AnotherLargeUserFile, CategoryID, Definition, DefinitionSubscriptions, LargeUserFile, Post,
     PostID, User, UserID,
 };

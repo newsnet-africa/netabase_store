@@ -3,7 +3,7 @@
 mod common;
 
 use netabase_store::traits::registery::repository::NetabaseRepository;
-use netabase_store_examples::MainRepository;
+use example::MainRepository;
 use std::fs;
 use std::path::PathBuf;
 

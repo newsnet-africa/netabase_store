@@ -1,6 +1,6 @@
 use netabase_store::relational::RelationalLink;
 use netabase_store::traits::migration::{MigrateFrom, MigrateTo};
-use netabase_store_examples::boilerplate_lib::{
+use example::boilerplate_lib::{
     AnotherLargeUserFile, CategoryID, LargeUserFile, User, UserID, UserV1,
 };
 

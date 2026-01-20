@@ -24,7 +24,7 @@
 //! Creating an employee user:
 //!
 //! ```
-//! use netabase_store_examples::repository_example::{User, UserID, Shift, ShiftID, Product, Report};
+//! use example::repository_example::{User, UserID, Shift, ShiftID, Product, Report};
 //! use netabase_store::relational::RelationalLink;
 //!
 //! let employee = User {

@@ -8,7 +8,7 @@ mod common;
 
 use netabase_store::errors::NetabaseResult;
 use netabase_store::traits::migration::{VersionContext, VersionHeader};
-use netabase_store_examples::{Definition, Post, PostID};
+use example::{Definition, Post, PostID};
 
 /// Helper to create a test Post
 fn create_post(id: &str, title: &str, content: &str, age: u32) -> Post {

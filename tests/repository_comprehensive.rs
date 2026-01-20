@@ -7,7 +7,7 @@ use netabase_store::databases::redb::repository::RedbRepositoryDefinitions;
 use netabase_store::errors::NetabaseResult;
 use netabase_store::traits::registery::repository::NetabaseRepository;
 
-use netabase_store_examples::{Category, CategoryID, Definition, MainRepository, User, UserID};
+use example::{Category, CategoryID, Definition, MainRepository, User, UserID};
 
 /// Test that the repository marker struct is generated correctly
 #[test]
@@ -31,7 +31,7 @@ fn test_definition_names() {
 /// Test that repository stores can create the folder structure
 #[test]
 fn test_repository_stores_creation() -> NetabaseResult<()> {
-    use netabase_store_examples::MainRepositoryStores;
+    use example::MainRepositoryStores;
 
     let temp_dir = std::env::temp_dir().join(format!(
         "netabase_repo_test_{}",
@@ -81,7 +81,7 @@ fn test_repository_stores_creation() -> NetabaseResult<()> {
 #[test]
 fn test_definition_stores_independent() -> NetabaseResult<()> {
     use netabase_store::relational::RelationalLink;
-    use netabase_store_examples::{AnotherLargeUserFile, LargeUserFile, MainRepositoryStores};
+    use example::{AnotherLargeUserFile, LargeUserFile, MainRepositoryStores};
 
     let temp_dir = std::env::temp_dir().join(format!(
         "netabase_repo_indep_test_{}",
@@ -155,7 +155,7 @@ fn test_standalone_definition_store() -> NetabaseResult<()> {
     let (store, db_path) = create_test_db::<Definition>("standalone_definition")?;
 
     use netabase_store::relational::RelationalLink;
-    use netabase_store_examples::{AnotherLargeUserFile, LargeUserFile};
+    use example::{AnotherLargeUserFile, LargeUserFile};
 
     // Create a user
     {

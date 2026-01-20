@@ -7,11 +7,11 @@ mod common;
 
 use netabase_store::relational::RelationalLink;
 use netabase_store::subscription_hash::{ModelHash, SubscriptionMerkleTree};
-use netabase_store_examples::boilerplate_lib::definition::{
+use example::boilerplate_lib::definition::{
     AnotherLargeUserFile, LargeUserFile, User, UserAge, UserCategory, UserFirstName, UserID,
     UserLastName, UserRelationalKeys, UserSecondaryKeys,
 };
-use netabase_store_examples::boilerplate_lib::{CategoryID, Definition};
+use example::boilerplate_lib::{CategoryID, Definition};
 
 #[test]
 fn test_primary_key_crud() -> Result<(), Box<dyn std::error::Error>> {

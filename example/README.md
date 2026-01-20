@@ -95,7 +95,7 @@ boilerplate/
 ### Basic CRUD
 
 ```rust
-use netabase_store_examples::*;
+use example::*;
 use netabase_store::prelude::*;
 use netabase_store::traits::database::store::NBStore;
 

@@ -23,7 +23,7 @@
 //! ## Creating Links
 //!
 //! ```rust,no_run
-//! use netabase_store::doc_examples::*;
+//! use netabase_store::doc_example::*;
 //! use netabase_store::relational::RelationalLink;
 //! use netabase_store::traits::registery::repository::Standalone;
 //!
@@ -157,7 +157,7 @@ where
 /// # Example
 ///
 /// ```rust,no_run
-/// use netabase_store::doc_examples::*;
+/// use netabase_store::doc_example::*;
 /// use netabase_store::relational::RelationalLink;
 /// use netabase_store::traits::registery::repository::Standalone;
 ///
@@ -166,7 +166,7 @@ where
 /// let link: RelationalLink<Standalone, ExampleDef, ExampleDef, Author> =
 ///     RelationalLink::new_dehydrated(author_id);
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub enum RelationalLink<'data, R, SourceD, TargetD, M>
 where
     R: NetabaseRepository,
@@ -194,17 +194,11 @@ where
         _source: SourceD::DebugName,
         _repo: std::marker::PhantomData<R>,
     },
-    /// Hydrated: Contains a borrowed reference to the model (application-controlled lifetime)
-    Hydrated {
-        primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary,
-        model: &'data M,
-        _source: SourceD::DebugName,
-        _repo: std::marker::PhantomData<R>,
-    },
     /// Borrowed: Contains both the primary key and a borrowed reference from AccessGuard
     /// Lifetime is tied to database transaction -> table -> AccessGuard chain
     Borrowed {
         primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary,
+        #[rkyv(with = rkyv::with::Inline)]
         model: &'data M,
         _source: SourceD::DebugName,
         _repo: std::marker::PhantomData<R>,
@@ -231,13 +225,11 @@ where
         let pk1 = match self {
             Self::Dehydrated { primary_key, .. } => primary_key,
             Self::Owned { primary_key, .. } => primary_key,
-            Self::Hydrated { primary_key, .. } => primary_key,
             Self::Borrowed { primary_key, .. } => primary_key,
         };
         let pk2 = match other {
             Self::Dehydrated { primary_key, .. } => primary_key,
             Self::Owned { primary_key, .. } => primary_key,
-            Self::Hydrated { primary_key, .. } => primary_key,
             Self::Borrowed { primary_key, .. } => primary_key,
         };
         pk1 == pk2
@@ -285,11 +277,6 @@ where
                 1u8.hash(state);
                 primary_key.hash(state);
             }
-            Self::Hydrated { primary_key, model, .. } => {
-                2u8.hash(state);
-                primary_key.hash(state);
-                model.hash(state);
-            }
             Self::Borrowed { primary_key, model, .. } => {
                 3u8.hash(state);
                 primary_key.hash(state);
@@ -319,21 +306,14 @@ where
             // Same variants: compare by primary key
             (Self::Dehydrated { primary_key: pk1, .. }, Self::Dehydrated { primary_key: pk2, .. }) => pk1.partial_cmp(pk2),
             (Self::Owned { primary_key: pk1, .. }, Self::Owned { primary_key: pk2, .. }) => pk1.partial_cmp(pk2),
-            (Self::Hydrated { primary_key: pk1, .. }, Self::Hydrated { primary_key: pk2, .. }) => pk1.partial_cmp(pk2),
             (Self::Borrowed { primary_key: pk1, .. }, Self::Borrowed { primary_key: pk2, .. }) => pk1.partial_cmp(pk2),
             // Different variants: order by variant (Dehydrated < Owned < Hydrated < Borrowed)
             (Self::Dehydrated { .. }, Self::Owned { .. }) => Some(std::cmp::Ordering::Less),
-            (Self::Dehydrated { .. }, Self::Hydrated { .. }) => Some(std::cmp::Ordering::Less),
             (Self::Dehydrated { .. }, Self::Borrowed { .. }) => Some(std::cmp::Ordering::Less),
             (Self::Owned { .. }, Self::Dehydrated { .. }) => Some(std::cmp::Ordering::Greater),
-            (Self::Owned { .. }, Self::Hydrated { .. }) => Some(std::cmp::Ordering::Less),
             (Self::Owned { .. }, Self::Borrowed { .. }) => Some(std::cmp::Ordering::Less),
-            (Self::Hydrated { .. }, Self::Dehydrated { .. }) => Some(std::cmp::Ordering::Greater),
-            (Self::Hydrated { .. }, Self::Owned { .. }) => Some(std::cmp::Ordering::Greater),
-            (Self::Hydrated { .. }, Self::Borrowed { .. }) => Some(std::cmp::Ordering::Less),
             (Self::Borrowed { .. }, Self::Dehydrated { .. }) => Some(std::cmp::Ordering::Greater),
             (Self::Borrowed { .. }, Self::Owned { .. }) => Some(std::cmp::Ordering::Greater),
-            (Self::Borrowed { .. }, Self::Hydrated { .. }) => Some(std::cmp::Ordering::Greater),
         }
     }
 }
@@ -358,21 +338,55 @@ where
             // Same variants: compare by primary key
             (Self::Dehydrated { primary_key: pk1, .. }, Self::Dehydrated { primary_key: pk2, .. }) => pk1.cmp(pk2),
             (Self::Owned { primary_key: pk1, .. }, Self::Owned { primary_key: pk2, .. }) => pk1.cmp(pk2),
-            (Self::Hydrated { primary_key: pk1, .. }, Self::Hydrated { primary_key: pk2, .. }) => pk1.cmp(pk2),
             (Self::Borrowed { primary_key: pk1, .. }, Self::Borrowed { primary_key: pk2, .. }) => pk1.cmp(pk2),
             // Different variants: order by variant (Dehydrated < Owned < Hydrated < Borrowed)
             (Self::Dehydrated { .. }, Self::Owned { .. }) => std::cmp::Ordering::Less,
-            (Self::Dehydrated { .. }, Self::Hydrated { .. }) => std::cmp::Ordering::Less,
             (Self::Dehydrated { .. }, Self::Borrowed { .. }) => std::cmp::Ordering::Less,
             (Self::Owned { .. }, Self::Dehydrated { .. }) => std::cmp::Ordering::Greater,
-            (Self::Owned { .. }, Self::Hydrated { .. }) => std::cmp::Ordering::Less,
             (Self::Owned { .. }, Self::Borrowed { .. }) => std::cmp::Ordering::Less,
-            (Self::Hydrated { .. }, Self::Dehydrated { .. }) => std::cmp::Ordering::Greater,
-            (Self::Hydrated { .. }, Self::Owned { .. }) => std::cmp::Ordering::Greater,
-            (Self::Hydrated { .. }, Self::Borrowed { .. }) => std::cmp::Ordering::Less,
             (Self::Borrowed { .. }, Self::Dehydrated { .. }) => std::cmp::Ordering::Greater,
             (Self::Borrowed { .. }, Self::Owned { .. }) => std::cmp::Ordering::Greater,
-            (Self::Borrowed { .. }, Self::Hydrated { .. }) => std::cmp::Ordering::Greater,
+        }
+    }
+}
+
+// Debug implementation
+impl<'data, R, SourceD, TargetD, M> std::fmt::Debug for RelationalLink<'data, R, SourceD, TargetD, M>
+where
+    R: NetabaseRepository,
+    SourceD: NetabaseDefinition + InRepository<R> + 'static,
+    SourceD::Discriminant: std::fmt::Debug,
+    TargetD: NetabaseDefinition + InRepository<R> + 'static,
+    TargetD::Discriminant: std::fmt::Debug,
+    M: crate::traits::registery::models::model::NetabaseModel<TargetD> + std::fmt::Debug,
+    <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary: std::fmt::Debug,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Dehydrated { primary_key, _source, .. } => {
+                f.debug_struct("RelationalLink::Dehydrated")
+                    .field("primary_key", primary_key)
+                    .field("source", _source)
+                    .finish()
+            }
+            Self::Owned { primary_key, model, _source, .. } => {
+                f.debug_struct("RelationalLink::Owned")
+                    .field("primary_key", primary_key)
+                    .field("model", model)
+                    .field("source", _source)
+                    .finish()
+            }
+            Self::Borrowed { primary_key, model, _source, .. } => {
+                f.debug_struct("RelationalLink::Borrowed")
+                    .field("primary_key", primary_key)
+                    .field("model", model)
+                    .field("source", _source)
+                    .finish()
+            }
         }
     }
 }
@@ -403,19 +417,6 @@ where
         }
     }
 
-    /// Create a new hydrated relational link with the model and primary key
-    #[inline]
-    pub fn new_hydrated(
-        primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary,
-        model: &'data M,
-    ) -> Self {
-        Self::Hydrated {
-            primary_key,
-            model,
-            _source: SourceD::debug_name(),
-            _repo: std::marker::PhantomData,
-        }
-    }
 
     /// Create a new owned relational link with a Box-owned model
     /// This variant owns the model completely and has no lifetime dependencies
@@ -455,17 +456,10 @@ where
         match self {
             Self::Dehydrated { primary_key, .. } => primary_key,
             Self::Owned { primary_key, .. } => primary_key,
-            Self::Hydrated { primary_key, .. } => primary_key,
             Self::Borrowed { primary_key, .. } => primary_key,
         }
     }
 
-    /// Check if this relation is currently hydrated (contains model data)
-    /// Returns true for Owned, Hydrated, and Borrowed variants
-    #[inline]
-    pub fn is_hydrated(&self) -> bool {
-        matches!(self, Self::Owned { .. } | Self::Hydrated { .. } | Self::Borrowed { .. })
-    }
 
     /// Check if this relation is dehydrated (contains only primary key)
     #[inline]
@@ -501,7 +495,6 @@ where
     pub fn get_model(&self) -> Option<&M> {
         match self {
             Self::Owned { model, .. } => Some(model.as_ref()),
-            Self::Hydrated { model, .. } => Some(model),
             Self::Borrowed { model, .. } => Some(model),
             Self::Dehydrated { .. } => None,
         }
@@ -522,7 +515,6 @@ where
         let primary_key = match self {
             Self::Dehydrated { primary_key, .. } => primary_key,
             Self::Owned { primary_key, .. } => primary_key,
-            Self::Hydrated { primary_key, .. } => primary_key,
             Self::Borrowed { primary_key, .. } => primary_key,
         };
         Self::Dehydrated {
@@ -532,22 +524,6 @@ where
         }
     }
 
-    /// Convert a dehydrated relation to hydrated by providing the model data
-    #[inline]
-    pub fn hydrate_with_model(self, model: &'data M) -> Self {
-        let primary_key = match self {
-            Self::Dehydrated { primary_key, .. } => primary_key,
-            Self::Owned { primary_key, .. } => primary_key,
-            Self::Hydrated { primary_key, .. } => primary_key,
-            Self::Borrowed { primary_key, .. } => primary_key,
-        };
-        Self::Hydrated {
-            primary_key,
-            model,
-            _source: SourceD::debug_name(),
-            _repo: std::marker::PhantomData,
-        }
-    }
 
     /// Convert a hydrated or borrowed relation back to dehydrated
     #[inline]
@@ -555,7 +531,6 @@ where
         let primary_key = match self {
             Self::Dehydrated { primary_key, .. } => primary_key,
             Self::Owned { primary_key, .. } => primary_key,
-            Self::Hydrated { primary_key, .. } => primary_key,
             Self::Borrowed { primary_key, .. } => primary_key,
         };
         Self::Dehydrated {
@@ -616,7 +591,6 @@ where
         match self {
             Self::Dehydrated { primary_key, .. }
             | Self::Owned { primary_key, .. }
-            | Self::Hydrated { primary_key, .. }
             | Self::Borrowed { primary_key, .. } => {
                 primary_key.serialize(serializer)
             }

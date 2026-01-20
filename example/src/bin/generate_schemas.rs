@@ -1,10 +1,10 @@
 //! Generate repository.toml files for all repositories in the examples
 
 use netabase_store::prelude::NetabaseDefinition;
-use netabase_store_examples::MainRepository;
-use netabase_store_examples::repository_example::{EmployeeRepo, ManagerRepo};
-use netabase_store_examples::simple_definition::SimpleDefinition;
-use netabase_store_examples::simple_repo_example::simple_definition;
+use example::MainRepository;
+use example::repository_example::{EmployeeRepo, ManagerRepo};
+use example::simple_definition::SimpleDefinition;
+use example::simple_repo_example::simple_definition;
 
 use std::fs;
 use std::path::Path;

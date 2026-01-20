@@ -1,13 +1,13 @@
 use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main};
 use netabase_store::databases::redb::transaction::RedbModelCrud;
 use netabase_store::relational::RelationalLink;
-use netabase_store_examples::boilerplate_lib::definition::{
+use example::boilerplate_lib::definition::{
     HeavyModel, HeavyModelID, User, UserID,
 };
-use netabase_store_examples::boilerplate_lib::models::blob_types::{
+use example::boilerplate_lib::models::blob_types::{
     AnotherLargeUserFile, HeavyAttachment, LargeUserFile,
 };
-use netabase_store_examples::boilerplate_lib::{CategoryID, Definition, DefinitionSubscriptions};
+use example::boilerplate_lib::{CategoryID, Definition, DefinitionSubscriptions};
 use rand::prelude::*;
 use std::hint::black_box;
 

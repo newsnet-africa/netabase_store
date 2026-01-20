@@ -24,7 +24,7 @@
 //! Using the pre-built example types:
 //!
 //! ```rust
-//! use netabase_store::doc_examples::*;
+//! use netabase_store::doc_example::*;
 //! use netabase_store::traits::registery::definition::NetabaseDefinition;
 //!
 //! // ExampleDef provides User, Product, Author, Book models
@@ -74,7 +74,7 @@
 //! # Example Structure
 //!
 //! ```rust
-//! use netabase_store::doc_examples::*;
+//! use netabase_store::doc_example::*;
 //! use netabase_store::traits::registery::definition::NetabaseDefinition;
 //!
 //! // ExampleDef contains User, Product, Author, Book
@@ -135,7 +135,7 @@ use crate::traits::registery::models::{
 /// # Example Usage
 ///
 /// ```rust
-/// use netabase_store::doc_examples::*;
+/// use netabase_store::doc_example::*;
 /// use netabase_store::traits::registery::definition::NetabaseDefinition;
 ///
 /// // Access the schema from doc_examples

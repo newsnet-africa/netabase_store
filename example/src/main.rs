@@ -3,16 +3,16 @@
 // Now fully powered by macros! The entire boilerplate is generated automatically.
 // Run with: cargo run --bin netabase_store_examples
 
-use netabase_store::blob::NetabaseBlobItem;
-use netabase_store::relational::RelationalLink;
-use netabase_store::traits::registery::definition::NetabaseDefinition;
-use netabase_store::traits::registery::models::model::NetabaseModel;
-use netabase_store_examples::boilerplate_lib::definition::{AnotherLargeUserFile, LargeUserFile};
-use netabase_store_examples::boilerplate_lib::{
+use example::boilerplate_lib::definition::{AnotherLargeUserFile, LargeUserFile};
+use example::boilerplate_lib::{
     Category, CategoryID, Definition, DefinitionKeys, DefinitionSubscriptions, DefinitionTreeName,
     DefinitionTreeNames, DefinitionTwo, DefinitionTwoTreeName, Post, PostID, User, UserBlobKeys,
     UserID, UserKeys,
 };
+use netabase_store::blob::NetabaseBlobItem;
+use netabase_store::relational::RelationalLink;
+use netabase_store::traits::registery::definition::NetabaseDefinition;
+use netabase_store::traits::registery::models::model::NetabaseModel;
 
 fn main() {
     println!("Netabase Store - Boilerplate Example");
@@ -95,7 +95,7 @@ fn main() {
 
     // Test reconstruction
     println!("\nUser blob reconstruction test:");
-    let bio_blob_items: Vec<netabase_store_examples::boilerplate_lib::UserBlobItem> = blob_entries
+    let bio_blob_items: Vec<example::boilerplate_lib::UserBlobItem> = blob_entries
         .iter()
         .filter(|(k, _)| matches!(k, UserBlobKeys::Bio { .. }))
         .map(|(_, v)| v.clone())
@@ -110,12 +110,11 @@ fn main() {
         reconstructed_bio.data == alice_bio_data
     );
 
-    let another_blob_items: Vec<netabase_store_examples::boilerplate_lib::UserBlobItem> =
-        blob_entries
-            .iter()
-            .filter(|(k, _)| matches!(k, UserBlobKeys::Another { .. }))
-            .map(|(_, v)| v.clone())
-            .collect();
+    let another_blob_items: Vec<example::boilerplate_lib::UserBlobItem> = blob_entries
+        .iter()
+        .filter(|(k, _)| matches!(k, UserBlobKeys::Another { .. }))
+        .map(|(_, v)| v.clone())
+        .collect();
     let reconstructed_another = AnotherLargeUserFile::reconstruct_from_blobs(another_blob_items);
     println!(
         "  - Reconstructed another length: {}",
@@ -230,7 +229,6 @@ fn main() {
         User,
     >::new_dehydrated(user_id.clone());
     println!("1. Dehydrated link:");
-    println!("  - is_hydrated: {}", dehydrated.is_hydrated());
     println!("  - is_owned: {}", dehydrated.is_owned());
     println!("  - is_borrowed: {}", dehydrated.is_borrowed());
     println!("  - is_dehydrated: {}", dehydrated.is_dehydrated());
@@ -257,7 +255,6 @@ fn main() {
         User,
     >::new_owned(UserID("user2".to_string()), owned_user);
     println!("\n2. Owned link:");
-    println!("  - is_hydrated: {}", owned.is_hydrated());
     println!("  - is_owned: {}", owned.is_owned());
     println!("  - is_borrowed: {}", owned.is_borrowed());
     println!(
@@ -268,25 +265,7 @@ fn main() {
     );
     println!("  - model age: {:?}", owned.get_model().map(|u| u.age));
 
-    // 3. Hydrated - Requires 'data lifetime
-    let hydrated = RelationalLink::<
-        netabase_store::traits::registery::repository::Standalone,
-        Definition,
-        Definition,
-        User,
-    >::new_hydrated(user_id.clone(), &user);
-    println!("\n3. Hydrated link:");
-    println!("  - is_hydrated: {}", hydrated.is_hydrated());
-    println!("  - is_owned: {}", hydrated.is_owned());
-    println!("  - is_borrowed: {}", hydrated.is_borrowed());
-    println!(
-        "  - model name: {:?}",
-        hydrated
-            .get_model()
-            .map(|u| format!("{} {}", u.first_name, u.last_name))
-    );
-
-    // 4. Borrowed (simulated - in real usage from AccessGuard)
+    // 3. Borrowed (simulated - in real usage from AccessGuard)
     let borrowed = RelationalLink::<
         netabase_store::traits::registery::repository::Standalone,
         Definition,
@@ -294,7 +273,6 @@ fn main() {
         User,
     >::new_borrowed(user_id.clone(), &user);
     println!("\n4. Borrowed link:");
-    println!("  - is_hydrated: {}", borrowed.is_hydrated());
     println!("  - is_owned: {}", borrowed.is_owned());
     println!("  - is_borrowed: {}", borrowed.is_borrowed());
     println!(
@@ -364,12 +342,6 @@ fn main() {
         }, // 125KB -> 3 blobs
         another: AnotherLargeUserFile(vec![7u8; 2_000]),
     };
-    let test_hydrated = RelationalLink::<
-        netabase_store::traits::registery::repository::Standalone,
-        Definition,
-        Definition,
-        User,
-    >::new_hydrated(UserID("test".to_string()), &test_user);
     let test_borrowed = RelationalLink::<
         netabase_store::traits::registery::repository::Standalone,
         Definition,
@@ -378,8 +350,6 @@ fn main() {
     >::new_borrowed(UserID("test".to_string()), &test_user);
 
     println!("  - Dehydrated < Owned: {}", test_dehydrated < test_owned);
-    println!("  - Owned < Hydrated: {}", test_owned < test_hydrated);
-    println!("  - Hydrated < Borrowed: {}", test_hydrated < test_borrowed);
 
     println!("\n=== Subscription Registry Demo ===");
     let reg = &<Definition as NetabaseDefinition>::SUBSCRIPTION_REGISTRY;

@@ -11,7 +11,7 @@ mod common;
 use netabase_store::errors::NetabaseResult;
 use netabase_store::query::{QueryConfig, QueryResult};
 
-use netabase_store_examples::{Definition, Post, PostID};
+use example::{Definition, Post, PostID};
 
 /// Helper to create a test Post
 fn create_post(id: &str, title: &str, content: &str, published: bool) -> Post {

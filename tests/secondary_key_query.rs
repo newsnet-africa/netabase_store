@@ -3,11 +3,11 @@
 mod common;
 
 use netabase_store::relational::RelationalLink;
-use netabase_store_examples::boilerplate_lib::definition::{
+use example::boilerplate_lib::definition::{
     AnotherLargeUserFile, LargeUserFile, User, UserID, UserSecondaryKeys,
     UserFirstName, UserAge,
 };
-use netabase_store_examples::boilerplate_lib::{CategoryID, Definition};
+use example::boilerplate_lib::{CategoryID, Definition};
 
 #[test]
 fn test_secondary_key_query_basic() -> Result<(), Box<dyn std::error::Error>> {

@@ -55,7 +55,7 @@
 //! ## Basic CRUD Operations
 //!
 //! ```rust
-//! use netabase_store::doc_examples::*;
+//! use netabase_store::doc_example::*;
 //! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
 //!
@@ -118,7 +118,7 @@
 //! ## Working with Relational Links
 //!
 //! ```rust
-//! use netabase_store::doc_examples::*;
+//! use netabase_store::doc_example::*;
 //! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
 //! use netabase_store::relational::RelationalLink;
