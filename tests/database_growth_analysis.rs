@@ -15,7 +15,8 @@ use std::fs;
 
 #[test]
 fn database_growth_analysis() -> Result<(), Box<dyn std::error::Error>> {
-    let db_path = PathBuf::from("/tmp/netabase_growth_test");
+    let mut db_path = std::env::temp_dir();
+    db_path.push(format!("netabase_growth_test_{}", std::process::id()));
     
     println!("\n=== DATABASE GROWTH ANALYSIS ===\n");
     

@@ -532,28 +532,29 @@ where
             }
 
             // 3. Update Relational Tables
-            use std::collections::HashSet;
-            let old_relational: HashSet<_> = old_model.get_relational_keys().into_iter().collect();
-            let new_relational: HashSet<_> = self.get_relational_keys().into_iter().collect();
+            let old_relational = old_model.get_relational_keys();
+            let new_relational = self.get_relational_keys();
 
-            if old_relational != new_relational {
-                // Find keys to remove
-                for key_to_remove in old_relational.difference(&new_relational) {
-                    for (table_perm, _) in tables.relational.iter_mut() {
-                        if let TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) = table_perm {
-                            let _ = table.remove(primary_key.borrow(), key_to_remove.borrow());
-                        }
-                    }
-                }
+            for (((table_perm, _name), old_key), new_key) in tables.relational.iter_mut()
+                .zip(old_relational.into_iter())
+                .zip(new_relational.into_iter())
+            {
+                match table_perm {
+                    TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                        let old_k = old_key;
+                        let new_k = new_key;
 
-                // Find keys to add
-                for key_to_add in new_relational.difference(&old_relational) {
-                    for (table_perm, _) in tables.relational.iter_mut() {
-                         if let TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) = table_perm {
-                            table.insert(primary_key.borrow(), key_to_add.borrow())
+                        if old_k != new_k {
+                            // Remove old relation
+                            table.remove(primary_key.borrow(), old_k.borrow())
+                                .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                            
+                            // Add new relation
+                            table.insert(primary_key.borrow(), new_k.borrow())
                                 .map_err(|e| NetabaseError::RedbError(e.into()))?;
                         }
                     }
+                    _ => return Err(NetabaseError::Other),
                 }
             }
 

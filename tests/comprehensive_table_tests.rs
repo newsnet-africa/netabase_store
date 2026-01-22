@@ -429,12 +429,27 @@ fn test_index_maintenance_on_update() -> Result<(), Box<dyn std::error::Error>> 
         assert_eq!(by_name.len(), 1);
 
         let rels = txn.query_relations::<User>(&user_id)?;
-        assert_eq!(rels.len(), 1);
+        // User has 2 relational fields: 'partner' and 'category'. Even if 'partner' is "none", it's still a link.
+        assert_eq!(rels.len(), 2, "Should have 2 relations (category and partner)");
         assert!(
             rels.iter().any(
                 |r| r == &UserRelationalKeys::Category(UserCategory(CategoryID("cat1".into())))
             )
         );
+
+        // Test query_relations_by_type (filtering)
+        use strum::IntoDiscriminant;
+        
+        // Construct a dummy key to get the discriminant
+        let dummy_cat_key = UserRelationalKeys::Category(UserCategory(CategoryID("dummy".into())));
+        let cat_discriminant = dummy_cat_key.discriminant();
+        
+        let cat_rels = txn.query_relations_by_type::<User>(
+            &user_id, 
+            cat_discriminant
+        )?;
+        assert_eq!(cat_rels.len(), 1, "Should find exactly 1 Category relation");
+        assert_eq!(cat_rels[0], UserRelationalKeys::Category(UserCategory(CategoryID("cat1".into()))));
     }
 
     // Update - change secondary and relational keys
@@ -458,13 +473,24 @@ fn test_index_maintenance_on_update() -> Result<(), Box<dyn std::error::Error>> 
 
         // Verify relations updated
         let rels = txn.query_relations::<User>(&user_id)?;
-        assert_eq!(rels.len(), 1, "Should have exactly 1 relation");
+        assert_eq!(rels.len(), 2, "Should have 2 relations");
         assert!(
             rels.iter().any(
                 |r| r == &UserRelationalKeys::Category(UserCategory(CategoryID("cat2".into())))
             )
         );
-        // Implicitly verifies old one is gone because len == 1
+        
+        // Verify via filtered query
+        use strum::IntoDiscriminant;
+        let dummy_cat_key = UserRelationalKeys::Category(UserCategory(CategoryID("dummy".into())));
+        let cat_discriminant = dummy_cat_key.discriminant();
+
+        let cat_rels = txn.query_relations_by_type::<User>(
+            &user_id, 
+            cat_discriminant
+        )?;
+        assert_eq!(cat_rels.len(), 1);
+        assert_eq!(cat_rels[0], UserRelationalKeys::Category(UserCategory(CategoryID("cat2".into()))));
     }
 
     // Verify new indexes added (Secondary)

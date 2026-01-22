@@ -200,6 +200,8 @@ pub use postcard;
 pub mod blob;
 pub mod databases;
 pub mod doc_examples;
+// Re-export for compatibility with docs using singular form
+pub use doc_examples as doc_example;
 pub mod errors;
 pub mod prelude;
 pub mod query;

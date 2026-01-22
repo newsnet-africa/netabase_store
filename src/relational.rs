@@ -166,7 +166,7 @@ where
 /// let link: RelationalLink<Standalone, ExampleDef, ExampleDef, Author> =
 ///     RelationalLink::new_dehydrated(author_id);
 /// ```
-#[derive(Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Clone)]
 pub enum RelationalLink<'data, R, SourceD, TargetD, M>
 where
     R: NetabaseRepository,
@@ -198,7 +198,6 @@ where
     /// Lifetime is tied to database transaction -> table -> AccessGuard chain
     Borrowed {
         primary_key: <M::Keys as crate::traits::registery::models::keys::NetabaseModelKeys<TargetD, M>>::Primary,
-        #[rkyv(with = rkyv::with::Inline)]
         model: &'data M,
         _source: SourceD::DebugName,
         _repo: std::marker::PhantomData<R>,

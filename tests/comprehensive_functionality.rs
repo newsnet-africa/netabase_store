@@ -253,8 +253,7 @@ fn test_crud_update_model_full_verification() -> NetabaseResult<()> {
             "Partner should be updated"
         );
         assert_eq!(
-            user.bio.data,
-            b"Updated blob",
+            user.bio.data, b"Updated blob",
             "Blob data should be updated"
         );
         assert_eq!(
@@ -452,7 +451,6 @@ fn test_relational_links_all_variants() -> NetabaseResult<()> {
 
     assert!(dehydrated.is_dehydrated(), "Should be dehydrated");
     assert!(!dehydrated.is_owned(), "Should not be owned");
-    assert!(!dehydrated.is_hydrated(), "Should not be hydrated");
     assert!(!dehydrated.is_borrowed(), "Should not be borrowed");
 
     assert_eq!(
@@ -476,10 +474,6 @@ fn test_relational_links_all_variants() -> NetabaseResult<()> {
 
     assert!(!owned.is_dehydrated(), "Should not be dehydrated");
     assert!(owned.is_owned(), "Should be owned");
-    assert!(
-        owned.is_hydrated(),
-        "Owned is hydrated (contains model data)"
-    );
     assert!(!owned.is_borrowed(), "Should not be borrowed");
 
     assert_eq!(
@@ -511,37 +505,7 @@ fn test_relational_links_all_variants() -> NetabaseResult<()> {
 
     println!("✓ Owned variant verified");
 
-    // === Variant 3: Hydrated ===
-    println!("\n--- Testing Hydrated variant ---");
-    let hydrated = RelationalLink::<Standalone, Definition, Definition, User>::new_hydrated(
-        partner_id.clone(),
-        &partner,
-    );
-
-    assert!(!hydrated.is_dehydrated(), "Should not be dehydrated");
-    assert!(!hydrated.is_owned(), "Should not be owned");
-    assert!(hydrated.is_hydrated(), "Should be hydrated");
-    assert!(!hydrated.is_borrowed(), "Should not be borrowed");
-
-    assert_eq!(
-        hydrated.get_primary_key().0,
-        "partner_123",
-        "Primary key should be accessible"
-    );
-    assert!(
-        hydrated.get_model().is_some(),
-        "Hydrated should have model accessible"
-    );
-
-    let model_ref = hydrated.get_model().unwrap();
-    assert_eq!(
-        model_ref.first_name, "Bob Partner",
-        "Model data should be accessible via reference"
-    );
-
-    println!("✓ Hydrated variant verified");
-
-    // === Variant 4: Borrowed (simulated) ===
+    // === Variant 3: Borrowed (simulated) ===
     println!("\n--- Testing Borrowed variant ---");
     let borrowed = RelationalLink::<Standalone, Definition, Definition, User>::new_borrowed(
         partner_id.clone(),
@@ -550,10 +514,6 @@ fn test_relational_links_all_variants() -> NetabaseResult<()> {
 
     assert!(!borrowed.is_dehydrated(), "Should not be dehydrated");
     assert!(!borrowed.is_owned(), "Should not be owned");
-    assert!(
-        borrowed.is_hydrated(),
-        "Borrowed is hydrated (contains model data)"
-    );
     assert!(borrowed.is_borrowed(), "Should be borrowed");
 
     assert_eq!(
@@ -589,13 +549,6 @@ fn test_relational_links_all_variants() -> NetabaseResult<()> {
         "Primary key preserved in conversion"
     );
 
-    // Convert hydrated to dehydrated
-    let dehydrated_from_hydrated = hydrated.clone().dehydrate();
-    assert!(
-        dehydrated_from_hydrated.is_dehydrated(),
-        "Hydrated to dehydrated conversion should work"
-    );
-
     // Convert borrowed to dehydrated
     let dehydrated_from_borrowed = borrowed.clone().dehydrate();
     assert!(
@@ -627,18 +580,12 @@ fn test_relational_links_all_variants() -> NetabaseResult<()> {
         test_id.clone(),
         test_user.clone(),
     );
-    let hydr = RelationalLink::<Standalone, Definition, Definition, User>::new_hydrated(
-        test_id.clone(),
-        &test_user,
-    );
     let borr = RelationalLink::<Standalone, Definition, Definition, User>::new_borrowed(
         test_id.clone(),
         &test_user,
     );
 
     assert!(dehy < own, "Dehydrated < Owned");
-    assert!(own < hydr, "Owned < Hydrated");
-    assert!(hydr < borr, "Hydrated < Borrowed");
 
     println!("✓ Variant ordering verified");
 
@@ -1275,10 +1222,7 @@ fn test_subscriptions_storage_and_retrieval() -> NetabaseResult<()> {
                 id
             );
 
-            println!(
-                "  ✓ {} verified: subscriptions OK",
-                id,
-            );
+            println!("  ✓ {} verified: subscriptions OK", id,);
         }
     }
     txn.commit()?;
