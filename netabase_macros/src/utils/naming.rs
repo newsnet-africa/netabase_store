@@ -86,6 +86,9 @@ pub fn definition_tree_names_enum_name(definition_name: &Ident) -> Ident {
 pub fn definition_keys_enum_name(definition_name: &Ident) -> Ident {
     quote::format_ident!("{}Keys", definition_name)
 }
+pub fn blob_item_keys_name(field_name: &Ident) -> Ident {
+    quote::format_ident!("{}Keys", field_name)
+}
 
 /// Generate table name string for database tables
 pub fn table_name(

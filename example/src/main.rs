@@ -95,10 +95,18 @@ fn main() {
 
     // Test reconstruction
     println!("\nUser blob reconstruction test:");
-    let bio_blob_items: Vec<example::boilerplate_lib::UserBlobItem> = blob_entries
+    let bio_blob_items: Vec<_> = blob_entries
         .iter()
-        .filter(|(k, _)| matches!(k, UserBlobKeys::Bio { .. }))
-        .map(|(_, v)| v.clone())
+        .filter_map(|(k, v)| {
+            if matches!(k, UserBlobKeys::Bio { .. }) {
+                match v {
+                    example::boilerplate_lib::UserBlobItem::Bio(inner) => Some(inner.clone()),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        })
         .collect();
     let reconstructed_bio = LargeUserFile::reconstruct_from_blobs(bio_blob_items);
     println!(
@@ -110,10 +118,18 @@ fn main() {
         reconstructed_bio.data == alice_bio_data
     );
 
-    let another_blob_items: Vec<example::boilerplate_lib::UserBlobItem> = blob_entries
+    let another_blob_items: Vec<_> = blob_entries
         .iter()
-        .filter(|(k, _)| matches!(k, UserBlobKeys::Another { .. }))
-        .map(|(_, v)| v.clone())
+        .filter_map(|(k, v)| {
+            if matches!(k, UserBlobKeys::Another { .. }) {
+                match v {
+                    example::boilerplate_lib::UserBlobItem::Another(inner) => Some(inner.clone()),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        })
         .collect();
     let reconstructed_another = AnotherLargeUserFile::reconstruct_from_blobs(another_blob_items);
     println!(

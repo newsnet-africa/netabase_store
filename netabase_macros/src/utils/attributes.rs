@@ -1,4 +1,6 @@
-use syn::{Attribute, Error, Meta, Path, Result};
+use std::iter::Filter;
+
+use syn::{Attribute, Data, Error, Field, Fields, Ident, Meta, Path, Result, Variant};
 
 /// Utilities for parsing field and item attributes
 
@@ -555,5 +557,18 @@ pub fn get_version_info(attrs: &[Attribute]) -> Result<Option<VersionAttributeCo
         Ok(Some(parse_version_attribute(attr)?))
     } else {
         Ok(None)
+    }
+}
+
+pub fn get_data_fields<'d, F>(data: &'d Data, predicate: F) -> (Vec<&'d Field>, Vec<&'d Field>)
+where
+    F: Fn(&&'d Field) -> bool,
+{
+    match data {
+        Data::Struct(data_struct) => {
+            return data_struct.fields.iter().partition(&predicate);
+        }
+        Data::Enum(data_enum) => panic!("Enums are not supported"),
+        Data::Union(data_union) => panic!("Unions are not supported"),
     }
 }

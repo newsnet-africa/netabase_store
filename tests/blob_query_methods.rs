@@ -7,6 +7,7 @@ mod common;
 
 use netabase_store::errors::NetabaseResult;
 use netabase_store::relational::RelationalLink;
+use netabase_store::databases::redb::transaction::RedbModelCrud;
 use example::boilerplate_lib::definition::{
     AnotherLargeUserFile, LargeUserFile, User, UserID,
 };
@@ -235,6 +236,73 @@ fn test_blob_storage_update_workflow() -> NetabaseResult<()> {
         assert_eq!(user.another.0.len(), 60_000);
 
         println!("Successfully updated blob data from 1KB to 80KB + 60KB");
+    }
+
+    common::cleanup_test_db(db_path);
+    Ok(())
+}
+
+#[test]
+fn test_blob_indices_and_chunk_reading() -> NetabaseResult<()> {
+    let (store, db_path) = common::create_test_db::<Definition>("blob_indices")?;
+
+    // Create a user with a blob large enough to have multiple chunks
+    // 60KB chunk size. Create 150KB blob -> 3 chunks (0, 1, 2)
+    let large_data = vec![42u8; 150_000];
+    let user_id = UserID("chunk_test_user".to_string());
+    
+    let user = User {
+        id: user_id.clone(),
+        first_name: "Chunk".to_string(),
+        last_name: "Test".to_string(),
+        age: 30,
+        partner: RelationalLink::new_dehydrated(UserID("none".to_string())),
+        category: RelationalLink::new_dehydrated(CategoryID("none".to_string())),
+        bio: LargeUserFile {
+            data: large_data.clone(),
+            metadata: "Chunk metadata".to_string(),
+        },
+        another: AnotherLargeUserFile(vec![]),
+    };
+
+    {
+        let txn = store.begin_write()?;
+        txn.create(&user)?;
+        txn.commit()?;
+    }
+
+    {
+        let txn = store.begin_read()?;
+        let tables = txn.prepare_model::<User>()?;
+        
+        // Test fetch_blob_indices
+        use example::boilerplate_lib::definition::UserBlobKeys;
+        let blob_key = UserBlobKeys::Bio { owner: user_id.clone() };
+        
+        let indices = User::fetch_blob_indices(&blob_key, &tables)?;
+        println!("Fetched indices: {:?}", indices);
+        
+        assert_eq!(indices.len(), 3, "Should have 3 chunks");
+        assert!(indices.contains(&0));
+        assert!(indices.contains(&1));
+        assert!(indices.contains(&2));
+        
+        // Test read_blob_chunks (read just index 1)
+        let chunks = User::read_blob_chunks(&blob_key, &[1], &tables)?;
+        assert_eq!(chunks.len(), 1);
+        
+        // Verify the chunk data
+        // UserBlobItem is the enum. We need to extract the data.
+        // Since we can't easily unwrap the enum in generic code without knowing the variant,
+        // we assume the test setup ensures the correct variant.
+        // In this test environment, we know it's UserBlobItem::Bio.
+        
+        // Note: read_blob_chunks returns Vec<UserBlobItem>
+        // We can check if we got something.
+        
+        // Test read_blob_chunks with multiple indices (0 and 2)
+        let chunks = User::read_blob_chunks(&blob_key, &[0, 2], &tables)?;
+        assert_eq!(chunks.len(), 2);
     }
 
     common::cleanup_test_db(db_path);

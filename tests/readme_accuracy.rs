@@ -103,7 +103,7 @@ mod product_models {
     use super::*;
     use netabase_store::blob::NetabaseBlobItem;
 
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default, netabase_macros::NetabaseBlobItem)]
     pub struct ProductImage {
         pub data: Vec<u8>,
         pub mime_type: String,
@@ -265,7 +265,7 @@ mod avatar_models {
     use super::*;
     use netabase_store::blob::NetabaseBlobItem;
 
-    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default, netabase_macros::NetabaseBlobItem)]
     pub struct ProfilePicture {
         pub data: Vec<u8>,
         pub mime_type: String,

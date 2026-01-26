@@ -333,13 +333,11 @@ impl<'a> SerializationGenerator<'a> {
 
     /// Generate blob trait implementations
     /// Generates NetabaseBlobItem implementations for:
-    /// 1. Each user-defined blob type (with type Blobs = BlobItem enum)
-    /// 2. The BlobItem enum itself
+    /// 1. The BlobItem enum itself (as a passthrough wrapper for chunks)
     pub fn generate_blob_traits(&self) -> TokenStream {
         let model_name = &self.visitor.model_name;
         let blob_item_enum = blob_item_enum_name(model_name);
-        let mut output = TokenStream::new();
-
+        
         // If no blob fields, generate empty impl for the struct
         if self.visitor.blob_fields.is_empty() {
             return quote! {
@@ -353,45 +351,16 @@ impl<'a> SerializationGenerator<'a> {
                     fn reconstruct_from_blobs(_blobs: Vec<Self::Blobs>) -> Self {
                         #blob_item_enum
                     }
-
-                    fn wrap_blob(_index: u8, _data: Vec<u8>) -> Self::Blobs {
-                        #blob_item_enum
-                    }
-
-                    fn unwrap_blob(_blob: &Self::Blobs) -> Option<(u8, Vec<u8>)> {
+                    
+                    fn get_blob_index(&self) -> Option<u8> {
                         None
                     }
                 }
             };
         }
 
-        // Generate NetabaseBlobItem impl for each blob field type
-        for field in &self.visitor.blob_fields {
-            let field_type = &field.ty;
-            let variant_name = to_pascal_case(&field.name.to_string());
-            let variant_ident = syn::Ident::new(&variant_name, field.name.span());
-
-            output.extend(quote! {
-                impl netabase_store::blob::NetabaseBlobItem for #field_type {
-                    type Blobs = #blob_item_enum;
-
-                    fn wrap_blob(index: u8, data: Vec<u8>) -> Self::Blobs {
-                        #blob_item_enum::#variant_ident { index, value: data }
-                    }
-
-                    fn unwrap_blob(blob: &Self::Blobs) -> Option<(u8, Vec<u8>)> {
-                        if let #blob_item_enum::#variant_ident { index, value } = blob {
-                            Some((*index, value.clone()))
-                        } else {
-                            None
-                        }
-                    }
-                }
-            });
-        }
-
-        // Generate impl for the BlobItem enum itself
-        let reconstruct_arms: Vec<_> = self
+        // Generate match arms for get_blob_index
+        let get_index_arms: Vec<_> = self
             .visitor
             .blob_fields
             .iter()
@@ -400,12 +369,14 @@ impl<'a> SerializationGenerator<'a> {
                 let variant_ident = syn::Ident::new(&variant_name, field.name.span());
 
                 quote! {
-                    #blob_item_enum::#variant_ident { .. } => blobs.into_iter().next().unwrap()
+                    #blob_item_enum::#variant_ident(inner) => inner.get_blob_index()
                 }
             })
             .collect();
 
-        output.extend(quote! {
+        // Generate impl for the BlobItem enum itself
+        // The enum itself IS the chunk, so it splits into itself
+        quote! {
             impl netabase_store::blob::NetabaseBlobItem for #blob_item_enum {
                 type Blobs = Self;
 
@@ -414,25 +385,16 @@ impl<'a> SerializationGenerator<'a> {
                 }
 
                 fn reconstruct_from_blobs(mut blobs: Vec<Self::Blobs>) -> Self {
-                    match blobs.first() {
-                        Some(first) => match first {
-                            #(#reconstruct_arms),*
-                        }
-                        None => panic!("Cannot reconstruct from empty blob list"),
+                    blobs.into_iter().next().expect("Cannot reconstruct from empty blob list")
+                }
+                
+                fn get_blob_index(&self) -> Option<u8> {
+                    match self {
+                        #(#get_index_arms),*
                     }
                 }
-
-                fn wrap_blob(_index: u8, _data: Vec<u8>) -> Self::Blobs {
-                    panic!("Cannot wrap blob directly on enum")
-                }
-
-                fn unwrap_blob(_blob: &Self::Blobs) -> Option<(u8, Vec<u8>)> {
-                    panic!("Cannot unwrap blob directly on enum")
-                }
             }
-        });
-
-        output
+        }
     }
 }
 

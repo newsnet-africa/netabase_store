@@ -212,7 +212,7 @@ pub fn netabase(attr: TokenStream, item: TokenStream) -> TokenStream {
         .into()
 }
 
-#[proc_macro_derive(NetabaseBlobItem)]
+#[proc_macro_derive(NetabaseBlobItem, attributes(blob, blob_as))]
 pub fn netabase_blob_item(input: TokenStream) -> TokenStream {
     macros::netabase_blob_item::netabase_blob_item_derive(input.into())
         .unwrap_or_else(|err| err.to_compile_error())

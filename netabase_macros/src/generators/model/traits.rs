@@ -399,7 +399,7 @@ impl<'a> TraitGenerator<'a> {
                             for blob in self.inner.#field_name.split_into_blobs() {
                                 entries.push((
                                     #blob_keys_enum::#variant_ident { owner: self.get_primary_key() },
-                                    blob
+                                    #blob_item_enum::#variant_ident(blob)
                                 ));
                             }
                             entries
@@ -412,7 +412,7 @@ impl<'a> TraitGenerator<'a> {
                             for blob in self.#field_name.split_into_blobs() {
                                 entries.push((
                                     #blob_keys_enum::#variant_ident { owner: self.get_primary_key() },
-                                    blob
+                                    #blob_item_enum::#variant_ident(blob)
                                 ));
                             }
                             entries

@@ -102,7 +102,7 @@ pub mod definition {
 
     /// A large file associated with a user, stored as a blob.
     #[derive(
-        Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default,
+        Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default, netabase_macros::NetabaseBlobItem,
     )]
     pub struct LargeUserFile {
         pub data: Vec<u8>,
@@ -111,13 +111,13 @@ pub mod definition {
 
     /// Another large file type.
     #[derive(
-        Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default,
+        Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default, netabase_macros::NetabaseBlobItem,
     )]
     pub struct AnotherLargeUserFile(pub Vec<u8>);
 
     /// A heavy attachment for stress testing.
     #[derive(
-        Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default,
+        Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default, netabase_macros::NetabaseBlobItem,
     )]
     pub struct HeavyAttachment {
         pub mime_type: String,

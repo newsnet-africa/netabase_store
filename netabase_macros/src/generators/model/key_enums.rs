@@ -399,8 +399,9 @@ impl<'a> KeyEnumGenerator<'a> {
             .map(|field| {
                 let variant_name = to_pascal_case(&field.name.to_string());
                 let variant_ident = Ident::new(&variant_name, field.name.span());
+                let field_type = &field.ty;
 
-                quote! { #variant_ident { index: u8, value: Vec<u8> } }
+                quote! { #variant_ident(<#field_type as netabase_store::blob::NetabaseBlobItem>::Blobs) }
             })
             .collect();
 

@@ -15,7 +15,15 @@ use crate::{
     },
 };
 
-/// Trait to handle automatic insertion/update of models into their respective tables
+/// Trait to handle automatic insertion/update of models into their respective tables.
+///
+/// This trait abstracts the complexity of mapping a high-level `NetabaseModel` to the
+/// underlying `redb` tables. It handles:
+/// - Serialization/Deserialization
+/// - Secondary Index maintenance
+/// - Relational Link storage
+/// - Subscription registration
+/// - Blob chunking and storage
 pub trait RedbModelCrud<'db,  D>: RedbNetbaseModel<'db, D>
 where
     D: RedbDefinition + Clone,
@@ -30,7 +38,6 @@ where
     <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Libp2p as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    // Add missing static bound
     <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription: 'static,
     <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob: redb::Key + 'static,
     for<'a> <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob: std::borrow::Borrow<<<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob as redb::Value>::SelfType<'a>>,
@@ -39,12 +46,27 @@ where
     for<'a> <Self as RedbNetbaseModel<'db, D>>::TableV: redb::Value<SelfType<'a> = Self>,
     Self: 'db
 {
+    /// Creates a new entry for the model in the database.
+    ///
+    /// This method:
+    /// 1. Serializes the model.
+    /// 2. Stores it in the primary table.
+    /// 3. Updates all secondary indexes.
+    /// 4. Stores relational links.
+    /// 5. Registers subscriptions (defaulting to all declared topics).
+    /// 6. Chunks and stores any blob fields.
+    ///
+    /// # Arguments
+    /// * `tables` - The opened model tables transaction context.
     fn create_entry<'txn>(
         &'db self,
         tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()>;
 
-    /// Create entry with pre-calculated hash (for immutable models)
+    /// Creates an entry with a pre-calculated content hash.
+    ///
+    /// This is an optimization for immutable/content-addressed models where the hash
+    /// is already known, avoiding re-calculation.
     fn create_entry_with_hash<'txn>(
         &'db self,
         hash: &crate::subscription_hash::ModelHash,
@@ -54,10 +76,13 @@ where
         self.create_entry_with_subscriptions_and_hash(tables, None, Some(hash))
     }
 
-    /// Create entry with selective subscription topics
+    /// Creates an entry with explicit subscription topics.
     /// 
-    /// If `subscription_topics` is None, subscribes to all model topics (default behavior).
-    /// If Some(vec), subscribes only to the specified topics.
+    /// This allows controlling which topics the model subscribes to, overriding
+    /// the default behavior (which is to subscribe to all topics defined on the model).
+    /// 
+    /// # Arguments
+    /// * `subscription_topics` - If `Some`, only these topics are registered. If `None`, all defaults are used.
     fn create_entry_with_subscriptions<'txn>(
         &'db self,
         tables: &mut ModelOpenTables<'txn, 'db, D, Self>,
@@ -66,10 +91,10 @@ where
         self.create_entry_with_subscriptions_and_hash(tables, subscription_topics, None)
     }
 
-    /// Internal helper for creation with optional hash
+    /// Internal core method for creating an entry.
     ///
-    /// This method is exposed for advanced usage where you might want to manually
-    /// specify subscription topics AND provide a pre-calculated hash.
+    /// Handles the low-level logic of inserting into all related tables (Main, Secondary,
+    /// Relational, Subscription, Blob).
     fn create_entry_with_subscriptions_and_hash<'txn>(
         &'db self,
         tables: &mut ModelOpenTables<'txn, 'db, D, Self>,
@@ -77,6 +102,9 @@ where
         pre_calculated_hash: Option<&crate::subscription_hash::ModelHash>,
     ) -> NetabaseResult<()>;
 
+    /// Reads a model entry by its primary key.
+    ///
+    /// Returns an `AccessGuard` to the data, allowing zero-copy access.
     fn read_entry<'txn>(
         key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary,
         tables: &'txn ModelOpenTables<'txn, 'db, D, Self>,
@@ -85,6 +113,9 @@ where
     where
     'db: 'txn;
 
+    /// Reads a model entry returning an owned value (deserialized).
+    ///
+    /// Uses default `CrudOptions`.
     fn read_default<'txn>(
         key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary,
         tables: &'txn ModelOpenTables<'txn, 'db, D, Self>,
@@ -96,28 +127,45 @@ where
             .map(|opt| opt.map(|g| g.value()))
     }
 
+    /// Updates an existing entry in the database.
+    ///
+    /// This method handles index maintenance:
+    /// 1. Reads the *old* value.
+    /// 2. Compares secondary/relational/blob keys between old and new.
+    /// 3. Removes stale index entries and inserts new ones.
+    /// 4. Updates the main table.
     fn update_entry<'txn>(
         &'db self,
         tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()>;
 
-    /// Update entry with pre-calculated hash (for immutable models)
+    /// Updates an entry using a pre-calculated hash.
+    ///
+    /// See `update_entry` for logic. This variant avoids re-hashing the model if known.
     fn update_entry_with_hash<'txn>(
         &'db self,
         hash: &crate::subscription_hash::ModelHash,
         tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()>;
 
+    /// Deletes an entry and cleans up all associated indexes.
+    ///
+    /// This operation is atomic and ensures no "dangling pointers" in secondary tables.
+    /// It must first read the object to know which indexes to clean up.
     fn delete_entry<'txn>(
         key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary,
         tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()>;
 
+    /// Lists entries for the model.
+    ///
+    /// Delegates to `list_range` with an unbounded range.
     fn list_entries<'a, 'txn>(
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
         config: CrudOptions,
     ) -> NetabaseResult<Vec<AccessGuard<'a, <Self as RedbNetbaseModel<'db, D>>::TableV>>>;
 
+    /// Lists entries returning owned values.
     fn list_default<'a, 'txn>(
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
     ) -> NetabaseResult<Vec<Self>> {
@@ -125,6 +173,9 @@ where
             .map(|vec| vec.into_iter().map(|g| g.value()).collect())
     }
 
+    /// Lists entries within a specific primary key range.
+    ///
+    /// Supports pagination via `CrudOptions` (limit/offset).
     fn list_range<'a, 'txn, R>(
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
         range: R,
@@ -132,14 +183,15 @@ where
     ) -> NetabaseResult<Vec<AccessGuard<'a, <Self as RedbNetbaseModel<'db, D>>::TableV>>>
     where R: std::ops::RangeBounds<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary> + Clone;
 
+    /// Counts the total number of entries in the main table.
     fn count_entries<'txn>(
         tables: &ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<u64>;
 
-    /// Query primary keys by subscription topic.
+    /// Queries the subscription tables to find models in a specific topic.
     /// 
-    /// Returns a list of model hashes for all models subscribed to the given topic.
-    /// This enables efficient sync and change detection without loading full models.
+    /// Returns a list of `ModelHash`es. This is very efficient for sync protocols
+    /// as it only scans the index, not the data.
     fn query_by_subscription<'a, 'txn, S>(
         subscription_key: &S,
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
@@ -148,27 +200,9 @@ where
         S: Into<D::SubscriptionKeys> + Clone,
         D::SubscriptionKeys: redb::Key + 'static;
 
-    /// Query primary keys by secondary key.
+    /// Queries a secondary index.
     /// 
-    /// Returns a list of primary keys for all models with the given secondary key value.
-    /// Use the secondary key enum variant (e.g., `UserSecondaryKeys::Email("alice@example.com".into())`).
-    /// 
-    /// # Example
-    /// 
-    /// ```rust,ignore
-    /// // Find all users with a specific email
-    /// let txn = store.begin_read()?;
-    /// let tables = txn.prepare_model::<User>()?;
-    /// let primary_keys = User::query_by_secondary_key(
-    ///     &UserSecondaryKeys::Email("alice@example.com".into()),
-    ///     &tables
-    /// )?;
-    /// 
-    /// // Load the full models
-    /// for key in primary_keys {
-    ///     let user = User::read_default(&key, &tables)?;
-    /// }
-    /// ```
+    /// Returns the primary keys of models that match the given secondary key.
     fn query_by_secondary_key<'a, 'txn>(
         secondary_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Secondary,
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
@@ -177,10 +211,9 @@ where
         <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: Clone,
         for<'v> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary: redb::Value<SelfType<'v> = <Self::Keys as NetabaseModelKeys<D, Self>>::Primary>;
 
-    /// Query relations associated with a model.
+    /// Queries all outgoing relational links from a model.
     ///
-    /// Returns a list of relational keys associated with the given primary key.
-    /// This is an efficient O(1) lookup.
+    /// Returns the relational keys stored for the given primary key.
     fn query_relations<'a, 'txn>(
         primary_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary,
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
@@ -188,7 +221,7 @@ where
     where
         'db: 'txn;
 
-    /// Query relations of a specific type associated with a model.
+    /// Queries outgoing relational links of a specific type/field.
     fn query_relations_by_type<'a, 'txn>(
         primary_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary,
         relation_type: <<Self::Keys as NetabaseModelKeys<D, Self>>::Relational as IntoDiscriminant>::Discriminant,
@@ -201,36 +234,10 @@ where
     // =========================================================================
     // Blob Query Methods (Read-Only)
     // =========================================================================
-    // These methods enable parallel fetching and sharded storage patterns
-    // for decentralized networks.
 
-    /// Read all blob items for a specific blob key.
-    /// 
-    /// This is useful for fetching blob data independently of the main model,
-    /// enabling parallel fetching in decentralized networks.
-    /// 
-    /// # Arguments
-    /// * `blob_key` - The blob key to query
-    /// * `tables` - The opened model tables (read-only access is sufficient)
-    /// 
-    /// # Returns
-    /// A vector of blob items associated with the given key
+    /// Reads all blob items (chunks) for a specific blob key.
     ///
-    /// # Example
-    /// 
-    /// See [BLOB_QUERY_METHODS.md](../../../BLOB_QUERY_METHODS.md) for complete examples.
-    /// 
-    /// ```rust
-    /// # // Blob query methods are low-level internal APIs
-    /// # // See tests/blob_query_methods.rs for high-level usage
-    /// # use example::boilerplate_lib::definition::LargeUserFile;
-    /// // Example: Create a large file that would be stored as blob
-    /// let large_file = LargeUserFile {
-    ///     data: vec![42u8; 100_000],  // 100KB will be chunked
-    ///     metadata: "Large data".into(),
-    /// };
-    /// assert_eq!(large_file.data.len(), 100_000);
-    /// ```
+    /// Reconstructs the `Vec` of chunks that make up the blob field.
     fn read_blob_items<'a, 'txn>(
         blob_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Blob,
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
@@ -239,33 +246,33 @@ where
         'db: 'txn,
         <<Self::Keys as NetabaseModelKeys<D, Self>>::Blob as NetabaseModelBlobKey<D, Self>>::BlobItem: Clone;
 
-    /// List all blob keys in a specific blob table.
-    /// 
-    /// Useful for discovering what blobs exist, enabling sharded storage
-    /// where different nodes may store different blob keys.
-    /// 
-    /// # Arguments
-    /// * `table_index` - Index of the blob table (corresponds to blob field order)
-    /// * `tables` - The opened model tables
-    /// 
-    /// # Returns
-    /// A vector of all blob keys in that table
+    /// Reads specific blob chunks by their indices.
     ///
-    /// # Example
+    /// This enables selective fetching, allowing a peer to request only the chunks
+    /// they are missing (e.g., indices `[0, 5, 9]`).
+    fn read_blob_chunks<'a, 'txn>(
+        blob_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Blob,
+        indices: &[u8],
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Vec<<<Self::Keys as NetabaseModelKeys<D, Self>>::Blob as NetabaseModelBlobKey<D, Self>>::BlobItem>>
+    where
+        'db: 'txn,
+        <<Self::Keys as NetabaseModelKeys<D, Self>>::Blob as NetabaseModelBlobKey<D, Self>>::BlobItem: Clone;
+
+    /// Fetches the list of all available chunk indices for a blob key.
     ///
-    /// See [BLOB_QUERY_METHODS.md](../../../BLOB_QUERY_METHODS.md) for complete examples.
+    /// This is used to determine the structure of a stored blob without downloading
+    /// the actual data. Useful for reconciliation.
+    fn fetch_blob_indices<'a, 'txn>(
+        blob_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Blob,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Vec<u8>>
+    where
+        'db: 'txn;
+
+    /// Lists all blob keys in a specific blob table.
     ///
-    /// ```rust
-    /// # // Blob query methods are low-level internal APIs
-    /// # // See tests/blob_query_methods.rs for high-level usage
-    /// # use example::boilerplate_lib::definition::LargeUserFile;
-    /// // Example: Blob fields in models are automatically managed
-    /// let files: Vec<LargeUserFile> = vec![
-    ///     LargeUserFile { data: vec![1u8; 50_000], metadata: "File 1".into() },
-    ///     LargeUserFile { data: vec![2u8; 50_000], metadata: "File 2".into() },
-    /// ];
-    /// assert_eq!(files.len(), 2);
-    /// ```
+    /// Useful for storage auditing or garbage collection.
     fn list_blob_keys<'a, 'txn>(
         table_index: usize,
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
@@ -274,46 +281,14 @@ where
         'db: 'txn,
         <Self::Keys as NetabaseModelKeys<D, Self>>::Blob: Clone;
 
-    /// Count total blob entries across all blob tables.
-    /// 
-    /// Useful for storage metrics and load balancing in sharded systems.
-    ///
-    /// # Example
-    ///
-    /// See [BLOB_QUERY_METHODS.md](../../../BLOB_QUERY_METHODS.md) for complete examples.
-    ///
-    /// ```rust,ignore
-    /// let total_blobs = User::count_blob_entries(&tables)?;
-    /// println!("Total blob storage entries: {}", total_blobs);
-    /// 
-    /// // Check if rebalancing is needed
-    /// if total_blobs > THRESHOLD {
-    ///     trigger_rebalancing();
-    /// }
-    /// ```
+    /// Counts the total number of blob chunks across all blob tables.
     fn count_blob_entries<'txn>(
         tables: &ModelOpenTables<'txn, 'db, D, Self>,
     ) -> NetabaseResult<u64>;
 
-    /// Get blob table metadata (table name and entry count) for each blob field.
-    /// 
-    /// Returns a vector of (table_name, entry_count) tuples.
-    /// Useful for monitoring and debugging blob storage distribution.
+    /// Returns statistics (count) for each blob table.
     ///
-    /// # Example
-    ///
-    /// See [BLOB_QUERY_METHODS.md](../../../BLOB_QUERY_METHODS.md) for complete examples.
-    ///
-    /// ```rust
-    /// # // Blob query methods are low-level internal APIs
-    /// # // See tests/blob_query_methods.rs for high-level usage
-    /// # use example::boilerplate_lib::definition::{LargeUserFile, AnotherLargeUserFile};
-    /// // Example: Models can have multiple blob fields
-    /// let bio = LargeUserFile { data: vec![1u8; 70_000], metadata: "Bio".into() };
-    /// let another = AnotherLargeUserFile(vec![2u8; 80_000]);
-    /// // Each blob field gets its own table for storage
-    /// assert!(bio.data.len() > 0 && another.0.len() > 0);
-    /// ```
+    /// Returns a vector of `(Table Name, Entry Count)`.
     fn blob_table_stats<'txn>(
         tables: &ModelOpenTables<'txn, 'db, D, Self>,
     ) -> NetabaseResult<Vec<(String, u64)>>;
@@ -354,13 +329,13 @@ where
     <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: redb::Key + 'static,
     for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem as redb::Value>::SelfType<'a>>,
     for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: redb::Value<SelfType<'a> = <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem>,
+    <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: crate::blob::NetabaseBlobItem,
 {
     fn create_entry<'txn>(
         &'db self,
         tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()> 
     {
-        // Delegate to create_entry_with_subscriptions with None (default behavior)
         self.create_entry_with_subscriptions(tables, None)
     }
 
@@ -372,6 +347,7 @@ where
     ) -> NetabaseResult<()> 
     {
         // 1. Insert into Main Table
+        // This is the source of truth. We use the model's primary key.
         match &mut tables.main {
             TablePermission::ReadWrite(ReadWriteTableType::Table(table)) => {
                 table.insert(self.get_primary_key_ref().borrow(), self)
@@ -381,6 +357,8 @@ where
         }
 
         // 2. Insert into Secondary Tables
+        // Iterate through all secondary keys derived from the model and insert mapping:
+        // Secondary Key -> Primary Key
         let secondary_keys: Vec<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary> = self.get_secondary_keys();
         for ((table_perm, _name), key) in tables.secondary.iter_mut().zip::<std::vec::IntoIter<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary>>(<Vec<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary> as IntoIterator>::into_iter(secondary_keys)) {
              match table_perm {
@@ -394,6 +372,7 @@ where
         }
 
         // 3. Insert into Relational Tables
+        // Store mappings: Primary Key -> Relational Key (outgoing links)
         let relational_keys = self.get_relational_keys();
         let primary_key = self.get_primary_key();
         for ((table_perm, _name), key) in tables.relational.iter_mut().zip(relational_keys.into_iter()) {
@@ -408,6 +387,8 @@ where
         }
 
         // 4. Insert into Subscription Tables
+        // If topics are provided, usage them. Otherwise, calculate defaults.
+        // Stores: Topic Key -> Model Hash
         let subscription_keys_to_insert: Vec<D::SubscriptionKeys> = match subscription_topics {
             None => {
                 let all_keys = self.get_subscription_keys();
@@ -418,12 +399,12 @@ where
             Some(topics) => topics,
         };
 
-        // Calculate hash if needed
-        let hash_storage; // Lift lifetime
+        // Calculate hash if needed. This lifts the reference outside the conditional logic.
+        let hash_storage; 
         let hash_ref = if let Some(h) = pre_calculated_hash {
             h
         } else {
-            // Compute hash
+            // Compute hash if not provided (standard creation path)
             hash_storage = crate::subscription_hash::ModelHash::from_data(self).map_err(|_| NetabaseError::Other)?;
             &hash_storage
         };
@@ -431,7 +412,7 @@ where
         for ((table_perm, _name), key) in tables.subscription.iter_mut().zip(subscription_keys_to_insert.into_iter()) {
              match table_perm {
                  TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
-                     // Delegate to model implementation of insertion
+                     // Delegate to model implementation of insertion (handles table selection)
                      self.insert_subscription_entry(key.clone(), table, Some(hash_ref))?;
                  }
                  _ => return Err(NetabaseError::Other),
@@ -439,6 +420,8 @@ where
         }
 
         // 5. Insert into Blob Tables
+        // Blob entries are vectors of chunks. We insert each chunk individually.
+        // Blob Key -> Blob Chunk Item
         let blob_entries = self.get_blob_entries();
         for ((table_perm, _name), field_blobs) in tables.blob.iter_mut().zip(blob_entries.into_iter()) {
              match table_perm {
@@ -463,6 +446,7 @@ where
     where
     'db: 'txn
 {
+        // Simple key-value lookup in the main table.
         match &tables.main {
             TablePermission::ReadOnly(TableType::Table(table)) => {
                 let result = table.get(key.borrow()).map_err(|e| NetabaseError::RedbError(e.into()))?;
@@ -492,6 +476,7 @@ where
         tables: &mut ModelOpenTables<'txn, 'db, D, Self>
     ) -> NetabaseResult<()> {
         // 1. Update Main Table and get old model in one operation
+        // This is efficient: we replace the old record and get it back to diff indexes.
         let old_model = match &mut tables.main {
             TablePermission::ReadWrite(ReadWriteTableType::Table(table)) => {
                 table.insert(self.get_primary_key_ref().borrow(), self)
@@ -505,7 +490,7 @@ where
         let new_hash = hash;
 
         if let Some(old_model) = old_model {
-            // Model existed, update secondary/relational/subscription tables
+            // Model existed: We must perform "Diff & Patch" on indexes.
 
             // 2. Update Secondary Tables
             let old_secondary: Vec<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary> = old_model.get_secondary_keys();
@@ -520,6 +505,7 @@ where
                         let old_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary = old_key;
                         let new_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary = new_key;
 
+                        // Only update if key changed
                         if old_k != new_k {
                             table.remove(old_k.borrow(), primary_key.borrow())
                                 .map_err(|e| NetabaseError::RedbError(e.into()))?;
@@ -577,9 +563,11 @@ where
                         let new_def_k: D::SubscriptionKeys = new_model_k.try_into().map_err(|_| NetabaseError::Other)?;
 
                         if old_def_k != new_def_k {
+                            // Topic changed: Unsubscribe from old, subscribe to new
                             old_model.delete_subscription_entry(old_def_k, table, Some(&old_hash))?;
                             self.insert_subscription_entry(new_def_k, table, Some(new_hash))?;
                         } else {
+                            // Topic same: Update the hash in the topic
                             self.update_subscription_entry(new_def_k, table, &old_model, Some(new_hash), Some(&old_hash))?;
                         }
                     }
@@ -588,6 +576,8 @@ where
             }
 
             // 5. Update Blob Tables
+            // Blobs are large, so we remove all old chunks and insert all new ones.
+            // Future optimization: Diff individual chunks to only update changed ones.
             let old_blob_entries = old_model.get_blob_entries();
             let new_blob_entries = self.get_blob_entries();
 
@@ -597,6 +587,7 @@ where
             {
                  match table_perm {
                      TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                        // Remove all old blobs
                         for (old_key, old_item) in old_blobs {
                             let old_key: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob = old_key;
                             let old_item: <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem = old_item;
@@ -605,6 +596,7 @@ where
                                 .map_err(|e| NetabaseError::RedbError(e.into()))?;
                         }
 
+                        // Insert all new blobs
                         for (new_key, new_item) in new_blobs {
                             table.insert(new_key, new_item)
                                 .map_err(|e| NetabaseError::RedbError(e.into()))?;
@@ -614,7 +606,8 @@ where
                  }
             }
         } else {
-            // Model didn't exist, insert into everything
+            // Model didn't exist, this is actually an Insert.
+            // Fall back to simple insertion logic for secondary tables.
             
             // Insert into Secondary Tables
             let secondary_keys = self.get_secondary_keys();
@@ -690,6 +683,8 @@ where
         };
 
         if let Some(model) = model_option {
+            // Model existed, clean up all its indexes.
+
             // 3. Remove from Secondary Tables
             let secondary_keys: Vec<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary> = model.get_secondary_keys();
             for ((table_perm, _name), secondary_key) in tables.secondary.iter_mut().zip::<std::vec::IntoIter<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary>>(<Vec<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary> as IntoIterator>::into_iter(secondary_keys)) {
@@ -704,13 +699,12 @@ where
             }
 
             // 4. Remove from Relational Tables
-            // Store as: PrimaryKey -> RelationalKey (swapped from previous implementation)
             let relational_keys = model.get_relational_keys();
             for ((table_perm, _name), relational_key) in tables.relational.iter_mut().zip(relational_keys.into_iter()) {
                 match table_perm {
                     TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
                         let k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational = relational_key;
-                        // Swapped: key (primary) is the table key, relational key is the value
+                        // Key is Primary, Value is Relation
                         table.remove(key.borrow(), k.borrow())
                             .map_err(|e| NetabaseError::RedbError(e.into()))?;
                     }
@@ -725,7 +719,6 @@ where
             for ((table_perm, _name), subscription_key) in tables.subscription.iter_mut().zip(subscription_keys.into_iter()) {
                 match table_perm {
                     TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
-                        // Convert model-specific subscription key to definition-level subscription key
                         let model_k: <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription = subscription_key;
                         let def_k: D::SubscriptionKeys = model_k.try_into().map_err(|_| NetabaseError::Other)?;
                         
@@ -772,45 +765,33 @@ where
     {
         let limit = config.list.limit;
         let offset = config.list.offset;
-        println!("RedbModelCrud::list_range: limit={:?}, offset={:?}", limit, offset);
+        
+        // Helper to collect items from iterator with limit/offset
+        let collect_iter = |iter: redb::Range<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary, <Self as RedbNetbaseModel<'db, D>>::TableV>| -> NetabaseResult<Vec<AccessGuard<'a, <Self as RedbNetbaseModel<'db, D>>::TableV>>> {
+            let iter = iter.skip(offset.unwrap_or(0));
+            let mut result = Vec::new();
+            if let Some(limit) = limit {
+                for item in iter.take(limit) {
+                    let (_k, v) = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                    result.push(v);
+                }
+            } else {
+                 for item in iter {
+                    let (_k, v) = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
+                    result.push(v);
+                }
+            }
+            Ok(result)
+        };
+
         match &tables.main {
             TablePermission::ReadOnly(TableType::Table(table)) => {
                 let iter = table.range(range).map_err(|e| NetabaseError::RedbError(e.into()))?;
-                let iter = iter.skip(offset.unwrap_or(0));
-                
-                let mut result = Vec::new();
-                if let Some(limit) = limit {
-                    for item in iter.take(limit) {
-                        let (_k, v) = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
-                        result.push(v);
-                    }
-                } else {
-                     for item in iter {
-                        let (_k, v) = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
-                        result.push(v);
-                    }
-                }
-                println!("RedbModelCrud::list_range: found {} items", result.len());
-                Ok(result)
+                collect_iter(iter)
             },
             TablePermission::ReadWrite(ReadWriteTableType::Table(table)) => {
                 let iter = table.range(range).map_err(|e| NetabaseError::RedbError(e.into()))?;
-                let iter = iter.skip(offset.unwrap_or(0));
-                
-                let mut result = Vec::new();
-                if let Some(limit) = limit {
-                    for item in iter.take(limit) {
-                        let (_k, v) = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
-                        result.push(v);
-                    }
-                } else {
-                     for item in iter {
-                        let (_k, v) = item.map_err(|e| NetabaseError::RedbError(e.into()))?;
-                        result.push(v);
-                    }
-                }
-                println!("RedbModelCrud::list_range: found {} items", result.len());
-                Ok(result)
+                collect_iter(iter)
             },
             _ => Err(NetabaseError::Other),
         }
@@ -821,14 +802,10 @@ where
     ) -> NetabaseResult<u64> {
          match &tables.main {
             TablePermission::ReadOnly(TableType::Table(table)) => {
-                let count = table.len().map_err(|e| NetabaseError::RedbError(e.into()))?;
-                println!("RedbModelCrud::count_entries: {}", count);
-                Ok(count)
+                table.len().map_err(|e| NetabaseError::RedbError(e.into()))
             },
             TablePermission::ReadWrite(ReadWriteTableType::Table(table)) => {
-                let count = table.len().map_err(|e| NetabaseError::RedbError(e.into()))?;
-                println!("RedbModelCrud::count_entries: {}", count);
-                Ok(count)
+                table.len().map_err(|e| NetabaseError::RedbError(e.into()))
             },
             _ => Err(NetabaseError::Other),
         }
@@ -1124,6 +1101,127 @@ where
             }
         }
         
+        Ok(result)
+    }
+
+    fn read_blob_chunks<'a, 'txn>(
+        blob_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Blob,
+        indices: &[u8],
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Vec<<<Self::Keys as NetabaseModelKeys<D, Self>>::Blob as NetabaseModelBlobKey<D, Self>>::BlobItem>>
+    where
+        'db: 'txn,
+        <<Self::Keys as NetabaseModelKeys<D, Self>>::Blob as NetabaseModelBlobKey<D, Self>>::BlobItem: Clone,
+    {
+        use redb::ReadableMultimapTable;
+        use crate::blob::NetabaseBlobItem;
+        
+        let mut result = Vec::new();
+        
+        for (table_perm, _table_name) in &tables.blob {
+            match table_perm {
+                TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
+                    if let Ok(values) = table.get(blob_key.borrow()) {
+                        for item in values {
+                            if let Ok(guard) = item {
+                                let value = guard.value();
+                                if let Some(idx) = value.get_blob_index() {
+                                    if indices.contains(&idx) {
+                                        result.push(value);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    if let Ok(values) = table.get(blob_key.borrow()) {
+                        for item in values {
+                            if let Ok(guard) = item {
+                                let value = guard.value();
+                                if let Some(idx) = value.get_blob_index() {
+                                    if indices.contains(&idx) {
+                                        result.push(value);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    if let Ok(values) = table.get(blob_key.borrow()) {
+                        for item in values {
+                            if let Ok(guard) = item {
+                                let value = guard.value();
+                                if let Some(idx) = value.get_blob_index() {
+                                    if indices.contains(&idx) {
+                                        result.push(value);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => continue,
+            }
+        }
+        
+        Ok(result)
+    }
+
+    fn fetch_blob_indices<'a, 'txn>(
+        blob_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Blob,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Vec<u8>>
+    where
+        'db: 'txn,
+    {
+        use redb::ReadableMultimapTable;
+        use crate::blob::NetabaseBlobItem;
+        
+        let mut result = Vec::new();
+        
+        for (table_perm, _table_name) in &tables.blob {
+            match table_perm {
+                TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
+                    if let Ok(values) = table.get(blob_key.borrow()) {
+                        for item in values {
+                            if let Ok(guard) = item {
+                                if let Some(idx) = guard.value().get_blob_index() {
+                                    result.push(idx);
+                                }
+                            }
+                        }
+                    }
+                }
+                TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    if let Ok(values) = table.get(blob_key.borrow()) {
+                        for item in values {
+                            if let Ok(guard) = item {
+                                if let Some(idx) = guard.value().get_blob_index() {
+                                    result.push(idx);
+                                }
+                            }
+                        }
+                    }
+                }
+                TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    if let Ok(values) = table.get(blob_key.borrow()) {
+                        for item in values {
+                            if let Ok(guard) = item {
+                                if let Some(idx) = guard.value().get_blob_index() {
+                                    result.push(idx);
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => continue,
+            }
+        }
+        
+        result.sort();
+        result.dedup();
         Ok(result)
     }
 
