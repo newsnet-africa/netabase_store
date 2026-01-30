@@ -227,6 +227,13 @@ pub fn netabase_libp2p(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
+pub fn netabase_networking(attr: TokenStream, item: TokenStream) -> TokenStream {
+    macros::netabase_networking::netabase_networking_attribute(attr.into(), item.into())
+        .unwrap_or_else(|err| err.to_compile_error())
+        .into()
+}
+
+#[proc_macro_attribute]
 pub fn netabase_content_addressed(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }

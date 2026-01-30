@@ -6,7 +6,18 @@ use syn::{Attribute, Data, Error, Field, Fields, Ident, Meta, Path, Result, Vari
 
 /// Check if an attribute matches a given path (e.g., "primary_key")
 pub fn is_attribute(attr: &Attribute, name: &str) -> bool {
-    attr.path().is_ident(name)
+    if attr.path().is_ident(name) {
+        return true;
+    }
+    
+    // Check if the last segment matches
+    if let Some(segment) = attr.path().segments.last() {
+        if segment.ident == name {
+            return true;
+        }
+    }
+    
+    false
 }
 
 /// Find attribute by name

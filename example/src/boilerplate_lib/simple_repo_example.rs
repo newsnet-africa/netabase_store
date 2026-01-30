@@ -33,10 +33,11 @@
 //! assert!(item.id.0 == 12345);
 //! ```
 
+#[netabase_macros::netabase_networking]
 #[netabase_macros::netabase_definition(SimpleDefinition)]
 pub mod simple_definition {
-    use netabase_store::{relational::RelationalLink, traits::registery::models::keys::primary};
-    use serde::{Deserialize, Serialize};
+    use super::*;
+    use serde::{Serialize, Deserialize};
 
     /// An item in inventory with name-based indexing.
     #[derive(

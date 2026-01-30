@@ -21,10 +21,14 @@ impl<'a> SubscriptionCapabilityGenerator<'a> {
             .topics
             .iter()
             .map(|s| Self::generate_single_subscription_capability(s, models));
-        let def_name = format_ident!("gen_{}_capabilities", self.visitor.definition_name);
+        let def_name = format_ident!(
+            "gen_{}_capabilities",
+            heck::AsSnakeCase(self.visitor.definition_name.to_string()).to_string()
+        );
         quote! {
             pub mod #def_name {
-                #(#generated),*
+                use super::*;
+                #(#generated)*
             }
         }
     }
@@ -33,23 +37,31 @@ impl<'a> SubscriptionCapabilityGenerator<'a> {
         subscriptions: &syn::Path,
         models: &[ModelInfo],
     ) -> TokenStream {
-        let model_fields = models.iter().filter_map(|m| {
+        let mut relevant_models = Vec::new();
+        for m in models {
             if let Some(sub_info) = &m.visitor.subscriptions {
                 if sub_info.topics.iter().any(|t| t.eq(subscriptions)) {
-                    let field_name: Ident = Ident::new(
-                        &heck::AsSnakeCase(format!("{}_capability", m.name.to_string()))
-                            .to_string(),
-                        Span::mixed_site(),
-                    );
-                    let model_type = &m.name;
-                    Some(quote! {
-                        #field_name: netabase::node::capabilities::Capability<D, #model_type>
-                    })
-                } else {
-                    None
+                    relevant_models.push(m);
                 }
-            } else {
-                None
+            }
+        }
+
+        let model_fields = relevant_models.iter().map(|m| {
+            let field_name = Ident::new(
+                &heck::AsSnakeCase(format!("{}_capability", m.name.to_string())).to_string(),
+                Span::mixed_site(),
+            );
+            let model_type = &m.name;
+            quote! {
+                pub #field_name: netabase::node::capabilities::Capability<D, #model_type>
+            }
+        });
+
+        let where_clauses = relevant_models.iter().map(|m| {
+            let model_type = &m.name;
+            quote! {
+                #model_type: netabase_store::prelude::NetabaseModel<D>,
+                <#model_type as netabase_store::prelude::NetabaseModel<D>>::Keys: std::cmp::Eq + std::cmp::PartialOrd
             }
         });
 
@@ -60,7 +72,11 @@ impl<'a> SubscriptionCapabilityGenerator<'a> {
         };
 
         quote! {
-            pub struct #subscription_name {
+            pub struct #subscription_name<D: netabase::store::definition::NetworkDefinition + 'static>
+            where
+                D::Discriminant: std::fmt::Debug,
+                #(#where_clauses),*
+            {
                 #(#model_fields),*
             }
         }

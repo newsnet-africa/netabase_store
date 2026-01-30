@@ -1,0 +1,56 @@
+use libp2p::PeerId;
+use netabase_store::{
+    prelude::{NetabaseDefinition, NetabaseModel},
+    traits::registery::models::NetabaseModelKeys,
+};
+
+use crate::{node::metadata::PublicNodeData, store::primitives::EntryPath};
+
+pub struct CapabilityExpiration;
+pub struct CapabilitySignature;
+
+pub struct Capability<D: NetabaseDefinition, M: NetabaseModel<D>>
+where
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<<M as netabase_store::prelude::NetabaseModel<D>>::Keys as netabase_store::traits::registery::models::NetabaseModelKeys<D, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static, <M as netabase_store::prelude::NetabaseModel<D>>::Keys: std::cmp::Eq, <M as netabase_store::prelude::NetabaseModel<D>>::Keys: std::cmp::PartialOrd
+{
+    subscription: D::SubscriptionKeysDiscriminant,
+    owner: PublicNodeData,
+    granted_by: PublicNodeData,
+    issued_to: PublicNodeData,
+    resource: CapabilityPermission<D, M>,
+    expiry: CapabilityExpiration,
+    signature: CapabilitySignature,
+}
+
+pub enum CapabilityRange<D: NetabaseDefinition, M: NetabaseModel<D>>
+where
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<<M as netabase_store::prelude::NetabaseModel<D>>::Keys as netabase_store::traits::registery::models::NetabaseModelKeys<D, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static
+{
+    FullTable,
+    PrimaryRange(PathRange<<M::Keys as NetabaseModelKeys<D, M>>::Primary>),
+    SecondaryRange(PathRange<<M::Keys as NetabaseModelKeys<D, M>>::Secondary>),
+}
+
+pub enum PathRange<K> {
+    PathPrefix(EntryPath),
+    Range {
+        start: K,
+        end: K
+    }
+}
+
+pub enum CapabilityPermission<D: NetabaseDefinition, M: NetabaseModel<D>>
+where
+    <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
+    <D as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<<M as netabase_store::prelude::NetabaseModel<D>>::Keys as netabase_store::traits::registery::models::NetabaseModelKeys<D, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static
+ {
+    Read(CapabilityRange<D, M>),
+    Write(CapabilityRange<D, M>),
+    Mint(CapabilityRange<D, M>),
+    Store(CapabilityRange<D, M>),
+}

@@ -24,6 +24,7 @@
 //! Topics are defined at the definition level:
 //!
 //! ```rust,ignore
+//! #[netabase_macros::netabase_networking]
 //! #[netabase_definition(MyDefinition, subscriptions(News, Updates, Alerts))]
 //! pub mod my_definition {
 //!     // ... models

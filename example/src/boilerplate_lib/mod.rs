@@ -64,9 +64,11 @@ pub mod simple_repo_example;
 /// DefinitionTwo module containing Category model.
 ///
 /// This demonstrates a separate definition that can be linked to from other definitions.
+#[netabase_macros::netabase_networking]
 #[netabase_macros::netabase_definition(DefinitionTwo, subscriptions(General))]
 pub mod definition_two {
     use super::*;
+    use serde::{Serialize, Deserialize};
 
     /// A category for grouping users or other entities.
     #[derive(
@@ -94,10 +96,12 @@ pub mod definition_two {
 }
 
 /// Main Definition module containing User, Post, and HeavyModel.
+#[netabase_macros::netabase_networking]
 #[netabase_macros::netabase_definition(Definition, subscriptions(Topic1, Topic2, Topic3, Topic4))]
 pub mod definition {
     use super::definition_two::{Category, CategoryID, DefinitionTwo};
     use super::*;
+    use serde::{Serialize, Deserialize};
     use netabase_store::blob::NetabaseBlobItem;
 
     /// A large file associated with a user, stored as a blob.

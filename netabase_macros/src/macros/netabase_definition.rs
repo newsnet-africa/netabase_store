@@ -88,9 +88,6 @@ use std::fs;
 use std::path::PathBuf;
 use syn::{ItemMod, Result, parse2, visit_mut::VisitMut};
 
-use crate::generators::definition::networking::subscription_capability::{
-    self, SubscriptionCapabilityGenerator,
-};
 use crate::generators::definition::{DefinitionEnumGenerator, DefinitionTraitGenerator};
 use crate::generators::model::{
     ConstructorGenerator, KeyEnumGenerator, MigrationGenerator, SerializationGenerator,
@@ -198,9 +195,6 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
 
     let def_trait_generator = DefinitionTraitGenerator::new(&visitor);
     let def_trait_impls = def_trait_generator.generate();
-
-    let def_capability_generator = SubscriptionCapabilityGenerator::new(&visitor);
-    let caps = def_capability_generator.generate_all_subscription_capabilities();
 
     // 3. Generate Model-level code for each collected model
     let mut model_generated_code = Vec::new();
@@ -337,7 +331,6 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
             #definition_iter
             #def_trait_impls
             #repo_marker
-            #caps
         };
 
         let def_file: syn::File = parse2(def_items_tokens).map_err(|e| {
