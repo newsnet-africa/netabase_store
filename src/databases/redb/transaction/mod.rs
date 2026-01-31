@@ -911,8 +911,8 @@ where
     /// # Ok(())
     /// # }
     /// ```
-    pub fn query_by_secondary_key<'data: 'db, M>(
-        &'db self,
+    pub fn query_by_secondary_key<'data, M>(
+        &self,
         secondary_key: &'data <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary,
     ) -> NetabaseResult<Vec<M>>
     where
@@ -1094,8 +1094,8 @@ where
     ///     &UserID("alice".into())
     /// )?;
     /// ```
-    pub fn query_relations<'data: 'db, M>(
-        &'db self,
+    pub fn query_relations<'data, M>(
+        &self,
         primary_key: &'data <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary,
     ) -> NetabaseResult<Vec<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational>>
     where
@@ -1145,8 +1145,8 @@ where
     /// Query relations of a specific type associated with a model.
     ///
     /// Returns a list of relational keys of the specified type associated with the given primary key.
-    pub fn query_relations_by_type<'data: 'db, M>(
-        &'db self,
+    pub fn query_relations_by_type<'data, M>(
+        &self,
         primary_key: &'data <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary,
         relation_type: <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant,
     ) -> NetabaseResult<Vec<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational>>

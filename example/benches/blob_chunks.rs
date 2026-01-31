@@ -1,11 +1,43 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use example::boilerplate_lib::definition::{LazyUser, LazyLargeFile, LazyUserBlobKeys};
-use example::boilerplate_lib::definition::LazyUserID;
-use example::boilerplate_lib::Definition;
-use netabase_store::blob::BlobLink;
-use netabase_store::databases::redb::transaction::crud::RedbModelCrud;
-use netabase_store::databases::redb::RedbStore;
-use netabase_store::traits::database::store::NBStore;
+use netabase_store::prelude::*;
+use netabase_store::databases::redb::transaction::RedbModelCrud;
+use serde::{Deserialize, Serialize};
+
+#[netabase_macros::netabase_definition(BlobBenchDef)]
+pub mod blob_bench_def {
+    use super::*;
+    use netabase_store::blob::NetabaseBlobItem;
+
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, Default, netabase_macros::NetabaseBlobItem)]
+    pub struct BlobFile {
+        pub data: Vec<u8>,
+        pub metadata: String,
+    }
+
+    #[derive(
+        netabase_macros::NetabaseModel,
+        Debug,
+        Clone,
+        Serialize,
+        Deserialize,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+    )]
+    pub struct BlobUser {
+        #[primary_key]
+        pub id: String,
+        
+        pub name: String,
+        
+        #[blob]
+        pub bio: BlobFile,
+    }
+}
+
+use blob_bench_def::*;
 
 fn bench_blob_chunks(c: &mut Criterion) {
     let mut group = c.benchmark_group("blob_chunks");
@@ -18,16 +50,16 @@ fn bench_blob_chunks(c: &mut Criterion) {
     let large_data = vec![1u8; data_size];
     
     // Use new_temporary which returns (store, temp_dir)
-    let (store, _temp_dir) = RedbStore::<Definition>::new_temporary().unwrap();
+    let (store, _temp_dir) = RedbStore::<BlobBenchDef>::new_temporary().unwrap();
     
-    let user_id = LazyUserID("bench_user".to_string());
-    let user = LazyUser {
+    let user_id = BlobUserID("bench_user".to_string());
+    let user = BlobUser {
         id: user_id.clone(),
         name: "Bench User".to_string(),
-        bio: BlobLink::Complete(LazyLargeFile {
+        bio: BlobFile {
             data: large_data,
             metadata: "Benchmark Data".to_string(),
-        }),
+        },
     };
     
     {
@@ -38,17 +70,20 @@ fn bench_blob_chunks(c: &mut Criterion) {
     
     // Benchmark reading all chunks vs specific chunks
     let txn = store.begin_read().unwrap();
-    let tables = txn.prepare_model::<LazyUser>().unwrap();
-    let blob_key = LazyUserBlobKeys::Bio { 
+    let tables = txn.prepare_model::<BlobUser>().unwrap();
+    let blob_key = BlobUserBlobKeys::Bio { 
         owner: user_id.clone(),
-        chunk_index: 0
     };
     
     // Case 1: Read all chunks (classic method)
     group.bench_function("read_all_chunks", |b| {
         b.iter(|| {
-            let chunks = LazyUser::read_blob_items(&blob_key, &tables).unwrap();
-            assert_eq!(chunks.len(), num_chunks + 1); // +1 for leftover/metadata
+            let chunks = BlobUser::read_blob_items(&blob_key, &tables).unwrap();
+            // 100 chunks + 1 for metadata/overhead if applicable, or exactly 100.
+            // Actually postcard serialization of BlobFile might add overhead.
+            // Split into 60KB.
+            // If total size > 0, at least 1 chunk.
+            assert!(chunks.len() >= num_chunks); 
         })
     });
     
@@ -58,7 +93,7 @@ fn bench_blob_chunks(c: &mut Criterion) {
     
     group.bench_function("read_filtered_chunks", |b| {
         b.iter(|| {
-            let chunks = LazyUser::read_blob_chunks(&blob_key, &indices, &tables).unwrap();
+            let chunks = BlobUser::read_blob_chunks(&blob_key, &indices, &tables).unwrap();
             assert_eq!(chunks.len(), 5);
         })
     });

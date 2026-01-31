@@ -12,6 +12,7 @@ use example::boilerplate_lib::definition::{
     ImmutablePostEnvelope, ImmutablePostFast, ImmutablePostFastEnvelope, ImmutablePostFastID,
     ImmutablePostID, User, UserAge, UserBlobItem, UserBlobKeys, UserCategory, UserFirstName,
     UserID, UserLastName, UserPartner, UserRelationalKeys, UserSecondaryKeys,
+    LargeUserFileBlobs, AnotherLargeUserFileBlobs,
 };
 use example::boilerplate_lib::models::blob_types::{
     AnotherLargeUserFile, LargeUserFile,
@@ -470,10 +471,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                                         &UserBlobKeys::Bio {
                                             owner: user_id.clone(),
                                         },
-                                        &UserBlobItem::Bio {
-                                            index,
-                                            value: chunk,
-                                        },
+                                        &UserBlobItem::Bio(LargeUserFileBlobs(index, chunk)),
                                     )
                                     .expect("Failed to insert bio blob");
                             }
@@ -486,10 +484,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                                         &UserBlobKeys::Another {
                                             owner: user_id.clone(),
                                         },
-                                        &UserBlobItem::Another {
-                                            index,
-                                            value: chunk,
-                                        },
+                                        &UserBlobItem::Another(AnotherLargeUserFileBlobs(index, chunk)),
                                     )
                                     .expect("Failed to insert another blob");
                             }
@@ -919,10 +914,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                                         &UserBlobKeys::Bio {
                                             owner: user_id.clone(),
                                         },
-                                        &UserBlobItem::Bio {
-                                            index,
-                                            value: chunk,
-                                        },
+                                        &UserBlobItem::Bio(LargeUserFileBlobs(index, chunk)),
                                     )
                                     .unwrap();
                             }
@@ -934,10 +926,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                                         &UserBlobKeys::Another {
                                             owner: user_id.clone(),
                                         },
-                                        &UserBlobItem::Another {
-                                            index,
-                                            value: chunk,
-                                        },
+                                        &UserBlobItem::Another(AnotherLargeUserFileBlobs(index, chunk)),
                                     )
                                     .unwrap();
                             }
@@ -1231,10 +1220,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                                         &UserBlobKeys::Bio {
                                             owner: user_id.clone(),
                                         },
-                                        &UserBlobItem::Bio {
-                                            index,
-                                            value: chunk,
-                                        },
+                                        &UserBlobItem::Bio(LargeUserFileBlobs(index, chunk)),
                                     )
                                     .unwrap();
                             }
@@ -1246,10 +1232,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                                         &UserBlobKeys::Another {
                                             owner: user_id.clone(),
                                         },
-                                        &UserBlobItem::Another {
-                                            index,
-                                            value: chunk,
-                                        },
+                                        &UserBlobItem::Another(AnotherLargeUserFileBlobs(index, chunk)),
                                     )
                                     .unwrap();
                             }
@@ -1358,10 +1341,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                                         &UserBlobKeys::Bio {
                                             owner: user_id.clone(),
                                         },
-                                        &UserBlobItem::Bio {
-                                            index,
-                                            value: chunk,
-                                        },
+                                        &UserBlobItem::Bio(LargeUserFileBlobs(index, chunk)),
                                     )
                                     .unwrap();
                             }
@@ -1373,10 +1353,7 @@ fn bench_crud_operations(c: &mut Criterion) {
                                         &UserBlobKeys::Another {
                                             owner: user_id.clone(),
                                         },
-                                        &UserBlobItem::Another {
-                                            index,
-                                            value: chunk,
-                                        },
+                                        &UserBlobItem::Another(AnotherLargeUserFileBlobs(index, chunk)),
                                     )
                                     .unwrap();
                             }
