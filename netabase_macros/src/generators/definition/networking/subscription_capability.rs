@@ -25,10 +25,17 @@ impl<'a> SubscriptionCapabilityGenerator<'a> {
             "gen_{}_capabilities",
             heck::AsSnakeCase(self.visitor.definition_name.to_string()).to_string()
         );
+        
+        let def_caps = self.generate_definition_capabilities_struct();
+        let network_def_impl = self.generate_network_definition_impl();
+
         quote! {
             pub mod #def_name {
                 use super::*;
                 #(#generated)*
+                
+                #def_caps
+                #network_def_impl
             }
         }
     }
@@ -51,17 +58,29 @@ impl<'a> SubscriptionCapabilityGenerator<'a> {
                 &heck::AsSnakeCase(format!("{}_capability", m.name.to_string())).to_string(),
                 Span::mixed_site(),
             );
-            let model_type = &m.name;
+            let model_name = &m.name;
+            let model_type = if m.is_content_addressed() {
+                let envelope = format_ident!("{}Envelope", model_name);
+                quote! { #envelope }
+            } else {
+                quote! { #model_name }
+            };
             quote! {
-                pub #field_name: netabase::node::capabilities::Capability<D, #model_type>
+                pub #field_name: netabase_store::capabilities::Capability<D, #model_type>
             }
         });
 
         let where_clauses = relevant_models.iter().map(|m| {
-            let model_type = &m.name;
+            let model_name = &m.name;
+            let model_type = if m.is_content_addressed() {
+                let envelope = format_ident!("{}Envelope", model_name);
+                quote! { #envelope }
+            } else {
+                quote! { #model_name }
+            };
             quote! {
                 #model_type: netabase_store::prelude::NetabaseModel<D>,
-                <#model_type as netabase_store::prelude::NetabaseModel<D>>::Keys: std::cmp::Eq + std::cmp::PartialOrd
+                <#model_type as netabase_store::prelude::NetabaseModel<D>>::Keys: std::fmt::Debug + Clone + std::cmp::Eq
             }
         });
 
@@ -72,12 +91,51 @@ impl<'a> SubscriptionCapabilityGenerator<'a> {
         };
 
         quote! {
-            pub struct #subscription_name<D: netabase::store::definition::NetworkDefinition + 'static>
+            pub struct #subscription_name<D: netabase_store::traits::registery::definition::network::NetworkDefinition + 'static>
             where
                 D::Discriminant: std::fmt::Debug,
+                D::SubscriptionKeysDiscriminant: serde::Serialize + serde::de::DeserializeOwned + std::fmt::Debug + Clone + PartialEq + Eq,
                 #(#where_clauses),*
             {
                 #(#model_fields),*
+            }
+        }
+    }
+
+    fn generate_definition_capabilities_struct(&self) -> TokenStream {
+        let def_name = &self.visitor.definition_name;
+        let struct_name = format_ident!("{}Capabilities", def_name);
+        
+        let fields = self.visitor.models.iter().map(|m| {
+            let model_name = &m.name;
+            let field_name = format_ident!("{}_capabilities", heck::AsSnakeCase(model_name.to_string()).to_string());
+            let model_type = if m.is_content_addressed() {
+                let envelope = format_ident!("{}Envelope", model_name);
+                quote! { #envelope }
+            } else {
+                quote! { #model_name }
+            };
+            // Capability<D, M>
+            quote! {
+                pub #field_name: Vec<netabase_store::capabilities::Capability<#def_name, #model_type>>
+            }
+        });
+
+        quote! {
+            #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+            pub struct #struct_name {
+                #(#fields),*
+            }
+        }
+    }
+
+    fn generate_network_definition_impl(&self) -> TokenStream {
+        let def_name = &self.visitor.definition_name;
+        let cap_struct_name = format_ident!("{}Capabilities", def_name);
+        
+        quote! {
+            impl netabase_store::traits::registery::definition::network::NetworkDefinition for #def_name {
+                type DefinitionCapabilities = #cap_struct_name;
             }
         }
     }

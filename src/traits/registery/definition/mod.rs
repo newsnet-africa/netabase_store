@@ -92,11 +92,13 @@
 pub mod redb_definition;
 pub mod schema;
 pub mod subscription;
+pub mod network;
 
 use schema::DefinitionSchema;
 use serde::Serialize;
 use strum::IntoDiscriminant;
 use subscription::{DefinitionSubscriptionRegistry, NetabaseDefinitionSubscriptionKeys};
+pub use network::NetworkDefinition;
 
 use crate::traits::registery::models::{
     keys::NetabaseModelKeys,

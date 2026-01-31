@@ -52,7 +52,8 @@ impl<'a> DefinitionEnumGenerator<'a> {
             #[strum_discriminants(name(#tree_name))]
             #[strum_discriminants(derive(
                 strum::AsRefStr,
-                serde::Serialize, serde::Deserialize
+                serde::Serialize, serde::Deserialize,
+                Hash
             ))]
             pub enum #definition_name {
                 #(#variants),*
@@ -171,17 +172,36 @@ impl<'a> DefinitionEnumGenerator<'a> {
             })
             .collect();
 
+        // Manual generation of Discriminant Enum to avoid conflicts
         quote! {
             #[derive(
                 Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
                 serde::Serialize, serde::Deserialize,
-                Hash,
-                strum::EnumDiscriminants
+                Hash
             )]
-            #[strum_discriminants(name(#discriminant_name))]
-            #[strum_discriminants(derive(strum::AsRefStr))]
             pub enum #enum_name {
                 #(#variants),*
+            }
+
+            #[derive(
+                Clone, Copy, Debug, PartialEq, Eq, Hash,
+                serde::Serialize, serde::Deserialize,
+                strum::AsRefStr
+            )]
+            pub enum #discriminant_name {
+                #(#variants),*
+            }
+
+            impl strum::IntoDiscriminant for #enum_name {
+                type Discriminant = #discriminant_name;
+
+                fn discriminant(&self) -> Self::Discriminant {
+                    match self {
+                        #(
+                            #enum_name::#variants => #discriminant_name::#variants
+                        ),*
+                    }
+                }
             }
 
             // Generate helper to implement Value/Key for owned types

@@ -209,3 +209,8 @@ pub mod relational;
 pub mod subscription_hash;
 pub mod traits;
 pub mod utils;
+
+pub mod capabilities;
+pub mod key;
+pub mod node_metadata;
+pub mod primitives;
