@@ -61,8 +61,8 @@ use std::sync::Arc;
 use redb::ReadableDatabase;
 
 use crate::errors::{NetabaseError, NetabaseResult};
-use crate::traits::registery::definition::redb_definition::RedbDefinition;
-use crate::traits::registery::repository::NetabaseRepository;
+use crate::traits::registry::definition::redb_definition::RedbDefinition;
+use crate::traits::registry::repository::NetabaseRepository;
 
 /// The name of the repository metadata file.
 const REPOSITORY_META_FILE: &str = "repository.toml";
@@ -224,7 +224,7 @@ names = {:?}
             // Arc<Database> derefs to Database which has begin_read
             let _txn = (**db)
                 .begin_read()
-                .map_err(|e| NetabaseError::RedbTransactionError(e))?;
+                .map_err(NetabaseError::RedbTransactionError)?;
         }
         Ok(())
     }
@@ -294,7 +294,7 @@ impl<'repo, R: RedbRepositoryDefinitions> RedbRepositoryTransaction<'repo, R> {
         let db = self.store.database(&def_name_str)?;
         (**db)
             .begin_read()
-            .map_err(|e| NetabaseError::RedbTransactionError(e))
+            .map_err(NetabaseError::RedbTransactionError)
     }
 
     /// Get the write transaction for a specific definition.
@@ -337,8 +337,7 @@ impl<'repo, R: RedbRepositoryDefinitions> RedbRepositoryTransaction<'repo, R> {
 
         for (def_name, txn) in self.write_transactions {
             txn.commit().map_err(|e| {
-                NetabaseError::RedbError(redb::Error::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                NetabaseError::RedbError(redb::Error::Io(std::io::Error::other(
                     format!("Failed to commit transaction for '{}': {}", def_name, e),
                 )))
             })?;

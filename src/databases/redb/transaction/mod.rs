@@ -132,7 +132,9 @@
 //! - [`options`] - Configuration options for operations
 //! - [`tables`] - Low-level table access
 //! - [`wrappers`] - Transaction wrapper types
+//! - [`core`] - Core types and trait bounds
 
+pub mod core;
 pub mod crud;
 pub mod options;
 pub mod tables;
@@ -147,7 +149,7 @@ use crate::{
     relational::{ModelRelationPermissions, PermissionFlag, RelationPermission},
     traits::{
         database::transaction::NBTransaction,
-        registery::{
+        registry::{
             definition::{NetabaseDefinition, redb_definition::RedbDefinition},
             models::{
                 keys::{NetabaseModelKeys, blob::NetabaseModelBlobKey},
@@ -160,29 +162,14 @@ use crate::{
     },
 };
 
+pub use self::core::{RedbTransaction, RedbTransactionInner, RedbTransactionType};
 pub use self::crud::RedbModelCrud;
 pub use self::options::*;
 pub use self::tables::{ModelOpenTables, ReadWriteTableType, TablePermission, TableType};
 pub use self::wrappers::{NetabaseRedbReadTransaction, NetabaseRedbWriteTransaction};
 
-pub struct RedbTransactionInner<'txn, D: RedbDefinition>
-where
-    <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    D: Clone,
-{
-    transaction: RedbTransactionType<'txn, D>,
-}
-
-pub enum RedbTransactionType<'txn, D: RedbDefinition>
-where
-    <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-    D: Clone,
-{
-    Read(NetabaseRedbReadTransaction<'txn, D>),
-    Write(NetabaseRedbWriteTransaction<'txn, D>),
-}
-
-pub type RedbTransaction<'db, D> = RedbTransactionInner<'db, D>;
+// Re-export bound helpers for users who need them
+pub use self::core::{DiscriminantBounds, RedbKeyBounds};
 
 impl<'db, D: RedbDefinition> RedbTransaction<'db, D>
 where
@@ -193,7 +180,7 @@ where
     pub fn new_write(db: &redb::Database) -> NetabaseResult<Self> {
         let write_txn = db
             .begin_write()
-            .map_err(|e: TransactionError| NetabaseError::RedbTransactionError(e.into()))?;
+            .map_err(|e: TransactionError| NetabaseError::RedbTransactionError(e))?;
         let transaction = RedbTransactionType::Write(NetabaseRedbWriteTransaction::new(write_txn));
 
         Ok(RedbTransactionInner { transaction })
@@ -203,7 +190,7 @@ where
     pub fn new_read(db: &redb::Database) -> NetabaseResult<Self> {
         let read_txn = db
             .begin_read()
-            .map_err(|e: TransactionError| NetabaseError::RedbTransactionError(e.into()))?;
+            .map_err(|e: TransactionError| NetabaseError::RedbTransactionError(e))?;
         let transaction = RedbTransactionType::Read(NetabaseRedbReadTransaction::new(read_txn));
 
         Ok(RedbTransactionInner { transaction })
@@ -466,7 +453,7 @@ where
     {
         match &self.transaction {
             RedbTransactionType::Read(read_txn) => f(&read_txn.inner),
-            RedbTransactionType::Write(_) => return Err(NetabaseError::Other),
+            RedbTransactionType::Write(_) => Err(NetabaseError::Other),
         }
     }
 
@@ -759,7 +746,7 @@ where
             relationa_tree_access: &[RelationPermission(M::TREE_NAMES, PermissionFlag::ReadWrite)],
         };
         let mut tables = self.open_model_tables(definitions, Some(perms))?;
-        model.create_entry_with_hash(&hash, &mut tables)
+        model.create_entry_with_hash(hash, &mut tables)
     }
 
     /// Read a record by its primary key.

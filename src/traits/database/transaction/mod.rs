@@ -1,6 +1,6 @@
 use crate::{
     errors::NetabaseResult,
-    traits::registery::{definition::NetabaseDefinition, repository::NetabaseRepository},
+    traits::registry::{definition::NetabaseDefinition, repository::NetabaseRepository},
 };
 
 /// Configuration options for database transactions.
@@ -17,6 +17,7 @@ use crate::{
 /// // Configuration options can be customized for advanced use cases
 /// ```
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct TransactionConfig {
     /// Whether to enable table handle caching.
     ///
@@ -47,15 +48,6 @@ pub enum CacheStrategy {
     NoEviction,
 }
 
-impl Default for TransactionConfig {
-    fn default() -> Self {
-        Self {
-            enable_table_cache: false,
-            max_cache_size: None,
-            cache_strategy: CacheStrategy::default(),
-        }
-    }
-}
 
 impl TransactionConfig {
     /// Create a new transaction config with default settings.
@@ -174,13 +166,13 @@ pub trait NBRepositoryTransaction<'db, R: NetabaseRepository> {
     /// definition belongs to the same repository.
     fn with_definition<D, F, T>(&self, f: F) -> NetabaseResult<T>
     where
-        D: NetabaseDefinition + crate::traits::registery::repository::InRepository<R>,
+        D: NetabaseDefinition + crate::traits::registry::repository::InRepository<R>,
         D::Discriminant: 'static + std::fmt::Debug,
         F: FnOnce(&Self::Transaction) -> NetabaseResult<T>;
 
     /// Check if a definition is accessible within this repository.
     fn can_access<D>(&self) -> bool
     where
-        D: NetabaseDefinition + crate::traits::registery::repository::InRepository<R>,
+        D: NetabaseDefinition + crate::traits::registry::repository::InRepository<R>,
         D::Discriminant: 'static + std::fmt::Debug;
 }

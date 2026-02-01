@@ -20,13 +20,13 @@ use crate::errors::NetabaseResult;
 use crate::traits::migration::{
     MigrationChainExecutor, MigrationError, MigrationPath, MigrationResult, VersionHeader,
 };
-use crate::traits::registery::definition::redb_definition::RedbDefinition;
-use crate::traits::registery::definition::schema::{DefinitionSchema, SchemaComparisonResult};
+use crate::traits::registry::definition::redb_definition::RedbDefinition;
+use crate::traits::registry::definition::schema::{DefinitionSchema, SchemaComparisonResult};
 use std::marker::PhantomData;
 use strum::IntoDiscriminant;
 
 // Re-export migration types from redb_definition for convenience
-pub use crate::traits::registery::definition::redb_definition::{
+pub use crate::traits::registry::definition::redb_definition::{
     DetectedVersion, MigrationOptions, MigrationResult as ModelMigrationResult,
 };
 
@@ -119,8 +119,7 @@ where
                 .model_history
                 .iter()
                 .find(|h| h.family == history.family)
-            {
-                if stored_history.current_version != history.current_version {
+                && stored_history.current_version != history.current_version {
                     paths.push(MigrationPath {
                         from_version: stored_history.current_version,
                         to_version: history.current_version,
@@ -129,7 +128,6 @@ where
                         may_lose_data: false, // TODO: Track this properly
                     });
                 }
-            }
         }
 
         paths

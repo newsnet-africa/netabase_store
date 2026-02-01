@@ -83,8 +83,8 @@ pub mod repository;
 pub mod transaction;
 
 use crate::errors::{NetabaseError, NetabaseResult};
-use crate::traits::registery::definition::redb_definition::RedbDefinition;
-use crate::traits::registery::definition::schema::{DefinitionSchema, SchemaComparisonResult};
+use crate::traits::registry::definition::redb_definition::RedbDefinition;
+use crate::traits::registry::definition::schema::{DefinitionSchema, SchemaComparisonResult};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use strum::IntoDiscriminant;

@@ -22,7 +22,7 @@
 //! use netabase_store::doc_example::*;
 //! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
-//! use netabase_store::traits::registery::models::model::NetabaseModel;
+//! use netabase_store::traits::registry::models::model::NetabaseModel;
 //!
 //! // Create a pure in-memory database (no IO operations)
 //! let store = RedbStore::<ExampleDef>::new_in_memory().unwrap();

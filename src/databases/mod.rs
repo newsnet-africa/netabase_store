@@ -5,11 +5,12 @@
 //! # Available Backends
 //!
 //! - **`redb`**: Production-ready embedded database backend (fully implemented)
+//! - **`memory`**: In-memory backend for testing and development
 //! - **`indexedb`**: Browser-based storage (placeholder for future implementation)
 //!
 //! # Usage
 //!
-//! Most users will use the redb backend:
+//! Most users will use the redb backend for production:
 //!
 //! ```rust
 //! use netabase_store::databases::redb::RedbStore;
@@ -28,6 +29,16 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! For testing, use the memory backend:
+//!
+//! ```rust,ignore
+//! use netabase_store::databases::memory::MemoryStore;
+//!
+//! let store = MemoryStore::<MyApp>::new();
+//! // Fast, no disk I/O
+//! ```
 
 pub mod indexedb;
+pub mod memory;
 pub mod redb;

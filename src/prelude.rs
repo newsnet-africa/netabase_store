@@ -16,14 +16,14 @@
 //!
 //! - [`NetabaseDefinition`]: Trait for definition enums grouping models
 //! - [`NetabaseModel`]: Trait for individual model structs
-//! - [`NetabaseRepository`]: Trait for repository contexts
+//! - `NetabaseRepository`: Trait for repository contexts
 //!
 //! ## Database Types
 //!
 //! - [`RedbStore`]: Main database store using redb backend
 //! - [`RedbTransaction`]: Transaction wrapper for CRUD operations
-//! - [`RedbReadTransaction`]: Read-only transaction
-//! - [`RedbWriteTransaction`]: Read-write transaction
+//! - `RedbReadTransaction`: Read-only transaction
+//! - `RedbWriteTransaction`: Read-write transaction
 //!
 //! ## Query System
 //!
@@ -35,7 +35,7 @@
 //!
 //! ## Relational System
 //!
-//! - [`RelationalLink`]: Type-safe reference to another model
+//! - `RelationalLink`: Type-safe reference to another model
 //! - Supports hydration (loading the full referenced model)
 //! - Enforces repository isolation at compile time
 //!
@@ -46,9 +46,9 @@
 //!
 //! ## Migration System
 //!
-//! - [`MigrateFrom`]: Trait for upgrading from older versions
-//! - [`MigrateTo`]: Trait for downgrading to older versions (P2P)
-//! - [`VersionContext`]: Context for version-aware deserialization
+//! - `MigrateFrom`: Trait for upgrading from older versions
+//! - `MigrateTo`: Trait for downgrading to older versions (P2P)
+//! - `VersionContext`: Context for version-aware deserialization
 //!
 //! # Common Patterns
 //!
@@ -122,7 +122,7 @@
 //! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
 //! use netabase_store::relational::RelationalLink;
-//! use netabase_store::traits::registery::repository::Standalone;
+//! use netabase_store::traits::registry::repository::Standalone;
 //!
 //! let store = RedbStore::<ExampleDef>::new_in_memory().unwrap();
 //!
@@ -186,8 +186,8 @@
 //! Import these explicitly when needed from their respective modules.
 
 // Core traits
-pub use crate::traits::registery::definition::NetabaseDefinition;
-pub use crate::traits::registery::models::model::NetabaseModel;
+pub use crate::traits::registry::definition::NetabaseDefinition;
+pub use crate::traits::registry::models::model::NetabaseModel;
 
 // Database and transactions
 pub use crate::databases::redb::RedbStore;

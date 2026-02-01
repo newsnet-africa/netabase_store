@@ -2,7 +2,7 @@ use crate::{
     databases::redb::transaction::{RedbTransaction, RedbTransactionType},
     errors::NetabaseResult,
     relational::RelationalLink,
-    traits::registery::{
+    traits::registry::{
         definition::{NetabaseDefinition, redb_definition::RedbDefinition},
         models::{
             keys::{NetabaseModelKeys, blob::NetabaseModelBlobKey},

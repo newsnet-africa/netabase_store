@@ -28,7 +28,7 @@
 //!
 //! Table handles must not outlive their parent transaction. The lifetime system enforces this.
 
-use crate::traits::registery::{
+use crate::traits::registry::{
     definition::redb_definition::RedbDefinition,
     models::{
         keys::{NetabaseModelKeys, blob::NetabaseModelBlobKey},

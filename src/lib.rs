@@ -112,7 +112,7 @@
 //! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
 //! use netabase_store::relational::RelationalLink;
-//! use netabase_store::traits::registery::repository::Standalone;
+//! use netabase_store::traits::registry::repository::Standalone;
 //!
 //! let store = RedbStore::<ExampleDef>::new_in_memory().unwrap();
 //!
@@ -189,28 +189,205 @@
 #![feature(generic_const_items)]
 #![allow(incomplete_features)]
 
+//! # Netabase Store
+//!
+//! A type-safe, high-performance embedded database library for Rust with
+//! automatic model migration and compile-time schema validation.
+//!
+//! ## Features
+//!
+//! - **Type-Safe**: Compile-time schema validation with Rust's type system
+//! - **High Performance**: Zero-copy operations with postcard serialization
+//! - **Auto Migration**: Automatic schema versioning and data migration
+//! - **Transactions**: ACID-compliant read/write transactions
+//! - **Secondary Indexes**: Fast lookups on non-primary fields
+//! - **Relational Links**: Support for relationships between models
+//!
+//! ## Quick Start
+//!
+//! ```rust
+//! use netabase_store::prelude::*;
+//! use netabase_store::traits::database::store::NBStore;
+//! use serde::{Serialize, Deserialize};
+//!
+//! // 1. Define your definition with models inside it
+//! #[netabase_macros::netabase_definition(MyApp)]
+//! mod my_models {
+//!     use super::*;
+//!
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+//!     pub struct User {
+//!         #[primary_key]
+//!         pub id: String,
+//!         pub name: String,
+//!         #[secondary_key]
+//!         pub email: String,
+//!     }
+//! }
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use my_models::*;
+//!
+//! // 2. Create an in-memory database for testing
+//! let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
+//!
+//! // 3. Write data in a transaction
+//! let txn = store.begin_write()?;
+//! txn.create(&User {
+//!     id: UserID("alice".into()),
+//!     name: "Alice".into(),
+//!     email: "alice@example.com".into(),
+//! })?;
+//! txn.commit()?;
+//!
+//! // 4. Read data back
+//! let txn = store.begin_read()?;
+//! let user: Option<User> = txn.read(&UserID("alice".into()))?;
+//! assert_eq!(user.unwrap().name, "Alice");
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Cargo Features
+//!
+//! All features are enabled by default. Disable default features and enable only
+//! what you need for smaller binaries:
+//!
+//! - `secondary_keys` - Secondary key indexes for fast lookups
+//! - `relational_keys` - Type-safe relational links between models
+//! - `blobs` - Large binary data storage with automatic chunking
+//! - `subscriptions` - Topic-based pub/sub with Merkle tree synchronization
+//! - `migration` - Schema versioning and data migration
+//! - `repository` - Repository pattern for access control
+//! - `libp2p` - P2P networking integration
+//!
+//! ## Module Organization
+//!
+//! ### Core Modules
+//! - [`core`] - Fundamental types (keys, primitives, capabilities)
+//! - [`schema`] - Schema types (blobs, relations, subscriptions)
+//! - [`traits`] - Core traits for models, definitions, and repositories
+//! - [`errors`] - Error types and result aliases
+//!
+//! ### Database Layer
+//! - [`databases`] - Backend implementations (redb, indexeddb, memory)
+//! - [`query`] - Query configuration and execution
+//!
+//! ### Convenience
+//! - [`prelude`] - Convenient re-exports for quick imports
+//! - [`tutorial`] - Comprehensive usage examples and guides
+//! - [`doc_examples`] - Pre-built models for documentation
+
 // Allow the crate to reference itself, needed for macros that generate
 // code referencing `netabase_store::` paths
 extern crate self as netabase_store;
 
+// ============================================================================
+// External Crate Re-exports
+// ============================================================================
+
+/// Re-export libp2p for use in networking features.
 #[cfg(feature = "libp2p")]
 pub use libp2p;
+
+/// Re-export postcard for serialization.
 pub use postcard;
 
-pub mod blob;
-pub mod databases;
-pub mod doc_examples;
-// Re-export for compatibility with docs using singular form
-pub use doc_examples as doc_example;
+// ============================================================================
+// Core Modules
+// ============================================================================
+
+/// Core types and primitives.
+///
+/// Contains fundamental types: keys, primitives, and capabilities.
+pub mod core;
+
+/// Schema-related types for advanced features.
+///
+/// Contains blob storage, relational links, and subscription hashing.
+pub mod schema;
+
+/// Error types and result aliases.
 pub mod errors;
-pub mod prelude;
+
+/// Query configuration and execution.
 pub mod query;
-pub mod relational;
-pub mod subscription_hash;
+
+/// Database backend implementations.
+pub mod databases;
+
+/// Core traits for models, definitions, and repositories.
 pub mod traits;
+
+/// Internal utility functions.
 pub mod utils;
 
-pub mod capabilities;
-pub mod key;
+/// Node metadata for distributed systems.
 pub mod node_metadata;
-pub mod primitives;
+
+// ============================================================================
+// Compatibility Re-exports (maintaining public API)
+// ============================================================================
+
+/// Re-export key types for backwards compatibility.
+pub use core::key;
+
+/// Re-export primitives for backwards compatibility.
+pub use core::primitives;
+
+/// Re-export capabilities for backwards compatibility.
+pub use core::capabilities;
+
+/// Re-export blob types for backwards compatibility.
+#[cfg(feature = "blobs")]
+pub use schema::blob;
+
+/// Re-export relational types for backwards compatibility.
+#[cfg(feature = "relational_keys")]
+pub use schema::relational;
+
+/// Re-export subscription types for backwards compatibility.
+#[cfg(feature = "subscriptions")]
+pub use schema::subscription_hash;
+
+// ============================================================================
+// Documentation Examples
+// ============================================================================
+
+/// Pre-built example models for documentation and testing.
+/// Documentation examples module.
+///
+/// This module provides `ExampleDef` with `User`, `Product`, `Author`, and `Book` models
+/// that are used throughout the documentation examples.
+pub mod doc_examples;
+
+/// Re-export for compatibility with docs using singular form.
+pub use doc_examples as doc_example;
+
+// ============================================================================
+// Tutorial and Examples
+// ============================================================================
+
+/// Comprehensive tutorial and usage examples.
+///
+/// This module contains complete, runnable examples demonstrating all features
+/// of Netabase from basic CRUD to advanced patterns.
+///
+/// Start here if you're new to Netabase!
+pub mod tutorial;
+
+/// Examples of code generated by the Netabase macros.
+///
+/// This module shows conceptual examples of what the `#[derive(NetabaseModel)]`
+/// and `#[netabase_definition]` macros generate, helping you understand the
+/// internals and debug issues.
+pub mod macro_generated_examples;
+
+// ============================================================================
+// Prelude
+// ============================================================================
+
+/// Convenient re-exports for common usage patterns.
+///
+/// Import with `use netabase_store::prelude::*;` to get started quickly.
+pub mod prelude;

@@ -1,5 +1,5 @@
 use std::path::Path;
-use crate::traits::registery::definition::NetabaseDefinition;
+use crate::traits::registry::definition::NetabaseDefinition;
 use crate::errors::NetabaseResult;
 
 pub trait NBStore<D: NetabaseDefinition>

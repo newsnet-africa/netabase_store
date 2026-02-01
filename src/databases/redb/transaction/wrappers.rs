@@ -1,6 +1,6 @@
 use crate::{
     errors::{NetabaseError, NetabaseResult},
-    traits::registery::definition::redb_definition::RedbDefinition,
+    traits::registry::definition::redb_definition::RedbDefinition,
 };
 use redb::{CommitError, TableError};
 use std::marker::PhantomData;

@@ -6,7 +6,7 @@ use super::options::CrudOptions;
 use super::tables::{ModelOpenTables, ReadWriteTableType, TablePermission, TableType};
 use crate::{
     errors::{NetabaseError, NetabaseResult},
-    traits::registery::{
+    traits::registry::{
         definition::redb_definition::RedbDefinition,
         models::{
             keys::{NetabaseModelKeys, blob::NetabaseModelBlobKey},
@@ -964,28 +964,22 @@ where
             match table_perm {
                 TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
                     if let Ok(iter) = table.get(primary_key.borrow()) {
-                        for item in iter {
-                            if let Ok(guard) = item {
-                                results.push(guard);
-                            }
+                        for guard in iter.flatten() {
+                            results.push(guard);
                         }
                     }
                 }
                 TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
                     if let Ok(iter) = table.get(primary_key.borrow()) {
-                        for item in iter {
-                            if let Ok(guard) = item {
-                                results.push(guard);
-                            }
+                        for guard in iter.flatten() {
+                            results.push(guard);
                         }
                     }
                 }
                 TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
                     if let Ok(iter) = table.get(primary_key.borrow()) {
-                        for item in iter {
-                            if let Ok(guard) = item {
-                                results.push(guard);
-                            }
+                        for guard in iter.flatten() {
+                            results.push(guard);
                         }
                     }
                 }
@@ -1013,40 +1007,33 @@ where
         let tree_names = Self::TREE_NAMES;
         let table_index = tree_names.relational.iter().position(|t| t.discriminant == relation_type);
 
-        if let Some(index) = table_index {
-            if let Some((table_perm, _)) = tables.relational.get(index) {
+        if let Some(index) = table_index
+            && let Some((table_perm, _)) = tables.relational.get(index) {
                 match table_perm {
                     TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
                         if let Ok(iter) = table.get(primary_key.borrow()) {
-                            for item in iter {
-                                if let Ok(guard) = item {
-                                    results.push(guard);
-                                }
+                            for guard in iter.flatten() {
+                                results.push(guard);
                             }
                         }
                     }
                     TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
                         if let Ok(iter) = table.get(primary_key.borrow()) {
-                            for item in iter {
-                                if let Ok(guard) = item {
-                                    results.push(guard);
-                                }
+                            for guard in iter.flatten() {
+                                results.push(guard);
                             }
                         }
                     }
                     TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
                         if let Ok(iter) = table.get(primary_key.borrow()) {
-                            for item in iter {
-                                if let Ok(guard) = item {
-                                    results.push(guard);
-                                }
+                            for guard in iter.flatten() {
+                                results.push(guard);
                             }
                         }
                     }
                     _ => {}
                 }
             }
-        }
         
         Ok(results)
     }
@@ -1072,28 +1059,22 @@ where
             match table_perm {
                 TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
                     if let Ok(values) = table.get(blob_key.borrow()) {
-                        for item in values {
-                            if let Ok(guard) = item {
-                                result.push(guard.value());
-                            }
+                        for guard in values.flatten() {
+                            result.push(guard.value());
                         }
                     }
                 }
                 TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
                     if let Ok(values) = table.get(blob_key.borrow()) {
-                        for item in values {
-                            if let Ok(guard) = item {
-                                result.push(guard.value());
-                            }
+                        for guard in values.flatten() {
+                            result.push(guard.value());
                         }
                     }
                 }
                 TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
                     if let Ok(values) = table.get(blob_key.borrow()) {
-                        for item in values {
-                            if let Ok(guard) = item {
-                                result.push(guard.value());
-                            }
+                        for guard in values.flatten() {
+                            result.push(guard.value());
                         }
                     }
                 }
@@ -1122,43 +1103,34 @@ where
             match table_perm {
                 TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
                     if let Ok(values) = table.get(blob_key.borrow()) {
-                        for item in values {
-                            if let Ok(guard) = item {
-                                let value = guard.value();
-                                if let Some(idx) = value.get_blob_index() {
-                                    if indices.contains(&idx) {
-                                        result.push(value);
-                                    }
+                        for guard in values.flatten() {
+                            let value = guard.value();
+                            if let Some(idx) = value.get_blob_index()
+                                && indices.contains(&idx) {
+                                    result.push(value);
                                 }
-                            }
                         }
                     }
                 }
                 TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
                     if let Ok(values) = table.get(blob_key.borrow()) {
-                        for item in values {
-                            if let Ok(guard) = item {
-                                let value = guard.value();
-                                if let Some(idx) = value.get_blob_index() {
-                                    if indices.contains(&idx) {
-                                        result.push(value);
-                                    }
+                        for guard in values.flatten() {
+                            let value = guard.value();
+                            if let Some(idx) = value.get_blob_index()
+                                && indices.contains(&idx) {
+                                    result.push(value);
                                 }
-                            }
                         }
                     }
                 }
                 TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
                     if let Ok(values) = table.get(blob_key.borrow()) {
-                        for item in values {
-                            if let Ok(guard) = item {
-                                let value = guard.value();
-                                if let Some(idx) = value.get_blob_index() {
-                                    if indices.contains(&idx) {
-                                        result.push(value);
-                                    }
+                        for guard in values.flatten() {
+                            let value = guard.value();
+                            if let Some(idx) = value.get_blob_index()
+                                && indices.contains(&idx) {
+                                    result.push(value);
                                 }
-                            }
                         }
                     }
                 }
@@ -1186,33 +1158,30 @@ where
                 TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
                     if let Ok(values) = table.get(blob_key.borrow()) {
                         for item in values {
-                            if let Ok(guard) = item {
-                                if let Some(idx) = guard.value().get_blob_index() {
+                            if let Ok(guard) = item
+                                && let Some(idx) = guard.value().get_blob_index() {
                                     result.push(idx);
                                 }
-                            }
                         }
                     }
                 }
                 TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
                     if let Ok(values) = table.get(blob_key.borrow()) {
                         for item in values {
-                            if let Ok(guard) = item {
-                                if let Some(idx) = guard.value().get_blob_index() {
+                            if let Ok(guard) = item
+                                && let Some(idx) = guard.value().get_blob_index() {
                                     result.push(idx);
                                 }
-                            }
                         }
                     }
                 }
                 TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
                     if let Ok(values) = table.get(blob_key.borrow()) {
                         for item in values {
-                            if let Ok(guard) = item {
-                                if let Some(idx) = guard.value().get_blob_index() {
+                            if let Ok(guard) = item
+                                && let Some(idx) = guard.value().get_blob_index() {
                                     result.push(idx);
                                 }
-                            }
                         }
                     }
                 }

@@ -7,8 +7,8 @@ use std::borrow::Cow;
 use std::marker::PhantomData;
 
 use crate::{
-    databases::redb::RedbStore, traits::database::store::NBStore,
-    traits::registery::definition::redb_definition::RedbDefinition,
+    databases::redb::RedbStore,
+    traits::registry::definition::redb_definition::RedbDefinition,
 };
 
 /// Implementation of libp2p RecordStore for RedbStore.
@@ -110,15 +110,12 @@ where
         let mut records = Vec::new();
         if let Ok(txn) = self._store.begin_read() {
             let _ = txn.with_read_transaction(|rt| {
-                if let Ok(tables) = D::open_read_only_tables(rt) {
-                    if let Ok(iter) = D::iter_records(&tables) {
-                        for res in iter {
-                            if let Ok(r) = res {
-                                records.push(Cow::Owned(r));
-                            }
+                if let Ok(tables) = D::open_read_only_tables(rt)
+                    && let Ok(iter) = D::iter_records(&tables) {
+                        for r in iter.flatten() {
+                            records.push(Cow::Owned(r));
                         }
                     }
-                }
                 Ok(())
             });
         }

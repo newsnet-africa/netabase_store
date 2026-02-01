@@ -154,11 +154,10 @@ impl FamilyLineage {
 
         // Find the highest version that exists in both and has matching hash
         for (version, hash) in self.versions.iter().rev() {
-            if let Some((_, other_hash)) = other.versions.iter().find(|(v, _)| v == version) {
-                if hash == other_hash {
+            if let Some((_, other_hash)) = other.versions.iter().find(|(v, _)| v == version)
+                && hash == other_hash {
                     return Some(*version);
                 }
-            }
         }
 
         None
