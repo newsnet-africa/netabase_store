@@ -13,6 +13,7 @@ subscriptions = [
     "Topic1",
     "Topic2",
 ]
+subscription_immutable = false
 family = "User"
 version = 1
 is_current = false
@@ -49,6 +50,7 @@ subscriptions = [
     "Topic1",
     "Topic2",
 ]
+subscription_immutable = false
 family = "User"
 version = 2
 is_current = true
@@ -109,6 +111,7 @@ subscriptions = [
     "Topic3",
     "Topic4",
 ]
+subscription_immutable = false
 family = "Post"
 version = 1
 is_current = false
@@ -141,6 +144,7 @@ subscriptions = [
     "Topic3",
     "Topic4",
 ]
+subscription_immutable = false
 family = "Post"
 version = 2
 is_current = true
@@ -185,6 +189,7 @@ subscriptions = [
     "Topic3",
     "Topic4",
 ]
+subscription_immutable = false
 is_current = false
 is_libp2p_enabled = false
 is_content_addressed = false
@@ -248,6 +253,7 @@ subscriptions = [
     "Topic1",
     "Topic2",
 ]
+subscription_immutable = false
 is_current = false
 is_libp2p_enabled = false
 is_content_addressed = true
@@ -266,6 +272,11 @@ kind = "Regular"
 name = "timestamp"
 type_name = "u64"
 kind = "Regular"
+
+[models.content_addressed_config]
+hasher = "crate :: boilerplate_lib :: models :: FastHasher"
+function = "crate :: boilerplate_lib :: models :: hash_model"
+key_type = "u64"
 
 [[models]]
 name = "ImmutablePostFast"
@@ -273,6 +284,7 @@ subscriptions = [
     "Topic1",
     "Topic2",
 ]
+subscription_immutable = false
 is_current = false
 is_libp2p_enabled = false
 is_content_addressed = true
@@ -291,6 +303,11 @@ kind = "Regular"
 name = "timestamp"
 type_name = "u64"
 kind = "Regular"
+
+[models.content_addressed_config]
+hasher = "netabase_store :: traits :: database :: hash :: FastHash"
+function = "crate :: boilerplate_lib :: models :: hash_model_fast"
+key_type = "u64"
 
 [[models]]
 name = "ImmutablePostCrypto"
@@ -298,6 +315,7 @@ subscriptions = [
     "Topic1",
     "Topic2",
 ]
+subscription_immutable = false
 is_current = false
 is_libp2p_enabled = false
 is_content_addressed = true
@@ -316,6 +334,11 @@ kind = "Regular"
 name = "timestamp"
 type_name = "u64"
 kind = "Regular"
+
+[models.content_addressed_config]
+hasher = "netabase_store :: traits :: database :: hash :: CryptoHash"
+function = "crate :: boilerplate_lib :: models :: hash_model_crypto"
+key_type = "u64"
 
 [[structs]]
 name = "LargeUserFile"
@@ -360,6 +383,7 @@ subscriptions = [
     "Topic1",
     "Topic2",
 ]
+subscription_immutable = false
 version_hash = "9774471415192068689"
 supports_downgrade = false
 supports_upgrade = false
@@ -397,6 +421,7 @@ subscriptions = [
     "Topic1",
     "Topic2",
 ]
+subscription_immutable = false
 version_hash = "5563019169600077249"
 supports_downgrade = false
 supports_upgrade = true
@@ -467,6 +492,7 @@ subscriptions = [
     "Topic3",
     "Topic4",
 ]
+subscription_immutable = false
 version_hash = "18306954760968958270"
 supports_downgrade = false
 supports_upgrade = false
@@ -500,6 +526,7 @@ subscriptions = [
     "Topic3",
     "Topic4",
 ]
+subscription_immutable = false
 version_hash = "12940536922446132280"
 supports_downgrade = true
 supports_upgrade = true

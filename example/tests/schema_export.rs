@@ -1,9 +1,16 @@
-use netabase_store::traits::registery::definition::NetabaseDefinition;
+use netabase_store::traits::registry::definition::NetabaseDefinition;
 use example::boilerplate_lib::{Definition, DefinitionTwo};
 use std::fs;
 use std::path::PathBuf;
 
+/// Test schema export to TOML.
+/// 
+/// This test generates TOML files that are used by the schema_import test.
+/// When running sequential tests, this must run first.
+/// 
+/// Run with: `cargo test --features sequential-tests -- --test-threads=1`
 #[test]
+#[cfg_attr(not(feature = "sequential-tests"), ignore)]
 fn test_definition_schema_export() {
     let toml = Definition::export_toml();
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -37,7 +44,13 @@ fn test_definition_schema_export() {
     assert!(toml.contains("model = \"Category\""));
 }
 
+/// Test DefinitionTwo schema export.
+/// 
+/// This is part of the sequential test suite.
+/// 
+/// Run with: `cargo test --features sequential-tests -- --test-threads=1`
 #[test]
+#[cfg_attr(not(feature = "sequential-tests"), ignore)]
 fn test_definition_two_schema_export() {
     let toml = DefinitionTwo::export_toml();
     println!("DefinitionTwo TOML:\n{}", toml);

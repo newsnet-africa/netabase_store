@@ -11,7 +11,7 @@ use strum::IntoDiscriminant;
 /// measuring only the abstraction overhead, not I/O performance.
 pub fn create_test_db<D>(_name: &str) -> NetabaseResult<RedbStore<D>>
 where
-    D: netabase_store::traits::registery::definition::redb_definition::RedbDefinition + Clone,
+    D: netabase_store::traits::registry::definition::redb_definition::RedbDefinition + Clone,
     D::TreeNames: Default,
     <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     <D as IntoDiscriminant>::Discriminant: PartialEq,

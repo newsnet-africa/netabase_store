@@ -13,7 +13,17 @@
 // The schema_export.rs test works correctly and validates export functionality.
 // Schema import requires architectural changes to work properly.
 
+/// Placeholder for schema import tests.
+///
+/// This test depends on the schema_export test running first.
+/// Currently disabled due to orphan rule violations in the import macro.
+///
+/// When re-enabled, run with:
+/// ```sh
+/// cargo test --features sequential-tests -- --test-threads=1
+/// ```
 #[test]
+#[cfg_attr(not(feature = "sequential-tests"), ignore)]
 fn test_schema_import_placeholder() {
     // Placeholder test - actual import tests are disabled
     assert!(

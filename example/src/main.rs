@@ -11,8 +11,8 @@ use example::boilerplate_lib::{
 };
 use netabase_store::blob::NetabaseBlobItem;
 use netabase_store::relational::RelationalLink;
-use netabase_store::traits::registery::definition::NetabaseDefinition;
-use netabase_store::traits::registery::models::model::NetabaseModel;
+use netabase_store::traits::registry::definition::NetabaseDefinition;
+use netabase_store::traits::registry::models::model::NetabaseModel;
 
 fn main() {
     println!("Netabase Store - Boilerplate Example");
@@ -239,7 +239,7 @@ fn main() {
 
     // 1. Dehydrated - No lifetime constraints
     let dehydrated = RelationalLink::<
-        netabase_store::traits::registery::repository::Standalone,
+        netabase_store::traits::registry::repository::Standalone,
         Definition,
         Definition,
         User,
@@ -265,7 +265,7 @@ fn main() {
         another: AnotherLargeUserFile(vec![3u8; 10_000]), // 10KB -> 1 blob
     };
     let owned = RelationalLink::<
-        netabase_store::traits::registery::repository::Standalone,
+        netabase_store::traits::registry::repository::Standalone,
         Definition,
         Definition,
         User,
@@ -283,7 +283,7 @@ fn main() {
 
     // 3. Borrowed (simulated - in real usage from AccessGuard)
     let borrowed = RelationalLink::<
-        netabase_store::traits::registery::repository::Standalone,
+        netabase_store::traits::registry::repository::Standalone,
         Definition,
         Definition,
         User,
@@ -321,7 +321,7 @@ fn main() {
     // Demonstrate ordering: Dehydrated < Owned < Hydrated < Borrowed
     println!("\n6. Variant ordering (Dehydrated < Owned < Hydrated < Borrowed):");
     let test_dehydrated = RelationalLink::<
-        netabase_store::traits::registery::repository::Standalone,
+        netabase_store::traits::registry::repository::Standalone,
         Definition,
         Definition,
         User,
@@ -340,7 +340,7 @@ fn main() {
         another: AnotherLargeUserFile(vec![5u8; 5_000]),
     };
     let test_owned = RelationalLink::<
-        netabase_store::traits::registery::repository::Standalone,
+        netabase_store::traits::registry::repository::Standalone,
         Definition,
         Definition,
         User,
@@ -359,7 +359,7 @@ fn main() {
         another: AnotherLargeUserFile(vec![7u8; 2_000]),
     };
     let test_borrowed = RelationalLink::<
-        netabase_store::traits::registery::repository::Standalone,
+        netabase_store::traits::registry::repository::Standalone,
         Definition,
         Definition,
         User,

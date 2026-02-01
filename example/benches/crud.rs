@@ -1,7 +1,7 @@
 use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main};
 use netabase_store::databases::redb::RedbStore;
 use netabase_store::databases::redb::libp2p::Libp2pRedbStore;
-use netabase_store::databases::redb::transaction::RedbModelCrud;
+use netabase_store::databases::redb::transaction::{RedbModelCrud, CrudOptions};
 use netabase_store::libp2p::PeerId;
 use netabase_store::libp2p::kad::Record;
 use netabase_store::libp2p::kad::store::RecordStore;
@@ -642,13 +642,14 @@ fn bench_crud_operations(c: &mut Criterion) {
                 },
                 |(store, users)| {
                     // MEASURED: Transaction, table opening, and read loop
+                    // Using read_entry returns AccessGuard for zero-copy access
                     let txn = store.begin_read().expect("Failed to begin txn");
                     {
                         let tables = txn
                             .prepare_model::<User>()
                             .expect("Failed to prepare model");
                         for user in &users {
-                            black_box(User::read_default(black_box(&user.id), &tables))
+                            black_box(User::read_entry(black_box(&user.id), &tables, CrudOptions::default()))
                                 .expect("Failed to read user");
                         }
                     }
@@ -700,9 +701,10 @@ fn bench_crud_operations(c: &mut Criterion) {
                                 .prepare_model::<ImmutablePostEnvelope>()
                                 .expect("Failed to prepare model");
                             for hash in &hashes {
-                                black_box(ImmutablePostEnvelope::read_default(
+                                black_box(ImmutablePostEnvelope::read_entry(
                                     black_box(hash),
                                     &tables,
+                                    CrudOptions::default(),
                                 ))
                                 .expect("Failed to read post");
                             }
@@ -756,9 +758,10 @@ fn bench_crud_operations(c: &mut Criterion) {
                                 .prepare_model::<ImmutablePostFastEnvelope>()
                                 .expect("Failed to prepare model");
                             for hash in &hashes {
-                                black_box(ImmutablePostFastEnvelope::read_default(
+                                black_box(ImmutablePostFastEnvelope::read_entry(
                                     black_box(hash),
                                     &tables,
+                                    CrudOptions::default(),
                                 ))
                                 .expect("Failed to read post");
                             }
@@ -813,9 +816,10 @@ fn bench_crud_operations(c: &mut Criterion) {
                                 .prepare_model::<ImmutablePostCryptoEnvelope>()
                                 .expect("Failed to prepare model");
                             for hash in &hashes {
-                                black_box(ImmutablePostCryptoEnvelope::read_default(
+                                black_box(ImmutablePostCryptoEnvelope::read_entry(
                                     black_box(hash),
                                     &tables,
+                                    CrudOptions::default(),
                                 ))
                                 .expect("Failed to read post");
                             }
@@ -938,12 +942,14 @@ fn bench_crud_operations(c: &mut Criterion) {
                 },
                 |(db, users)| {
                     // MEASURED: Transaction, table opening, and read loop
+                    // Note: We only access the AccessGuard without calling .value() 
+                    // to avoid deserialization overhead - this measures raw redb access
                     let txn = db.begin_read().expect("Failed to begin txn");
                     let main_table = txn.open_table(MAIN).expect("Failed to open main");
                     for user in &users {
-                        black_box(main_table.get(black_box(&user.id)))
-                            .expect("Failed to get user")
-                            .map(|g| g.value());
+                        let guard = black_box(main_table.get(black_box(&user.id)))
+                            .expect("Failed to get user");
+                        black_box(guard); // Access guard without deserializing
                     }
                 },
                 BatchSize::PerIteration,
@@ -1277,10 +1283,15 @@ fn bench_crud_operations(c: &mut Criterion) {
 
                         for user in &users {
                             let user_id = &user.id;
-                            let stored_user = black_box(main_table.get(user_id))
-                                .expect("Failed to get user")
-                                .expect("User not found")
-                                .value();
+                            // Get the stored user - we need to deserialize here to get
+                            // the secondary/relational keys for deletion.
+                            // Note: We must get the value and drop the guard before mutating main_table
+                            let stored_user = {
+                                let guard = black_box(main_table.get(user_id))
+                                    .expect("Failed to get user")
+                                    .expect("User not found");
+                                guard.value()
+                            };
 
                             main_table.remove(user_id).unwrap();
 

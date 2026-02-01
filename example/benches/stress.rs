@@ -1,5 +1,5 @@
 use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main};
-use netabase_store::databases::redb::transaction::RedbModelCrud;
+use netabase_store::databases::redb::transaction::{RedbModelCrud, CrudOptions};
 use netabase_store::relational::RelationalLink;
 use example::boilerplate_lib::definition::{
     HeavyModel, HeavyModelID, User, UserID,
@@ -213,7 +213,7 @@ fn bench_stress_operations(c: &mut Criterion) {
                     let txn = store.begin_read().unwrap();
                     let tables = txn.prepare_model::<HeavyModel>().unwrap();
                     for item in &heavies {
-                        black_box(HeavyModel::read_default(&item.id, &tables)).unwrap();
+                        black_box(HeavyModel::read_entry(&item.id, &tables, CrudOptions::default())).unwrap();
                     }
                 },
                 BatchSize::PerIteration,
@@ -258,14 +258,15 @@ fn bench_stress_operations(c: &mut Criterion) {
                     let user_tables = txn.prepare_model::<User>().unwrap();
 
                     for item in &heavies {
-                        // 1. Read Heavy
-                        let heavy = HeavyModel::read_default(&item.id, &heavy_tables)
+                        // 1. Read Heavy (returns AccessGuard, need to call .value() for owned)
+                        let heavy_guard = HeavyModel::read_entry(&item.id, &heavy_tables, CrudOptions::default())
                             .unwrap()
                             .unwrap();
+                        let heavy = heavy_guard.value();
 
                         // 2. Hydrate Creator
                         let creator_id = heavy.creator.get_primary_key();
-                        black_box(User::read_default(creator_id, &user_tables)).unwrap();
+                        black_box(User::read_entry(creator_id, &user_tables, CrudOptions::default())).unwrap();
                     }
                 },
                 BatchSize::PerIteration,
