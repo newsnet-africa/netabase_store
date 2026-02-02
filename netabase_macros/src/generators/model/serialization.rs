@@ -38,7 +38,7 @@ impl<'a> SerializationGenerator<'a> {
                 /// Envelope for content-addressed model, storing the hash and the data.
                 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, std::hash::Hash)]
                 pub struct #envelope_name {
-                    pub hash: <#model_name as ::netabase_store::traits::registery::models::content_addressed::ContentAddressedModel>::Key,
+                    pub hash: <#model_name as ::netabase_store::traits::registry::models::content_addressed::ContentAddressedModel>::Key,
                     pub inner: #model_name,
                 }
 
@@ -87,7 +87,7 @@ impl<'a> SerializationGenerator<'a> {
 
                 impl<'a> From<&'a #model_name> for #envelope_name {
                     fn from(model: &'a #model_name) -> Self {
-                         use ::netabase_store::traits::registery::models::content_addressed::ContentAddressedModel;
+                         use ::netabase_store::traits::registry::models::content_addressed::ContentAddressedModel;
                          let hash = model.compute_hash();
                          Self {
                              hash,
@@ -98,7 +98,7 @@ impl<'a> SerializationGenerator<'a> {
 
                 impl From<#model_name> for #envelope_name {
                     fn from(model: #model_name) -> Self {
-                         use ::netabase_store::traits::registery::models::content_addressed::ContentAddressedModel;
+                         use ::netabase_store::traits::registry::models::content_addressed::ContentAddressedModel;
                          let hash = model.compute_hash();
                          Self {
                              hash,
@@ -239,8 +239,8 @@ impl<'a> SerializationGenerator<'a> {
 
     fn generate_value_key_for_type(&self, type_name: &syn::Ident, inner_type: Option<&syn::Type>) -> TokenStream {
         // If inner type is a supported primitive, delegate to it (Transparent Key Optimization)
-        if let Some(ty) = inner_type {
-            if is_primitive_type(ty) {
+        if let Some(ty) = inner_type
+            && is_primitive_type(ty) {
                 return quote! {
                     impl redb::Value for #type_name {
                         type SelfType<'a> = #type_name;
@@ -282,7 +282,6 @@ impl<'a> SerializationGenerator<'a> {
                     }
                 };
             }
-        }
 
         // Fallback to postcard serialization (Varint / Custom format)
         quote! {
@@ -412,14 +411,13 @@ fn to_pascal_case(s: &str) -> String {
 }
 
 fn is_primitive_type(ty: &syn::Type) -> bool {
-    if let syn::Type::Path(p) = ty {
-        if let Some(ident) = p.path.get_ident() {
+    if let syn::Type::Path(p) = ty
+        && let Some(ident) = p.path.get_ident() {
             let s = ident.to_string();
             return matches!(s.as_str(), 
                 "u8" | "u16" | "u32" | "u64" | "u128" | 
                 "i8" | "i16" | "i32" | "i64" | "i128" |
                 "String");
         }
-    }
     false
 }

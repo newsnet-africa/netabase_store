@@ -12,7 +12,7 @@ use netabase_store::errors::NetabaseResult;
 use netabase_store::relational::{
     ModelRelationPermissions, PermissionFlag, RelationPermission, RelationalLink,
 };
-use netabase_store::traits::registery::models::model::{NetabaseModel, RedbNetbaseModel};
+use netabase_store::traits::registry::models::model::{NetabaseModel, RedbNetbaseModel};
 
 use example::{
     AnotherLargeUserFile, CategoryID, Definition, DefinitionSubscriptions, LargeUserFile, Post,
@@ -460,7 +460,7 @@ fn test_subscription_update() -> NetabaseResult<()> {
         let user = user.unwrap();
         
         // Subscriptions are trait-level
-        use netabase_store::traits::registery::models::model::NetabaseModel;
+        use netabase_store::traits::registry::models::model::NetabaseModel;
         let sub_keys = user.get_subscription_keys();
         assert_eq!(sub_keys.len(), 2, "User has 2 subscription topics");
     }

@@ -93,11 +93,11 @@ impl<'a> StoreGenerator<'a> {
                             .map_err(|e| netabase_store::errors::NetabaseError::RedbDatabaseError(e))?;
 
                         // Initialize tables for this definition
-                        <#def_path as netabase_store::traits::registery::definition::redb_definition::RedbDefinition>::init_tables(&db)?;
+                        <#def_path as netabase_store::traits::registry::definition::redb_definition::RedbDefinition>::init_tables(&db)?;
 
                         // Write schema file
                         let schema_path = def_path_folder.join("schema.toml");
-                        let toml = <#def_path as netabase_store::traits::registery::definition::NetabaseDefinition>::export_toml();
+                        let toml = <#def_path as netabase_store::traits::registry::definition::NetabaseDefinition>::export_toml();
                         std::fs::write(&schema_path, &toml).map_err(|e| {
                             netabase_store::errors::NetabaseError::IoError(format!(
                                 "Failed to write schema file {:?}: {}",

@@ -5,7 +5,7 @@ mod common;
 use common::{cleanup_test_db, create_test_db};
 use netabase_store::databases::redb::repository::RedbRepositoryDefinitions;
 use netabase_store::errors::NetabaseResult;
-use netabase_store::traits::registery::repository::NetabaseRepository;
+use netabase_store::traits::registry::repository::NetabaseRepository;
 
 use example::{Category, CategoryID, Definition, MainRepository, User, UserID};
 

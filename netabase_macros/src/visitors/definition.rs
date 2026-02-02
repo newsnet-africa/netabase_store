@@ -220,11 +220,10 @@ impl DefinitionVisitor {
     fn visit_struct(&mut self, item_struct: &ItemStruct) -> Result<()> {
         // Only process structs with NetabaseModel derive
         let has_netabase_model = item_struct.attrs.iter().any(|attr| {
-            if let syn::Meta::List(meta_list) = &attr.meta {
-                if meta_list.path.is_ident("derive") {
+            if let syn::Meta::List(meta_list) = &attr.meta
+                && meta_list.path.is_ident("derive") {
                     return meta_list.tokens.to_string().contains("NetabaseModel");
                 }
-            }
             false
         });
 

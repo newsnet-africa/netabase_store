@@ -1,6 +1,6 @@
 use netabase_store::traits::database::store::NBStore;
 use netabase_store::prelude::*;
-use netabase_store::traits::registery::definition::redb_definition::RedbDefinition;
+use netabase_store::traits::registry::definition::redb_definition::RedbDefinition;
 use serde::{Deserialize, Serialize};
 
 #[netabase_macros::netabase_definition(RecordIterTestDef)]

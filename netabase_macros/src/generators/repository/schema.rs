@@ -74,7 +74,7 @@ impl<'a> SchemaGenerator<'a> {
                 };
                 quote! {
                     {
-                        let def_schema = <#def_path as netabase_store::traits::registery::definition::NetabaseDefinition>::schema();
+                        let def_schema = <#def_path as netabase_store::traits::registry::definition::NetabaseDefinition>::schema();
                         schemas.push(def_schema);
                     }
                 }
@@ -89,14 +89,14 @@ impl<'a> SchemaGenerator<'a> {
                 /// into a complete repository.toml file that can be used to
                 /// regenerate the entire database structure.
                 pub fn schema_toml() -> String {
-                    use netabase_store::traits::registery::definition::NetabaseDefinition;
+                    use netabase_store::traits::registry::definition::NetabaseDefinition;
 
-                    let mut schemas: Vec<netabase_store::traits::registery::definition::schema::DefinitionSchema> = Vec::new();
+                    let mut schemas: Vec<netabase_store::traits::registry::definition::schema::DefinitionSchema> = Vec::new();
                     #(#def_schema_calls)*
 
                     // Build repository schema
-                    let repo_schema = netabase_store::traits::registery::definition::schema::RepositorySchema {
-                        schema_format_version: netabase_store::traits::registery::definition::schema::SCHEMA_FORMAT_VERSION,
+                    let repo_schema = netabase_store::traits::registry::definition::schema::RepositorySchema {
+                        schema_format_version: netabase_store::traits::registry::definition::schema::SCHEMA_FORMAT_VERSION,
                         name: stringify!(#repo_name).to_string(),
                         definitions: schemas,
                     };

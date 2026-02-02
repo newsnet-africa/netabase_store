@@ -213,6 +213,110 @@ where
         migrator.run()
     }
 
+    /// Open a database and automatically migrate if needed.
+    ///
+    /// This is a convenience method that combines opening the database with
+    /// automatic migration detection and execution. It will:
+    ///
+    /// 1. Open the database at the given path
+    /// 2. Check if migration is needed by comparing compiled vs stored schema
+    /// 3. If needed, run migrations automatically
+    /// 4. Return the store and migration result (if any migration was performed)
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path to the database folder
+    ///
+    /// # Returns
+    ///
+    /// A tuple of:
+    /// - `RedbStore<D>` - The opened database store
+    /// - `Option<DatabaseMigrationResult>` - Migration result if migration was performed,
+    ///   `None` if no migration was needed
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// use netabase_store::databases::redb::RedbStore;
+    /// use myapp::MyAppDef;
+    ///
+    /// // Open with auto-migration
+    /// let (store, migration_result) = RedbStore::<MyAppDef>::open_with_auto_migrate("./my_db")?;
+    ///
+    /// if let Some(result) = migration_result {
+    ///     println!("Migrated {} records", result.total_records);
+    ///     if result.has_errors {
+    ///         eprintln!("Migration had errors!");
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The database cannot be opened
+    /// - Migration fails (partial data may be migrated)
+    #[cfg(feature = "migration")]
+    pub fn open_with_auto_migrate<P: AsRef<Path>>(
+        path: P,
+    ) -> NetabaseResult<(Self, Option<migration::DatabaseMigrationResult>)>
+    where
+        D::TreeNames: Default,
+        <D as IntoDiscriminant>::Discriminant: PartialEq,
+    {
+        let store = StoreConfig::new(path.as_ref().to_path_buf()).create::<D>()?;
+        
+        let migration_result = if store.needs_migration() {
+            Some(store.migrate()?)
+        } else {
+            None
+        };
+        
+        Ok((store, migration_result))
+    }
+
+    /// Open a database and automatically migrate with custom options.
+    ///
+    /// Like [`open_with_auto_migrate`](Self::open_with_auto_migrate) but allows
+    /// specifying custom migration options like dry-run mode.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// use netabase_store::databases::redb::{RedbStore, migration::MigrationOptions};
+    /// use myapp::MyAppDef;
+    ///
+    /// // Do a dry-run first
+    /// let options = MigrationOptions { dry_run: true, ..Default::default() };
+    /// let (store, result) = RedbStore::<MyAppDef>::open_with_auto_migrate_options(
+    ///     "./my_db",
+    ///     options
+    /// )?;
+    ///
+    /// if let Some(result) = result {
+    ///     println!("Would migrate {} records", result.total_records);
+    /// }
+    /// ```
+    #[cfg(feature = "migration")]
+    pub fn open_with_auto_migrate_options<P: AsRef<Path>>(
+        path: P,
+        options: migration::MigrationOptions,
+    ) -> NetabaseResult<(Self, Option<migration::DatabaseMigrationResult>)>
+    where
+        D::TreeNames: Default,
+        <D as IntoDiscriminant>::Discriminant: PartialEq,
+    {
+        let store = StoreConfig::new(path.as_ref().to_path_buf()).create::<D>()?;
+        
+        let migration_result = if store.needs_migration() {
+            Some(store.migrate_with_options(options)?)
+        } else {
+            None
+        };
+        
+        Ok((store, migration_result))
+    }
+
     /// Get the raw database reference for advanced operations.
     pub fn raw_db(&self) -> &Arc<redb::Database> {
         &self.db

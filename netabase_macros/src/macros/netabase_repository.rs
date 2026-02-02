@@ -65,11 +65,10 @@ pub fn netabase_repository_attribute(attr: TokenStream, item: TokenStream) -> Re
 
     // Check for missing definitions only if using nested definitions
     // External definitions don't need this validation
-    if visitor.external_definitions.is_empty() {
-        if let Some(error) = visitor.generate_missing_error() {
+    if visitor.external_definitions.is_empty()
+        && let Some(error) = visitor.generate_missing_error() {
             return Err(error);
         }
-    }
 
     // Generate cycle warnings (these are warnings, not errors)
     let cycle_warnings = visitor.generate_cycle_warnings();
@@ -93,7 +92,7 @@ pub fn netabase_repository_attribute(attr: TokenStream, item: TokenStream) -> Re
             syn::Error::new(e.span(), format!("Failed to parse repository code: {}", e))
         })?;
 
-        items.extend(file.items.into_iter().map(syn::Item::from));
+        items.extend(file.items.into_iter());
     }
 
     Ok(quote! {

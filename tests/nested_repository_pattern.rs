@@ -4,7 +4,7 @@ use example::repository_example::{EmployeeRepo, ManagerRepo, Employee};
 
 #[test]
 fn test_employee_repo_name() {
-    use netabase_store::traits::registery::repository::NetabaseRepository;
+    use netabase_store::traits::registry::repository::NetabaseRepository;
     
     assert_eq!(EmployeeRepo::name(), "EmployeeRepo");
 }

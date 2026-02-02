@@ -8,7 +8,7 @@ use common::{cleanup_test_db, create_test_db};
 use netabase_store::databases::redb::transaction::{CrudOptions, RedbModelCrud};
 use netabase_store::errors::NetabaseResult;
 use netabase_store::relational::RelationalLink;
-use netabase_store::traits::registery::models::model::RedbNetbaseModel;
+use netabase_store::traits::registry::models::model::RedbNetbaseModel;
 
 use example::{
     AnotherLargeUserFile, CategoryID, Definition, LargeUserFile, User, UserID,

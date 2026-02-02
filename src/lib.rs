@@ -264,7 +264,7 @@
 //! ## Module Organization
 //!
 //! ### Core Modules
-//! - [`core`] - Fundamental types (keys, primitives, capabilities)
+//! - [`core`] - Fundamental types (keys, primitives)
 //! - [`schema`] - Schema types (blobs, relations, subscriptions)
 //! - [`traits`] - Core traits for models, definitions, and repositories
 //! - [`errors`] - Error types and result aliases
@@ -293,13 +293,28 @@ pub use libp2p;
 /// Re-export postcard for serialization.
 pub use postcard;
 
+/// Re-export the netabase_macros crate for convenience.
+///
+/// This allows users to import macros directly from `netabase_store`:
+///
+/// ```rust
+/// use netabase_store::macros::{NetabaseModel, netabase_definition};
+/// ```
+///
+/// Instead of requiring a separate import:
+///
+/// ```rust,ignore
+/// use netabase_macros::{NetabaseModel, netabase_definition};
+/// ```
+pub use netabase_macros as macros;
+
 // ============================================================================
 // Core Modules
 // ============================================================================
 
 /// Core types and primitives.
 ///
-/// Contains fundamental types: keys, primitives, and capabilities.
+/// Contains fundamental types: keys and primitives for storage operations.
 pub mod core;
 
 /// Schema-related types for advanced features.
@@ -331,12 +346,6 @@ pub mod node_metadata;
 
 /// Re-export key types for backwards compatibility.
 pub use core::key;
-
-/// Re-export primitives for backwards compatibility.
-pub use core::primitives;
-
-/// Re-export capabilities for backwards compatibility.
-pub use core::capabilities;
 
 /// Re-export blob types for backwards compatibility.
 #[cfg(feature = "blobs")]

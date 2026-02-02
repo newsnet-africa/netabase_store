@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use netabase_store::traits::registery::definition::NetabaseDefinition;
+use netabase_store::traits::registry::definition::NetabaseDefinition;
 
 #[netabase_macros::netabase_definition(Libp2pTestDef)]
 pub mod libp2p_test_def {

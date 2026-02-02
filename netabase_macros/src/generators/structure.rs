@@ -42,7 +42,11 @@ impl StructureGenerator {
                     .iter()
                     .map(|s| Ident::new(s, Span::call_site()))
                     .collect();
-                quote! { #[subscribe(#(#topics),*)] }
+                if model.subscription_immutable {
+                    quote! { #[subscribe(immutable, #(#topics),*)] }
+                } else {
+                    quote! { #[subscribe(#(#topics),*)] }
+                }
             } else {
                 quote! {}
             };
@@ -56,6 +60,26 @@ impl StructureGenerator {
                 } else {
                     quote! { #[netabase_version(family = #family, version = #version)] }
                 }
+            } else {
+                quote! {}
+            };
+
+            // Generate content-addressed attribute if configured
+            let content_addressed_attr = if let Some(ref config) = model.content_addressed_config {
+                let hasher = &config.hasher;
+                let function = &config.function;
+                if let Some(ref key_type) = config.key_type {
+                    quote! { #[netabase_content_addressed(hasher = #hasher, function = #function, key_type = #key_type)] }
+                } else {
+                    quote! { #[netabase_content_addressed(hasher = #hasher, function = #function)] }
+                }
+            } else {
+                quote! {}
+            };
+
+            // Generate libp2p attribute if enabled
+            let libp2p_attr = if model.is_libp2p_enabled {
+                quote! { #[netabase_libp2p] }
             } else {
                 quote! {}
             };
@@ -75,6 +99,8 @@ impl StructureGenerator {
                 )]
                 #subscribe_attr
                 #version_attr
+                #content_addressed_attr
+                #libp2p_attr
                 pub struct #model_name {
                     #fields
                 }
@@ -143,7 +169,29 @@ impl StructureGenerator {
                         .iter()
                         .map(|s| Ident::new(s, Span::call_site()))
                         .collect();
-                    quote! { #[subscribe(#(#topics),*)] }
+                    if versioned_model.subscription_immutable {
+                        quote! { #[subscribe(immutable, #(#topics),*)] }
+                    } else {
+                        quote! { #[subscribe(#(#topics),*)] }
+                    }
+                } else {
+                    quote! {}
+                };
+                
+                let content_addressed_attr = if let Some(ref config) = versioned_model.content_addressed_config {
+                    let hasher = &config.hasher;
+                    let function = &config.function;
+                    if let Some(ref key_type) = config.key_type {
+                        quote! { #[netabase_content_addressed(hasher = #hasher, function = #function, key_type = #key_type)] }
+                    } else {
+                        quote! { #[netabase_content_addressed(hasher = #hasher, function = #function)] }
+                    }
+                } else {
+                    quote! {}
+                };
+                
+                let libp2p_attr = if versioned_model.is_libp2p_enabled {
+                    quote! { #[netabase_libp2p] }
                 } else {
                     quote! {}
                 };
@@ -164,6 +212,8 @@ impl StructureGenerator {
                     #subscribe_attr
                     #version_attr
                     #supports_downgrade_attr
+                    #content_addressed_attr
+                    #libp2p_attr
                     pub struct #model_name {
                         #fields
                     }

@@ -2,7 +2,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use syn::Ident;
 
-use crate::visitors::definition::{DefinitionSubscriptions, DefinitionVisitor, ModelInfo};
+use crate::visitors::definition::{DefinitionVisitor, ModelInfo};
 
 pub struct SubscriptionCapabilityGenerator<'a> {
     visitor: &'a DefinitionVisitor,
@@ -46,16 +46,15 @@ impl<'a> SubscriptionCapabilityGenerator<'a> {
     ) -> TokenStream {
         let mut relevant_models = Vec::new();
         for m in models {
-            if let Some(sub_info) = &m.visitor.subscriptions {
-                if sub_info.topics.iter().any(|t| t.eq(subscriptions)) {
+            if let Some(sub_info) = &m.visitor.subscriptions
+                && sub_info.topics.iter().any(|t| t.eq(subscriptions)) {
                     relevant_models.push(m);
                 }
-            }
         }
 
         let model_fields = relevant_models.iter().map(|m| {
             let field_name = Ident::new(
-                &heck::AsSnakeCase(format!("{}_capability", m.name.to_string())).to_string(),
+                &heck::AsSnakeCase(format!("{}_capability", m.name)).to_string(),
                 Span::mixed_site(),
             );
             let model_name = &m.name;
@@ -66,7 +65,7 @@ impl<'a> SubscriptionCapabilityGenerator<'a> {
                 quote! { #model_name }
             };
             quote! {
-                pub #field_name: netabase_store::capabilities::Capability<D, #model_type>
+                pub #field_name: netabase::capabilities::Capability<D, #model_type>
             }
         });
 
@@ -91,7 +90,7 @@ impl<'a> SubscriptionCapabilityGenerator<'a> {
         };
 
         quote! {
-            pub struct #subscription_name<D: netabase_store::traits::registery::definition::network::NetworkDefinition + 'static>
+            pub struct #subscription_name<D: netabase_store::traits::registry::definition::network::NetworkDefinition + 'static>
             where
                 D::Discriminant: std::fmt::Debug,
                 D::SubscriptionKeysDiscriminant: serde::Serialize + serde::de::DeserializeOwned + std::fmt::Debug + Clone + PartialEq + Eq,
@@ -117,7 +116,7 @@ impl<'a> SubscriptionCapabilityGenerator<'a> {
             };
             // Capability<D, M>
             quote! {
-                pub #field_name: Vec<netabase_store::capabilities::Capability<#def_name, #model_type>>
+                pub #field_name: Vec<netabase::capabilities::Capability<#def_name, #model_type>>
             }
         });
 
@@ -134,7 +133,7 @@ impl<'a> SubscriptionCapabilityGenerator<'a> {
         let cap_struct_name = format_ident!("{}Capabilities", def_name);
         
         quote! {
-            impl netabase_store::traits::registery::definition::network::NetworkDefinition for #def_name {
+            impl netabase_store::traits::registry::definition::network::NetworkDefinition for #def_name {
                 type DefinitionCapabilities = #cap_struct_name;
             }
         }

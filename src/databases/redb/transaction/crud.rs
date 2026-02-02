@@ -183,6 +183,175 @@ where
     ) -> NetabaseResult<Vec<AccessGuard<'a, <Self as RedbNetbaseModel<'db, D>>::TableV>>>
     where R: std::ops::RangeBounds<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary> + Clone;
 
+    // =========================================================================
+    // Iterator-based Methods (Zero-Copy, More Efficient)
+    // =========================================================================
+
+    /// Returns an iterator over all entries in the main table.
+    ///
+    /// This is more efficient than `list_entries` as it avoids collecting
+    /// into a Vec and allows lazy iteration with zero-copy access.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let iter = Model::iter_entries(&tables)?;
+    /// for result in iter {
+    ///     let (key, value) = result?;
+    ///     println!("Key: {:?}, Value: {:?}", key.value(), value.value());
+    /// }
+    /// ```
+    fn iter_entries<'a, 'txn>(
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<redb::Range<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary, <Self as RedbNetbaseModel<'db, D>>::TableV>>
+    where
+        'db: 'txn;
+
+    /// Returns an iterator over entries within a specific primary key range.
+    ///
+    /// This is more efficient than `list_range` as it avoids collecting
+    /// into a Vec and allows lazy iteration with zero-copy access.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let iter = Model::iter_range(&tables, "a".."z")?;
+    /// for result in iter {
+    ///     let (key, value) = result?;
+    ///     // Process each entry lazily
+    /// }
+    /// ```
+    fn iter_range<'a, 'txn, R>(
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+        range: R,
+    ) -> NetabaseResult<redb::Range<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary, <Self as RedbNetbaseModel<'db, D>>::TableV>>
+    where
+        R: std::ops::RangeBounds<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary>,
+        'db: 'txn;
+
+    /// Returns an iterator over values for a secondary key.
+    ///
+    /// More efficient than `query_by_secondary_key` for large result sets
+    /// as it streams results lazily.
+    fn iter_by_secondary_key<'a, 'txn>(
+        secondary_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Secondary,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Option<redb::MultimapValue<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary>>>
+    where
+        'db: 'txn;
+
+    /// Returns an iterator over all relational links from a primary key.
+    ///
+    /// More efficient than `query_relations` for models with many relations.
+    fn iter_relations<'a, 'txn>(
+        primary_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Option<redb::MultimapValue<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Relational>>>
+    where
+        'db: 'txn;
+
+    /// Returns an iterator over blob items for a blob key.
+    ///
+    /// More efficient than `read_blob_items` for large blobs as it
+    /// streams chunks lazily without loading all into memory.
+    fn iter_blob_items<'a, 'txn>(
+        blob_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Blob,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Option<redb::MultimapValue<'a, <<Self::Keys as NetabaseModelKeys<D, Self>>::Blob as NetabaseModelBlobKey<D, Self>>::BlobItem>>>
+    where
+        'db: 'txn;
+
+    // =========================================================================
+    // Multimap Table Range Iteration (Iterate over all keys in a multimap)
+    // =========================================================================
+
+    /// Returns an iterator over all entries in a secondary index table.
+    ///
+    /// This iterates over all (secondary_key, primary_key) pairs in the specified
+    /// secondary table, enabling full table scans for analytics or migration.
+    ///
+    /// # Arguments
+    /// * `table_index` - The index of the secondary table to iterate (0-based)
+    ///
+    /// # Example
+    /// ```ignore
+    /// // Iterate over all entries in the first secondary index
+    /// if let Some(iter) = Model::iter_secondary_table(&tables, 0)? {
+    ///     for result in iter {
+    ///         let (sec_key, prim_keys) = result?;
+    ///         println!("Secondary: {:?} -> {:?}", sec_key.value(), prim_keys);
+    ///     }
+    /// }
+    /// ```
+    fn iter_secondary_table<'a, 'txn>(
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+        table_index: usize,
+    ) -> NetabaseResult<Option<redb::MultimapRange<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Secondary, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary>>>
+    where
+        'db: 'txn;
+
+    /// Returns an iterator over all entries in a relational table.
+    ///
+    /// This iterates over all (primary_key, relational_key) pairs, enabling
+    /// full graph traversal or migration operations.
+    ///
+    /// # Arguments
+    /// * `table_index` - The index of the relational table to iterate (0-based)
+    ///
+    /// # Example
+    /// ```ignore
+    /// // Iterate over all relations in the first relational table
+    /// if let Some(iter) = Model::iter_relational_table(&tables, 0)? {
+    ///     for result in iter {
+    ///         let (prim_key, rel_keys) = result?;
+    ///         println!("From: {:?} -> Relations: {:?}", prim_key.value(), rel_keys);
+    ///     }
+    /// }
+    /// ```
+    fn iter_relational_table<'a, 'txn>(
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+        table_index: usize,
+    ) -> NetabaseResult<Option<redb::MultimapRange<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary, <Self::Keys as NetabaseModelKeys<D, Self>>::Relational>>>
+    where
+        'db: 'txn;
+
+    /// Returns an iterator over all entries in a blob table.
+    ///
+    /// This iterates over all (blob_key, blob_item) pairs, useful for
+    /// storage auditing, garbage collection, or migration.
+    ///
+    /// # Arguments
+    /// * `table_index` - The index of the blob table to iterate (0-based)
+    ///
+    /// # Example
+    /// ```ignore
+    /// // Iterate over all blob entries in the first blob table
+    /// if let Some(iter) = Model::iter_blob_table(&tables, 0)? {
+    ///     for result in iter {
+    ///         let (blob_key, blob_items) = result?;
+    ///         println!("Blob: {:?} has {} chunks", blob_key.value(), blob_items.count());
+    ///     }
+    /// }
+    /// ```
+    fn iter_blob_table<'a, 'txn>(
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+        table_index: usize,
+    ) -> NetabaseResult<Option<redb::MultimapRange<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Blob, <<Self::Keys as NetabaseModelKeys<D, Self>>::Blob as NetabaseModelBlobKey<D, Self>>::BlobItem>>>
+    where
+        'db: 'txn;
+
+    /// Returns an iterator over all entries in a subscription table.
+    ///
+    /// This iterates over all (subscription_key, model_hash) pairs, enabling
+    /// sync protocol implementations to enumerate all subscribed content.
+    ///
+    /// # Arguments
+    /// * `table_index` - The index of the subscription table to iterate (0-based)
+    fn iter_subscription_table<'a, 'txn>(
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+        table_index: usize,
+    ) -> NetabaseResult<Option<redb::MultimapRange<'a, D::SubscriptionKeys, crate::subscription_hash::ModelHash>>>
+    where
+        'db: 'txn;
+
     /// Counts the total number of entries in the main table.
     fn count_entries<'txn>(
         tables: &ModelOpenTables<'txn, 'db, D, Self>
@@ -794,6 +963,284 @@ where
                 collect_iter(iter)
             },
             _ => Err(NetabaseError::Other),
+        }
+    }
+
+    // =========================================================================
+    // Iterator-based Methods Implementation
+    // =========================================================================
+
+    fn iter_entries<'a, 'txn>(
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<redb::Range<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary, <Self as RedbNetbaseModel<'db, D>>::TableV>>
+    where
+        'db: 'txn
+    {
+        Self::iter_range(tables, ..)
+    }
+
+    fn iter_range<'a, 'txn, R>(
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+        range: R,
+    ) -> NetabaseResult<redb::Range<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary, <Self as RedbNetbaseModel<'db, D>>::TableV>>
+    where
+        R: std::ops::RangeBounds<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary>,
+        'db: 'txn
+    {
+        match &tables.main {
+            TablePermission::ReadOnly(TableType::Table(table)) => {
+                table.range(range).map_err(|e| NetabaseError::RedbError(e.into()))
+            },
+            TablePermission::ReadWrite(ReadWriteTableType::Table(table)) => {
+                table.range(range).map_err(|e| NetabaseError::RedbError(e.into()))
+            },
+            _ => Err(NetabaseError::Other),
+        }
+    }
+
+    fn iter_by_secondary_key<'a, 'txn>(
+        secondary_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Secondary,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Option<redb::MultimapValue<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary>>>
+    where
+        'db: 'txn
+    {
+        use redb::ReadableMultimapTable;
+        
+        // Find matching secondary table and return iterator
+        for (table_perm, _table_name) in &tables.secondary {
+            match table_perm {
+                TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
+                    match table.get(secondary_key.borrow()) {
+                        Ok(values) => return Ok(Some(values)),
+                        Err(_) => continue,
+                    }
+                }
+                TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    match table.get(secondary_key.borrow()) {
+                        Ok(values) => return Ok(Some(values)),
+                        Err(_) => continue,
+                    }
+                }
+                TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    match table.get(secondary_key.borrow()) {
+                        Ok(values) => return Ok(Some(values)),
+                        Err(_) => continue,
+                    }
+                }
+                _ => continue,
+            }
+        }
+        Ok(None)
+    }
+
+    fn iter_relations<'a, 'txn>(
+        primary_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Primary,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Option<redb::MultimapValue<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Relational>>>
+    where
+        'db: 'txn
+    {
+        use redb::ReadableMultimapTable;
+        
+        // Return iterator from first relational table with matching key
+        for (table_perm, _table_name) in &tables.relational {
+            match table_perm {
+                TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
+                    if let Ok(values) = table.get(primary_key.borrow()) {
+                        return Ok(Some(values));
+                    }
+                }
+                TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    if let Ok(values) = table.get(primary_key.borrow()) {
+                        return Ok(Some(values));
+                    }
+                }
+                TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    if let Ok(values) = table.get(primary_key.borrow()) {
+                        return Ok(Some(values));
+                    }
+                }
+                _ => continue,
+            }
+        }
+        Ok(None)
+    }
+
+    fn iter_blob_items<'a, 'txn>(
+        blob_key: &<Self::Keys as NetabaseModelKeys<D, Self>>::Blob,
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+    ) -> NetabaseResult<Option<redb::MultimapValue<'a, <<Self::Keys as NetabaseModelKeys<D, Self>>::Blob as NetabaseModelBlobKey<D, Self>>::BlobItem>>>
+    where
+        'db: 'txn
+    {
+        use redb::ReadableMultimapTable;
+        
+        // Return iterator from first blob table with matching key
+        for (table_perm, _table_name) in &tables.blob {
+            match table_perm {
+                TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
+                    if let Ok(values) = table.get(blob_key.borrow()) {
+                        return Ok(Some(values));
+                    }
+                }
+                TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    if let Ok(values) = table.get(blob_key.borrow()) {
+                        return Ok(Some(values));
+                    }
+                }
+                TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
+                    if let Ok(values) = table.get(blob_key.borrow()) {
+                        return Ok(Some(values));
+                    }
+                }
+                _ => continue,
+            }
+        }
+        Ok(None)
+    }
+
+    // =========================================================================
+    // Multimap Table Range Iteration Implementations
+    // =========================================================================
+
+    fn iter_secondary_table<'a, 'txn>(
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+        table_index: usize,
+    ) -> NetabaseResult<Option<redb::MultimapRange<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Secondary, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary>>>
+    where
+        'db: 'txn
+    {
+        use redb::ReadableMultimapTable;
+        
+        if table_index >= tables.secondary.len() {
+            return Ok(None);
+        }
+        
+        let (table_perm, _table_name) = &tables.secondary[table_index];
+        
+        match table_perm {
+            TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
+                let range = table.range::<<Self::Keys as NetabaseModelKeys<D, Self>>::Secondary>(..)
+                    .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                Ok(Some(range))
+            }
+            TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                let range = table.range::<<Self::Keys as NetabaseModelKeys<D, Self>>::Secondary>(..)
+                    .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                Ok(Some(range))
+            }
+            TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
+                let range = table.range::<<Self::Keys as NetabaseModelKeys<D, Self>>::Secondary>(..)
+                    .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                Ok(Some(range))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn iter_relational_table<'a, 'txn>(
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+        table_index: usize,
+    ) -> NetabaseResult<Option<redb::MultimapRange<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Primary, <Self::Keys as NetabaseModelKeys<D, Self>>::Relational>>>
+    where
+        'db: 'txn
+    {
+        use redb::ReadableMultimapTable;
+        
+        if table_index >= tables.relational.len() {
+            return Ok(None);
+        }
+        
+        let (table_perm, _table_name) = &tables.relational[table_index];
+        
+        match table_perm {
+            TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
+                let range = table.range::<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary>(..)
+                    .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                Ok(Some(range))
+            }
+            TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                let range = table.range::<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary>(..)
+                    .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                Ok(Some(range))
+            }
+            TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
+                let range = table.range::<<Self::Keys as NetabaseModelKeys<D, Self>>::Primary>(..)
+                    .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                Ok(Some(range))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn iter_blob_table<'a, 'txn>(
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+        table_index: usize,
+    ) -> NetabaseResult<Option<redb::MultimapRange<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Blob, <<Self::Keys as NetabaseModelKeys<D, Self>>::Blob as NetabaseModelBlobKey<D, Self>>::BlobItem>>>
+    where
+        'db: 'txn
+    {
+        use redb::ReadableMultimapTable;
+        
+        if table_index >= tables.blob.len() {
+            return Ok(None);
+        }
+        
+        let (table_perm, _table_name) = &tables.blob[table_index];
+        
+        match table_perm {
+            TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
+                let range = table.range::<<Self::Keys as NetabaseModelKeys<D, Self>>::Blob>(..)
+                    .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                Ok(Some(range))
+            }
+            TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                let range = table.range::<<Self::Keys as NetabaseModelKeys<D, Self>>::Blob>(..)
+                    .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                Ok(Some(range))
+            }
+            TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
+                let range = table.range::<<Self::Keys as NetabaseModelKeys<D, Self>>::Blob>(..)
+                    .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                Ok(Some(range))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn iter_subscription_table<'a, 'txn>(
+        tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
+        table_index: usize,
+    ) -> NetabaseResult<Option<redb::MultimapRange<'a, D::SubscriptionKeys, crate::subscription_hash::ModelHash>>>
+    where
+        'db: 'txn
+    {
+        use redb::ReadableMultimapTable;
+        
+        if table_index >= tables.subscription.len() {
+            return Ok(None);
+        }
+        
+        let (table_perm, _table_name) = &tables.subscription[table_index];
+        
+        match table_perm {
+            TablePermission::ReadOnly(TableType::MultimapTable(table)) => {
+                let range = table.range::<D::SubscriptionKeys>(..)
+                    .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                Ok(Some(range))
+            }
+            TablePermission::ReadWrite(ReadWriteTableType::MultimapTable(table)) => {
+                let range = table.range::<D::SubscriptionKeys>(..)
+                    .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                Ok(Some(range))
+            }
+            TablePermission::ReadOnlyWrite(ReadWriteTableType::MultimapTable(table)) => {
+                let range = table.range::<D::SubscriptionKeys>(..)
+                    .map_err(|e| NetabaseError::RedbError(e.into()))?;
+                Ok(Some(range))
+            }
+            _ => Ok(None),
         }
     }
 

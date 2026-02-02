@@ -356,7 +356,7 @@ impl<'a> MigrationGenerator<'a> {
         // Generate encode_for_version match arms for each version that supports downgrade
         let mut version_arms = Vec::new();
 
-        for (_i, ver_model) in family.versions.iter().enumerate() {
+        for ver_model in family.versions.iter() {
             let version = ver_model.version();
             let target_name = &ver_model.name;
 

@@ -10,7 +10,7 @@ use netabase_store::errors::NetabaseResult;
 use netabase_store::relational::{
     ModelRelationPermissions, PermissionFlag, RelationPermission, RelationalLink,
 };
-use netabase_store::traits::registery::models::model::{NetabaseModel, RedbNetbaseModel};
+use netabase_store::traits::registry::models::model::{NetabaseModel, RedbNetbaseModel};
 
 // Use boilerplate models from examples
 use example::{AnotherLargeUserFile, LargeUserFile, User, UserID};
@@ -57,7 +57,7 @@ fn test_create_and_verify() -> NetabaseResult<()> {
         assert_eq!(read_user.age, 30, "User age should match");
         
         // Verify subscription keys are returned (trait-level)
-        use netabase_store::traits::registery::models::model::NetabaseModel;
+        use netabase_store::traits::registry::models::model::NetabaseModel;
         let sub_keys = read_user.get_subscription_keys();
         assert_eq!(sub_keys.len(), 2, "Should have 2 subscription topics");
     }
@@ -221,7 +221,7 @@ fn test_update_and_verify() -> NetabaseResult<()> {
         assert_eq!(read.age, 26, "Age should be updated");
         
         // Subscriptions are trait-level - User still has Topic1 and Topic2
-        use netabase_store::traits::registery::models::model::NetabaseModel;
+        use netabase_store::traits::registry::models::model::NetabaseModel;
         let sub_keys = read.get_subscription_keys();
         assert_eq!(sub_keys.len(), 2, "User model subscribed to 2 topics");
     }

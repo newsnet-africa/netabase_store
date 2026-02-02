@@ -2,7 +2,7 @@
 
 mod common;
 
-use netabase_store::traits::registery::repository::NetabaseRepository;
+use netabase_store::traits::registry::repository::NetabaseRepository;
 use example::MainRepository;
 use std::fs;
 use std::path::PathBuf;
@@ -135,7 +135,7 @@ fn test_schema_comparison() {
 /// Test that repository.toml can be parsed back
 #[test]
 fn test_repository_toml_roundtrip() {
-    use netabase_store::traits::registery::definition::schema::RepositorySchema;
+    use netabase_store::traits::registry::definition::schema::RepositorySchema;
     
     let toml = MainRepository::schema_toml();
     

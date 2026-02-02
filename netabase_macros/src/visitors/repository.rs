@@ -159,11 +159,10 @@ impl RepositoryVisitor {
         for model_info in &def_visitor.models {
             for field_info in &model_info.visitor.relational_keys {
                 // Extract target definition from the link path in FieldKeyType::Relational
-                if let FieldKeyType::Relational { definition, .. } = &field_info.key_type {
-                    if let Some(target_def) = crate::utils::naming::path_last_segment(definition) {
+                if let FieldKeyType::Relational { definition, .. } = &field_info.key_type
+                    && let Some(target_def) = crate::utils::naming::path_last_segment(definition) {
                         targets.push(target_def.clone());
                     }
-                }
             }
         }
 

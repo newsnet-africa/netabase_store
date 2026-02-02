@@ -1,28 +1,20 @@
-//! Core types and primitives for Netabase.
+//! Core types for Netabase Store.
 //!
-//! This module contains fundamental types used throughout the Netabase system:
+//! This module contains fundamental types used throughout the Netabase Store system:
 //!
-//! - [`key`] - Type-safe primary key wrappers
-//! - [`primitives`] - Core constants and primitive types
-//! - [`capabilities`] - Permission bitflags for access control
+//! - [`key`] - Key structures for entry addressing and path encoding
 //!
-//! These types form the foundation of the type system and are used by models,
+//! These types form the foundation of the storage system and are used by models,
 //! definitions, and database implementations.
+//!
+//! Note: Networking primitives, capabilities, and protocol types have been moved
+//! to the `netabase` crate.
 
-/// Type-safe key abstractions for primary keys.
+/// Key types for entry addressing.
 ///
-/// Provides the [`Key`](key::Key) trait and wrapper types that ensure
-/// compile-time type safety for model identifiers.
+/// Provides the [`NetabaseKey`](key::NetabaseKey) structure for uniquely
+/// identifying and ordering entries in the storage system.
 pub mod key;
 
-/// Core primitive types and constants.
-///
-/// Defines fundamental constants like table name prefixes, maximum sizes,
-/// and primitive type definitions.
-pub mod primitives;
-
-/// Capability bitflags for permission management.
-///
-/// Provides [`Capabilities`](capabilities::Capabilities) for fine-grained
-/// access control in repository patterns.
-pub mod capabilities;
+// Re-export commonly used types
+pub use key::{NetabaseKey, NetabasePath};

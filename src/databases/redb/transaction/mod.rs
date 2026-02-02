@@ -136,6 +136,7 @@
 
 pub mod core;
 pub mod crud;
+pub mod iterators;
 pub mod options;
 pub mod tables;
 pub mod value_wrappers;
@@ -164,6 +165,7 @@ use crate::{
 
 pub use self::core::{RedbTransaction, RedbTransactionInner, RedbTransactionType};
 pub use self::crud::RedbModelCrud;
+pub use self::iterators::{IteratorConfig, KeyIterator, ModelIterator, ModelIteratorExt};
 pub use self::options::*;
 pub use self::tables::{ModelOpenTables, ReadWriteTableType, TablePermission, TableType};
 pub use self::wrappers::{NetabaseRedbReadTransaction, NetabaseRedbWriteTransaction};
@@ -1357,6 +1359,429 @@ where
         };
         let mut tables = self.open_model_tables(definitions, Some(perms))?;
         M::delete_entry(key, &mut tables)
+    }
+
+    // ========================================================================
+    // List and Iterator Operations
+    // ========================================================================
+
+    /// List all records of a model type.
+    ///
+    /// Returns a vector of all model instances. For large datasets, consider
+    /// using [`iter`](Self::iter) instead for streaming access.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `M` - The model type to list
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netabase_store::prelude::*;
+    /// use netabase_store::traits::database::store::NBStore;
+    /// use serde::{Serialize, Deserialize};
+    ///
+    /// #[netabase_macros::netabase_definition(MyApp)]
+    /// mod models {
+    ///     use super::*;
+    ///
+    ///     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    ///     pub struct User {
+    ///         #[primary_key]
+    ///         pub id: u64,
+    ///         pub name: String,
+    ///     }
+    /// }
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// use models::*;
+    /// let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
+    ///
+    /// // Create some users
+    /// let txn = store.begin_write()?;
+    /// txn.create(&User { id: UserID(1), name: "Alice".into() })?;
+    /// txn.create(&User { id: UserID(2), name: "Bob".into() })?;
+    /// txn.commit()?;
+    ///
+    /// // List all users
+    /// let txn = store.begin_read()?;
+    /// let users: Vec<User> = txn.list()?;
+    /// assert_eq!(users.len(), 2);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn list<M>(&'db self) -> NetabaseResult<Vec<M>>
+    where
+        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
+        for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: Clone,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Secondary as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Blob as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary as redb::Value>::SelfType<'a>>,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Libp2p as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: 'static,
+        D: 'static,
+        D::SubscriptionKeys: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: redb::Key + 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as redb::Value>::SelfType<'a>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem as redb::Value>::SelfType<'a>>,
+    {
+        let definitions = M::table_definitions();
+        let tables = self.open_model_tables(definitions, None)?;
+        M::list_default(&tables)
+    }
+
+    /// List records with pagination options.
+    ///
+    /// Returns a vector of model instances with limit and offset support.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Pagination and filtering options
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netabase_store::prelude::*;
+    /// use netabase_store::traits::database::store::NBStore;
+    /// use netabase_store::databases::redb::transaction::CrudOptions;
+    /// use serde::{Serialize, Deserialize};
+    ///
+    /// #[netabase_macros::netabase_definition(MyApp)]
+    /// mod models {
+    ///     use super::*;
+    ///
+    ///     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    ///     pub struct User {
+    ///         #[primary_key]
+    ///         pub id: u64,
+    ///         pub name: String,
+    ///     }
+    /// }
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// use models::*;
+    /// let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
+    ///
+    /// // Create users
+    /// let txn = store.begin_write()?;
+    /// for i in 0..10 {
+    ///     txn.create(&User { id: UserID(i), name: format!("User {}", i) })?;
+    /// }
+    /// txn.commit()?;
+    ///
+    /// // List with pagination
+    /// let txn = store.begin_read()?;
+    /// let options = CrudOptions::default().with_limit(5).with_offset(2);
+    /// let page: Vec<User> = txn.list_with_options(options)?;
+    /// assert_eq!(page.len(), 5);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn list_with_options<M>(&'db self, options: CrudOptions) -> NetabaseResult<Vec<M>>
+    where
+        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
+        for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: Clone,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Secondary as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Blob as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary as redb::Value>::SelfType<'a>>,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Libp2p as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: 'static,
+        D: 'static,
+        D::SubscriptionKeys: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: redb::Key + 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as redb::Value>::SelfType<'a>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem as redb::Value>::SelfType<'a>>,
+    {
+        let definitions = M::table_definitions();
+        let tables = self.open_model_tables(definitions, None)?;
+        Ok(M::list_entries(&tables, options)?
+            .into_iter()
+            .map(|g| g.value())
+            .collect())
+    }
+
+    /// List records within a primary key range.
+    ///
+    /// Efficiently scans only the specified range of keys. This is much faster
+    /// than listing all records and filtering.
+    ///
+    /// # Arguments
+    ///
+    /// * `range` - The range of primary keys to include
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netabase_store::prelude::*;
+    /// use netabase_store::traits::database::store::NBStore;
+    /// use serde::{Serialize, Deserialize};
+    ///
+    /// #[netabase_macros::netabase_definition(MyApp)]
+    /// mod models {
+    ///     use super::*;
+    ///
+    ///     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    ///     pub struct User {
+    ///         #[primary_key]
+    ///         pub id: u64,
+    ///         pub name: String,
+    ///     }
+    /// }
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// use models::*;
+    /// let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
+    ///
+    /// // Create users with sequential IDs
+    /// let txn = store.begin_write()?;
+    /// for i in 0..100 {
+    ///     txn.create(&User { id: UserID(i), name: format!("User {}", i) })?;
+    /// }
+    /// txn.commit()?;
+    ///
+    /// // List only users with IDs 10-19
+    /// let txn = store.begin_read()?;
+    /// let users: Vec<User> = txn.list_range(UserID(10)..UserID(20))?;
+    /// assert_eq!(users.len(), 10);
+    /// assert_eq!(users[0].id.0, 10);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn list_range<M, R>(&'db self, range: R) -> NetabaseResult<Vec<M>>
+    where
+        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
+        R: std::ops::RangeBounds<<M::Keys as NetabaseModelKeys<D, M>>::Primary> + Clone,
+        for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: Clone,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Secondary as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Blob as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary as redb::Value>::SelfType<'a>>,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Libp2p as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: 'static,
+        D: 'static,
+        D::SubscriptionKeys: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: redb::Key + 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as redb::Value>::SelfType<'a>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem as redb::Value>::SelfType<'a>>,
+    {
+        let definitions = M::table_definitions();
+        let tables = self.open_model_tables(definitions, None)?;
+        Ok(M::list_range(&tables, range, CrudOptions::default())?
+            .into_iter()
+            .map(|g| g.value())
+            .collect())
+    }
+
+    /// Get an iterator over all records of a model type.
+    ///
+    /// This method provides streaming access to records, which is more memory-efficient
+    /// than [`list`](Self::list) for large datasets. The iterator yields `Result<M>` items.
+    ///
+    /// # Memory Efficiency
+    ///
+    /// Unlike `list()` which loads all records into memory, `iter()` processes records
+    /// one at a time. This is ideal for:
+    /// - Large datasets that don't fit in memory
+    /// - Early termination (stop iteration when you find what you need)
+    /// - Batch processing with constant memory usage
+    ///
+    /// # Type Parameters
+    ///
+    /// * `M` - The model type to iterate
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netabase_store::prelude::*;
+    /// use netabase_store::traits::database::store::NBStore;
+    /// use serde::{Serialize, Deserialize};
+    ///
+    /// #[netabase_macros::netabase_definition(MyApp)]
+    /// mod models {
+    ///     use super::*;
+    ///
+    ///     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    ///     pub struct User {
+    ///         #[primary_key]
+    ///         pub id: u64,
+    ///         pub name: String,
+    ///     }
+    /// }
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// use models::*;
+    /// let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
+    ///
+    /// // Create users
+    /// let txn = store.begin_write()?;
+    /// for i in 0..5 {
+    ///     txn.create(&User { id: UserID(i), name: format!("User {}", i) })?;
+    /// }
+    /// txn.commit()?;
+    ///
+    /// // Iterate over users
+    /// let txn = store.begin_read()?;
+    /// let mut count = 0;
+    /// for user_result in txn.iter::<User>()? {
+    ///     let user = user_result?;
+    ///     println!("Found user: {}", user.name);
+    ///     count += 1;
+    /// }
+    /// assert_eq!(count, 5);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn iter<M>(&'db self) -> NetabaseResult<iterators::ModelIterator<'db, 'db, M>>
+    where
+        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
+        for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: Clone,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Secondary as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Blob as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary as redb::Value>::SelfType<'a>>,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Libp2p as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: 'static,
+        D: 'static,
+        D::SubscriptionKeys: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: redb::Key + 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as redb::Value>::SelfType<'a>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem as redb::Value>::SelfType<'a>>,
+    {
+        // Note: Due to redb's lifetime constraints, we collect to Vec internally.
+        // The ModelIterator wrapper provides a streaming interface for consistency.
+        let models = self.list::<M>()?;
+        Ok(iterators::ModelIterator::from_vec(models))
+    }
+
+    /// Count the number of records of a model type.
+    ///
+    /// This is more efficient than `list().len()` as it doesn't load any data.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netabase_store::prelude::*;
+    /// use netabase_store::traits::database::store::NBStore;
+    /// use serde::{Serialize, Deserialize};
+    ///
+    /// #[netabase_macros::netabase_definition(MyApp)]
+    /// mod models {
+    ///     use super::*;
+    ///
+    ///     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    ///     pub struct User {
+    ///         #[primary_key]
+    ///         pub id: u64,
+    ///         pub name: String,
+    ///     }
+    /// }
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// use models::*;
+    /// let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
+    ///
+    /// let txn = store.begin_write()?;
+    /// txn.create(&User { id: UserID(1), name: "Alice".into() })?;
+    /// txn.create(&User { id: UserID(2), name: "Bob".into() })?;
+    /// txn.commit()?;
+    ///
+    /// let txn = store.begin_read()?;
+    /// let count = txn.count::<User>()?;
+    /// assert_eq!(count, 2);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn count<M>(&'db self) -> NetabaseResult<u64>
+    where
+        M: RedbModelCrud<'db, D> + RedbNetbaseModel<'db, D> + Clone,
+        for<'a> M::TableV: redb::Value<SelfType<'a> = M>,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: Clone,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: Clone,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Secondary as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M::Keys as NetabaseModelKeys<D, M>>::Blob as IntoDiscriminant>::Discriminant:
+            'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: redb::Key,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Primary as redb::Value>::SelfType<'a>>,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Libp2p as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: 'static,
+        D: 'static,
+        D::SubscriptionKeys: redb::Key + 'static,
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: redb::Key + 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: redb::Key + 'static,
+        for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as redb::Value>::SelfType<'a>>,
+        for<'a> <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem: std::borrow::Borrow<<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as NetabaseModelBlobKey<D, M>>::BlobItem as redb::Value>::SelfType<'a>>,
+    {
+        let definitions = M::table_definitions();
+        let tables = self.open_model_tables(definitions, None)?;
+        M::count_entries(&tables)
     }
 
     // ========================================================================

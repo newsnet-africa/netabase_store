@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{Data, DeriveInput, Fields, Result, parse2};
+use syn::{DeriveInput, Result, parse2};
 
 use crate::utils::{attributes::{find_attribute, get_data_fields, has_attribute}, naming::to_pascal_case};
 

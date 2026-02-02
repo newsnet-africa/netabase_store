@@ -182,6 +182,50 @@ mod app {
     └─────────────┘ └─────────────┘ └─────────────┘
 ```
 
+### Module Organization
+
+The crate is organized into logical groups for clarity and maintainability:
+
+#### **`core/`** - Fundamental Types
+- `core::key` - Type-safe primary key wrappers (`Key<T>`, `TypedKey`)
+- `core::primitives` - Constants (table prefixes, max sizes, version numbers)
+- `core::capabilities` - Permission bitflags (`Capabilities`, `READ`, `WRITE`, etc.)
+
+**Purpose**: Foundation types used throughout the system. No feature dependencies.
+
+#### **`schema/`** - Schema Feature Types
+- `schema::blob` - Blob storage types (feature: `blobs`)
+- `schema::relational` - Relational link types (feature: `relational_keys`)
+- `schema::subscription_hash` - Merkle trees (feature: `subscriptions`)
+
+**Purpose**: Feature-gated schema extensions. Each submodule is conditionally compiled.
+
+#### **`traits/`** - Trait Definitions
+- `traits::registry` - Core traits (`NetabaseModel`, `NetabaseDefinition`, `NetabaseRepository`)
+- `traits::database` - Storage traits (`NBStore`, `NBTransaction`, hash algorithms)
+- `traits::migration` - Migration contracts (`MigrateFrom`, `MigrateTo`, version chains)
+
+**Purpose**: Contracts that enable generic programming and backend abstraction.
+
+#### **`databases/`** - Backend Implementations
+- `databases::redb` - Production redb backend (persistent, ACID)
+- `databases::memory` - In-memory backend (testing, volatile)
+- `databases::indexeddb` - Browser backend (WASM target)
+
+**Purpose**: Concrete storage implementations, each providing `NBStore` + `NBTransaction`.
+
+#### **`query/`** - Query System
+- `query::config` - Query builder (`QueryConfig`, range/limit/hydration)
+- `query::result` - Result wrapper (`QueryResult<T>`)
+- `query::options` - Shared query options
+
+**Purpose**: High-level query API with builder pattern.
+
+#### **`utils/`**, **`errors/`**, **`prelude/`**
+- Internal utilities (serde helpers, testing)
+- Error types and `Result` aliases
+- Convenient re-exports for common imports
+
 ### Layer Responsibilities
 
 #### User Application Layer

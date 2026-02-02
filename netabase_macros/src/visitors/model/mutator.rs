@@ -26,11 +26,10 @@ impl VisitMut for ModelMutator {
     fn visit_item_struct_mut(&mut self, item_struct: &mut ItemStruct) {
         // Check if this struct is a NetabaseModel
         let is_netabase_model = item_struct.attrs.iter().any(|attr| {
-            if let syn::Meta::List(meta_list) = &attr.meta {
-                if meta_list.path.is_ident("derive") {
+            if let syn::Meta::List(meta_list) = &attr.meta
+                && meta_list.path.is_ident("derive") {
                     return meta_list.tokens.to_string().contains("NetabaseModel");
                 }
-            }
             false
         });
 
@@ -43,13 +42,12 @@ impl VisitMut for ModelMutator {
 
         // Extract family name from netabase_version attribute if present
         self.current_model_family = None;
-        if let Some(version_attr) = find_attribute(&item_struct.attrs, "netabase_version") {
-            if let Ok(version_config) =
+        if let Some(version_attr) = find_attribute(&item_struct.attrs, "netabase_version")
+            && let Ok(version_config) =
                 crate::utils::attributes::parse_version_attribute(version_attr)
             {
                 self.current_model_family = Some(version_config.family);
             }
-        }
 
         // Subscriptions are trait-level, not instance-level
         // The #[subscribe(...)] attribute defines which topics the MODEL TYPE subscribes to
@@ -81,8 +79,8 @@ impl VisitMut for ModelMutator {
             .attrs
             .iter()
             .filter_map(|attr| {
-                if let syn::Meta::List(meta_list) = &attr.meta {
-                    if meta_list.path.is_ident("derive") {
+                if let syn::Meta::List(meta_list) = &attr.meta
+                    && meta_list.path.is_ident("derive") {
                         let tokens = meta_list.tokens.to_string();
                         if tokens.contains("NetabaseModel") {
                             // Reconstruct derive without NetabaseModel
@@ -102,7 +100,6 @@ impl VisitMut for ModelMutator {
                             // If I implement logic here, I should make the derive macro empty.
                         }
                     }
-                }
                 Some(attr.clone())
             })
             .collect();
@@ -149,8 +146,8 @@ impl VisitMut for ModelMutator {
             remove_attribute(&mut field.attrs, "secondary_key");
         } else if has_link {
             // Change type to RelationalLink
-            if let Some(link_attr) = find_attribute(&field.attrs, "link") {
-                if let Ok((target_def, target_model)) = parse_link_attribute(link_attr) {
+            if let Some(link_attr) = find_attribute(&field.attrs, "link")
+                && let Ok((target_def, target_model)) = parse_link_attribute(link_attr) {
                     let current_def = &self.definition_name;
                     // target_def, target_model are Paths.
                     // field.ty = RelationalLink<'static, R, SourceD, TargetD, M>
@@ -166,14 +163,13 @@ impl VisitMut for ModelMutator {
                     field.ty = parse_quote! {
                         netabase_store::relational::RelationalLink<
                             'static,
-                            netabase_store::traits::registery::repository::Standalone,
+                            netabase_store::traits::registry::repository::Standalone,
                             #current_def,
                             #target_def,
                             #target_model
                         >
                     };
                 }
-            }
             remove_attribute(&mut field.attrs, "link");
         } else if has_blob {
             // Change type to Wrapper (e.g. LargeUserFile)

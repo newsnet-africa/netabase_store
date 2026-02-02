@@ -11,7 +11,7 @@ mod common;
 use netabase_store::errors::NetabaseResult;
 use netabase_store::relational::RelationalLink;
 use netabase_store::subscription_hash::{ModelHash, SubscriptionMerkleTree};
-use netabase_store::traits::registery::models::model::NetabaseModel;
+use netabase_store::traits::registry::models::model::NetabaseModel;
 use example::boilerplate_lib::definition::{
     AnotherLargeUserFile, DefinitionSubscriptions, LargeUserFile, User, UserID,
 };

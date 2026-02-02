@@ -314,7 +314,7 @@ fn test_model_hash_computation() -> Result<(), Box<dyn std::error::Error>> {
     user3.age = 31;
 
     // Test hash computation
-    use netabase_store::traits::registery::models::model::NetabaseModel;
+    use netabase_store::traits::registry::models::model::NetabaseModel;
 
     let hash1 = user1.compute_hash();
     let hash2 = user2.compute_hash();
@@ -361,7 +361,7 @@ fn test_merkle_tree_construction() -> Result<(), Box<dyn std::error::Error>> {
                 another: AnotherLargeUserFile::default(),
             };
 
-            use netabase_store::traits::registery::models::model::NetabaseModel;
+            use netabase_store::traits::registry::models::model::NetabaseModel;
             hashes.push(user.compute_hash());
             txn.create(&user)?;
         }

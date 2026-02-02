@@ -22,8 +22,8 @@ use common::{cleanup_test_db, create_test_db};
 use netabase_store::databases::redb::transaction::RedbModelCrud;
 use netabase_store::errors::NetabaseResult;
 use netabase_store::relational::RelationalLink;
-use netabase_store::traits::registery::models::model::RedbNetbaseModel;
-use netabase_store::traits::registery::repository::Standalone;
+use netabase_store::traits::registry::models::model::RedbNetbaseModel;
+use netabase_store::traits::registry::repository::Standalone;
 
 use example::{
     AnotherLargeUserFile, Category, CategoryID, Definition, DefinitionSubscriptions, DefinitionTwo,
@@ -135,7 +135,7 @@ fn test_crud_create_single_model() -> NetabaseResult<()> {
         );
 
         // Verify subscriptions (trait-level)
-        use netabase_store::traits::registery::models::model::NetabaseModel;
+        use netabase_store::traits::registry::models::model::NetabaseModel;
         let sub_keys = read_user.get_subscription_keys();
         assert_eq!(sub_keys.len(), 2, "Should have 2 subscription topics");
 
@@ -1213,7 +1213,7 @@ fn test_subscriptions_storage_and_retrieval() -> NetabaseResult<()> {
             let user = User::read_default(&UserID(id.to_string()), &tables)?.unwrap();
 
             // All Users have trait-level subscriptions to Topic1 and Topic2
-            use netabase_store::traits::registery::models::model::NetabaseModel;
+            use netabase_store::traits::registry::models::model::NetabaseModel;
             let sub_keys = user.get_subscription_keys();
             assert_eq!(
                 sub_keys.len(),

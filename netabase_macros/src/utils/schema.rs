@@ -119,6 +119,9 @@ pub struct VersionedModelSchema {
     /// Subscriptions at this version.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub subscriptions: Vec<String>,
+    /// Whether subscriptions are immutable.
+    #[serde(default)]
+    pub subscription_immutable: bool,
     /// Schema hash for this specific version.
     pub version_hash: u64,
     /// Whether this version implements MigrateTo (can downgrade).
@@ -127,6 +130,15 @@ pub struct VersionedModelSchema {
     /// Whether this version implements MigrateFrom the previous version.
     #[serde(default = "default_true")]
     pub supports_upgrade: bool,
+    /// Whether this version has libp2p features enabled.
+    #[serde(default)]
+    pub is_libp2p_enabled: bool,
+    /// Whether this version is content-addressed.
+    #[serde(default)]
+    pub is_content_addressed: bool,
+    /// Configuration for content-addressed models.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_addressed_config: Option<ContentAddressedConfig>,
 }
 
 fn default_true() -> bool {
@@ -178,6 +190,9 @@ pub struct ModelSchema {
     pub fields: Vec<FieldSchema>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub subscriptions: Vec<String>,
+    /// Whether subscriptions are immutable (from #[subscribe(immutable, ...)]).
+    #[serde(default)]
+    pub subscription_immutable: bool,
     /// The model family this belongs to (for versioning).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub family: Option<String>,
@@ -187,6 +202,27 @@ pub struct ModelSchema {
     /// Whether this is the current (latest) version.
     #[serde(default)]
     pub is_current: bool,
+    /// Whether this model has libp2p features enabled.
+    #[serde(default)]
+    pub is_libp2p_enabled: bool,
+    /// Whether this model is content-addressed (immutable, hash-based ID).
+    #[serde(default)]
+    pub is_content_addressed: bool,
+    /// Configuration for content-addressed models.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_addressed_config: Option<ContentAddressedConfig>,
+}
+
+/// Configuration for content-addressed models.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ContentAddressedConfig {
+    /// The hasher type (e.g., "Sha256").
+    pub hasher: String,
+    /// The hash function path (e.g., "my_hash_fn").
+    pub function: String,
+    /// Optional custom key type (defaults to [u8; 32]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -300,11 +336,10 @@ impl DefinitionSchema {
                             .versions
                             .iter()
                             .find(|v| v.version == other_history.current_version);
-                        if let (Some(sv), Some(ov)) = (self_ver, other_ver) {
-                            if sv.version_hash != ov.version_hash {
+                        if let (Some(sv), Some(ov)) = (self_ver, other_ver)
+                            && sv.version_hash != ov.version_hash {
                                 conflicts.push((history.family.clone(), history.current_version));
                             }
-                        }
                     }
                 }
             }

@@ -229,8 +229,8 @@ impl ModelFieldVisitor {
         }
 
         // Validate immutability if requested
-        if let Some(subs) = &self.subscriptions {
-            if subs.immutable {
+        if let Some(subs) = &self.subscriptions
+            && subs.immutable {
                 for field in &self.all_fields_raw {
                     if let syn::Visibility::Public(_) = field.vis {
                         return Err(syn::Error::new_spanned(
@@ -240,7 +240,6 @@ impl ModelFieldVisitor {
                     }
                 }
             }
-        }
 
         Ok(())
     }

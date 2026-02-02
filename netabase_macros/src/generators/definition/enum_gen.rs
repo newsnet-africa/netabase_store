@@ -417,10 +417,10 @@ impl<'a> DefinitionEnumGenerator<'a> {
             };
 
             variants.push(quote! { 
-                #model_name(netabase_store::traits::registery::models::treenames::ModelTreeNames<'static, #definition_name, #target_type>) 
+                #model_name(netabase_store::traits::registry::models::treenames::ModelTreeNames<'static, #definition_name, #target_type>) 
             });
             get_tree_names_arms.push(quote! {
-                #discriminant_name::#model_name => vec![#enum_name::#model_name(<#target_type as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES)]
+                #discriminant_name::#model_name => vec![#enum_name::#model_name(<#target_type as netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>::TREE_NAMES)]
             });
         }
 
@@ -449,7 +449,7 @@ impl<'a> DefinitionEnumGenerator<'a> {
                 first_model_name.clone()
             };
 
-            quote! { #enum_name::#first_model_name(<#target_type as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::TREE_NAMES) }
+            quote! { #enum_name::#first_model_name(<#target_type as netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>::TREE_NAMES) }
         } else if !self.visitor.nested_definitions.is_empty() {
             let first_nested = &self.visitor.nested_definitions[0].definition_name;
             let nested_tree_names = definition_tree_names_enum_name(first_nested);
@@ -469,10 +469,10 @@ impl<'a> DefinitionEnumGenerator<'a> {
 
         // TryInto implementation (returns Err(()))
         let try_into_impl = quote! {
-            impl TryInto<netabase_store::traits::registery::models::treenames::DiscriminantTableName<#definition_name>> for #enum_name {
+            impl TryInto<netabase_store::traits::registry::models::treenames::DiscriminantTableName<#definition_name>> for #enum_name {
                 type Error = ();
 
-                fn try_into(self) -> Result<netabase_store::traits::registery::models::treenames::DiscriminantTableName<#definition_name>, Self::Error> {
+                fn try_into(self) -> Result<netabase_store::traits::registry::models::treenames::DiscriminantTableName<#definition_name>, Self::Error> {
                     Err(())
                 }
             }
@@ -480,7 +480,7 @@ impl<'a> DefinitionEnumGenerator<'a> {
 
         // NetabaseDefinitionTreeNames trait implementation
         let netabase_definition_tree_names_impl = quote! {
-            impl netabase_store::traits::registery::definition::NetabaseDefinitionTreeNames<#definition_name> for #enum_name {
+            impl netabase_store::traits::registry::definition::NetabaseDefinitionTreeNames<#definition_name> for #enum_name {
                 #[inline]
                 fn get_tree_names(discriminant: #discriminant_name) -> Vec<Self> {
                     match discriminant {
@@ -488,20 +488,20 @@ impl<'a> DefinitionEnumGenerator<'a> {
                     }
                 }
 
-                fn get_model_tree<M: netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>(&self) -> Option<M>
+                fn get_model_tree<M: netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>(&self) -> Option<M>
                 where
-                    for<'a> Self: From<netabase_store::traits::registery::models::treenames::ModelTreeNames<'a, Self, M>>,
-                    <<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Secondary:
+                    for<'a> Self: From<netabase_store::traits::registry::models::treenames::ModelTreeNames<'a, Self, M>>,
+                    <<M as netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registry::models::keys::NetabaseModelKeys<#definition_name, M>>::Secondary:
                         strum::IntoDiscriminant,
-                    <<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Relational:
+                    <<M as netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registry::models::keys::NetabaseModelKeys<#definition_name, M>>::Relational:
                         strum::IntoDiscriminant,
-                    <<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Subscription:
+                    <<M as netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registry::models::keys::NetabaseModelKeys<#definition_name, M>>::Subscription:
                         strum::IntoDiscriminant,
-                    <<<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-                    <<<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-                    <<<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-                    <<<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-                    <<M as netabase_store::traits::registery::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, M>>::Subscription: 'static
+                    <<<M as netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registry::models::keys::NetabaseModelKeys<#definition_name, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+                    <<<M as netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registry::models::keys::NetabaseModelKeys<#definition_name, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+                    <<<M as netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registry::models::keys::NetabaseModelKeys<#definition_name, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+                    <<<M as netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registry::models::keys::NetabaseModelKeys<#definition_name, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+                    <<M as netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registry::models::keys::NetabaseModelKeys<#definition_name, M>>::Subscription: 'static
                 {
                     None
                 }

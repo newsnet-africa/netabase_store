@@ -29,7 +29,7 @@ fn debug_subscription_tables() -> Result<(), Box<dyn std::error::Error>> {
         println!("Creating user (subscriptions are trait-level, not instance data)");
         
         // Check what get_subscription_keys returns
-        use netabase_store::traits::registery::models::model::NetabaseModel;
+        use netabase_store::traits::registry::models::model::NetabaseModel;
         let sub_keys = user.get_subscription_keys();
         println!("get_subscription_keys() returned: {} keys", sub_keys.len());
         
@@ -43,7 +43,7 @@ fn debug_subscription_tables() -> Result<(), Box<dyn std::error::Error>> {
         let user: Option<User> = txn.read(&UserID("user1".into()))?;
         
         // Subscriptions are trait-level, verify via get_subscription_keys()
-        use netabase_store::traits::registery::models::model::NetabaseModel;
+        use netabase_store::traits::registry::models::model::NetabaseModel;
         if let Some(ref u) = user {
             let subs = u.get_subscription_keys();
             println!("Read back user subscription keys: {} topics", subs.len());

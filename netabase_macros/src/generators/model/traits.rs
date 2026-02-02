@@ -34,7 +34,7 @@ impl<'a> TraitGenerator<'a> {
         };
 
         quote! {
-            impl netabase_store::traits::registery::models::keys::NetabaseModelKeys<#definition_name, #target_type> for #keys_enum {
+            impl netabase_store::traits::registry::models::keys::NetabaseModelKeys<#definition_name, #target_type> for #keys_enum {
                 type Primary = #id_type;
                 type Secondary = #secondary_type;
                 type Relational = #relational_type;
@@ -104,7 +104,7 @@ impl<'a> TraitGenerator<'a> {
         let get_blob_entries = self.generate_get_blob_entries(definition_name);
 
         quote! {
-            impl netabase_store::traits::registery::models::model::NetabaseModel<#definition_name> for #target_type {
+            impl netabase_store::traits::registry::models::model::NetabaseModel<#definition_name> for #target_type {
                 type Keys = #keys_enum;
 
                 #tree_names
@@ -137,7 +137,7 @@ impl<'a> TraitGenerator<'a> {
                 let tree_name = tree_name_type(&secondary_keys_enum_name(model_name));
 
                 quote! {
-                    netabase_store::traits::registery::models::treenames::DiscriminantTableName::new(
+                    netabase_store::traits::registry::models::treenames::DiscriminantTableName::new(
                         #tree_name::#field_ident,
                         #table_name_str
                     )
@@ -161,7 +161,7 @@ impl<'a> TraitGenerator<'a> {
                 let tree_name = tree_name_type(&relational_keys_enum_name(model_name));
 
                 quote! {
-                    netabase_store::traits::registery::models::treenames::DiscriminantTableName::new(
+                    netabase_store::traits::registry::models::treenames::DiscriminantTableName::new(
                         #tree_name::#field_ident,
                         #table_name_str
                     )
@@ -186,7 +186,7 @@ impl<'a> TraitGenerator<'a> {
                     let tree_name = tree_name_type(&subscriptions_enum_name(model_name));
 
                     quote! {
-                        netabase_store::traits::registery::models::treenames::DiscriminantTableName::new(
+                        netabase_store::traits::registry::models::treenames::DiscriminantTableName::new(
                             #tree_name::#topic_ident,
                             #table_name_str
                         )
@@ -209,7 +209,7 @@ impl<'a> TraitGenerator<'a> {
                 let tree_name = tree_name_type(&blob_keys_enum_name(model_name));
 
                 quote! {
-                    netabase_store::traits::registery::models::treenames::DiscriminantTableName::new(
+                    netabase_store::traits::registry::models::treenames::DiscriminantTableName::new(
                         #tree_name::#field_ident,
                         #table_name_str
                     )
@@ -231,19 +231,19 @@ impl<'a> TraitGenerator<'a> {
         // We map all variants to the same table for now
         let providers_array = quote! {
             &[
-                netabase_store::traits::registery::models::treenames::DiscriminantTableName::new(
+                netabase_store::traits::registry::models::treenames::DiscriminantTableName::new(
                     #libp2p_tree_name::Full,
                     #libp2p_table_name_str
                 ),
-                netabase_store::traits::registery::models::treenames::DiscriminantTableName::new(
+                netabase_store::traits::registry::models::treenames::DiscriminantTableName::new(
                     #libp2p_tree_name::Bare,
                     #libp2p_table_name_str
                 ),
-                netabase_store::traits::registery::models::treenames::DiscriminantTableName::new(
+                netabase_store::traits::registry::models::treenames::DiscriminantTableName::new(
                     #libp2p_tree_name::WithBlobs,
                     #libp2p_table_name_str
                 ),
-                netabase_store::traits::registery::models::treenames::DiscriminantTableName::new(
+                netabase_store::traits::registry::models::treenames::DiscriminantTableName::new(
                     #libp2p_tree_name::WithRelations,
                     #libp2p_table_name_str
                 ),
@@ -251,9 +251,9 @@ impl<'a> TraitGenerator<'a> {
         };
 
         quote! {
-            const TREE_NAMES: netabase_store::traits::registery::models::treenames::ModelTreeNames<'static, #definition_name, Self> =
-                netabase_store::traits::registery::models::treenames::ModelTreeNames {
-                    main: netabase_store::traits::registery::models::treenames::DiscriminantTableName::new(
+            const TREE_NAMES: netabase_store::traits::registry::models::treenames::ModelTreeNames<'static, #definition_name, Self> =
+                netabase_store::traits::registry::models::treenames::ModelTreeNames {
+                    main: netabase_store::traits::registry::models::treenames::DiscriminantTableName::new(
                         #definition_tree_name::#model_name,
                         #main_table_name
                     ),
@@ -445,7 +445,7 @@ impl<'a> TraitGenerator<'a> {
             let id_type = primary_key_type_name_for_model(self.visitor);
 
             quote! {
-                impl ::netabase_store::traits::registery::models::content_addressed::ContentAddressedModel for #model_name {
+                impl ::netabase_store::traits::registry::models::content_addressed::ContentAddressedModel for #model_name {
                     type Hasher = #hasher;
                     type Key = #id_type;
 

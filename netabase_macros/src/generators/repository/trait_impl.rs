@@ -32,7 +32,7 @@ impl<'a> RepositoryTraitGenerator<'a> {
     /// Generate `InRepository<RepoName>` implementations for each definition
     ///
     /// ```rust,ignore
-    /// impl netabase_store::traits::registery::repository::InRepository<MyRepo> for Employee {
+    /// impl netabase_store::traits::registry::repository::InRepository<MyRepo> for Employee {
     ///     fn repository_discriminant() -> MyRepoDefinitionDiscriminant {
     ///         MyRepoDefinitionDiscriminant::Employee
     ///     }
@@ -56,7 +56,7 @@ impl<'a> RepositoryTraitGenerator<'a> {
                     quote! { #def_name }
                 };
                 quote! {
-                    impl netabase_store::traits::registery::repository::InRepository<#repo_name> for #def_path {
+                    impl netabase_store::traits::registry::repository::InRepository<#repo_name> for #def_path {
                         type RepositoryDiscriminant = #discriminant_name;
 
                         #[inline]
@@ -76,7 +76,7 @@ impl<'a> RepositoryTraitGenerator<'a> {
     /// Generate `NetabaseRepository` implementation for the repository marker struct
     ///
     /// ```rust,ignore
-    /// impl netabase_store::traits::registery::repository::NetabaseRepository for MyRepo {
+    /// impl netabase_store::traits::registry::repository::NetabaseRepository for MyRepo {
     ///     type RepositoryDefinition = MyRepoDefinition;
     ///     type RepositoryDiscriminant = MyRepoDefinitionDiscriminant;
     ///     type RepositoryModelKeys = MyRepoModelDiscriminant;
@@ -105,7 +105,7 @@ impl<'a> RepositoryTraitGenerator<'a> {
             .sum();
 
         quote! {
-            impl netabase_store::traits::registery::repository::NetabaseRepository for #repo_name {
+            impl netabase_store::traits::registry::repository::NetabaseRepository for #repo_name {
                 type RepositoryDefinition = #definition_enum;
                 type RepositoryDiscriminant = #def_discriminant;
                 type RepositoryModelKeys = #model_discriminant;

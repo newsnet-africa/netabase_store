@@ -1,6 +1,5 @@
-use std::iter::Filter;
 
-use syn::{Attribute, Data, Error, Field, Fields, Ident, Meta, Path, Result, Variant};
+use syn::{Attribute, Data, Error, Field, Meta, Path, Result};
 
 /// Utilities for parsing field and item attributes
 
@@ -11,11 +10,10 @@ pub fn is_attribute(attr: &Attribute, name: &str) -> bool {
     }
     
     // Check if the last segment matches
-    if let Some(segment) = attr.path().segments.last() {
-        if segment.ident == name {
+    if let Some(segment) = attr.path().segments.last()
+        && segment.ident == name {
             return true;
         }
-    }
     
     false
 }
@@ -577,9 +575,9 @@ where
 {
     match data {
         Data::Struct(data_struct) => {
-            return data_struct.fields.iter().partition(&predicate);
+            data_struct.fields.iter().partition(&predicate)
         }
-        Data::Enum(data_enum) => panic!("Enums are not supported"),
-        Data::Union(data_union) => panic!("Unions are not supported"),
+        Data::Enum(_data_enum) => panic!("Enums are not supported"),
+        Data::Union(_data_union) => panic!("Unions are not supported"),
     }
 }
