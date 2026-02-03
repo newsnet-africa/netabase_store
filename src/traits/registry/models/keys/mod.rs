@@ -90,8 +90,8 @@ pub mod subscription;
 ///
 /// # Associated Types
 ///
-/// Each associated type must implement both `redb::Key` (for storage) and its
-/// corresponding trait (for model semantics):
+/// Each associated type implements its corresponding key trait for model semantics.
+/// The `redb::Key` bounds are currently required for the redb backend.
 ///
 /// - `Primary`: The primary key type (required, non-empty)
 /// - `Secondary`: Secondary index keys (enum of possible indexes)
@@ -99,6 +99,14 @@ pub mod subscription;
 /// - `Subscription`: Pub/sub topic keys (enum of subscriptions)
 /// - `Blob`: Large data chunk keys (enum of blob fields)
 /// - `Libp2p`: P2P provider keys (for network discovery)
+///
+/// # Backend-Specific Bounds
+///
+/// This core trait is backend-agnostic and does **not** require any particular
+/// database key traits. Backend-specific crates (like the redb backend) add
+/// their own bounds on top via traits such as
+/// [`RedbNetbaseModel`](crate::traits::registry::models::model::redb_model::RedbNetbaseModel)
+/// and helper bounds in `databases::redb`.
 ///
 /// # Example
 ///
@@ -113,14 +121,19 @@ pub mod subscription;
 ///     type Libp2p = UserLibp2pKey;
 /// }
 /// ```
-pub trait NetabaseModelKeys<D: NetabaseDefinition, M: NetabaseModelMarker<D>>:
-    std::marker::Sized
+///
+/// # Future Direction
+///
+/// The `redb::Key` bounds on this trait are planned to be moved to
+/// backend-specific extension traits to enable true backend-agnosticism.
+/// Use `RedbCompatibleKeys` for new code that wants this separation.
+pub trait NetabaseModelKeys<
+    D: NetabaseDefinition,
+    M: NetabaseModelMarker<D>,
+    B = crate::traits::registry::backend::RedbBackend,
+>: std::marker::Sized
 where
     D::Discriminant: 'static + std::fmt::Debug,
-    Self::Primary: redb::Key + 'static,
-    Self::Secondary: redb::Key + 'static,
-    Self::Relational: redb::Key + 'static,
-    Self::Subscription: redb::Key + 'static,
 {
     /// Primary key type - uniquely identifies model instances.
     type Primary: NetabaseModelPrimaryKey<D, M>;

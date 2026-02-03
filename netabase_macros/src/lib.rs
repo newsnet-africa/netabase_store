@@ -343,7 +343,7 @@ mod visitors;
 /// |-----------|----------|-------------|
 /// | `#[primary_key]` | **Yes (exactly one)** | Unique identifier field |
 /// | `#[secondary_key]` | No | Creates an index for fast lookups |
-/// | `#[relation]` | No | Foreign key to another model: `#[relation(Definition, Model)]` |
+/// | `#[link(Definition, Model)]` | No | Foreign key to another model |
 /// | `#[blob]` | No | Large data with automatic chunking |
 /// | `#[subscribe]` | No | Subscribe to a pub/sub topic |
 /// | `#[netabase_version(...)]` | No | Version info for migrations |
@@ -392,7 +392,7 @@ mod visitors;
 ///
 /// The macro enforces:
 /// - Exactly one `#[primary_key]` field
-/// - Valid types for key fields (must implement `redb::Key`)
+/// - Valid types for key fields (for the redb backend, wrappers/enums implement `redb::Key`)
 /// - Proper attribute syntax
 ///
 /// # See Also
@@ -404,7 +404,7 @@ mod visitors;
     attributes(
         primary_key,
         secondary_key,
-        relation,
+        link,
         blob,
         subscribe,
         netabase_version
@@ -518,7 +518,7 @@ pub fn netabase_model(input: TokenStream) -> TokenStream {
 ///         #[primary_key]
 ///         pub id: String,
 ///         
-///         #[relation(BlogApp, Author)]
+///         #[link(BlogApp, Author)]
 ///         pub author_id: String,
 ///         
 ///         #[secondary_key]
@@ -560,7 +560,7 @@ pub fn netabase_definition(attr: TokenStream, item: TokenStream) -> TokenStream 
 ///
 /// A repository provides access control and cross-definition linking. Models in
 /// definitions within the same repository can reference each other via
-/// `#[relation(...)]` attributes.
+/// `#[link(...)]` attributes.
 ///
 /// # Syntax
 ///
@@ -653,7 +653,7 @@ pub fn netabase_definition(attr: TokenStream, item: TokenStream) -> TokenStream 
 ///         pub id: String,
 ///         
 ///         // Cross-definition link (allowed because same repository)
-///         #[relation(UserDef, User)]
+///         #[link(UserDef, User)]
 ///         pub user_id: String,
 ///         
 ///         pub total: u64,
@@ -675,7 +675,7 @@ pub fn netabase_definition(attr: TokenStream, item: TokenStream) -> TokenStream 
 ///
 /// ```rust,ignore
 /// // ERROR: UserDef and ExternalDef are not in the same repository
-/// #[relation(ExternalDef, ExternalModel)]
+/// #[link(ExternalDef, ExternalModel)]
 /// pub external_id: String,
 /// ```
 ///

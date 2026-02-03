@@ -322,10 +322,14 @@ where
     <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-     <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription: 'static, <<<Self as crate::traits::registry::models::model::NetabaseModel<D>>::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, Self>>::Libp2p as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug
+    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription: 'static,
+    <<<Self as crate::traits::registry::models::model::NetabaseModel<D>>::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, Self>>::Libp2p as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,
 {
     type Keys: NetabaseModelKeys<D, Self>;
-    const TREE_NAMES: ModelTreeNames<'static, D, Self> where <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Libp2p as strum::IntoDiscriminant>::Discriminant: 'static;
+
+    const TREE_NAMES: ModelTreeNames<'static, D, Self>
+    where
+        <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Libp2p as strum::IntoDiscriminant>::Discriminant: 'static;
 
 
     fn get_primary_key(&self) -> <Self::Keys as NetabaseModelKeys<D, Self>>::Primary;

@@ -46,8 +46,7 @@ use crate::{
 /// let config = TransactionConfig::default();
 /// // Configuration options can be customized for advanced use cases
 /// ```
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct TransactionConfig {
     /// Whether to enable table handle caching.
     ///
@@ -67,6 +66,7 @@ pub struct TransactionConfig {
 }
 
 /// Strategy for cache eviction when max size is reached.
+// TODO: Implement Builder pattern here
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum CacheStrategy {
     /// Least Recently Used eviction (default).
@@ -77,7 +77,6 @@ pub enum CacheStrategy {
     /// No eviction - return error when cache is full.
     NoEviction,
 }
-
 
 impl TransactionConfig {
     /// Create a new transaction config with default settings.

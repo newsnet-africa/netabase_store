@@ -105,7 +105,6 @@ where
     <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Primary: redb::Key + 'static,
     <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary: redb::Key + 'static,
     <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational: redb::Key + 'static,
-    <<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription: redb::Key + 'static,
     D::SubscriptionKeys: redb::Key + 'static,
     <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
@@ -594,8 +593,6 @@ where
     <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: redb::Key + 'static,
     for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational as redb::Value>::SelfType<'a>>,
     
-    <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: redb::Key + 'static,
-    for<'a> <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: std::borrow::Borrow<<<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription as redb::Value>::SelfType<'a>>,
 
     <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
@@ -1380,6 +1377,11 @@ where
     where
         S: Into<D::SubscriptionKeys> + Clone,
         D::SubscriptionKeys: redb::Key + 'static,
+    <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Secondary as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Relational as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Blob as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<<Self as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, Self>>::Libp2p as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     {
         use redb::ReadableMultimapTable;
         
@@ -1516,7 +1518,7 @@ where
         tables: &'a ModelOpenTables<'txn, 'db, D, Self>,
     ) -> NetabaseResult<Vec<AccessGuard<'a, <Self::Keys as NetabaseModelKeys<D, Self>>::Relational>>>
     where
-        'db: 'txn
+        'db: 'txn,
     {
         use redb::ReadableMultimapTable;
         

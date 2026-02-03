@@ -5,6 +5,7 @@
 //!
 //! # Module Structure
 //!
+//! - `bounds`: Redb-specific trait bounds (see [`bounds`])
 //! - `migration`: Schema versioning and data migration
 //! - `repository`: Repository-based database access
 //! - `transaction`: Read/write transactions and CRUD operations
@@ -74,6 +75,7 @@
 //! - Blob data is automatically chunked for large values
 //! - Type-safe relational links between models
 
+pub mod bounds;
 #[cfg(feature = "libp2p")]
 pub mod libp2p;
 #[cfg(feature = "migration")]
@@ -81,6 +83,8 @@ pub mod migration;
 #[cfg(feature = "repository")]
 pub mod repository;
 pub mod transaction;
+
+pub use bounds::RedbModelBounds;
 
 use crate::errors::{NetabaseError, NetabaseResult};
 use crate::traits::registry::definition::redb_definition::RedbDefinition;

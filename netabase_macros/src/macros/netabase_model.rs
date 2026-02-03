@@ -19,9 +19,9 @@
 //!
 //! - `#[primary_key]`: Mark field as the unique identifier
 //! - `#[secondary_key]`: Create an index on this field
-//! - `#[relational(TargetModel)]`: Foreign key reference
+//! - `#[link(Definition, Model)]`: Foreign key reference to another model
 //! - `#[blob]`: Mark field for blob storage (auto-detected for large types)
-//! - `#[subscription(Topic)]`: Subscribe this model to a topic
+//! - `#[subscribe(Topic)]`: Subscribe this model to a topic
 //!
 //! # Auto-Detection
 //!

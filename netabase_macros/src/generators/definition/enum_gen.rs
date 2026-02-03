@@ -488,7 +488,7 @@ impl<'a> DefinitionEnumGenerator<'a> {
                     }
                 }
 
-                fn get_model_tree<M: netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>(&self) -> Option<M>
+                fn get_model_tree_names<M: netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>(&self) -> Option<&'static netabase_store::traits::registry::models::treenames::ModelTreeNames<'static, #definition_name, M>>
                 where
                     for<'a> Self: From<netabase_store::traits::registry::models::treenames::ModelTreeNames<'a, Self, M>>,
                     <<M as netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registry::models::keys::NetabaseModelKeys<#definition_name, M>>::Secondary:
@@ -501,8 +501,11 @@ impl<'a> DefinitionEnumGenerator<'a> {
                     <<<M as netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registry::models::keys::NetabaseModelKeys<#definition_name, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
                     <<<M as netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registry::models::keys::NetabaseModelKeys<#definition_name, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
                     <<<M as netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registry::models::keys::NetabaseModelKeys<#definition_name, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-                    <<M as netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registry::models::keys::NetabaseModelKeys<#definition_name, M>>::Subscription: 'static
+                    <<M as netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registry::models::keys::NetabaseModelKeys<#definition_name, M>>::Subscription: 'static,
+                    <<<M as netabase_store::traits::registry::models::model::NetabaseModel<#definition_name>>::Keys as netabase_store::traits::registry::models::keys::NetabaseModelKeys<#definition_name, M>>::Libp2p as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug
                 {
+                    // Return the static TREE_NAMES if this variant matches the model
+                    // This is a placeholder - proper implementation would check discriminant match
                     None
                 }
             }

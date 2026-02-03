@@ -49,10 +49,12 @@ pub mod keys;
 pub mod model;
 pub mod treenames;
 pub mod content_addressed;
+pub mod bounds;
 
 pub use keys::NetabaseModelKeys;
 pub use model::NetabaseModel;
 pub use treenames::DiscriminantTableName;
+pub use bounds::{DiscriminantBounds, HasDiscriminant, ModelKeyBounds};
 // NetabaseDefinitionTreeNames is in definition module, not models::treenames
 pub use crate::traits::registry::definition::NetabaseDefinitionTreeNames;
 pub use content_addressed::ContentAddressedModel;

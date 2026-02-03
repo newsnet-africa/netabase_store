@@ -197,10 +197,12 @@ where
     <D as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
     Self: TryInto<DiscriminantTableName<D>>,
 {
-    // Methods to access specific tree names based on the definition's discriminant
+    /// Get all tree name variants for a given definition discriminant.
     fn get_tree_names(discriminant: D::Discriminant) -> Vec<Self>;
 
-    fn get_model_tree<M: NetabaseModel<D>>(&self) -> Option<M>
+    /// Check if this tree name enum variant corresponds to the given model type.
+    /// Returns the model's static tree names if there's a match, None otherwise.
+    fn get_model_tree_names<M: NetabaseModel<D>>(&self) -> Option<&'static ModelTreeNames<'static, D, M>>
     where
         for<'a> Self: From<ModelTreeNames<'a, Self, M>>,
         <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: IntoDiscriminant,
@@ -211,7 +213,8 @@ where
         <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
         <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: 'static
+        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: 'static,
+        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Libp2p as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug
     ;
 }
 
