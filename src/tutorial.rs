@@ -245,7 +245,7 @@
 //!
 //! Store large binary data with automatic chunking.
 //!
-//! ```rust,ignore
+//! ```rust
 //! use netabase_store::prelude::*;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
 //! use netabase_store::relational::RelationalLink;

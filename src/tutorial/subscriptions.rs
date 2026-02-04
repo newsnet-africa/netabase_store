@@ -9,7 +9,7 @@
 //! Definitions declare which topics they participate in via the
 //! `subscriptions(Topic1, Topic2, ..)` argument to `#[netabase_definition]`.
 //!
-//! ```rust,ignore
+//! ```rust
 //! use netabase_store::{NetabaseModel, netabase_definition};
 //! use serde::{Serialize, Deserialize};
 //!

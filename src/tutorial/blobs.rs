@@ -11,7 +11,7 @@
 //! For most cases you should define a dedicated blob payload type and
 //! derive `NetabaseBlobItem` on it.
 //!
-//! ```rust,ignore
+//! ```rust
 //! use netabase_store::{NetabaseBlobItem, NetabaseModel, netabase_definition};
 //! use netabase_store::prelude::*;
 //! use serde::{Serialize, Deserialize};

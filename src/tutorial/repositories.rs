@@ -9,7 +9,7 @@
 //! A repository is declared with `#[netabase_repository(Name, definitions(...))]`
 //! and acts as the boundary for which definitions can link to each other.
 //!
-//! ```rust,ignore
+//! ```rust
 //! use netabase_store::{NetabaseModel, netabase_definition, netabase_repository};
 //! use serde::{Serialize, Deserialize};
 //!
