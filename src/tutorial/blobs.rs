@@ -55,5 +55,37 @@
 //! - Schema export (`export_toml`) records this as a separate table so tools
 //!   can reason about blob storage independently from the main row
 //!
+//! ## Table Layout
+//!
+//! For the `Image` example above, a Redb-backed definition has two logical tables:
+//!
+//! | Logical Table         | Purpose                          | Key columns                    | Value columns             |
+//! |-----------------------|----------------------------------|--------------------------------|---------------------------|
+//! | `Image`               | Main model rows                  | `primary_key` (`ImageID`)      | all non-blob fields       |
+//! | `ImageBlobChunks`     | Blob chunks for `Image::data`    | `blob_id`, `chunk_index`       | `chunk_bytes`             |
+//!
+//! - `blob_id` is a synthetic identifier stored alongside the main row.
+//! - `chunk_index` orders the chunks so they can be reassembled.
+//! - The `{Type}Blobs` helper knows how to map your `ImageBlob` to/from these rows.
+//!
+//! ## Schema Export
+//!
+//! In `ExampleDef::export_toml()` and `schema.toml` you will see blob metadata
+//! alongside models, for example (simplified):
+//!
+//! ```toml
+//! [[models]]
+//! name = "Image"
+//! primary_key = "ImageID"
+//!
+//!   [[models.blobs]]
+//!   field = "data"
+//!   payload_type = "ImageBlob"
+//!   table = "ImageBlobChunks"
+//! ```
+//!
+//! Tools can use this section to reason about storage costs, decide how to back up
+//! blob tables separately, or migrate blob payload types safely.
+//!
 //! See also: `tests/macro_attributes.rs` for an executable end-to-end
 //! blob round-trip using `#[blob]` and `NetabaseBlobItem`.

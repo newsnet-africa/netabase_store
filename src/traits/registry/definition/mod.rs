@@ -114,9 +114,36 @@ use crate::traits::registry::models::{
 ///
 /// - `[definition]` – high-level metadata (name, version)
 /// - `[[models]]` – one entry per model
-///   - `name`, `primary_key`, `secondary_keys`, `blob_fields`
-///   - `relations` (links) with target definition/model
+///   - `name`, `primary_key`
+///   - `[[models.fields]]` – field name, type and key attributes
+///   - `[[models.secondary_keys]]` – secondary index definitions
+///   - `[[models.relations]]` – `#[link]` relationships to other models
+///   - `[[models.blobs]]` – blob fields and their auxiliary tables
 /// - `[[subscriptions]]` – topics and subscribing models
+///
+/// A very small example (simplified) looks like:
+///
+/// ```toml
+/// [definition]
+/// name = "BlogApp"
+///
+/// [[models]]
+/// name = "Post"
+/// primary_key = "PostID"
+///
+///   [[models.fields]]
+///   name = "title"
+///   type = "String"
+///
+///   [[models.secondary_keys]]
+///   name = "by_title"
+///   field = "title"
+///
+/// [[subscriptions]]
+/// topic = "NewPostTopic"
+/// model = "Notification"
+/// immutable = true
+/// ```
 ///
 /// Repository-level tools (see `databases::redb::repository`) combine
 /// multiple definition schemas and write a `repository.toml` alongside

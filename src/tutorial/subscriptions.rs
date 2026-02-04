@@ -50,5 +50,33 @@
 //! - Schema entries so `export_toml()` can describe which models
 //!   participate in which topics.
 //!
+//! ## Table Layout
+//!
+//! Using the `BlogWithSubs` snippet above as a guide, a backend typically has:
+//!
+//! | Logical Table                 | Purpose                                   | Key columns                               | Value columns        |
+//! |------------------------------|-------------------------------------------|-------------------------------------------|----------------------|
+//! | `Post`                       | Main posts table                          | `primary_key` (`PostID`)                  | all post fields      |
+//! | `Notification`               | Subscriber rows                           | `primary_key` (`NotificationID`)          | all notification     |
+//! | `BlogWithSubsSubscriptions`  | Topic → subscriber index (per definition) | `topic_discriminant`, `subscriber_pk`     | backlink / metadata  |
+//!
+//! - The `SubscriptionKeys` enum is the key type for `BlogWithSubsSubscriptions`.
+//! - `topic_discriminant` is a compact representation of `NewPostTopic`, etc.
+//! - `subscriber_pk` is the primary key of the subscribing model (`NotificationID`).
+//!
+//! ## Schema Export
+//!
+//! In `export_toml()`, subscriptions appear in a separate section, for example:
+//!
+//! ```toml
+//! [[subscriptions]]
+//! topic = "NewPostTopic"
+//! model = "Notification"
+//! immutable = true
+//! ```
+//!
+//! This information is mirrored into repository-level `repository.toml`, so tools
+//! can answer questions like "which definitions publish to this topic?".
+//!
 //! See `crate::tutorial::patterns` and `tests/macro_attributes.rs` for
 //! integrated examples that create stores and exercise the subscription tables.

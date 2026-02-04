@@ -111,15 +111,15 @@
 //!     pub struct User {
 //!         #[primary_key]
 //!         pub id: String,
-//!         
+//!
 //!         /// Secondary index on email for fast email lookups
 //!         #[secondary_key]
 //!         pub email: String,
-//!         
+//!
 //!         /// Secondary index on username
 //!         #[secondary_key]
 //!         pub username: String,
-//!         
+//!
 //!         pub name: String,
 //!     }
 //! }
@@ -163,6 +163,21 @@
 //! # }
 //! ```
 //!
+//! ## How secondary indexes are stored
+//!
+//! Each `#[secondary_key]` on a field causes the definition to gain an auxiliary
+//! index table. For `User` the logical layout is:
+//!
+//! | Logical Table          | Purpose                         | Key columns                     | Value columns          |
+//! |------------------------|---------------------------------|---------------------------------|------------------------|
+//! | `User`                 | Main model rows                 | `primary_key` (`UserID`)        | all non-key fields     |
+//! | `UserByEmail`          | Email → primary key index       | `email`                         | `UserID`               |
+//! | `UserByUsername`       | Username → primary key index    | `username`                      | `UserID`               |
+//!
+//! The generated `UserSecondaryKeys` enum is the key type for these index tables
+//! and is also represented in `export_toml()` so schema tools know which
+//! secondary lookups are available.
+//!
 //! # Relational Links
 //!
 //! Link models together with type-safe foreign keys.
@@ -197,11 +212,11 @@
 //!     pub struct Post {
 //!         #[primary_key]
 //!         pub id: String,
-//!         
+//!
 //!         /// Link to Author model
 //!         #[link(BlogApp, Author)]
 //!         pub author_id: String,
-//!         
+//!
 //!         pub title: String,
 //!     }
 //! }
@@ -240,6 +255,21 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! ## How relational links are stored
+//!
+//! For each `#[link(Definition, Model)]` field, the definition gains a
+//! relational index table. In the `BlogApp` example:
+//!
+//! | Logical Table              | Purpose                          | Key columns                      | Value columns        |
+//! |---------------------------|----------------------------------|----------------------------------|----------------------|
+//! | `Author`                  | Authors                          | `primary_key` (`AuthorID`)       | author fields        |
+//! | `Post`                    | Posts                            | `primary_key` (`PostID`)         | post fields          |
+//! | `PostByAuthorId`          | AuthorID → post index            | `AuthorID`                       | `PostID`             |
+//!
+//! The `PostRelationalKeys` enum is the key type for these relational tables
+//! and appears in the exported schema so query tooling can discover available
+//! relationship traversals.
 //!
 //! # Blob Storage
 //!
@@ -565,6 +595,7 @@ pub mod basic_crud;
 pub mod blobs;
 pub mod subscriptions;
 pub mod repositories;
+pub mod schema_toml;
 
 pub mod patterns {
     //! # Common Patterns Overview

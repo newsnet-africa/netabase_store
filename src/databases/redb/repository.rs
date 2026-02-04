@@ -28,6 +28,26 @@
 //! - Inter-definition relationship mapping
 //! - Schema compatibility information
 //!
+//! A minimal example looks like:
+//!
+//! ```toml
+//! [repository]
+//! name = "MainRepo"
+//! version = 1
+//!
+//! [[definitions]]
+//! name = "UserDef"
+//! path = "UserDef/schema.toml"
+//!
+//! [[definitions]]
+//! name = "PostDef"
+//! path = "PostDef/schema.toml"
+//!
+//! [[links]]
+//! from = "PostDef.Post.author"
+//! to = "UserDef.User.id"
+//! ```
+//!
 //! # Initialization Process
 //!
 //! 1. Create repository root folder
