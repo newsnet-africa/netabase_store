@@ -94,23 +94,36 @@
 //!
 //! Query operations use model-level methods on open tables:
 //!
-//! ```rust,ignore
+//! ```rust
 //! use netabase_store::prelude::*;
-//! use netabase_store::databases::redb::transaction::CrudOptions;
+//! use netabase_store::databases::redb::RedbStore;
+//! use netabase_store::databases::redb::transaction::{CrudOptions, RedbModelCrud};
+//! use netabase_store::doc_example::*;
+//! use netabase_store::traits::database::store::NBStore;
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let (store, _temp) = RedbStore::<ExampleDef>::new_temporary()?;
+//!
+//! // Seed some data
+//! let txn = store.begin_write()?;
+//! txn.create(&User { id: UserID("u1".into()), name: "Alice".into(), email: "a@b.com".into() })?;
+//! txn.create(&User { id: UserID("u2".into()), name: "Bob".into(), email: "b@c.com".into() })?;
+//! txn.commit()?;
 //!
 //! // Open tables for the model
+//! let txn = store.begin_read()?;
 //! let table_defs = User::table_definitions();
 //! let tables = txn.open_model_tables(table_defs, None)?;
 //!
 //! // List with options
-//! let config = CrudOptions::default()
-//!     .with_limit(10)
-//!     .with_offset(20);
+//! let config = CrudOptions::new()
+//!     .with_limit(1)
+//!     .with_offset(1);
 //! let results = User::list_entries(&tables, config)?;
 //!
-//! for entry in results {
-//!     println!("Found: {:?}", entry.value());
-//! }
+//! assert_eq!(results.len(), 1);
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! See [tests/integration_list.rs](../tests/integration_list.rs) for complete examples.

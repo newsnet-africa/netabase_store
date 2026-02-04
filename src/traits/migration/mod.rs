@@ -15,8 +15,9 @@
 //! Migration between model versions is defined using the `MigrateFrom` and `MigrateTo` traits.
 //! This example shows a typical versioning pattern:
 //!
-//! ```rust,ignore
+//! ```rust
 //! use netabase_store::prelude::*;
+//! use netabase_store::traits::migration::{MigrateFrom, MigrateTo};
 //! use serde::{Serialize, Deserialize};
 //!
 //! #[netabase_macros::netabase_definition(UserDef)]

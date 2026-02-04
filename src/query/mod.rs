@@ -61,10 +61,11 @@
 //!
 //! Range queries allow filtering by primary key ranges:
 //!
-//! ```rust,ignore
-//! // Fetch users with IDs in range (requires range-supporting key types)
-//! let config = QueryConfig::new(UserId(0)..UserId(100));
-//! let users = txn.list_range(config)?;
+//! ```rust
+//! use netabase_store::query::QueryConfig;
+//!
+//! // Fetch items with keys in range
+//! let config = QueryConfig::new(0u32..100u32);
 //! ```
 //!
 //! ## Reversed Iteration

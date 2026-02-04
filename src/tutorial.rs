@@ -294,18 +294,18 @@
 //!
 //! Implement pub/sub patterns with subscription topics.
 //!
-//! ```rust,ignore
+//! ```rust
 //! use netabase_store::prelude::*;
 //! use serde::{Serialize, Deserialize};
 //!
 //! // Define a topic
 //! pub struct NewPostTopic;
 //!
-//! #[netabase_definition(BlogWithSubs, topics(NewPostTopic))]
+//! #[netabase_macros::netabase_definition(BlogWithSubs, topics(NewPostTopic))]
 //! mod blog {
 //!     use super::*;
 //!
-//!     #[derive(NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 //!     pub struct Post {
 //!         #[primary_key]
 //!         pub id: String,
@@ -313,7 +313,7 @@
 //!     }
 //!
 //!     // This model subscribes to new posts
-//!     #[derive(NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 //!     #[subscribe(NewPostTopic)]
 //!     pub struct Notification {
 //!         #[primary_key]
