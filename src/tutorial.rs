@@ -520,90 +520,80 @@
 //! }
 //! ```
 //!
-//! ## 5. Test with Temporary Stores
+//! # Stress Testing and Common Patterns
 //!
-//! Use `new_temporary()` for tests:
+//! For a complete, end-to-end example combining CRUD, secondary indexes,
+//! relational links, blob storage, subscriptions, query configuration and
+//! repositories, see the `patterns` submodule below. The heavy I/O parts of
+//! these examples are exercised in the `tests/macro_attributes.rs` integration
+//! test to keep doctests fast while still fully validating behavior.
 //!
-//! ```rust,ignore
-//! #[test]
-//! fn test_my_feature() -> Result<(), Box<dyn std::error::Error>> {
-//!     let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
-//!     // _temp is automatically cleaned up
-//!     Ok(())
-//! }
-//! ```
+//! In practice you will typically:
+//! - Define one or more `#[netabase_definition]` modules for your schemas
+//! - Group them with `#[netabase_repository(Repo, definitions(...))]` when
+//!   you need inter-definition links
+//! - Use `#[blob]` fields with types deriving `NetabaseBlobItem` for large
+//!   payloads
+//! - Use `#[subscribe(immutable, Topic1, ..)]` when modeling append-only
+//!   event streams
+//! - Configure reads with `CrudOptions` and `QueryConfig` to keep queries
+//!   predictable and efficient.
 //!
-//! # Common Patterns
-//!
-//! ## Pagination
-//!
-//! ```rust,ignore
-//! use netabase_store::query::QueryOptions;
-//!
-//! let txn = store.begin_read()?;
-//! let options = QueryOptions::default()
-//!     .with_limit(10)
-//!     .with_offset(20); // Page 3 (20 items skipped)
-//!
-//! let posts: Vec<Post> = txn.scan_all_with_options(options)?;
-//! ```
-//!
-//! ## Batch Operations
-//!
-//! ```rust,ignore
-//! let txn = store.begin_write()?;
-//! for item in items {
-//!     txn.create(&item)?;
-//! }
-//! txn.commit()?; // Single commit for all
-//! ```
-//!
-//! ## Conditional Updates
-//!
-//! ```rust,ignore
-//! let txn = store.begin_write()?;
-//! if let Some(mut user) = txn.read(&user_id)? {
-//!     if user.email.is_empty() {
-//!         user.email = new_email;
-//!         txn.update(&user)?;
-//!     }
-//! }
-//! txn.commit()?;
-//! ```
-//!
-//! # Performance Tips
-//!
-//! 1. **Batch reads/writes** in transactions
-//! 2. **Use secondary indexes** for common queries
-//! 3. **Avoid large blobs** when possible (> 1MB)
-//! 4. **Reuse read transactions** for multiple reads
-//! 5. **Keep write transactions short** to reduce lock contention
-//!
-//! # Troubleshooting
-//!
-//! ## "No such table" errors
-//!
-//! Make sure you're using the right definition type:
-//!
-//! ```rust,ignore
-//! let store = RedbStore::<MyDef>::new_temporary()?; // Correct definition
-//! ```
-//!
-//! ## Serialization errors
-//!
-//! Ensure all fields are `Serialize + Deserialize`:
-//!
-//! ```rust,ignore
-//! #[derive(Serialize, Deserialize)] // Don't forget these
-//! pub struct MyType {
-//!     // ...
-//! }
-//! ```
-//!
-//! ## Link errors
-//!
-//! Check that linked models are in the same repository:
-//!
-//! ```rust,ignore
-//! #[link(SameDef, OtherModel)] // Must be same definition or same repository
-//! ```
+//! The `patterns::overview` module contains a non-trivial example application
+//! that pulls these patterns together.
+
+/// Common patterns and combined tutorial examples.
+///
+/// This inline module focuses on a single, larger example that exercises
+/// most of the Netabase features together. The code is documented as
+/// `rust,ignore` here for readability; an executable variant of the same
+/// scenario lives in `tests/macro_attributes.rs`.
+pub mod patterns {
+    //! # Common Patterns Overview
+    //!
+    //! This module sketches a small "blog + media" application that uses:
+    //! - Multiple `#[netabase_definition]` blocks
+    //! - A `#[netabase_repository]` for inter-definition links
+    //! - `#[blob]` fields backed by a `NetabaseBlobItem` type
+    //! - `#[subscribe(immutable, Topic)]` for event-style models
+    //! - Query configuration via `CrudOptions` and `QueryConfig`.
+    //!
+    //! ```rust,ignore
+    //! use netabase_store::{
+    //!     NetabaseModel,
+    //!     NetabaseBlobItem,
+    //!     netabase_definition,
+    //!     netabase_repository,
+    //! };
+    //! use serde::{Serialize, Deserialize};
+    //!
+    //! // Blob payload used by the media model
+    //! #[derive(NetabaseBlobItem, Serialize, Deserialize, Clone)]
+    //! pub struct MediaBlob {
+    //!     pub bytes: Vec<u8>,
+    //!     pub content_type: String,
+    //! }
+    //!
+    //! // Topics for subscriptions
+    //! pub struct NewPost;
+    //! pub struct NewMedia;
+    //!
+    //! // Definitions
+    //! #[netabase_definition(BlogDef, repos(MainRepo), subscriptions(NewPost))]
+    //! pub mod blog_def { /* Post, Comment, etc. */ }
+    //!
+    //! #[netabase_definition(MediaDef, repos(MainRepo), subscriptions(NewMedia))]
+    //! pub mod media_def { /* Image with #[blob] MediaBlob, etc. */ }
+    //!
+    //! // Repository tying both definitions together for cross-links
+    //! #[netabase_repository(MainRepo, definitions(BlogDef, MediaDef))]
+    //! mod repository {}
+    //!
+    //! // See `tests/macro_attributes.rs` for a fully runnable variant that
+    //! // wires this setup into a RedbStore, performs CRUD, range queries,
+    //! // blob round-trips and subscription lookups.
+    //! ```
+}
+
+
+

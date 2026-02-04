@@ -308,6 +308,21 @@ pub use postcard;
 /// ```
 pub use netabase_macros as macros;
 
+/// Re-export core macros at the crate root for ergonomics.
+///
+/// This enables:
+///
+/// ```rust
+/// use netabase_store::{NetabaseModel, netabase_definition, netabase_repository, NetabaseBlobItem};
+/// ```
+pub use netabase_macros::{
+    NetabaseBlobItem,
+    NetabaseModel,
+    infer_netabase_definition,
+    netabase_definition,
+    netabase_repository,
+};
+
 // ============================================================================
 // Core Modules
 // ============================================================================
