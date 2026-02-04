@@ -456,6 +456,7 @@ impl StoreConfig {
     }
 
     /// Create the database with this configuration.
+    #[allow(clippy::multiple_bound_locations)]
     pub fn create<D: RedbDefinition>(self) -> NetabaseResult<RedbStore<D>>
     where
         <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug + PartialEq,

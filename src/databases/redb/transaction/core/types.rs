@@ -26,6 +26,7 @@ where
 ///
 /// This enum allows us to handle both read and write transactions
 /// through a single interface while maintaining type safety.
+#[allow(clippy::large_enum_variant)]
 pub enum RedbTransactionType<'txn, D: RedbDefinition>
 where
     <D as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,

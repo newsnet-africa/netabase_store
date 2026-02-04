@@ -87,7 +87,7 @@ pub fn netabase_attribute(attr: TokenStream, item: TokenStream) -> Result<TokenS
             #global_enum
         })?;
 
-        items.extend(generated_items.items.into_iter());
+        items.extend(generated_items.items);
     }
 
     Ok(quote! {

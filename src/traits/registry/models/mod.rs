@@ -83,7 +83,7 @@ where
 }
 
 /// Associates a key type with its value type.
-pub trait StoreKey<D: NetabaseDefinition, V: StoreValueMarker<D> + ?Sized>:
+pub trait StoreKey<D: NetabaseDefinition, V: StoreValueMarker<D>>:
     StoreKeyMarker<D>
 where
     D::Discriminant: 'static + std::fmt::Debug,

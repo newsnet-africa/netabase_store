@@ -112,6 +112,7 @@ fn generate_repository_registration_marker(visitor: &DefinitionVisitor) -> Token
     quote! {
         // Compile-time constant that repositories can discover
         #[doc(hidden)]
+        #[allow(non_upper_case_globals)]
         pub const #marker_name: &str = #repo_names_lit;
     }
 }
@@ -170,7 +171,7 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
         // Parse generated code into items and inject into module
         let file: syn::File = parse2(generated_structs)?;
         if let Some((_, items)) = &mut module.content {
-            items.extend(file.items.into_iter());
+            items.extend(file.items);
         }
     }
 
@@ -337,14 +338,14 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
             syn::Error::new(e.span(), format!("Failed to parse definition items: {}", e))
         })?;
 
-        items.extend(def_file.items.into_iter());
+        items.extend(def_file.items);
 
         // Add model-level items
         for code in model_generated_code {
             let file: syn::File = parse2(code).map_err(|e| {
                 syn::Error::new(e.span(), format!("Failed to parse model items: {}", e))
             })?;
-            items.extend(file.items.into_iter());
+            items.extend(file.items);
         }
 
         // Add migration-related items if we have versioned models
@@ -362,7 +363,7 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
                 syn::Error::new(e.span(), format!("Failed to parse migration items: {}", e))
             })?;
 
-            items.extend(migration_file.items.into_iter());
+            items.extend(migration_file.items);
         }
     }
 

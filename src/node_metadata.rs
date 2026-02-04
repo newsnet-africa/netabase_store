@@ -21,6 +21,7 @@ use serde::{Serialize, Deserialize};
 use crate::traits::registry::definition::NetworkDefinition;
 
 #[cfg(feature = "libp2p")]
+#[allow(dead_code)]
 pub struct NodeMetadata<D: NetworkDefinition>
 where
     <D as strum::IntoDiscriminant>::Discriminant: std::fmt::Debug,

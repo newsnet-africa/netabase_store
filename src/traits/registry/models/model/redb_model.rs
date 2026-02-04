@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 use redb::{MultimapTableDefinition, TableDefinition};
 use strum::IntoDiscriminant;
 

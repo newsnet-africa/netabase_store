@@ -1,6 +1,6 @@
 //! Test nested repository pattern
 
-use example::repository_example::{EmployeeRepo, ManagerRepo, Employee};
+use example::repository_example::{EmployeeRepo, ManagerRepo};
 
 #[test]
 fn test_employee_repo_name() {

@@ -2,10 +2,8 @@
 
 mod common;
 
-use netabase_store::traits::registry::repository::NetabaseRepository;
 use example::MainRepository;
 use std::fs;
-use std::path::PathBuf;
 
 /// Test that repository.toml can be generated
 #[test]

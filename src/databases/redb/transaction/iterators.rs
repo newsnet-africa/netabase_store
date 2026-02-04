@@ -148,6 +148,7 @@ pub struct KeyIterator<K> {
 
 impl<K> KeyIterator<K> {
     /// Create a new key iterator from a vector of keys.
+    #[allow(dead_code)]
     pub(crate) fn from_vec(keys: Vec<K>) -> Self {
         Self {
             inner: keys.into_iter(),

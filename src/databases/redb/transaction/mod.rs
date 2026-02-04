@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 //! Transaction layer for redb database operations.
 //!
 //! This module provides the core transaction infrastructure for interacting with redb databases.

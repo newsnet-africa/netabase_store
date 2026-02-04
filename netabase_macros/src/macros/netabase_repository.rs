@@ -92,7 +92,7 @@ pub fn netabase_repository_attribute(attr: TokenStream, item: TokenStream) -> Re
             syn::Error::new(e.span(), format!("Failed to parse repository code: {}", e))
         })?;
 
-        items.extend(file.items.into_iter());
+        items.extend(file.items);
     }
 
     Ok(quote! {

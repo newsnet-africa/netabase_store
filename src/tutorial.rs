@@ -18,7 +18,7 @@
 //!
 //! ## Creating Your First Model
 //!
-//! ```rust,ignore
+//! ```rust
 //! use netabase_store::prelude::*;
 //! use serde::{Serialize, Deserialize};
 //!
@@ -84,9 +84,11 @@
 //!
 //! Secondary indexes enable fast lookups on non-primary key fields.
 //!
-//! ```rust,ignore
+//! ```rust
 //! use netabase_store::prelude::*;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
+//! use netabase_store::relational::RelationalLink;
+//! use netabase_store::traits::database::transaction::NBTransaction;
 //! use serde::{Serialize, Deserialize};
 //!
 //! #[netabase_macros::netabase_definition(UserApp)]
@@ -157,9 +159,11 @@
 //!
 //! Link models together with type-safe foreign keys.
 //!
-//! ```rust,ignore
+//! ```rust
 //! use netabase_store::prelude::*;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
+//! use netabase_store::relational::RelationalLink;
+//! use netabase_store::traits::database::transaction::NBTransaction;
 //! use serde::{Serialize, Deserialize};
 //!
 //! #[netabase_macros::netabase_definition(BlogApp)]
@@ -194,6 +198,7 @@
 //!     }
 //! }
 //!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use blog::*;
 //! use netabase_store::traits::database::store::NBStore;
 //!
@@ -224,6 +229,8 @@
 //! let posts: Vec<Post> = txn.read_related(&relational_key)?;
 //! assert_eq!(posts.len(), 1);
 //! assert_eq!(posts[0].title, "First Post");
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! # Blob Storage
@@ -233,6 +240,8 @@
 //! ```rust,ignore
 //! use netabase_store::prelude::*;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
+//! use netabase_store::relational::RelationalLink;
+//! use netabase_store::traits::database::transaction::NBTransaction;
 //! use serde::{Serialize, Deserialize};
 //!
 //! #[netabase_macros::netabase_definition(MediaApp)]
@@ -360,7 +369,7 @@
 //!
 //! Read transactions provide snapshot isolation:
 //!
-//! ```rust,ignore
+//! ```rust
 //! use netabase_store::prelude::*;
 //! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
@@ -387,7 +396,7 @@
 //!
 //! Write transactions must be explicitly committed:
 //!
-//! ```rust,ignore
+//! ```rust
 //! use netabase_store::prelude::*;
 //! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};

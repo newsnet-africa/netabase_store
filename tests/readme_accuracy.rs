@@ -235,7 +235,7 @@ mod migration_models {
             let parts: Vec<&str> = old.name.split_whitespace().collect();
             User {
                 id: old.id,
-                first_name: parts.get(0).unwrap_or(&"").to_string(),
+                first_name: parts.first().unwrap_or(&"").to_string(),
                 last_name: parts.get(1).unwrap_or(&"").to_string(),
             }
         }

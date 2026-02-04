@@ -1,4 +1,3 @@
-use netabase_store::traits::database::store::NBStore;
 use netabase_store::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -48,9 +47,9 @@ fn test_definition_iterator() -> NetabaseResult<()> {
     txn.with_read_transaction(|rt| {
         // Generated structs should be available in the module
         let tables = IterTestDefReadOnlyTables::new(rt)
-            .map_err(|e| netabase_store::errors::NetabaseError::RedbError(e))?;
+            .map_err(netabase_store::errors::NetabaseError::RedbError)?;
             
-        let iter = tables.iter().map_err(|e| netabase_store::errors::NetabaseError::RedbError(e))?;
+        let iter = tables.iter().map_err(netabase_store::errors::NetabaseError::RedbError)?;
         
         let items: Vec<_> = iter.collect();
         

@@ -264,9 +264,10 @@ impl<'a> DefinitionEnumGenerator<'a> {
                 model_name.clone()
             };
 
-            // Field names
-            let table_field_ident = format_ident!("table_{}", model_name);
-            let iter_field_ident = format_ident!("iter_{}", model_name);
+            // Field names (use snake_case for generated identifiers)
+            let model_snake = crate::utils::naming::to_snake_case(&model_name.to_string());
+            let table_field_ident = format_ident!("table_{}", model_snake);
+            let iter_field_ident = format_ident!("iter_{}", model_snake);
 
             // Table Field Definition
             table_field_defs.push(quote! {
@@ -328,6 +329,7 @@ impl<'a> DefinitionEnumGenerator<'a> {
 
         quote! {
             /// Helper struct to hold open read-only tables for definition iteration
+            #[allow(non_snake_case)]
             pub struct #tables_name {
                 #(#table_field_defs),*
             }
@@ -355,6 +357,7 @@ impl<'a> DefinitionEnumGenerator<'a> {
             }
 
             /// Iterator over all models in the definition
+            #[allow(non_snake_case)]
             pub struct #iter_name<'a> {
                 #(#iter_field_defs),*,
                 state: usize,

@@ -1,7 +1,7 @@
 
 use syn::{Attribute, Data, Error, Field, Meta, Path, Result};
 
-/// Utilities for parsing field and item attributes
+// Utilities for parsing field and item attributes
 
 /// Check if an attribute matches a given path (e.g., "primary_key")
 pub fn is_attribute(attr: &Attribute, name: &str) -> bool {

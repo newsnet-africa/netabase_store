@@ -284,6 +284,7 @@ impl<'repo, R: RedbRepositoryDefinitions> RedbRepositoryTransaction<'repo, R> {
     /// # Type Parameters
     ///
     /// * `D` - The definition type to get a transaction for
+    #[allow(clippy::multiple_bound_locations)]
     pub fn read_definition<D: RedbDefinition>(&self) -> NetabaseResult<redb::ReadTransaction>
     where
         D::Discriminant: 'static + std::fmt::Debug,

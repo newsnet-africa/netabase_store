@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 //! Model trait hierarchy for database entities.
 //!
 //! A **Model** represents a single entity type within a Definition. Models define:
@@ -117,7 +118,7 @@
 //! - RelationalLinks must reference models in the same repository
 //! - Subscription topics must be declared in the definition
 
-//! Core model trait for database-backed structs.
+//!   Core model trait for database-backed structs.
 //!
 //! This module defines the `NetabaseModel` trait, which is the foundation of
 //! netabase_store's type system. Models are Rust structs that get persisted

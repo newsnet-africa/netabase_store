@@ -51,7 +51,7 @@ pub fn netabase_networking_attribute(_attr: TokenStream, item: TokenStream) -> R
         let cap_file: syn::File = parse2(capabilities).map_err(|e| {
             syn::Error::new(e.span(), format!("Failed to parse capability items: {}", e))
         })?;
-        items.extend(cap_file.items.into_iter());
+        items.extend(cap_file.items);
     }
 
     Ok(quote! {

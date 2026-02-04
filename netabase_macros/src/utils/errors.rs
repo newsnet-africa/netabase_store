@@ -1,7 +1,7 @@
 use proc_macro2::Span;
 use syn::Error;
 
-/// Utilities for generating consistent error messages
+// Utilities for generating consistent error messages
 
 pub fn multiple_primary_keys(span: Span) -> Error {
     Error::new(

@@ -580,7 +580,7 @@ fn test_relational_links_all_variants() -> NetabaseResult<()> {
         test_id.clone(),
         test_user.clone(),
     );
-    let borr = RelationalLink::<Standalone, Definition, Definition, User>::new_borrowed(
+    let _borr = RelationalLink::<Standalone, Definition, Definition, User>::new_borrowed(
         test_id.clone(),
         &test_user,
     );
@@ -1186,7 +1186,7 @@ fn test_subscriptions_storage_and_retrieval() -> NetabaseResult<()> {
 
     println!("Creating users with various subscription patterns");
     let txn = store.begin_write()?;
-    for (id, subs, desc) in &users {
+    for (id, _subs, desc) in &users {
         println!("  - {}: {}", id, desc);
         let user = User {
             id: UserID(id.to_string()),

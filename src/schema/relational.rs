@@ -286,6 +286,7 @@ where
 }
 
 // PartialOrd implementation
+#[allow(clippy::non_canonical_partial_ord_impl)]
 impl<'data, R, SourceD, TargetD, M> PartialOrd for RelationalLink<'data, R, SourceD, TargetD, M>
 where
     R: NetabaseRepository,

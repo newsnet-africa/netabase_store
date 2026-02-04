@@ -1,4 +1,3 @@
-use netabase_store::traits::database::store::NBStore;
 use netabase_store::prelude::*;
 use netabase_store::traits::registry::definition::redb_definition::RedbDefinition;
 use serde::{Deserialize, Serialize};
@@ -33,7 +32,6 @@ pub mod record_iter_test_def {
 fn test_definition_record_iterator() -> NetabaseResult<()> {
     use record_iter_test_def::*;
     use netabase_store::traits::libp2p::libp2p_model::Libp2pMetadata;
-    use std::time::SystemTime;
     
     // Setup DB
     let (store, _path) = RedbStore::<RecordIterTestDef>::new_temporary()?;

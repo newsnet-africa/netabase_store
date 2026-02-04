@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 //! Low-level table access and management.
 //!
 //! This module provides infrastructure for opening and managing database tables.

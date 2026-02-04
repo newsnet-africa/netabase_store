@@ -17,6 +17,12 @@ pub struct MigrationChainBuilder<Current> {
     _marker: std::marker::PhantomData<Current>,
 }
 
+impl<Current: VersionedModel> Default for MigrationChainBuilder<Current> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<Current: VersionedModel> MigrationChainBuilder<Current> {
     /// Create a new migration chain builder starting from the current version.
     pub const fn new() -> Self {

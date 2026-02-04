@@ -1,7 +1,7 @@
 use proc_macro2::Ident;
 use syn::Path;
 
-/// Utilities for generating consistent names for wrapper types, enums, and other generated items
+// Utilities for generating consistent names for wrapper types, enums, and other generated items
 
 /// Generate the primary key type name (e.g., User -> UserID)
 pub fn primary_key_type_name(model_name: &Ident) -> Ident {
@@ -126,6 +126,25 @@ pub fn to_pascal_case(s: &str) -> String {
             }
         })
         .collect()
+}
+
+
+/// Convert PascalCase or CamelCase to snake_case
+pub fn to_snake_case(s: &str) -> String {
+    let mut out = String::new();
+    for (i, ch) in s.chars().enumerate() {
+        if ch.is_uppercase() {
+            if i > 0 {
+                out.push('_');
+            }
+            for c in ch.to_lowercase() {
+                out.push(c);
+            }
+        } else {
+            out.push(ch);
+        }
+    }
+    out
 }
 
 /// Extract the last segment from a path (e.g., foo::bar::Baz -> Baz)

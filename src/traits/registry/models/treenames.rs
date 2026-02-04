@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 //! Table name management for models.
 //!
 //! This module provides types for managing table names in the database backend.
