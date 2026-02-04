@@ -2,6 +2,7 @@
 //!
 //! This module provides comprehensive, runnable examples demonstrating
 //! all features of Netabase from basic CRUD to advanced patterns.
+//! For feature-specific deep dives, see the submodules of `tutorial`.
 //!
 //! # Table of Contents
 //!
@@ -13,6 +14,13 @@
 //! 6. [Migrations](#migrations)
 //! 7. [Transactions](#transactions)
 //! 8. [Repository Isolation](#repository-isolation)
+//! 9. [Common Patterns](crate::tutorial::patterns)
+//!
+//! For deeper, focused guides, also see the submodules:
+//! - [`tutorial::basic_crud`]
+//! - [`tutorial::blobs`]
+//! - [`tutorial::subscriptions`]
+//! - [`tutorial::repositories`]
 //!
 //! # Basic CRUD Operations
 //!
@@ -430,7 +438,8 @@
 //!
 //! # Repository Isolation
 //!
-//! Group definitions into repositories for access control:
+//! Group definitions into repositories for access control. See also
+//! the more detailed [`tutorial::repositories`] module.
 //!
 //! ```rust,ignore
 //! use netabase_store::prelude::*;
@@ -548,6 +557,11 @@
 /// most of the Netabase features together. The code is documented as
 /// `rust,ignore` here for readability; an executable variant of the same
 /// scenario lives in `tests/macro_attributes.rs`.
+pub mod basic_crud;
+pub mod blobs;
+pub mod subscriptions;
+pub mod repositories;
+
 pub mod patterns {
     //! # Common Patterns Overview
     //!
