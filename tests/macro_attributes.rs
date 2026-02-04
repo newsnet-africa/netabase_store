@@ -3,11 +3,10 @@
 //! These tests are the executable counterparts to the high-level patterns
 //! described in `crate::tutorial::patterns`.
 
-use netabase_store::{
+use netabase_store::macros::{
     NetabaseBlobItem,
     NetabaseModel,
     netabase_definition,
-    netabase_repository,
 };
 use netabase_store::databases::redb::RedbStore;
 use netabase_store::databases::redb::transaction::RedbModelCrud;
@@ -16,32 +15,17 @@ use netabase_store::traits::database::transaction::NBTransaction;
 use serde::{Deserialize, Serialize};
 
 /// Blob payload type used for `#[blob]` tests.
-#[derive(NetabaseBlobItem, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(NetabaseBlobItem, Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TestBlob {
     pub bytes: Vec<u8>,
     pub content_type: String,
 }
 
-/// Topics used for subscription tests.
-pub struct TopicA;
-pub struct TopicB;
-
-#[netabase_definition(DefA, repos(MainRepo), subscriptions(TopicA, TopicB))]
-mod def_a {
-    use super::*;
-
-    #[derive(NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-    #[subscribe(immutable, TopicA)]
-    pub struct Event {
-        #[primary_key]
-        pub id: String,
-        pub payload: String,
-    }
-}
-
-#[netabase_definition(DefB, repos(MainRepo))]
+#[netabase_definition(DefB)]
 mod def_b {
     use super::*;
+    // Bring the blob trait into scope so generated code can call `split_into_blobs`.
+    use netabase_store::blob::NetabaseBlobItem;
 
     #[derive(NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
     pub struct Media {
@@ -53,11 +37,6 @@ mod def_b {
     }
 }
 
-// Repository tying both definitions together and enabling inter-definition links.
-#[netabase_repository(MainRepo, definitions(DefA, DefB))]
-mod repo {}
-
-use def_a::*;
 use def_b::*;
 
 #[test]
