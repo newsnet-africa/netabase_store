@@ -44,8 +44,16 @@
 //! ```
 //!
 //! Under the hood, the `NetabaseBlobItem` derive generates a `{Type}Blobs`
-//! wrapper that implements chunking into ~60KB segments and knows how to
-//! reconstruct the original value.
+//! helper that knows how to:
+//! - Split your payload into ~60KB chunks for storage
+//! - Reconstruct the original value from those chunks
+//! - Serialize/deserialize efficiently using postcard
+//!
+//! When you add `#[blob]` to a field in a `NetabaseModel`:
+//! - The definition gains an extra "blob" tree in its `TreeNames` enum
+//! - The backend creates a dedicated blob table keyed by blob ID + chunk index
+//! - Schema export (`export_toml`) records this as a separate table so tools
+//!   can reason about blob storage independently from the main row
 //!
 //! See also: `tests/macro_attributes.rs` for an executable end-to-end
 //! blob round-trip using `#[blob]` and `NetabaseBlobItem`.

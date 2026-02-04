@@ -103,9 +103,24 @@ use crate::traits::registry::models::{
 ///
 /// The `export_toml()` method generates a complete schema including:
 /// - All model structures with field types
-/// - Primary, secondary, and relational keys
-/// - Blob field definitions
-/// - Subscription topics
+/// - Primary, secondary, multimap, and relational keys
+/// - Blob field definitions and their auxiliary tables
+/// - Subscription topics and their backing key enums
+/// - Repository membership information when used with `#[netabase_repository]`
+///
+/// ## TOML Layout
+///
+/// The exported TOML is organized roughly as:
+///
+/// - `[definition]` – high-level metadata (name, version)
+/// - `[[models]]` – one entry per model
+///   - `name`, `primary_key`, `secondary_keys`, `blob_fields`
+///   - `relations` (links) with target definition/model
+/// - `[[subscriptions]]` – topics and subscribing models
+///
+/// Repository-level tools (see `databases::redb::repository`) combine
+/// multiple definition schemas and write a `repository.toml` alongside
+/// per-definition `schema.toml` files.
 ///
 /// # Example Usage
 ///

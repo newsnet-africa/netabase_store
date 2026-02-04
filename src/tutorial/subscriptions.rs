@@ -42,6 +42,13 @@
 //! ```
 //!
 //! The `immutable` flag indicates that subscriber records are append-only
-//! (suitable for event streams and audit logs). See `crate::tutorial::patterns`
-//! and `tests/macro_attributes.rs` for integrated examples that create
-//! stores and exercise the subscription tables.
+//! (suitable for event streams and audit logs).
+//!
+//! Under the hood the macros generate:
+//! - A `SubscriptionKeys` enum on the definition bundling all topics
+//! - Auxiliary subscription key types and tables used by backends
+//! - Schema entries so `export_toml()` can describe which models
+//!   participate in which topics.
+//!
+//! See `crate::tutorial::patterns` and `tests/macro_attributes.rs` for
+//! integrated examples that create stores and exercise the subscription tables.

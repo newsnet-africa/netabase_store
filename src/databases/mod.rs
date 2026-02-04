@@ -32,11 +32,17 @@
 //!
 //! For testing, use the memory backend:
 //!
-//! ```rust,ignore
+//! ```rust
 //! use netabase_store::databases::memory::MemoryStore;
+//! use netabase_store::doc_examples::ExampleDef;
 //!
-//! let store = MemoryStore::<MyApp>::new();
-//! // Fast, no disk I/O
+//! # fn main() {
+//! // Fast, no disk I/O, ephemeral data
+//! let store = MemoryStore::<ExampleDef>::new();
+//! let mut txn = store.begin_write().unwrap();
+//! txn.insert("users", b"alice".to_vec(), b"Alice".to_vec());
+//! txn.commit().unwrap();
+//! # }
 //! ```
 
 pub mod indexedb;

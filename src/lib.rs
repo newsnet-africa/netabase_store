@@ -329,9 +329,6 @@ pub use netabase_macros::{
 
 /// Core types and primitives.
 ///
-/// Contains fundamental types: keys and primitives for storage operations.
-pub mod core;
-
 /// Schema-related types for advanced features.
 ///
 /// Contains blob storage, relational links, and subscription hashing.
@@ -352,15 +349,10 @@ pub mod traits;
 /// Internal utility functions.
 pub mod utils;
 
-/// Node metadata for distributed systems.
-pub mod node_metadata;
 
 // ============================================================================
 // Compatibility Re-exports (maintaining public API)
 // ============================================================================
-
-/// Re-export key types for backwards compatibility.
-pub use core::key;
 
 /// Re-export blob types for backwards compatibility.
 #[cfg(feature = "blobs")]

@@ -85,6 +85,20 @@
 //! - **Lazy loading**: Blobs are not loaded by default, reducing memory usage
 //! - **Chunking**: Large data is stored efficiently across multiple records
 //! - **Network-ready**: Chunk size is optimized for network transmission
+//!
+//! # Generated Tables and Keys
+//!
+//! When you place `#[blob]` on a field in a `NetabaseModel`, the macros
+//! generate:
+//!
+//! - A `{Model}BlobKeys` enum implementing `BlobKey` for addressing chunks
+//! - A `{Model}Blobs` helper type that owns `Vec<BlobChunk>` values
+//! - Additional entries in the definition's `TreeNames` enum for the blob table
+//! - Redb table definitions wired into `RedbTransaction` for that blob table
+//!
+//! This means every blob field corresponds to a **separate physical table**
+//! keyed by a blob ID and chunk index, which is why blob operations are
+//! isolated from regular row-level reads.
 
 use serde::{Serialize, de::DeserializeOwned};
 

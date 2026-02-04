@@ -48,6 +48,11 @@
 //!
 //! The macros generate a `MainRepo` marker type, definition and model
 //! discriminants, and repository metadata used by `RedbRepositoryStore`.
+//! They also emit repository and definition entries that show up in
+//! `schema.toml` and `repository.toml`, mapping syntax like
+//! `repos(MainRepo)` and `definitions(UserDef, PostDef)` to concrete
+//! folders and files on disk.
+//!
 //! See `crate::traits::registry::repository` and `src/databases/redb/repository.rs`
 //! for the underlying traits and store implementation, and
 //! `tests/repository_comprehensive.rs` for a full repository stress test.
