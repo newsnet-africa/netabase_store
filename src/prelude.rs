@@ -5,7 +5,7 @@
 //!
 //! # Usage
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::prelude::*;
 //! // Now you have access to all common types and traits
 //! ```
@@ -54,7 +54,7 @@
 //!
 //! ## Basic CRUD Operations
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::doc_example::*;
 //! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
@@ -94,7 +94,7 @@
 //!
 //! Query operations use model-level methods on open tables:
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::prelude::*;
 //! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::databases::redb::transaction::{CrudOptions, RedbModelCrud};
@@ -131,7 +131,7 @@
 //!
 //! ## Working with Relational Links
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::doc_example::*;
 //! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
@@ -163,7 +163,7 @@
 //!
 //! Migration is defined using the `MigrateFrom` trait. Here's a conceptual example:
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::prelude::*;
 //!
 //! // Given UserV1 and UserV2 in the same definition:
@@ -208,8 +208,15 @@ pub use crate::databases::redb::RedbStore;
 pub use crate::databases::redb::StoreConfig;
 pub use crate::databases::redb::transaction::RedbTransaction;
 
-// Query configuration
-pub use crate::query::{FetchOptions, Pagination, QueryConfig, QueryMode, QueryResult};
+// Unified configuration system
+pub use crate::config::{
+    QueryConfig, CrudOptions, QueryMode,
+    PaginationConfig, HydrationConfig, BlobConfig, SubscriptionConfig,
+};
+pub use crate::config::defaults::{ConfigDefaults, DefaultsBuilder};
+
+// Query execution
+pub use crate::query::QueryResult;
 
 // Error handling
 pub use crate::errors::{NetabaseError, NetabaseResult};

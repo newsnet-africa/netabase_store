@@ -9,7 +9,7 @@
 //!
 //! # Example
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::prelude::*;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
 //! use serde::{Serialize, Deserialize};

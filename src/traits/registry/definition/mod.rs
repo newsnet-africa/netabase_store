@@ -32,7 +32,7 @@
 //!
 //! Using the pre-built example types:
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::doc_example::*;
 //! use netabase_store::traits::registry::definition::NetabaseDefinition;
 //!

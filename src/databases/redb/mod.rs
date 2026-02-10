@@ -18,7 +18,7 @@
 //!
 //! # Quick Start
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::prelude::*;
 //! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
@@ -248,7 +248,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```rust,no_run
+    /// ```rust
     /// use netabase_store::databases::redb::RedbStore;
     /// use myapp::MyAppDef;
     ///
@@ -294,7 +294,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```rust,no_run
+    /// ```rust
     /// use netabase_store::databases::redb::{RedbStore, migration::MigrationOptions};
     /// use myapp::MyAppDef;
     ///
@@ -353,7 +353,7 @@ const README_FILE_NAME: &str = "README.md";
 ///
 /// # Examples
 ///
-/// ```rust,no_run
+/// ```rust
 /// use netabase_store::databases::redb::{RedbStore, StoreConfig};
 /// use netabase_store::doc_example::ExampleDef;
 ///
@@ -490,7 +490,7 @@ where
     ///
     /// For more control over database creation, use [`StoreConfig`] instead:
     ///
-    /// ```rust,no_run
+    /// ```rust
     /// use netabase_store::databases::redb::StoreConfig;
     /// use netabase_store::doc_example::ExampleDef;
     ///
@@ -526,7 +526,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```rust,no_run
+    /// ```rust
     /// use netabase_store::databases::redb::{RedbStore, StoreConfig};
     /// use netabase_store::doc_example::ExampleDef;
     ///
@@ -822,7 +822,7 @@ This database was generated using Netabase Store.
     ///
     /// # Examples
     ///
-    /// ```rust,no_run
+    /// ```rust
     /// use netabase_store::databases::redb::RedbStore;
     /// use netabase_store::doc_example::ExampleDef;
     ///

@@ -5,7 +5,7 @@
 //!
 //! # Usage Example
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::databases::redb::transaction::options::CrudOptions;
 //!
 //! let options = CrudOptions::new()

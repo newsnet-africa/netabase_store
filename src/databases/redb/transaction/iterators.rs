@@ -24,7 +24,7 @@
 //!
 //! # Examples
 //!
-//! ```rust,no_run
+//! ```rust
 //! // Iterate over all users lazily
 //! for user in txn.iter::<User>()? {
 //!     let user = user?;
@@ -60,7 +60,7 @@ use crate::errors::{NetabaseError, NetabaseResult};
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```rust
 /// let iter = txn.iter::<User>()?;
 /// for user_result in iter {
 ///     match user_result {
@@ -136,7 +136,7 @@ impl<'txn, 'db, M> ExactSizeIterator for ModelIterator<'txn, 'db, M> {
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```rust
 /// let keys: Vec<_> = txn.iter_keys::<User>()?
 ///     .filter_map(|r| r.ok())
 ///     .filter(|k| k.0.starts_with("admin_"))

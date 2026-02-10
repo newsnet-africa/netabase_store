@@ -18,7 +18,7 @@
 //!
 //! # Usage in Doctests
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::doc_example::*;
 //! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
@@ -56,11 +56,9 @@ use serde::{Deserialize, Serialize};
 /// This definition is used throughout the documentation to demonstrate
 /// various features of the netabase_store library.
 ///
-/// Note: The netabase_networking macro has been temporarily disabled during
-/// the migration of capabilities to the netabase crate. It will be re-enabled
-/// once the networking layer is fully integrated.
-// TODO: Re-enable once capabilities are properly integrated from netabase crate
-// #[netabase_macros::netabase_networking]
+/// Note: The netabase_networking macro is not used here as the doc_example
+/// is designed to be a minimal, self-contained example for documentation.
+/// Networking capabilities are demonstrated in separate examples.
 #[netabase_macros::netabase_definition(ExampleDef)]
 pub mod example_def {
     use super::*;

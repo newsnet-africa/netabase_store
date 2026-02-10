@@ -14,7 +14,7 @@
 //! Primary keys are typically newtypes around string or numeric types.
 //! The `#[primary_key]` attribute on a model field generates the ID type:
 //!
-//! ```rust,no_run
+//! ```rust
 //! // In your model definition:
 //! #[derive(NetabaseModel)]
 //! pub struct User {

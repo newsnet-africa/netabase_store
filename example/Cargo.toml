@@ -86,3 +86,7 @@ path = "examples/selective_subscriptions.rs"
 name = "merkle_sync"
 path = "examples/merkle_sync.rs"
 serde_json = "1.0"
+
+[[example]]
+name = "unified_configuration"
+path = "examples/unified_configuration.rs"

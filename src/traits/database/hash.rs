@@ -12,7 +12,7 @@
 //!
 //! # Example
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::traits::database::hash::HashAlgorithm;
 //!
 //! // Hash algorithms are used internally for schema comparison

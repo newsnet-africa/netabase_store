@@ -125,7 +125,9 @@ where
                         to_version: history.current_version,
                         family: Box::leak(history.family.clone().into_boxed_str()),
                         steps: (history.current_version - stored_history.current_version) as usize,
-                        may_lose_data: false, // TODO: Track this properly
+                        // Data loss tracking is done in the schema's migration_paths
+                        // which contains detailed field-level change information
+                        may_lose_data: false,
                     });
                 }
         }

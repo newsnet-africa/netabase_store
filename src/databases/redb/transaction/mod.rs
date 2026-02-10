@@ -15,7 +15,7 @@
 //!
 //! The simplest pattern for database operations:
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::prelude::*;
 //! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
@@ -53,7 +53,7 @@
 //!
 //! For better performance when processing many records:
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::prelude::*;
 //! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
@@ -89,7 +89,7 @@
 //!
 //! For listing and querying data with pagination and filtering:
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::prelude::*;
 //! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
@@ -644,7 +644,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```rust,no_run
+    /// ```rust
     /// // Subscribe only to Topic1
     /// let topics = vec![DefinitionSubscriptions::Topic1];
     /// txn.create_with_subscriptions(&user, Some(topics))?;
@@ -1125,7 +1125,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```rust,no_run
+    /// ```rust
     /// use netabase_store::prelude::*;
     /// use netabase_store::traits::database::store::NBStore;
     ///

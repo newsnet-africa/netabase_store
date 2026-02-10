@@ -43,8 +43,40 @@ impl<'a> KeyEnumGenerator<'a> {
         let blob_keys = blob_keys_enum_name(model_name);
         let relational_keys = relational_keys_enum_name(model_name);
 
+        let enum_doc = format!(
+            "LibP2P provider key for `{}` - controls what data to sync in P2P networks.\n\n\
+            This enum specifies different synchronization modes when providing or requesting\n\
+            this model over a P2P network (libp2p).\n\n\
+            # Variants\n\n\
+            - `Full(id)`: Sync the complete record including all blobs and relational links\n\
+            - `Bare(id)`: Sync only the core record data without blobs or relations\n\
+            - `WithBlobs(id, blob_keys)`: Sync the record with specific blob fields\n\
+            - `WithRelations(id, relation_keys)`: Sync the record with specific relational links\n\n\
+            # Example\n\n\
+            ```rust\n\
+            # use netabase_store::doc_example::*;\n\
+            // Request full record\n\
+            let full_key = UserProviderKey::Full(UserID(\"alice\".into()));\n\
+            \n\
+            // Request only core data\n\
+            let bare_key = UserProviderKey::Bare(UserID(\"bob\".into()));\n\
+            \n\
+            // These keys are used in P2P synchronization protocols\n\
+            ```\n\n\
+            # P2P Context\n\n\
+            These keys are used with libp2p's Kademlia DHT to provide and request records.\n\
+            Different modes allow bandwidth optimization by fetching only needed data.",
+            model_name
+        );
+
+        let tree_doc = format!(
+            "TreeName discriminant for `{}` provider key variants.\n\n\
+            Represents the different sync modes available in P2P networks.",
+            model_name
+        );
+
         quote! {
-            // TreeName discriminant enum
+            #[doc = #tree_doc]
             #[derive(
                 Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
                 serde::Serialize, serde::Deserialize,
@@ -57,15 +89,20 @@ impl<'a> KeyEnumGenerator<'a> {
                 WithRelations,
             }
 
+            #[doc = #enum_doc]
             #[derive(
                 Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
                 serde::Serialize, serde::Deserialize,
                 Hash
             )]
             pub enum #enum_name {
+                /// Sync the complete record including all blobs and relational links.
                 Full(#id_type),
+                /// Sync only the core record data without blobs or relations.
                 Bare(#id_type),
+                /// Sync the record with specific blob fields.
                 WithBlobs(#id_type, Vec<#blob_keys>),
+                /// Sync the record with specific relational links.
                 WithRelations(#id_type, Vec<#relational_keys>),
             }
 
@@ -92,7 +129,9 @@ impl<'a> KeyEnumGenerator<'a> {
         // If no secondary keys, generate an enum with a None variant
         if self.visitor.secondary_keys.is_empty() {
             return quote! {
-                // TreeName discriminant enum
+                /// TreeName discriminant for secondary key variants.
+                ///
+                /// This model has no secondary keys, so only the None variant is available.
                 #[derive(
                     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
                     serde::Serialize, serde::Deserialize,
@@ -145,9 +184,50 @@ impl<'a> KeyEnumGenerator<'a> {
                 Ident::new(&variant_name, field.name.span())
             })
             .collect();
+        
+        let variant_docs: Vec<_> = self
+            .visitor
+            .secondary_keys
+            .iter()
+            .map(|field| {
+                let field_name = &field.name;
+                let ty = &field.ty;
+                format!("Secondary index on the `{}` field (type: `{}`)", 
+                    field_name, 
+                    quote!(#ty).to_string())
+            })
+            .collect();
+
+        let enum_doc = format!(
+            "Secondary key variants for `{}`.\n\n\
+            This enum is used to specify which secondary index to query when performing lookups.\n\
+            Each variant corresponds to a field marked with `#[secondary_key]` in the model.\n\n\
+            # Example\n\n\
+            ```rust\n\
+            # use netabase_store::doc_example::*;\n\
+            // Create a secondary key for querying\n\
+            let key = UserSecondaryKeys::Email(UserEmail(\"alice@example.com\".into()));\n\
+            \n\
+            // The key can be used in database queries:\n\
+            // let users: Vec<User> = txn.read_secondary(&key)?;\n\
+            ```\n\n\
+            # Available Variants\n\n\
+            {}",
+            model_name,
+            variant_docs.iter().enumerate()
+                .map(|(i, doc)| format!("- `{}`: {}", tree_name_variants[i], doc))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+
+        let tree_doc = format!(
+            "TreeName discriminant for `{}` secondary key variants.\n\n\
+            Used internally for Merkle tree organization and serialization.",
+            model_name
+        );
 
         quote! {
-            // TreeName discriminant enum
+            #[doc = #tree_doc]
             #[derive(
                 Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
                 serde::Serialize, serde::Deserialize,
@@ -157,7 +237,7 @@ impl<'a> KeyEnumGenerator<'a> {
                 #(#tree_name_variants),*
             }
 
-            // Main enum
+            #[doc = #enum_doc]
             #[derive(
                 Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
                 serde::Serialize, serde::Deserialize,
@@ -242,8 +322,49 @@ impl<'a> KeyEnumGenerator<'a> {
             })
             .collect();
 
+        let variant_docs: Vec<_> = self
+            .visitor
+            .relational_keys
+            .iter()
+            .map(|field| {
+                let field_name = &field.name;
+                let ty = &field.ty;
+                format!("Relational link on the `{}` field (type: `{}`)", 
+                    field_name,
+                    quote!(#ty).to_string())
+            })
+            .collect();
+
+        let enum_doc = format!(
+            "Relational key variants for `{}`.\n\n\
+            This enum is used to specify which relational field to query when traversing links between models.\n\
+            Each variant corresponds to a field marked with `#[link(Definition, TargetModel)]` in the model.\n\n\
+            # Example\n\n\
+            ```rust\n\
+            # use netabase_store::doc_example::*;\n\
+            // Create a relational key\n\
+            let key = PostRelationalKeys::Author(PostAuthor(UserID(\"alice\".into())));\n\
+            \n\
+            // The key specifies which relationship to traverse:\n\
+            // let linked_users: Vec<User> = txn.read_relational(&post_id, &key)?;\n\
+            ```\n\n\
+            # Available Variants\n\n\
+            {}",
+            model_name,
+            variant_docs.iter().enumerate()
+                .map(|(i, doc)| format!("- `{}`: {}", tree_name_variants[i], doc))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+
+        let tree_doc = format!(
+            "TreeName discriminant for `{}` relational key variants.\n\n\
+            Used internally for Merkle tree organization and link tracking.",
+            model_name
+        );
+
         quote! {
-            // TreeName discriminant enum
+            #[doc = #tree_doc]
             #[derive(
                 Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
                 serde::Serialize, serde::Deserialize,
@@ -253,7 +374,7 @@ impl<'a> KeyEnumGenerator<'a> {
                 #(#tree_name_variants),*
             }
 
-            // Main enum
+            #[doc = #enum_doc]
             #[derive(
                 Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
                 serde::Serialize, serde::Deserialize,
@@ -343,8 +464,56 @@ impl<'a> KeyEnumGenerator<'a> {
             })
             .collect();
 
+        let variant_docs: Vec<_> = self
+            .visitor
+            .blob_fields
+            .iter()
+            .map(|field| {
+                let field_name = &field.name;
+                let ty = &field.ty;
+                format!("Blob field `{}` (type: `{}`) - Large binary data stored separately",
+                    field_name,
+                    quote!(#ty).to_string())
+            })
+            .collect();
+
+        let enum_doc = format!(
+            "Blob key variants for `{}`.\n\n\
+            This enum is used to specify which blob field to read or write. Blobs are large binary\n\
+            data (like images, videos, documents) that are stored separately from the main model data\n\
+            and accessed through this enum.\n\n\
+            Each variant corresponds to a field marked with `#[blob]` in the model.\n\n\
+            # Example\n\n\
+            ```rust\n\
+            # use netabase_store::doc_example::*;\n\
+            // Create a blob key\n\
+            let owner_id = AuthorID(\"author123\".into());\n\
+            let blob_key = AuthorBlobKeys::ProfilePicture {{ owner: owner_id.clone() }};\n\
+            \n\
+            // Use for blob operations:\n\
+            // txn.write_blob(&blob_key, image_bytes)?;\n\
+            // let data: Vec<u8> = txn.read_blob(&blob_key)?;\n\
+            ```\n\n\
+            # Available Blobs\n\n\
+            {}\n\n\
+            # Storage Details\n\n\
+            Blobs are automatically chunked for efficient storage and can be streamed\n\
+            for large files. They are stored in separate tables from the main model data.",
+            model_name,
+            variant_docs.iter().enumerate()
+                .map(|(i, doc)| format!("- `{}`: {}", tree_name_variants[i], doc))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+
+        let tree_doc = format!(
+            "TreeName discriminant for `{}` blob key variants.\n\n\
+            Used internally for Merkle tree organization and blob storage management.",
+            model_name
+        );
+
         quote! {
-            // TreeName discriminant enum
+            #[doc = #tree_doc]
             #[derive(
                 Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,
                 serde::Serialize, serde::Deserialize,
@@ -354,7 +523,7 @@ impl<'a> KeyEnumGenerator<'a> {
                 #(#tree_name_variants),*
             }
 
-            // Main enum
+            #[doc = #enum_doc]
             #[derive(
                 Clone, Eq, PartialEq, PartialOrd, Ord, Debug,
                 serde::Serialize, serde::Deserialize,

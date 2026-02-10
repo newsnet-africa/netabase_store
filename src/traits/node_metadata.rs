@@ -14,7 +14,7 @@
 //!
 //! # Example
 //!
-//! ```rust,no_run
+//! ```rust
 //! use libp2p::PeerId;
 //! use netabase_store::traits::node_metadata::NodeMetadataTrait;
 //!
@@ -50,7 +50,7 @@ use libp2p::PeerId;
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```rust
 /// let peer_id = PeerId::random();
 /// let metadata = MyNodeMetadata::new(peer_id);
 /// assert_eq!(metadata.node_id(), peer_id);

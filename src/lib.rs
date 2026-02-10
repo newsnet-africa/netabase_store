@@ -55,7 +55,7 @@
 //! // Create some products
 //! let txn = store.begin_write()?;
 //! txn.create(&Product {
-//!     sku: ProductSKU("001".into()),
+//!     sku: "001".into(),
 //!     name: "Laptop".into(),
 //!     category: "Electronics".into(),
 //!     price: 999,
@@ -195,7 +195,7 @@
 //!
 //! ## Quick Start
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::prelude::*;
 //! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
@@ -295,7 +295,7 @@ pub use postcard;
 ///
 /// Instead of requiring a separate import:
 ///
-/// ```rust,no_run
+/// ```rust
 /// use netabase_macros::{NetabaseModel, netabase_definition};
 /// ```
 pub use netabase_macros as macros;
@@ -322,6 +322,9 @@ pub use netabase_macros::{
 ///
 /// Contains blob storage, relational links, and subscription hashing.
 pub mod schema;
+
+/// Unified configuration system for queries and CRUD operations.
+pub mod config;
 
 /// Error types and result aliases.
 pub mod errors;
@@ -358,18 +361,14 @@ pub use schema::subscription_hash;
 // Documentation Examples
 // ============================================================================
 
-// TODO: Fix doc_example module - it's currently broken due to macro/trait bound issues
-// The generated code references methods that require `#[netabase_networking]` but the
-// module doesn't use that attribute. Temporarily disabled to unblock development.
-// 
-// /// Pre-built example models for documentation and testing.
-// /// Documentation examples module.
-// ///
-// /// This module provides `ExampleDef` with `User`, `Product`, `Author`, and `Book` models
-// /// that are used throughout the documentation examples.
+/// Pre-built example models for documentation and testing.
+///
+/// This module provides `ExampleDef` with `User`, `Product`, `Author`, and `Book` models
+/// that are used throughout the documentation examples.
+///
+/// These models demonstrate common patterns like primary/secondary keys,
+/// content-addressed storage, relational links, and versioning.
 pub mod doc_example;
-// 
-// /// Re-export for compatibility with docs using singular form.
 // pub use doc_example as doc_example;
 
 // ============================================================================

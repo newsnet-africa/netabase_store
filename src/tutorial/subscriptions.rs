@@ -9,7 +9,7 @@
 //! Definitions declare which topics they participate in via the
 //! `subscriptions(Topic1, Topic2, ..)` argument to `#[netabase_definition]`.
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::prelude::*;
 //! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::traits::database::store::NBStore;

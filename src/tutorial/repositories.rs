@@ -9,7 +9,7 @@
 //! A repository is declared with `#[netabase_repository(Name, definitions(...))]`
 //! and acts as the boundary for which definitions can link to each other.
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::prelude::*;
 //! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::traits::database::store::NBStore;

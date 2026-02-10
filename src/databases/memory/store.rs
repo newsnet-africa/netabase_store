@@ -20,7 +20,7 @@ use super::transaction::{MemoryReadTransaction, MemoryWriteTransaction};
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```rust
 /// use netabase_store::databases::memory::MemoryStore;
 /// use netabase_store::traits::database::store::NBStore;
 ///
@@ -119,28 +119,27 @@ where
     }
 }
 
-// TODO: Re-enable tests when doc_example module is fixed
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::doc_example::ExampleDef;
-//
-//     #[test]
-//     fn test_memory_store_creation() {
-//         let store = MemoryStore::<ExampleDef>::new();
-//         assert!(store.begin_read().is_ok());
-//         assert!(store.begin_write().is_ok());
-//     }
-//
-//     #[test]
-//     fn test_memory_store_clone() {
-//         let store1 = MemoryStore::<ExampleDef>::new();
-//         let store2 = store1.clone();
-//         
-//         // Both should share the same underlying storage
-//         // (writes through one should be visible through the other)
-//         // This is intentional for the testing use case
-//         assert!(store1.begin_read().is_ok());
-//         assert!(store2.begin_read().is_ok());
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::doc_example::ExampleDef;
+
+    #[test]
+    fn test_memory_store_creation() {
+        let store = MemoryStore::<ExampleDef>::new();
+        assert!(store.begin_read().is_ok());
+        assert!(store.begin_write().is_ok());
+    }
+
+    #[test]
+    fn test_memory_store_clone() {
+        let store1 = MemoryStore::<ExampleDef>::new();
+        let store2 = store1.clone();
+        
+        // Both should share the same underlying storage
+        // (writes through one should be visible through the other)
+        // This is intentional for the testing use case
+        assert!(store1.begin_read().is_ok());
+        assert!(store2.begin_read().is_ok());
+    }
+}

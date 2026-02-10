@@ -21,31 +21,39 @@
 //!
 //! # Example
 //!
-//! ```rust,no_run
-//! use netabase_store::prelude::*;
-//! use serde::{Serialize, Deserialize};
+//! ```rust
+//! use netabase_store::doc_example::*;
+//! use netabase_store::databases::redb::RedbStore;
+//! use netabase_store::traits::database::store::NBStore;
 //!
-//! // A definition contains related models
-//! #[netabase_macros::netabase_definition(MyApp)]
-//! mod my_app {
-//!     use super::*;
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Create a temporary database
+//! let (store, _temp) = RedbStore::<ExampleDef>::new_temporary()?;
 //!
-//!     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, netabase_macros::NetabaseModel)]
-//!     pub struct User {
-//!         #[primary_key]
-//!         pub id: String,
-//!         #[secondary_key]
-//!         pub email: String,
-//!     }
+//! // Create a user
+//! let txn = store.begin_write()?;
+//! txn.create(&User {
+//!     id: UserID("alice".into()),
+//!     name: "Alice".into(),
+//!     email: "alice@example.com".into(),
+//! })?;
+//! txn.commit()?;
 //!
-//!     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, netabase_macros::NetabaseModel)]
-//!     pub struct Post {
-//!         #[primary_key]
-//!         pub id: String,
-//!         #[link(MyApp, User)]
-//!         pub author: String,
-//!     }
-//! }
+//! // Create a post linked to the user
+//! let txn = store.begin_write()?;
+//! txn.create(&Post {
+//!     id: PostID("post1".into()),
+//!     title: "Hello World".into(),
+//!     author: UserID("alice".into()),
+//! })?;
+//! txn.commit()?;
+//!
+//! // Read the post
+//! let txn = store.begin_read()?;
+//! let post: Option<Post> = txn.read(&PostID("post1".into()))?;
+//! assert_eq!(post.unwrap().title, "Hello World");
+//! # Ok(())
+//! # }
 //! ```
 
 pub mod definition;

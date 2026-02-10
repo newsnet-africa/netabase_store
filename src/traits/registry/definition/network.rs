@@ -14,7 +14,7 @@
 //!
 //! # Example
 //!
-//! ```rust,no_run
+//! ```rust
 //! // A definition that supports networking
 //! #[derive(NetworkDefinition)]
 //! pub enum MyNetworkDef {
@@ -51,7 +51,7 @@ use super::NetabaseDefinition;
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```rust
 /// #[derive(Debug, Clone)]
 /// pub struct MyCapabilities {
 ///     supports_blobs: bool,

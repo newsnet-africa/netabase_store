@@ -50,7 +50,7 @@ use strum::IntoDiscriminant;
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```rust
 /// let txn = store.begin_write()?;
 /// let tables = txn.prepare_model::<User>()?;
 ///

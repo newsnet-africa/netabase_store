@@ -14,7 +14,7 @@
 //!
 //! # Example
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::prelude::*;
 //! use netabase_store::traits::database::store::NBStore;
 //! # use serde::{Serialize, Deserialize};
@@ -57,7 +57,7 @@ use crate::errors::NetabaseResult;
 ///
 /// Implementing a custom backend:
 ///
-/// ```rust,no_run
+/// ```rust
 /// use netabase_store::traits::database::store::NBStore;
 /// use netabase_store::traits::registry::definition::NetabaseDefinition;
 ///
@@ -97,7 +97,7 @@ where
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```rust
     /// use netabase_store::databases::redb::RedbStore;
     /// use netabase_store::traits::database::store::NBStore;
     ///

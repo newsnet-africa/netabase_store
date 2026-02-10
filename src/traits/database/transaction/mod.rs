@@ -18,7 +18,7 @@
 //!
 //! # Example
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::traits::database::transaction::TransactionConfig;
 //!
 //! // Default configuration
@@ -66,7 +66,20 @@ pub struct TransactionConfig {
 }
 
 /// Strategy for cache eviction when max size is reached.
-// TODO: Implement Builder pattern here
+///
+/// # Examples
+///
+/// ```rust
+/// use netabase_store::traits::database::transaction::{TransactionConfig, CacheStrategy};
+///
+/// let lru_config = TransactionConfig::new()
+///     .with_table_cache(true)
+///     .with_max_cache_size(100)
+///     .with_cache_strategy(CacheStrategy::Lru);
+///
+/// let fifo_config = TransactionConfig::new()
+///     .with_cache_strategy(CacheStrategy::Fifo);
+/// ```
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum CacheStrategy {
     /// Least Recently Used eviction (default).

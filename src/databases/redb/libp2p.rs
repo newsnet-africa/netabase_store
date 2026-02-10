@@ -38,7 +38,7 @@
 //!
 //! # Example
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::databases::redb::libp2p::Libp2pRedbStore;
 //! use libp2p::kad::store::RecordStore;
 //! use libp2p::PeerId;
@@ -80,7 +80,7 @@ use crate::{
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```rust
 /// let store = RedbStore::<MyDef>::new("./db.redb")?;
 /// let peer_id = PeerId::random();
 /// let libp2p_store = Libp2pRedbStore::new(store, peer_id);

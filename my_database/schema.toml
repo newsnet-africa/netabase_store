@@ -1,0 +1,105 @@
+schema_format_version = 2
+name = "ExampleDef"
+subscriptions = []
+
+[[models]]
+name = "User"
+subscription_immutable = false
+is_current = false
+is_libp2p_enabled = false
+is_content_addressed = false
+
+[[models.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[models.fields]]
+name = "email"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "name"
+type_name = "String"
+kind = "Regular"
+
+[[models]]
+name = "Product"
+subscription_immutable = false
+is_current = false
+is_libp2p_enabled = false
+is_content_addressed = false
+
+[[models.fields]]
+name = "sku"
+type_name = "String"
+kind = "Primary"
+
+[[models.fields]]
+name = "category"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "name"
+type_name = "String"
+kind = "Regular"
+
+[[models.fields]]
+name = "price"
+type_name = "u64"
+kind = "Regular"
+
+[[models]]
+name = "Author"
+subscription_immutable = false
+is_current = false
+is_libp2p_enabled = false
+is_content_addressed = false
+
+[[models.fields]]
+name = "id"
+type_name = "String"
+kind = "Primary"
+
+[[models.fields]]
+name = "genre"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "name"
+type_name = "String"
+kind = "Regular"
+
+[[models]]
+name = "Book"
+subscription_immutable = false
+is_current = false
+is_libp2p_enabled = false
+is_content_addressed = false
+
+[[models.fields]]
+name = "isbn"
+type_name = "String"
+kind = "Primary"
+
+[[models.fields]]
+name = "genre"
+type_name = "String"
+kind = "Secondary"
+
+[[models.fields]]
+name = "author"
+type_name = "String"
+kind = "Relational"
+
+[models.fields.details]
+definition = "ExampleDef"
+model = "Author"
+
+[[models.fields]]
+name = "title"
+type_name = "String"
+kind = "Regular"

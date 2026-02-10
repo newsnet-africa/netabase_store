@@ -43,7 +43,7 @@
 //!
 //! Mark large fields with `#[blob]` in your model:
 //!
-//! ```rust,no_run
+//! ```rust
 //! #[derive(NetabaseModel)]
 //! pub struct Document {
 //!     #[primary_key]
@@ -60,7 +60,7 @@
 //!
 //! Create custom blob types with the `NetabaseBlobItem` derive:
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_macros::NetabaseBlobItem;
 //! use serde::{Serialize, Deserialize};
 //!
@@ -268,7 +268,7 @@ impl<T, K> BlobItem<T, K> {
 ///
 /// While the derive macro handles most cases, you can implement manually:
 ///
-/// ```rust,no_run
+/// ```rust
 /// use netabase_store::schema::blob::NetabaseBlobItem;
 ///
 /// struct MyBlob {

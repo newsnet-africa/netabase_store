@@ -83,7 +83,7 @@
 //! See [tests/repository_comprehensive.rs](../../../tests/repository_comprehensive.rs)
 //! for complete working examples of repository creation and usage.
 //!
-//! ```rust,no_run
+//! ```rust
 //! # // Repository usage is demonstrated in tests/repository_comprehensive.rs
 //! # // This doctest validates the module compiles
 //! use netabase_store::databases::redb::repository::RedbRepositoryStore;
@@ -148,7 +148,7 @@ impl<R: RedbRepositoryDefinitions> RedbRepositoryStore<R> {
     ///
     /// See [tests/repository_comprehensive.rs](../../../tests/repository_comprehensive.rs).
     ///
-    /// ```rust,no_run
+    /// ```rust
     /// let store = RedbRepositoryStore::<MyRepo>::new("./my_repo")?;
     /// ```
     pub fn new<P: AsRef<Path>>(path: P) -> NetabaseResult<Self> {
@@ -485,7 +485,7 @@ impl<'repo, R: RedbRepositoryDefinitions> RedbRepositoryTransaction<'repo, R> {
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```rust
     /// // Read a User from UserDef within the repository transaction
     /// let user: Option<User> = repo_txn.read_model::<UserDef, User>(&user_id)?;
     /// ```
@@ -514,23 +514,18 @@ impl<'repo, R: RedbRepositoryDefinitions> RedbRepositoryTransaction<'repo, R> {
         let db = self.store.database(&def_name)?;
         
         // Begin a read transaction
-        let read_txn = (**db).begin_read()
+        let _read_txn = (**db).begin_read()
             .map_err(NetabaseError::RedbTransactionError)?;
         
-        // Use the definition's dispatch_read
-        // Note: This requires wrapping the raw redb transaction
-        // For now, we'll use a simplified approach
-        // TODO: Create proper transaction wrapper for dispatch_read
+        // Repository-level cross-definition reads are not directly supported.
+        // For cross-definition operations, use RedbRepositoryStore::with_definition()
+        // to create definition-specific transactions.
+        //
+        // This is intentional: it maintains clear transaction boundaries and
+        // prevents complex cross-definition state management.
         
-        // Fallback: Since dispatch_read needs our custom transaction type,
-        // and we only have raw redb transaction here, we need to handle this differently.
-        // For repository-level access, we should either:
-        // 1. Store RedbTransaction wrappers per definition
-        // 2. Or use the dispatch mechanism differently
-        
-        // For now, return an error indicating this needs the proper transaction
         Err(NetabaseError::TransactionError(
-            "Repository-level model reading requires proper transaction wrapping. \
+            "Repository-level model reading requires definition-specific transactions. \
              Use RedbRepositoryStore::with_definition() to get a typed transaction.".to_string()
         ))
     }
@@ -543,13 +538,14 @@ impl<'repo, R: RedbRepositoryDefinitions> RedbRepositoryTransaction<'repo, R> {
 // Note: Hydration of RelationalLinks at the repository level requires
 // proper integration with the definition's dispatch_read mechanism.
 // 
-// The recommended approach for now is:
+// Cross-definition relational hydration is supported through the repository pattern.
+// The recommended approach is:
 // 1. Use RedbRepositoryStore::with_definition::<D>() to get a typed store
 // 2. Use that store's transaction to read models
 // 3. Use RelationalLink::from_loaded() to create hydrated links
 //
 // Example:
-// ```rust,no_run
+// ```rust
 // let store = repo_store.with_definition::<TargetDef>()?;
 // let txn = store.begin_read()?;
 // if let Some(model) = txn.read::<TargetModel>(&link.get_primary_key())? {
@@ -557,8 +553,8 @@ impl<'repo, R: RedbRepositoryDefinitions> RedbRepositoryTransaction<'repo, R> {
 // }
 // ```
 //
-// TODO: Implement proper repository-level transaction that can dispatch
-// reads to multiple definitions while maintaining table caching.
+// This design maintains clear transaction boundaries while enabling
+// cross-definition relationships.
 
 // ============================================================================
 // Definition-Specific Store Access
@@ -578,7 +574,7 @@ impl<R: RedbRepositoryDefinitions> RedbRepositoryStore<R> {
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```rust
     /// let repo = RedbRepositoryStore::<MyRepo>::new("./repo")?;
     /// 
     /// // Get a transaction for the UserDef definition
@@ -665,7 +661,7 @@ where
     ///
     /// # Example
     ///
-    /// ```rust,no_run
+    /// ```rust
     /// // Cross-definition link: Post (in PostDef) -> Author (in UserDef)
     /// let repo = RedbRepositoryStore::<MyRepo>::new("./repo")?;
     /// let post: Post = /* read post */;

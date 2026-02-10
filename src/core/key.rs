@@ -20,7 +20,7 @@
 //!
 //! # Example
 //!
-//! ```rust,no_run
+//! ```rust
 //! use netabase_store::key::NetabaseKey;
 //!
 //! let key = NetabaseKey::new(

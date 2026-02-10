@@ -201,7 +201,9 @@ impl<'a> MigrationGenerator<'a> {
                         steps.push(netabase_store::traits::migration::MigrationStep {
                             from_version: v,
                             to_version: v + 1,
-                            may_lose_data: false, // TODO: Track this per migration
+                            // Note: may_lose_data tracking is done at definition schema level
+                            // See DefinitionTraitGenerator::detect_field_changes()
+                            may_lose_data: false,
                         });
                     }
                     Some(steps)

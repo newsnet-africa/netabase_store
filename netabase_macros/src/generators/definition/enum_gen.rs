@@ -4,7 +4,11 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::Ident;
 
-// TODO: Add support for more complex relational links: Vec<RelationalLink>, Option<RelationalLink> etc.
+// Note: Complex relational link types (Vec<RelationalLink>, Option<RelationalLink>)
+// are not yet supported in the definition enum generation. Current support is for:
+// - Single RelationalLink<D, M>
+// - Direct model references
+// Future enhancement: Add collection and optional relational link support.
 
 /// Generator for Definition enum and DefinitionSubscriptions enum
 pub struct DefinitionEnumGenerator<'a> {

@@ -22,7 +22,7 @@
 //! # Usage
 //!
 //! Instead of writing:
-//! ```rust,no_run
+//! ```rust
 //! where
 //!     <<M::Keys as NetabaseModelKeys<D, M>>::Secondary as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
 //!     <<M::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
@@ -30,7 +30,7 @@
 //! ```
 //!
 //! Write:
-//! ```rust,no_run
+//! ```rust
 //! where
 //!     M::Keys: ModelKeyBounds<D, M>,
 //! ```
@@ -74,7 +74,7 @@ where
 ///
 /// Use this in where clauses to require all key discriminant bounds at once:
 ///
-/// ```rust,no_run
+/// ```rust
 /// fn process_model<D, M>(model: &M)
 /// where
 ///     D: NetabaseDefinition,

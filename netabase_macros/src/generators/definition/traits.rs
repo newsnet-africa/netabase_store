@@ -1,8 +1,10 @@
 use crate::utils::naming::*;
 use crate::visitors::definition::{DefinitionVisitor, ModelInfo};
+use crate::visitors::model::field::FieldInfo;
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::Ident;
+use std::collections::{HashMap, HashSet};
 
 /// Generator for definition-level trait implementations
 /// These are traits that need to know both the Definition and Model types
@@ -14,6 +16,106 @@ impl<'a> DefinitionTraitGenerator<'a> {
     pub fn new(visitor: &'a DefinitionVisitor) -> Self {
         Self { visitor }
     }
+
+    /// Detect field changes between two model versions.
+    fn detect_field_changes(from_model: &ModelInfo, to_model: &ModelInfo) -> Vec<TokenStream> {
+        let mut changes = Vec::new();
+        
+        // Collect all fields from each model
+        let mut from_fields_vec = Vec::new();
+        if let Some(ref pk) = from_model.visitor.primary_key {
+            from_fields_vec.push(pk);
+        }
+        from_fields_vec.extend(&from_model.visitor.secondary_keys);
+        from_fields_vec.extend(&from_model.visitor.relational_keys);
+        from_fields_vec.extend(&from_model.visitor.blob_fields);
+        from_fields_vec.extend(&from_model.visitor.regular_fields);
+        
+        let mut to_fields_vec = Vec::new();
+        if let Some(ref pk) = to_model.visitor.primary_key {
+            to_fields_vec.push(pk);
+        }
+        to_fields_vec.extend(&to_model.visitor.secondary_keys);
+        to_fields_vec.extend(&to_model.visitor.relational_keys);
+        to_fields_vec.extend(&to_model.visitor.blob_fields);
+        to_fields_vec.extend(&to_model.visitor.regular_fields);
+        
+        // Build maps of field names to field info for easy comparison
+        let from_fields: HashMap<String, &FieldInfo> = from_fields_vec
+            .iter()
+            .map(|f| (f.name.to_string(), *f))
+            .collect();
+            
+        let to_fields: HashMap<String, &FieldInfo> = to_fields_vec
+            .iter()
+            .map(|f| (f.name.to_string(), *f))
+            .collect();
+        
+        let from_field_names: HashSet<String> = from_fields.keys().cloned().collect();
+        let to_field_names: HashSet<String> = to_fields.keys().cloned().collect();
+        
+        // Detect added fields
+        for added in to_field_names.difference(&from_field_names) {
+            let field = to_fields[added];
+            let name = added.clone();
+            let type_name = field.ty.to_token_stream().to_string();
+            
+            // Check if type is Option (has default) or has a #[default] attribute
+            let has_default = type_name.starts_with("Option");
+            
+            changes.push(quote! {
+                netabase_store::traits::registry::definition::schema::FieldChangeSchema::Added {
+                    name: #name.to_string(),
+                    type_name: #type_name.to_string(),
+                    has_default: #has_default,
+                }
+            });
+        }
+        
+        // Detect removed fields
+        for removed in from_field_names.difference(&to_field_names) {
+            let field = from_fields[removed];
+            let name = removed.clone();
+            let type_name = field.ty.to_token_stream().to_string();
+            
+            changes.push(quote! {
+                netabase_store::traits::registry::definition::schema::FieldChangeSchema::Removed {
+                    name: #name.to_string(),
+                    type_name: #type_name.to_string(),
+                }
+            });
+        }
+        
+        // Detect type changes in common fields
+        for common in from_field_names.intersection(&to_field_names) {
+            let from_field = from_fields[common];
+            let to_field = to_fields[common];
+            
+            let from_type = from_field.ty.to_token_stream().to_string();
+            let to_type = to_field.ty.to_token_stream().to_string();
+            
+            if from_type != to_type {
+                let name = common.clone();
+                changes.push(quote! {
+                    netabase_store::traits::registry::definition::schema::FieldChangeSchema::TypeChanged {
+                        name: #name.to_string(),
+                        old_type: #from_type.to_string(),
+                        new_type: #to_type.to_string(),
+                    }
+                });
+            }
+        }
+        
+        changes
+    }
+    
+    /// Determine if migration may lose data based on field changes.
+    fn may_lose_data(field_changes: &[TokenStream]) -> bool {
+        // If there are removed fields or type changes, data may be lost
+        // Added fields with defaults are safe
+        !field_changes.is_empty() // Conservative: any change might lose data
+    }
+
 
     /// Generate all trait implementations for all models in the definition
     pub fn generate(&self) -> TokenStream {
@@ -2037,14 +2139,16 @@ impl<'a> DefinitionTraitGenerator<'a> {
                         let from_version = from_model.version();
                         let to_version = to_model.version();
                         
-                        // For now, just generate empty migration paths
-                        // TODO: Add field change detection
+                        // Detect field changes between versions
+                        let field_changes = Self::detect_field_changes(from_model, to_model);
+                        let may_lose_data = Self::may_lose_data(&field_changes);
+                        
                         quote! {
                             netabase_store::traits::registry::definition::schema::MigrationPathSchema {
                                 from_version: #from_version,
                                 to_version: #to_version,
-                                may_lose_data: false,
-                                field_changes: vec![],
+                                may_lose_data: #may_lose_data,
+                                field_changes: vec![#(#field_changes),*],
                             }
                         }
                     }).collect()
