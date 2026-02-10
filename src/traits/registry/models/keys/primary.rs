@@ -14,7 +14,7 @@
 //! Primary keys are typically newtypes around string or numeric types.
 //! The `#[primary_key]` attribute on a model field generates the ID type:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! // In your model definition:
 //! #[derive(NetabaseModel)]
 //! pub struct User {
@@ -24,7 +24,7 @@
 //! }
 //! ```
 //!
-//! See [`doc_examples`](crate::doc_examples) for working examples.
+//! See [`doc_example`](crate::doc_example) for working examples.
 //!
 //! # Rules
 //!
@@ -50,7 +50,7 @@ use crate::traits::registry::models::{StoreKeyMarker, StoreValueMarker};
 /// You don't implement this trait manually. The macro generates the implementation
 /// when you use `#[primary_key]` on a field.
 ///
-/// See [`doc_examples`](crate::doc_examples) for pre-built examples.
+/// See [`doc_example`](crate::doc_example) for pre-built examples.
 pub trait NetabaseModelPrimaryKey<D: NetabaseDefinition, M: NetabaseModelMarker<D>>:
     StoreValueMarker<D> + StoreKeyMarker<D> + Clone
 where

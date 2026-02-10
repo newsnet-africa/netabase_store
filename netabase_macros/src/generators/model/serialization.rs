@@ -126,6 +126,7 @@ impl<'a> SerializationGenerator<'a> {
                     where
                         Self: 'a,
                     {
+                        // Content-addressed models can also be versioned
                         postcard::from_bytes(data).unwrap()
                     }
 
@@ -152,7 +153,37 @@ impl<'a> SerializationGenerator<'a> {
                 }
             }
         } else {
-            // Standard model
+            // Standard model  
+            let from_bytes_impl = if let Some(version_info) = &self.visitor.version_info {
+                if version_info.is_current.unwrap_or(false) {
+                    // Current version of a versioned model - use family enum for automatic migration
+                    let family = &version_info.family;
+                    let family_enum = format_ident!("{}Family", family);
+                    
+                    quote! {
+                        // Try using family enum for automatic version detection
+                        // This allows reading old versions and auto-migrating
+                        match #family_enum::try_from_bytes(data) {
+                            Ok(family) => family.to_current(),
+                            Err(_) => {
+                                // Fallback to direct deserialization (shouldn't happen)
+                                postcard::from_bytes(data).unwrap()
+                            }
+                        }
+                    }
+                } else {
+                    // Old version - direct deserialization only
+                    quote! {
+                        postcard::from_bytes(data).unwrap()
+                    }
+                }
+            } else {
+                // Non-versioned model - direct deserialization
+                quote! {
+                    postcard::from_bytes(data).unwrap()
+                }
+            };
+
             quote! {
                 impl redb::Value for #model_name {
                     type SelfType<'a> = #model_name;
@@ -163,7 +194,7 @@ impl<'a> SerializationGenerator<'a> {
                     where
                         Self: 'a,
                     {
-                        postcard::from_bytes(data).unwrap()
+                        #from_bytes_impl
                     }
 
                     #[inline]

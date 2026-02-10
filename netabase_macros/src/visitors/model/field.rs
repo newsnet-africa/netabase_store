@@ -6,12 +6,22 @@ use crate::utils::attributes::{
 use crate::utils::errors;
 use syn::{Field, Ident, Path, Result, Type};
 
+/// Check if a type is a Vec<T> type
+fn is_vec_type(ty: &Type) -> bool {
+    if let Type::Path(type_path) = ty {
+        if let Some(segment) = type_path.path.segments.last() {
+            return segment.ident == "Vec";
+        }
+    }
+    false
+}
+
 /// Information about a field's key type
 #[derive(Debug, Clone)]
 pub enum FieldKeyType {
     Primary,
     Secondary,
-    Relational { definition: Path, model: Path },
+    Relational { definition: Path, model: Path, is_vec: bool },
     Blob,
     Regular,
 }
@@ -163,11 +173,14 @@ impl ModelFieldVisitor {
             .ok_or_else(|| syn::Error::new_spanned(field, "Expected link attribute"))?;
 
         let (definition, model) = parse_link_attribute(link_attr)?;
+        
+        // Check if this is a Vec type
+        let is_vec = is_vec_type(ty);
 
         self.relational_keys.push(FieldInfo {
             name: name.clone(),
             ty: ty.clone(),
-            key_type: FieldKeyType::Relational { definition, model },
+            key_type: FieldKeyType::Relational { definition, model, is_vec },
         });
 
         Ok(())

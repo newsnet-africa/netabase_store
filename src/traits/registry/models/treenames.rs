@@ -22,7 +22,7 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! // Generated code for a User model with email secondary key:
 //! let tree_names = ModelTreeNames {
 //!     main: DiscriminantTableName::new(UserDiscriminant, "MyApp:User"),
@@ -50,7 +50,7 @@ use strum::IntoDiscriminant;
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// let table_name = DiscriminantTableName::new(
 ///     UserEmailDiscriminant,
 ///     "MyApp:User:Secondary:Email"
@@ -97,7 +97,7 @@ impl<D> DiscriminantTableName<D> {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// // Access table names for a model
 /// let tree_names = User::table_definitions();
 /// println!("Main table: {}", tree_names.main.table_name);

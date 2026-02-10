@@ -36,6 +36,9 @@ impl<'a> MigrationGenerator<'a> {
         // Generate VersionedDecode/VersionedEncode impls
         output.extend(self.generate_versioned_codec_impls());
 
+        // Generate family enums for automatic version detection
+        output.extend(self.generate_family_enums());
+
         output
     }
 
@@ -429,5 +432,172 @@ impl<'a> MigrationGenerator<'a> {
         }
 
         hasher.finish()
+    }
+
+    /// Generate family enums for automatic version detection.
+    fn generate_family_enums(&self) -> TokenStream {
+        let mut enums = TokenStream::new();
+
+        for family in self.visitor.model_families.values() {
+            // Only generate for families with versioning
+            if family.versions.first().map(|m| m.version_info().is_some()).unwrap_or(false) {
+                enums.extend(self.generate_version_family_enum(family));
+            }
+        }
+
+        enums
+    }
+
+    /// Generate a versioned family enum for automatic version detection.
+    ///
+    /// This generates an enum that wraps all versions of a model family,
+    /// along with methods to automatically detect which version binary data represents.
+    fn generate_version_family_enum(&self, family: &ModelFamily) -> TokenStream {
+        if family.versions.len() <= 1 {
+            return quote! {}; // No enum needed for single version
+        }
+
+        let family_name = format_ident!("{}Family", family.family);
+        let current_model = family.current_model();
+        let current_model_name = &current_model.name;
+
+        // Generate enum variants: V1(UserV1), V2(UserV2), etc.
+        let variants = family.versions.iter().map(|model| {
+            let version = model.version();
+            let variant_name = format_ident!("V{}", version);
+            let model_name = &model.name;
+            quote! { #variant_name(#model_name) }
+        });
+
+        // Generate try_from_bytes that attempts each version (newest first for perf)
+        let try_decode_arms = family.versions.iter().rev().map(|model| {
+            let version = model.version();
+            let variant_name = format_ident!("V{}", version);
+            let model_name = &model.name;
+            quote! {
+                // Try version #version
+                if let Ok(decoded) = postcard::from_bytes::<#model_name>(bytes) {
+                    return Ok(#family_name::#variant_name(decoded));
+                }
+            }
+        });
+
+        // Generate to_current that migrates to current version
+        let to_current_arms = family.versions.iter().enumerate().map(|(idx, model)| {
+            let version = model.version();
+            let variant_name = format_ident!("V{}", version);
+
+            if version == family.current_version {
+                quote! { #family_name::#variant_name(v) => v }
+            } else {
+                // Use existing migration chain generator
+                // Need to bind to 'decoded' variable first
+                let chain_expr = self.generate_migration_chain_call(family, idx);
+                
+                quote! {
+                    #family_name::#variant_name(value) => {
+                        let decoded = value;
+                        #chain_expr
+                    }
+                }
+            }
+        });
+
+        // Generate version() method
+        let version_arms = family.versions.iter().map(|model| {
+            let version = model.version();
+            let variant_name = format_ident!("V{}", version);
+            quote! { #family_name::#variant_name(_) => #version }
+        });
+
+        // Generate model_name() method for debugging
+        let model_name_arms = family.versions.iter().map(|model| {
+            let version = model.version();
+            let variant_name = format_ident!("V{}", version);
+            let model_name_str = model.name.to_string();
+            quote! { #family_name::#variant_name(_) => #model_name_str }
+        });
+
+        quote! {
+            /// Enum representing all versions of a model family.
+            ///
+            /// This enum enables automatic version detection when deserializing
+            /// from unknown binary data. It will try each version until one succeeds.
+            ///
+            /// # Usage
+            ///
+            /// ```ignore
+            /// // Read from database without knowing version
+            /// let family = UserFamily::try_from_bytes(&bytes)?;
+            /// let current_user: User = family.to_current();
+            /// ```
+            #[derive(Debug, Clone)]
+            #[allow(non_camel_case_types)]
+            pub enum #family_name {
+                #(#variants),*
+            }
+
+            impl #family_name {
+                /// Attempt to deserialize from bytes, trying each version.
+                ///
+                /// Tries versions in reverse order (newest first) for better performance,
+                /// as most data in production will be the current version.
+                ///
+                /// # Returns
+                /// - `Ok(family_variant)` if any version successfully deserializes
+                /// - `Err(_)` if all versions fail to deserialize
+                ///
+                /// # Example
+                ///
+                /// ```ignore
+                /// let family = UserFamily::try_from_bytes(&db_bytes)?;
+                /// println!("Detected version: {}", family.version());
+                /// ```
+                pub fn try_from_bytes(bytes: &[u8]) -> Result<Self, postcard::Error> {
+                    #(#try_decode_arms)*
+
+                    // No version matched
+                    Err(postcard::Error::DeserializeUnexpectedEnd)
+                }
+
+                /// Convert any version to the current version.
+                ///
+                /// If already the current version, returns as-is.
+                /// Otherwise, automatically migrates through the chain.
+                ///
+                /// # Example
+                ///
+                /// ```ignore
+                /// let family = UserFamily::V1(old_user);
+                /// let current: User = family.to_current(); // Auto-migrates
+                /// ```
+                pub fn to_current(self) -> #current_model_name {
+                    match self {
+                        #(#to_current_arms),*
+                    }
+                }
+
+                /// Get the version number of this instance.
+                pub fn version(&self) -> u32 {
+                    match self {
+                        #(#version_arms),*
+                    }
+                }
+
+                /// Get the model name for this instance (useful for debugging).
+                pub fn model_name(&self) -> &'static str {
+                    match self {
+                        #(#model_name_arms),*
+                    }
+                }
+            }
+
+            // Auto-implement From for ergonomic construction
+            impl From<#family_name> for #current_model_name {
+                fn from(family: #family_name) -> Self {
+                    family.to_current()
+                }
+            }
+        }
     }
 }

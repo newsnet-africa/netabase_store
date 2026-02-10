@@ -23,7 +23,7 @@
 //!
 //! Blob items are chunked for storage. Define them with the `NetabaseBlobItem` derive:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use netabase_store::blob::NetabaseBlobItem;
 //!
 //! #[derive(Clone, Serialize, Deserialize, NetabaseBlobItem)]

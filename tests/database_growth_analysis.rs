@@ -1,32 +1,29 @@
 /// Compare database growth with actual data
 /// Test to see when the database actually grows beyond initial allocation
 
-use netabase_store::databases::redb::RedbStore;
-use netabase_store::traits::database::store::NBStore;
 use netabase_store::relational::RelationalLink;
-use example::boilerplate_lib::definition::{
+use example::boilerplate_lib::main_repository::definition::{
     AnotherLargeUserFile, LargeUserFile,
 };
 use example::boilerplate_lib::{
-    CategoryID, Definition, User, UserID,
+    CategoryID, MainRepositoryStores, User, UserID,
 };
-use std::path::PathBuf;
 use std::fs;
 
 #[test]
 fn database_growth_analysis() -> Result<(), Box<dyn std::error::Error>> {
-    let mut db_path = std::env::temp_dir();
-    db_path.push(format!("netabase_growth_test_{}", std::process::id()));
+    let mut repo_path = std::env::temp_dir();
+    repo_path.push(format!("netabase_growth_test_{}", std::process::id()));
     
     println!("\n=== DATABASE GROWTH ANALYSIS ===\n");
     
     for count in [1, 10, 100, 1000, 5000] {
-        if db_path.exists() {
-            std::fs::remove_dir_all(&db_path).ok();
+        if repo_path.exists() {
+            std::fs::remove_dir_all(&repo_path).ok();
         }
         
-        let store = RedbStore::<Definition>::new(&db_path)?;
-        let txn = store.begin_write()?;
+        let stores = MainRepositoryStores::new(&repo_path)?;
+        let txn = stores.definition.begin_write()?;
         
         for i in 0..count {
             let user = User {
@@ -43,9 +40,9 @@ fn database_growth_analysis() -> Result<(), Box<dyn std::error::Error>> {
         }
         
         txn.commit()?;
-        drop(store);
+        drop(stores);
         
-        let db_file = db_path.join("data.redb");
+        let db_file = repo_path.join("Definition").join("data.redb");
         let size = fs::metadata(&db_file)?.len();
         let size_per_record = size / count as u64;
         
@@ -56,7 +53,7 @@ fn database_growth_analysis() -> Result<(), Box<dyn std::error::Error>> {
                  size_per_record,
                  size_per_record as f64 / 1024.0);
         
-        std::fs::remove_dir_all(&db_path).ok();
+        std::fs::remove_dir_all(&repo_path).ok();
     }
     
     println!("\n=== KEY INSIGHT ===");

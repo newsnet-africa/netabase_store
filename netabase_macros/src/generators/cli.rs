@@ -89,20 +89,8 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Ident;
 
-/// Generate CLI commands for a Definition.
-///
-/// Creates a module with subcommands for each model in the definition.
-/// Each model gets CRUD operations (Create, Read, Update, Delete, List).
-///
-/// # Arguments
-///
-/// * `_def_name` - The definition name (currently unused but reserved for future use)
-/// * `models` - List of model names to generate commands for
-///
-/// # Returns
-///
-/// TokenStream containing the CLI enum variants and model command modules.
-pub fn generate_definition_cli(_def_name: &Ident, models: &[Ident]) -> TokenStream {
+/// Generate CLI subcommands for a Definition.
+pub fn generate_definition_subcommands(models: &[Ident]) -> TokenStream {
     let model_subcommands = models.iter().map(|model| {
         let variant_name = quote::format_ident!("{}", model);
 
@@ -112,6 +100,13 @@ pub fn generate_definition_cli(_def_name: &Ident, models: &[Ident]) -> TokenStre
         }
     });
 
+    quote! {
+        #(#model_subcommands,)*
+    }
+}
+
+/// Generate CLI modules for a Definition.
+pub fn generate_definition_modules(models: &[Ident]) -> TokenStream {
     let model_modules = models.iter().map(|model| {
         quote! {
             pub mod #model {
@@ -175,9 +170,69 @@ pub fn generate_definition_cli(_def_name: &Ident, models: &[Ident]) -> TokenStre
     });
 
     quote! {
-        #(#model_subcommands,)*
-
         #(#model_modules)*
+    }
+}
+
+pub fn generate_definition_run_arms(def_name: &Ident, models: &[Ident]) -> TokenStream {
+    let arms = models.iter().map(|model| {
+        let model_name = model.to_string();
+        let model_ident = quote::format_ident!("{}", model);
+        
+        quote! {
+            #model_ident::Commands::Create(args) => {
+                let model_val: #def_name = serde_json::from_str(&args.json)
+                    .map_err(|e| ::netabase_store::errors::NetabaseError::IoError(format!("JSON error: {}", e)))?;
+                let txn = store.begin_write()?;
+                txn.create(&model_val)?;
+                txn.commit()?;
+                println!("Created {} successfully.", #model_name);
+            }
+            #model_ident::Commands::Read(args) => {
+                let key: <#def_name as ::netabase_store::traits::registry::definition::NetabaseDefinition>::DefKeys = serde_json::from_str(&args.id)
+                    .map_err(|e| ::netabase_store::errors::NetabaseError::IoError(format!("JSON error: {}", e)))?;
+                let txn = store.begin_read()?;
+                let result = txn.read(&key)?;
+                if let Some(val) = result {
+                    println!("{}", serde_json::to_string_pretty(&val).unwrap());
+                } else {
+                    println!("Not found.");
+                }
+            }
+            #model_ident::Commands::Update(args) => {
+                let model_val: #def_name = serde_json::from_str(&args.json)
+                    .map_err(|e| ::netabase_store::errors::NetabaseError::IoError(format!("JSON error: {}", e)))?;
+                let txn = store.begin_write()?;
+                txn.update(&model_val)?;
+                txn.commit()?;
+                println!("Updated {} successfully.", #model_name);
+            }
+            #model_ident::Commands::Delete(args) => {
+                let key: <#def_name as ::netabase_store::traits::registry::definition::NetabaseDefinition>::DefKeys = serde_json::from_str(&args.id)
+                    .map_err(|e| ::netabase_store::errors::NetabaseError::IoError(format!("JSON error: {}", e)))?;
+                let txn = store.begin_write()?;
+                txn.delete(&key)?;
+                txn.commit()?;
+                println!("Deleted {} successfully.", #model_name);
+            }
+            #model_ident::Commands::List => {
+                let txn = store.begin_read()?;
+                // Use D::Discriminant to list
+                let discriminant = <#def_name as ::strum::IntoDiscriminant>::Discriminant::#model_ident;
+                let results = txn.list(discriminant)?;
+                for res in results {
+                    println!("{}", serde_json::to_string_pretty(&res).unwrap());
+                }
+            }
+        }
+    });
+
+    quote! {
+        #(#arms)*
+        _ => {
+            // For nested definitions or empty ones
+            return Err(::netabase_store::errors::NetabaseError::Other);
+        }
     }
 }
 
@@ -209,7 +264,17 @@ pub fn generate_repository_cli(
 
     let definition_cli_gens = definitions
         .iter()
-        .map(|(def_name, models)| generate_definition_cli(def_name, models));
+        .map(|(def_name, models)| {
+            let subcommands = generate_definition_subcommands(models);
+            let modules = generate_definition_modules(models);
+            quote! {
+                #[derive(clap::Subcommand, Debug, Clone)]
+                pub enum #def_name {
+                    #subcommands
+                }
+                #modules
+            }
+        });
 
     quote! {
         /// Commands for this repository, grouped by definition.
@@ -237,39 +302,32 @@ pub fn generate_repository_cli(
 /// # Returns
 ///
 /// TokenStream containing the complete CLI structure.
-///
-/// # Example Generated Code
-///
-/// ```rust,ignore
-/// use clap::{Parser, Subcommand, Args};
-///
-/// #[derive(Parser, Debug)]
-/// #[command(name = "MyStore")]
-/// #[command(about = "CLI for interacting with the database store")]
-/// pub struct Cli {
-///     #[arg(short, long, default_value = "./database")]
-///     pub db_path: String,
-///
-///     #[command(subcommand)]
-///     pub command: Commands,
-/// }
-///
-/// #[derive(Subcommand, Debug, Clone)]
-/// pub enum Commands {
-///     User(user::Commands),
-///     Product(product::Commands),
-/// }
-/// ```
 pub fn generate_store_cli(store_name: &Ident, definitions: &[(Ident, Vec<Ident>)]) -> TokenStream {
     let repo_cli =
         generate_repository_cli(&quote::format_ident!("{}Commands", store_name), definitions);
+
+    let mut repo_run_arms = Vec::new();
+    
+    // For each definition, generate match arms for its models
+    for (def_name, models) in definitions {
+        let def_ident = quote::format_ident!("{}", def_name);
+        let model_arms = generate_definition_run_arms(&def_ident, models);
+        
+        repo_run_arms.push(quote! {
+            Commands::#def_ident(cmd) => {
+                match cmd {
+                    #model_arms
+                }
+            }
+        });
+    }
 
     quote! {
         use clap::{Parser, Subcommand, Args};
 
         /// Main CLI entry point for the database store.
         #[derive(Parser, Debug)]
-        #[command(name = #store_name)]
+        #[command(name = stringify!(#store_name))]
         #[command(about = "CLI for interacting with the database store", long_about = None)]
         pub struct Cli {
             /// Path to the database directory.
@@ -284,9 +342,93 @@ pub fn generate_store_cli(store_name: &Ident, definitions: &[(Ident, Vec<Ident>)
             pub command: Commands,
         }
 
+        impl Cli {
+            /// Execute the parsed CLI command.
+            pub fn run<D: ::netabase_store::traits::registry::definition::NetabaseDefinition + ::netabase_store::traits::registry::definition::redb_definition::RedbDefinition + 'static>(
+                &self
+            ) -> ::netabase_store::errors::NetabaseResult<()> 
+            where
+                <D as ::strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug + ::strum::VariantNames,
+                D: Clone + ::serde::Serialize + for<'de> ::serde::Deserialize<'de> + From<::netabase_store::libp2p::kad::Record> + TryInto<::netabase_store::libp2p::kad::Record>,
+                D::DefKeys: for<'de> ::serde::Deserialize<'de> + ::serde::Serialize,
+                D::TreeNames: Default,
+            {
+                use ::netabase_store::traits::database::store::NBStore;
+                
+                let store = ::netabase_store::databases::redb::RedbStore::<D>::new(&self.db_path)?;
+                
+                match &self.command {
+                    #(#repo_run_arms)*
+                }
+                
+                Ok(())
+            }
+        }
+
         #repo_cli
 
         /// Type alias for the top-level commands enum.
         pub type Commands = #store_name;
+    }
+}
+
+/// Generate a CLI for a single definition.
+/// 
+/// This is simpler than `generate_store_cli` as it doesn't nest commands under definitions.
+/// It directly exposes model commands.
+pub fn generate_single_definition_cli(
+    cli_struct_name: &Ident,
+    def_name: &Ident,
+    models: &[Ident]
+) -> TokenStream {
+    let subcommands = generate_definition_subcommands(models);
+    let modules = generate_definition_modules(models);
+    let run_arms = generate_definition_run_arms(def_name, models);
+    
+    let commands_name = quote::format_ident!("{}Commands", def_name);
+
+    quote! {
+        use clap::{Parser, Subcommand, Args};
+
+        #[derive(Parser, Debug)]
+        #[command(name = stringify!(#def_name))]
+        #[command(about = "CLI for interacting with the database store", long_about = None)]
+        pub struct #cli_struct_name {
+            /// Path to the database directory.
+            #[arg(short, long, default_value = "./database")]
+            pub db_path: String,
+
+            #[command(subcommand)]
+            pub command: #commands_name,
+        }
+
+        #[derive(Subcommand, Debug, Clone)]
+        pub enum #commands_name {
+            #subcommands
+        }
+
+        impl #cli_struct_name {
+            pub fn run<D: ::netabase_store::traits::registry::definition::NetabaseDefinition + ::netabase_store::traits::registry::definition::redb_definition::RedbDefinition + 'static>(
+                &self
+            ) -> ::netabase_store::errors::NetabaseResult<()> 
+            where
+                <D as ::strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug + ::strum::VariantNames,
+                D: Clone + ::serde::Serialize + for<'de> ::serde::Deserialize<'de> + From<::netabase_store::libp2p::kad::Record> + TryInto<::netabase_store::libp2p::kad::Record>,
+                D::DefKeys: for<'de> ::serde::Deserialize<'de> + ::serde::Serialize,
+                D::TreeNames: Default,
+            {
+                use ::netabase_store::traits::database::store::NBStore;
+                
+                let store = ::netabase_store::databases::redb::RedbStore::<D>::new(&self.db_path)?;
+                
+                match &self.command {
+                    #run_arms
+                }
+                
+                Ok(())
+            }
+        }
+
+        #modules
     }
 }

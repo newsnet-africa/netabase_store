@@ -83,7 +83,7 @@
 //! See [tests/repository_comprehensive.rs](../../../tests/repository_comprehensive.rs)
 //! for complete working examples of repository creation and usage.
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! # // Repository usage is demonstrated in tests/repository_comprehensive.rs
 //! # // This doctest validates the module compiles
 //! use netabase_store::databases::redb::repository::RedbRepositoryStore;
@@ -148,7 +148,7 @@ impl<R: RedbRepositoryDefinitions> RedbRepositoryStore<R> {
     ///
     /// See [tests/repository_comprehensive.rs](../../../tests/repository_comprehensive.rs).
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
     /// let store = RedbRepositoryStore::<MyRepo>::new("./my_repo")?;
     /// ```
     pub fn new<P: AsRef<Path>>(path: P) -> NetabaseResult<Self> {
@@ -325,7 +325,7 @@ impl<'repo, R: RedbRepositoryDefinitions> RedbRepositoryTransaction<'repo, R> {
         D::Discriminant: 'static + std::fmt::Debug,
         D: Clone,
     {
-        let def_name = D::debug_name();
+        let def_name = D::definition_name();
         let def_name_str = format!("{:?}", def_name);
         let db = self.store.database(&def_name_str)?;
         (**db)
@@ -397,5 +397,433 @@ impl<R: RedbRepositoryDefinitions> RedbRepositoryStore<R> {
     /// Begin a read-write repository transaction.
     pub fn begin_write(&self) -> NetabaseResult<RedbRepositoryTransaction<'_, R>> {
         RedbRepositoryTransaction::new_write(self)
+    }
+}
+
+// ============================================================================
+// Table Caching Support
+// ============================================================================
+
+use std::any::TypeId;
+use std::cell::RefCell;
+
+/// Key for cached table lookups.
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct TableCacheKey {
+    /// Definition type ID
+    pub definition_id: TypeId,
+    /// Table name
+    pub table_name: String,
+}
+
+/// Cached table handle for efficient repeated access.
+///
+/// This avoids reopening tables on every read/write operation within
+/// a transaction, which is especially important for relational links
+/// that may need to access multiple tables.
+pub struct TableCache {
+    /// Set of table names that have been opened in this transaction.
+    /// The actual table handles are managed by the transaction itself.
+    opened_tables: RefCell<std::collections::HashSet<TableCacheKey>>,
+}
+
+impl TableCache {
+    /// Create a new empty table cache.
+    pub fn new() -> Self {
+        Self {
+            opened_tables: RefCell::new(std::collections::HashSet::new()),
+        }
+    }
+
+    /// Check if a table is already cached.
+    pub fn is_cached(&self, key: &TableCacheKey) -> bool {
+        self.opened_tables.borrow().contains(key)
+    }
+
+    /// Mark a table as cached.
+    pub fn mark_cached(&self, key: TableCacheKey) {
+        self.opened_tables.borrow_mut().insert(key);
+    }
+
+    /// Get the number of cached tables.
+    pub fn len(&self) -> usize {
+        self.opened_tables.borrow().len()
+    }
+
+    /// Check if the cache is empty.
+    pub fn is_empty(&self) -> bool {
+        self.opened_tables.borrow().is_empty()
+    }
+}
+
+impl Default for TableCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ============================================================================
+// Enhanced Repository Transaction with Definition Dispatch
+// ============================================================================
+
+use crate::traits::registry::models::model::ModelToDefKey;
+
+impl<'repo, R: RedbRepositoryDefinitions> RedbRepositoryTransaction<'repo, R> {
+    /// Read a model from a specific definition using the definition's dispatch mechanism.
+    ///
+    /// This method uses the definition's `dispatch_read` to read a model by its
+    /// primary key, leveraging the macro-generated code for type safety.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `D` - The definition type containing the model
+    /// * `M` - The model type to read
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The primary key of the model to read
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// // Read a User from UserDef within the repository transaction
+    /// let user: Option<User> = repo_txn.read_model::<UserDef, User>(&user_id)?;
+    /// ```
+    #[allow(clippy::type_complexity)]
+    pub fn read_model_from_definition<D, M>(
+        &self,
+        pk: <M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Primary,
+    ) -> NetabaseResult<Option<M>>
+    where
+        D: RedbDefinition + Clone + serde::Serialize + for<'de> serde::Deserialize<'de> + 'static,
+        D::Discriminant: 'static + std::fmt::Debug,
+        M: ModelToDefKey<D> + Clone,
+        <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Libp2p as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    {
+        // Convert the model's primary key to definition-level key
+        let def_key = M::primary_to_def_key(pk);
+        
+        // Get the definition name
+        let def_name = D::definition_name();
+        
+        // Get database for this definition
+        let db = self.store.database(&def_name)?;
+        
+        // Begin a read transaction
+        let read_txn = (**db).begin_read()
+            .map_err(NetabaseError::RedbTransactionError)?;
+        
+        // Use the definition's dispatch_read
+        // Note: This requires wrapping the raw redb transaction
+        // For now, we'll use a simplified approach
+        // TODO: Create proper transaction wrapper for dispatch_read
+        
+        // Fallback: Since dispatch_read needs our custom transaction type,
+        // and we only have raw redb transaction here, we need to handle this differently.
+        // For repository-level access, we should either:
+        // 1. Store RedbTransaction wrappers per definition
+        // 2. Or use the dispatch mechanism differently
+        
+        // For now, return an error indicating this needs the proper transaction
+        Err(NetabaseError::TransactionError(
+            "Repository-level model reading requires proper transaction wrapping. \
+             Use RedbRepositoryStore::with_definition() to get a typed transaction.".to_string()
+        ))
+    }
+}
+
+// ============================================================================
+// RelationalLink Hydration Support
+// ============================================================================
+
+// Note: Hydration of RelationalLinks at the repository level requires
+// proper integration with the definition's dispatch_read mechanism.
+// 
+// The recommended approach for now is:
+// 1. Use RedbRepositoryStore::with_definition::<D>() to get a typed store
+// 2. Use that store's transaction to read models
+// 3. Use RelationalLink::from_loaded() to create hydrated links
+//
+// Example:
+// ```rust,no_run
+// let store = repo_store.with_definition::<TargetDef>()?;
+// let txn = store.begin_read()?;
+// if let Some(model) = txn.read::<TargetModel>(&link.get_primary_key())? {
+//     let hydrated = RelationalLink::from_loaded(link.get_primary_key().clone(), model);
+// }
+// ```
+//
+// TODO: Implement proper repository-level transaction that can dispatch
+// reads to multiple definitions while maintaining table caching.
+
+// ============================================================================
+// Definition-Specific Store Access
+// ============================================================================
+
+use crate::databases::redb::transaction::RedbTransaction;
+
+impl<R: RedbRepositoryDefinitions> RedbRepositoryStore<R> {
+    /// Get a definition-specific store from the repository.
+    /// 
+    /// This allows creating `RedbTransaction<D>` for any definition in the repository,
+    /// enabling inter-definition relational link hydration.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `D` - The definition type to access
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// let repo = RedbRepositoryStore::<MyRepo>::new("./repo")?;
+    /// 
+    /// // Get a transaction for the UserDef definition
+    /// let user_txn = repo.begin_read_for::<UserDef>()?;
+    /// let user: Option<User> = user_txn.read(&user_id)?;
+    /// ```
+    pub fn begin_read_for<'repo, D>(&'repo self) -> NetabaseResult<RedbTransaction<'repo, D>>
+    where
+        D: RedbDefinition + Clone + 'static,
+        D::Discriminant: 'static + std::fmt::Debug,
+    {
+        let def_name = D::definition_name();
+        let db = self.database(&def_name)?;
+        RedbTransaction::new_read(db)
+    }
+    
+    /// Begin a write transaction for a specific definition.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `D` - The definition type to access
+    pub fn begin_write_for<'repo, D>(&'repo self) -> NetabaseResult<RedbTransaction<'repo, D>>
+    where
+        D: RedbDefinition + Clone + 'static,
+        D::Discriminant: 'static + std::fmt::Debug,
+    {
+        let def_name = D::definition_name();
+        let db = self.database(&def_name)?;
+        RedbTransaction::new_write(db)
+    }
+    
+    /// Get a raw database reference for a definition by type.
+    ///
+    /// This is useful for advanced use cases where you need direct access
+    /// to the underlying redb database.
+    pub fn database_for<D>(&self) -> NetabaseResult<&Arc<redb::Database>>
+    where
+        D: RedbDefinition + 'static,
+        D::Discriminant: 'static + std::fmt::Debug,
+    {
+        let def_name = D::definition_name();
+        self.database(&def_name)
+    }
+}
+
+// ============================================================================
+// RelationalLink Repository-Level Hydration
+// ============================================================================
+
+use crate::relational::{RelationalLink, RelationalLinkError};
+use crate::traits::registry::models::model::NetabaseModel;
+use crate::traits::registry::models::keys::NetabaseModelKeys;
+use crate::traits::registry::repository::InRepository;
+use crate::traits::registry::definition::NetabaseDefinition;
+use crate::databases::redb::transaction::crud::RedbModelCrud;
+use crate::traits::registry::models::model::redb_model::RedbNetbaseModel;
+
+/// Extension trait for hydrating relational links at the repository level.
+///
+/// This enables hydration of `RelationalLink<R, SourceD, TargetD, M>` where
+/// `SourceD != TargetD` (cross-definition links).
+pub trait RepositoryHydrate<'data, R, SourceD, TargetD, M>
+where
+    R: NetabaseRepository,
+    SourceD: NetabaseDefinition + InRepository<R> + 'static,
+    SourceD::Discriminant: std::fmt::Debug,
+    TargetD: NetabaseDefinition + InRepository<R> + 'static,
+    TargetD::Discriminant: std::fmt::Debug,
+    M: NetabaseModel<TargetD>,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Libp2p as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+{
+    /// Hydrate this link using a repository store.
+    ///
+    /// This method works for both same-definition and cross-definition links,
+    /// making it the most general hydration method.
+    ///
+    /// # Arguments
+    ///
+    /// * `repo` - The repository store containing both source and target definitions
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// // Cross-definition link: Post (in PostDef) -> Author (in UserDef)
+    /// let repo = RedbRepositoryStore::<MyRepo>::new("./repo")?;
+    /// let post: Post = /* read post */;
+    /// 
+    /// // Hydrate the cross-definition author link
+    /// let hydrated = post.author.hydrate_from_repo(&repo)?;
+    /// let author = hydrated.get_model().unwrap();
+    /// ```
+    fn hydrate_from_repo<RD>(
+        self,
+        repo: &RedbRepositoryStore<RD>,
+    ) -> Result<RelationalLink<'data, R, SourceD, TargetD, M>, RelationalLinkError>
+    where
+        RD: RedbRepositoryDefinitions;
+}
+
+impl<'data, R, SourceD, TargetD, M> RepositoryHydrate<'data, R, SourceD, TargetD, M>
+    for RelationalLink<'data, R, SourceD, TargetD, M>
+where
+    R: NetabaseRepository,
+    SourceD: NetabaseDefinition + InRepository<R> + 'static,
+    SourceD::Discriminant: std::fmt::Debug,
+    TargetD: RedbDefinition + InRepository<R> + Clone + 'static,
+    TargetD::Discriminant: std::fmt::Debug + 'static,
+    M: NetabaseModel<TargetD> + Clone,
+    <M::Keys as NetabaseModelKeys<TargetD, M>>::Primary: Clone + redb::Key + 'static,
+    <M::Keys as NetabaseModelKeys<TargetD, M>>::Secondary: Clone + redb::Key + 'static,
+    <M::Keys as NetabaseModelKeys<TargetD, M>>::Relational: Clone + redb::Key + 'static,
+    <M::Keys as NetabaseModelKeys<TargetD, M>>::Blob: redb::Key + 'static,
+    <M::Keys as NetabaseModelKeys<TargetD, M>>::Subscription: 'static,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Libp2p as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    for<'a> <M::Keys as NetabaseModelKeys<TargetD, M>>::Primary: std::borrow::Borrow<<<M::Keys as NetabaseModelKeys<TargetD, M>>::Primary as redb::Value>::SelfType<'a>>,
+    for<'a> <M::Keys as NetabaseModelKeys<TargetD, M>>::Blob: std::borrow::Borrow<<<M::Keys as NetabaseModelKeys<TargetD, M>>::Blob as redb::Value>::SelfType<'a>>,
+    for<'a> <<M::Keys as NetabaseModelKeys<TargetD, M>>::Blob as crate::traits::registry::models::keys::blob::NetabaseModelBlobKey<TargetD, M>>::BlobItem: std::borrow::Borrow<<<<M::Keys as NetabaseModelKeys<TargetD, M>>::Blob as crate::traits::registry::models::keys::blob::NetabaseModelBlobKey<TargetD, M>>::BlobItem as redb::Value>::SelfType<'a>>,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Blob as crate::traits::registry::models::keys::blob::NetabaseModelBlobKey<TargetD, M>>::BlobItem: redb::Key + 'static,
+    TargetD::SubscriptionKeys: redb::Key + 'static,
+    for<'db> M: RedbNetbaseModel<'db, TargetD> + RedbModelCrud<'db, TargetD>,
+    for<'db, 'a> <M as RedbNetbaseModel<'db, TargetD>>::TableV: redb::Value<SelfType<'a> = M>,
+{
+    fn hydrate_from_repo<RD>(
+        self,
+        repo: &RedbRepositoryStore<RD>,
+    ) -> Result<RelationalLink<'data, R, SourceD, TargetD, M>, RelationalLinkError>
+    where
+        RD: RedbRepositoryDefinitions,
+    {
+        // If already hydrated, return as-is
+        if self.get_model().is_some() {
+            return Ok(self);
+        }
+        
+        // Clone the primary key
+        let pk = self.get_primary_key().clone();
+        
+        // Begin a read transaction for the target definition
+        let txn = repo.begin_read_for::<TargetD>()
+            .map_err(|_| RelationalLinkError::NotFound)?;
+        
+        // Read the model using read_by_key (takes owned key)
+        let model = txn.read_by_key::<M>(pk.clone())
+            .map_err(|_| RelationalLinkError::NotFound)?
+            .ok_or(RelationalLinkError::NotFound)?;
+        
+        // Return an owned link with the loaded model
+        Ok(RelationalLink::from_loaded(pk, model))
+    }
+}
+
+/// Extension trait for hydrating vectors of cross-definition relational links.
+pub trait RepositoryHydrateVec<'data, R, SourceD, TargetD, M>
+where
+    R: NetabaseRepository,
+    SourceD: NetabaseDefinition + InRepository<R> + 'static,
+    SourceD::Discriminant: std::fmt::Debug,
+    TargetD: NetabaseDefinition + InRepository<R> + 'static,
+    TargetD::Discriminant: std::fmt::Debug,
+    M: NetabaseModel<TargetD>,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Libp2p as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+{
+    /// Hydrate all links in this vector using a repository store.
+    ///
+    /// Fails if any link cannot be hydrated.
+    fn hydrate_all_from_repo<RD>(
+        self,
+        repo: &RedbRepositoryStore<RD>,
+    ) -> Result<Vec<RelationalLink<'data, R, SourceD, TargetD, M>>, RelationalLinkError>
+    where
+        RD: RedbRepositoryDefinitions;
+    
+    /// Hydrate as many links as possible, keeping dehydrated versions for failures.
+    fn hydrate_best_effort_from_repo<RD>(
+        self,
+        repo: &RedbRepositoryStore<RD>,
+    ) -> Vec<RelationalLink<'data, R, SourceD, TargetD, M>>
+    where
+        RD: RedbRepositoryDefinitions;
+}
+
+impl<'data, R, SourceD, TargetD, M> RepositoryHydrateVec<'data, R, SourceD, TargetD, M>
+    for Vec<RelationalLink<'data, R, SourceD, TargetD, M>>
+where
+    R: NetabaseRepository,
+    SourceD: NetabaseDefinition + InRepository<R> + 'static,
+    SourceD::Discriminant: std::fmt::Debug,
+    TargetD: RedbDefinition + InRepository<R> + Clone + 'static,
+    TargetD::Discriminant: std::fmt::Debug + 'static,
+    M: NetabaseModel<TargetD> + Clone,
+    <M::Keys as NetabaseModelKeys<TargetD, M>>::Primary: Clone + redb::Key + 'static,
+    <M::Keys as NetabaseModelKeys<TargetD, M>>::Secondary: Clone + redb::Key + 'static,
+    <M::Keys as NetabaseModelKeys<TargetD, M>>::Relational: Clone + redb::Key + 'static,
+    <M::Keys as NetabaseModelKeys<TargetD, M>>::Blob: redb::Key + 'static,
+    <M::Keys as NetabaseModelKeys<TargetD, M>>::Subscription: 'static,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Libp2p as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    for<'a> <M::Keys as NetabaseModelKeys<TargetD, M>>::Primary: std::borrow::Borrow<<<M::Keys as NetabaseModelKeys<TargetD, M>>::Primary as redb::Value>::SelfType<'a>>,
+    for<'a> <M::Keys as NetabaseModelKeys<TargetD, M>>::Blob: std::borrow::Borrow<<<M::Keys as NetabaseModelKeys<TargetD, M>>::Blob as redb::Value>::SelfType<'a>>,
+    for<'a> <<M::Keys as NetabaseModelKeys<TargetD, M>>::Blob as crate::traits::registry::models::keys::blob::NetabaseModelBlobKey<TargetD, M>>::BlobItem: std::borrow::Borrow<<<<M::Keys as NetabaseModelKeys<TargetD, M>>::Blob as crate::traits::registry::models::keys::blob::NetabaseModelBlobKey<TargetD, M>>::BlobItem as redb::Value>::SelfType<'a>>,
+    <<M::Keys as NetabaseModelKeys<TargetD, M>>::Blob as crate::traits::registry::models::keys::blob::NetabaseModelBlobKey<TargetD, M>>::BlobItem: redb::Key + 'static,
+    TargetD::SubscriptionKeys: redb::Key + 'static,
+    for<'db> M: RedbNetbaseModel<'db, TargetD> + RedbModelCrud<'db, TargetD>,
+    for<'db, 'a> <M as RedbNetbaseModel<'db, TargetD>>::TableV: redb::Value<SelfType<'a> = M>,
+    RelationalLink<'data, R, SourceD, TargetD, M>: RepositoryHydrate<'data, R, SourceD, TargetD, M>,
+{
+    fn hydrate_all_from_repo<RD>(
+        self,
+        repo: &RedbRepositoryStore<RD>,
+    ) -> Result<Vec<RelationalLink<'data, R, SourceD, TargetD, M>>, RelationalLinkError>
+    where
+        RD: RedbRepositoryDefinitions,
+    {
+        self.into_iter()
+            .map(|link| link.hydrate_from_repo(repo))
+            .collect()
+    }
+    
+    fn hydrate_best_effort_from_repo<RD>(
+        self,
+        repo: &RedbRepositoryStore<RD>,
+    ) -> Vec<RelationalLink<'data, R, SourceD, TargetD, M>>
+    where
+        RD: RedbRepositoryDefinitions,
+    {
+        self.into_iter()
+            .map(|link| {
+                let pk = link.get_primary_key().clone();
+                link.hydrate_from_repo(repo).unwrap_or_else(|_| RelationalLink::new_dehydrated(pk))
+            })
+            .collect()
     }
 }

@@ -8,7 +8,7 @@ mod common;
 
 use netabase_store::query::QueryResult;
 use netabase_store::relational::RelationalLink;
-use example::boilerplate_lib::definition::{
+use example::boilerplate_lib::main_repository::definition::{
     AnotherLargeUserFile, LargeUserFile, Post, PostID, User, UserID,
 };
 use example::boilerplate_lib::{CategoryID, Definition};

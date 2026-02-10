@@ -3,7 +3,7 @@
 mod common;
 
 use netabase_store::relational::RelationalLink;
-use example::boilerplate_lib::definition::{
+use example::boilerplate_lib::main_repository::definition::{
     AnotherLargeUserFile, LargeUserFile, User, UserCategory, UserID, UserRelationalKeys, UserRelationalKeysTreeName,
 };
 use example::boilerplate_lib::{CategoryID, Definition, DefinitionSubscriptions};

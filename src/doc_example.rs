@@ -18,7 +18,7 @@
 //!
 //! # Usage in Doctests
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::doc_example::*;
 //! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;

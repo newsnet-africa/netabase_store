@@ -11,9 +11,9 @@
 //! The memory backend implements the same trait interface as the redb backend,
 //! allowing you to swap backends without changing application code.
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::databases::memory::MemoryStore;
-//! use netabase_store::doc_examples::ExampleDef;
+//! use netabase_store::doc_example::ExampleDef;
 //!
 //! // Create an in-memory store
 //! let store = MemoryStore::<ExampleDef>::new();

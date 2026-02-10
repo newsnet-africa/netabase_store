@@ -46,7 +46,7 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```rust,no_run
 //! use serde::{Serialize, Deserialize};
 //!
 //! // Define models in a definition

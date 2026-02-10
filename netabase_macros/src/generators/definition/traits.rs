@@ -114,6 +114,17 @@ impl<'a> DefinitionTraitGenerator<'a> {
         let mut remove_provider_arms = Vec::new();
         let mut put_record_arms = Vec::new();
 
+        // Dispatch method arms
+        let mut dispatch_create_arms = Vec::new();
+        let mut dispatch_read_arms = Vec::new();
+        let mut dispatch_update_arms = Vec::new();
+        let mut dispatch_delete_arms = Vec::new();
+        let mut dispatch_list_arms = Vec::new();
+        let mut dispatch_delete_if_blocks = Vec::new();
+
+        let def_keys_enum = definition_keys_enum_name(definition_name);
+        let def_discriminant = definition_tree_name_type(definition_name);
+
         for model in &self.visitor.models {
             let model_name = &model.name;
             let libp2p_provider_key_enum = libp2p_provider_key_enum_name(model_name);
@@ -337,6 +348,152 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     }
                 }
             });
+
+            // ========================================================================
+            // Dispatch method arms
+            // ========================================================================
+
+            let keys_enum = unified_keys_enum_name(model_name);
+
+            // dispatch_create: Definition::Model(m) => { create in main table }
+            dispatch_create_arms.push(quote! {
+                #definition_name::#model_name(model) => {
+                    use ::netabase_store::traits::registry::models::model::NetabaseModel;
+                    use ::netabase_store::traits::registry::models::keys::NetabaseModelKeys;
+
+                    type Pk = <<#target_type as NetabaseModel<#definition_name>>::Keys as NetabaseModelKeys<#definition_name, #target_type>>::Primary;
+
+                    let tree_names = <#target_type as NetabaseModel<#definition_name>>::TREE_NAMES;
+                    let table_def = redb::TableDefinition::<Pk, #target_type>::new(tree_names.main.table_name);
+                    let mut table = txn.inner.open_table(table_def)
+                        .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e))?;
+
+                    let pk = model.get_primary_key();
+                    table.insert(&pk, model)
+                        .map_err(|e| ::netabase_store::errors::NetabaseError::RedbStorageError(e))?;
+
+                    Ok(())
+                },
+            });
+
+            // dispatch_read: DefKeys::Model(keys) => { read from main table }
+            dispatch_read_arms.push(quote! {
+                #def_keys_enum::#model_name(#keys_enum::Primary(pk)) => {
+                    use ::netabase_store::traits::registry::models::model::NetabaseModel;
+                    use ::netabase_store::traits::registry::models::keys::NetabaseModelKeys;
+
+                    type Pk = <<#target_type as NetabaseModel<#definition_name>>::Keys as NetabaseModelKeys<#definition_name, #target_type>>::Primary;
+
+                    let tree_names = <#target_type as NetabaseModel<#definition_name>>::TREE_NAMES;
+                    let table_def = redb::TableDefinition::<Pk, #target_type>::new(tree_names.main.table_name);
+                    let table = txn.inner.open_table(table_def)
+                        .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e))?;
+
+                    match table.get(pk) {
+                        Ok(Some(guard)) => {
+                            let model = guard.value();
+                            Ok(Some(#definition_name::#model_name(model)))
+                        },
+                        Ok(None) => Ok(None),
+                        Err(e) => Err(::netabase_store::errors::NetabaseError::RedbStorageError(e)),
+                    }
+                },
+            });
+
+            // dispatch_update: Definition::Model(m) => { update in main table }
+            dispatch_update_arms.push(quote! {
+                #definition_name::#model_name(model) => {
+                    use ::netabase_store::traits::registry::models::model::NetabaseModel;
+                    use ::netabase_store::traits::registry::models::keys::NetabaseModelKeys;
+
+                    type Pk = <<#target_type as NetabaseModel<#definition_name>>::Keys as NetabaseModelKeys<#definition_name, #target_type>>::Primary;
+
+                    let tree_names = <#target_type as NetabaseModel<#definition_name>>::TREE_NAMES;
+                    let table_def = redb::TableDefinition::<Pk, #target_type>::new(tree_names.main.table_name);
+                    let mut table = txn.inner.open_table(table_def)
+                        .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e))?;
+
+                    let pk = model.get_primary_key();
+                    table.insert(&pk, model)
+                        .map_err(|e| ::netabase_store::errors::NetabaseError::RedbStorageError(e))?;
+
+                    Ok(())
+                },
+            });
+
+            // dispatch_delete: DefKeys::Model(keys) => { delete from main table }
+            dispatch_delete_arms.push(quote! {
+                #def_keys_enum::#model_name(#keys_enum::Primary(pk)) => {
+                    use ::netabase_store::traits::registry::models::model::NetabaseModel;
+                    use ::netabase_store::traits::registry::models::keys::NetabaseModelKeys;
+
+                    type Pk = <<#target_type as NetabaseModel<#definition_name>>::Keys as NetabaseModelKeys<#definition_name, #target_type>>::Primary;
+
+                    let tree_names = <#target_type as NetabaseModel<#definition_name>>::TREE_NAMES;
+                    let table_def = redb::TableDefinition::<Pk, #target_type>::new(tree_names.main.table_name);
+                    let mut table = txn.inner.open_table(table_def)
+                        .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e))?;
+
+                    table.remove(pk)
+                        .map_err(|e| ::netabase_store::errors::NetabaseError::RedbStorageError(e))?;
+
+                    Ok(())
+                },
+            });
+
+            // dispatch_list: Discriminant::Model => { iterate main table }
+            dispatch_list_arms.push(quote! {
+                #def_discriminant::#model_name => {
+                    use ::netabase_store::traits::registry::models::model::NetabaseModel;
+                    use ::netabase_store::traits::registry::models::keys::NetabaseModelKeys;
+                    use redb::ReadableTable;
+
+                    type Pk = <<#target_type as NetabaseModel<#definition_name>>::Keys as NetabaseModelKeys<#definition_name, #target_type>>::Primary;
+
+                    let tree_names = <#target_type as NetabaseModel<#definition_name>>::TREE_NAMES;
+                    let table_def = redb::TableDefinition::<Pk, #target_type>::new(tree_names.main.table_name);
+                    let table = txn.inner.open_table(table_def)
+                        .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e))?;
+
+                    let mut results = Vec::new();
+                    for entry in table.iter().map_err(|e| ::netabase_store::errors::NetabaseError::RedbStorageError(e))? {
+                        let (_, val) = entry.map_err(|e| ::netabase_store::errors::NetabaseError::RedbStorageError(e))?;
+                        results.push(#definition_name::#model_name(val.value()));
+                    }
+                    Ok(results)
+                },
+            });
+
+            // dispatch_delete_if: block to delete matching items from this model's table
+            dispatch_delete_if_blocks.push(quote! {
+                // Delete matching items from #model_name
+                {
+                    use ::netabase_store::traits::registry::models::model::NetabaseModel;
+                    use ::netabase_store::traits::registry::models::keys::NetabaseModelKeys;
+                    use redb::ReadableTable;
+
+                    type Pk = <<#target_type as NetabaseModel<#definition_name>>::Keys as NetabaseModelKeys<#definition_name, #target_type>>::Primary;
+
+                    let tree_names = <#target_type as NetabaseModel<#definition_name>>::TREE_NAMES;
+                    let table_def = redb::TableDefinition::<Pk, #target_type>::new(tree_names.main.table_name);
+                    let mut table = txn.inner.open_table(table_def)
+                        .map_err(|e| ::netabase_store::errors::NetabaseError::RedbTableError(e))?;
+
+                    // Collect keys to delete (can't delete while iterating)
+                    let mut keys_to_delete = Vec::new();
+                    for entry in table.iter().map_err(|e| ::netabase_store::errors::NetabaseError::RedbStorageError(e))? {
+                        let (key, val) = entry.map_err(|e| ::netabase_store::errors::NetabaseError::RedbStorageError(e))?;
+                        let def_item = #definition_name::#model_name(val.value());
+                        if predicate(&def_item) {
+                            keys_to_delete.push(key.value());
+                        }
+                    }
+                    for pk in keys_to_delete {
+                        table.remove(&pk)
+                            .map_err(|e| ::netabase_store::errors::NetabaseError::RedbStorageError(e))?;
+                    }
+                }
+            });
         }
 
         // Use the first model as representative (following the boilerplate pattern)
@@ -485,6 +642,77 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     ) -> ::netabase_store::errors::NetabaseResult<()> {
                         let key_bytes = key.as_ref();
                         #(#remove_provider_arms)*
+                        Ok(())
+                    }
+
+                    // ========================================================================
+                    // Dispatch methods for generic CRUD
+                    // ========================================================================
+
+                    fn dispatch_create(
+                        txn: &::netabase_store::databases::redb::transaction::NetabaseRedbWriteTransaction<'_, Self>,
+                        definition: &Self,
+                    ) -> ::netabase_store::errors::NetabaseResult<()> {
+                        match definition {
+                            #(#dispatch_create_arms)*
+                            _ => Err(::netabase_store::errors::NetabaseError::Other),
+                        }
+                    }
+
+                    fn dispatch_read(
+                        txn: &::netabase_store::databases::redb::transaction::NetabaseRedbReadTransaction<'_, Self>,
+                        key: &Self::DefKeys,
+                    ) -> ::netabase_store::errors::NetabaseResult<Option<Self>>
+                    where
+                        Self: ::serde::Serialize + for<'de> ::serde::Deserialize<'de>
+                    {
+                        match key {
+                            #(#dispatch_read_arms)*
+                            _ => Err(::netabase_store::errors::NetabaseError::Other),
+                        }
+                    }
+
+                    fn dispatch_update(
+                        txn: &::netabase_store::databases::redb::transaction::NetabaseRedbWriteTransaction<'_, Self>,
+                        definition: &Self,
+                    ) -> ::netabase_store::errors::NetabaseResult<()> {
+                        match definition {
+                            #(#dispatch_update_arms)*
+                            _ => Err(::netabase_store::errors::NetabaseError::Other),
+                        }
+                    }
+
+                    fn dispatch_delete(
+                        txn: &::netabase_store::databases::redb::transaction::NetabaseRedbWriteTransaction<'_, Self>,
+                        key: &Self::DefKeys,
+                    ) -> ::netabase_store::errors::NetabaseResult<()> {
+                        match key {
+                            #(#dispatch_delete_arms)*
+                            _ => Err(::netabase_store::errors::NetabaseError::Other),
+                        }
+                    }
+
+                    fn dispatch_list(
+                        txn: &::netabase_store::databases::redb::transaction::NetabaseRedbReadTransaction<'_, Self>,
+                        discriminant: <Self as ::strum::IntoDiscriminant>::Discriminant,
+                    ) -> ::netabase_store::errors::NetabaseResult<Vec<Self>>
+                    where
+                        Self: ::serde::Serialize + for<'de> ::serde::Deserialize<'de>
+                    {
+                        match discriminant {
+                            #(#dispatch_list_arms)*
+                            _ => Err(::netabase_store::errors::NetabaseError::Other),
+                        }
+                    }
+
+                    fn dispatch_delete_if<F>(
+                        txn: &::netabase_store::databases::redb::transaction::NetabaseRedbWriteTransaction<'_, Self>,
+                        predicate: F,
+                    ) -> ::netabase_store::errors::NetabaseResult<()>
+                    where
+                        F: Fn(&Self) -> bool,
+                    {
+                        #(#dispatch_delete_if_blocks)*
                         Ok(())
                     }
                 }
@@ -1519,6 +1747,10 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     #debug_name_str
                 }
 
+                fn definition_name() -> &'static str {
+                    #debug_name_str
+                }
+
                 fn schema() -> netabase_store::traits::registry::definition::schema::DefinitionSchema {
                     #schema_impl
                 }
@@ -1595,7 +1827,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
             // Relational
             for rk in &visitor.relational_keys {
                 match &rk.key_type {
-                    crate::visitors::model::field::FieldKeyType::Relational { definition, model } => {
+                    crate::visitors::model::field::FieldKeyType::Relational { definition, model, is_vec } => {
                          let def_s = path_last_segment(definition).unwrap().to_string();
                          let mod_s = path_last_segment(model).unwrap().to_string();
                          add_field(rk, quote! {
@@ -1746,7 +1978,7 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     }
                     for rk in &visitor.relational_keys {
                         match &rk.key_type {
-                            crate::visitors::model::field::FieldKeyType::Relational { definition, model } => {
+                            crate::visitors::model::field::FieldKeyType::Relational { definition, model, is_vec } => {
                                 let def_s = path_last_segment(definition).unwrap().to_string();
                                 let mod_s = path_last_segment(model).unwrap().to_string();
                                 add_field(rk, quote! {

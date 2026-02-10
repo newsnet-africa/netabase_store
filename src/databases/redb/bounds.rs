@@ -19,7 +19,7 @@
 //! usage site, these traits are primarily for documentation. When you need full
 //! redb compatibility, use `RedbNetbaseModel` directly with all its required bounds.
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use netabase_store::traits::registry::models::model::redb_model::RedbNetbaseModel;
 //!
 //! fn process_model<'db, D, M>(model: &M)
@@ -56,7 +56,7 @@ use crate::traits::registry::{
 ///
 /// For new generic code that needs redb support, follow this pattern:
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// use netabase_store::traits::registry::models::model::redb_model::RedbNetbaseModel;
 /// use netabase_store::traits::registry::models::keys::{NetabaseModelKeys, blob::NetabaseModelBlobKey};
 ///

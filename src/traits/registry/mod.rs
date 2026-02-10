@@ -21,7 +21,7 @@
 //!
 //! # Example
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use netabase_store::prelude::*;
 //! use serde::{Serialize, Deserialize};
 //!

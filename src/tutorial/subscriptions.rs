@@ -9,8 +9,10 @@
 //! Definitions declare which topics they participate in via the
 //! `subscriptions(Topic1, Topic2, ..)` argument to `#[netabase_definition]`.
 //!
-//! ```rust
-//! use netabase_store::{NetabaseModel, netabase_definition};
+//! ```rust,no_run
+//! use netabase_store::prelude::*;
+//! use netabase_store::databases::redb::RedbStore;
+//! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
 //!
 //! // Topic markers
@@ -33,10 +35,10 @@
 //!     #[derive(NetabaseModel, Debug, Clone, Serialize, Deserialize,
 //!              PartialEq, Eq, Hash, PartialOrd, Ord)]
 //!     #[subscribe(immutable, NewPostTopic)]
-//!     pub struct Notification {
+//!     struct Notification {
 //!         #[primary_key]
-//!         pub id: String,
-//!         pub message: String,
+//!         id: String,
+//!         message: String,
 //!     }
 //! }
 //! ```

@@ -29,16 +29,20 @@ This guide will walk you through the `netabase_store_examples` crate, which demo
 
 ```bash
 # Build the examples
-cargo build -p netabase_store_examples
+cargo build -p example
 
 # Run the main example
-cargo run -p netabase_store_examples
+cargo run -p example --bin example
 
 # Run tests
-cargo test -p netabase_store_examples
+cargo test -p example
 
 # Run benchmarks
-cargo bench -p netabase_store_examples
+cargo bench -p example
+
+# Run specific examples
+cargo run -p example --example merkle_sync
+cargo run -p example --example selective_subscriptions
 ```
 
 ---
@@ -66,7 +70,7 @@ cargo bench -p netabase_store_examples
 
 ## Simple Example
 
-Let's create a simple model and store it:
+Let's create a simple model and store it using a standalone `RedbStore`:
 
 ```rust
 use netabase_store::prelude::*;
@@ -98,7 +102,8 @@ mod my_models {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use my_models::*;
 
-    // Step 2: Create an in-memory database
+    // Step 2: Create a store for your definition
+    // (using new_temporary for an in-memory database)
     let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
 
     // Step 3: Write data
@@ -384,58 +389,46 @@ let user: User = txn.read(&UserID("alice".into()))?.unwrap();
 
 ## Repository Pattern
 
-Repositories define access boundaries - which models can be accessed together.
+Repositories define access boundaries - which models can be accessed together. They encapsulate multiple definitions and provide a unified management layer.
 
 ### Why Repositories?
 
-- **Security**: Limit what data different parts of your app can access
-- **Modularity**: Clear boundaries between subsystems
-- **Type safety**: Compile-time enforcement of access rules
+- **Encapsulation**: Definitions are grouped logically (e.g., HR, Inventory).
+- **Type Safety**: The macro generates a `Stores` struct with typed fields for each definition.
+- **Relational Integrity**: Repositories validate that all relational links are contained within the repository boundary.
+- **Cross-Definition Hydration**: Repositories provide the context needed to follow links from one definition to another.
 
 ### Example: Employee Management System
 
 ```rust
-// Define models in separate definitions
 #[netabase_macros::netabase_definition(HR)]
 mod hr {
-    use super::*;
-    
-    #[derive(netabase_macros::NetabaseModel, /* ... */)]
-    pub struct Employee {
-        #[primary_key]
-        pub id: String,
-        pub name: String,
-        pub salary: u64,
-    }
+    /* Employee models ... */
 }
 
 #[netabase_macros::netabase_definition(TimeTracking)]
 mod time {
-    use super::*;
-    
-    #[derive(netabase_macros::NetabaseModel, /* ... */)]
-    pub struct Shift {
-        #[primary_key]
-        pub id: String,
-        pub hours: f32,
-    }
+    /* Shift models ... */
 }
 
-// Create repositories with different access levels
-#[netabase_macros::netabase_repository(
-    EmployeeRepo,
-    definitions(HR, TimeTracking)
-)]
+// Create a repository encapsulating both
+#[netabase_macros::netabase_repository(EmployeeRepo, definitions(HR, TimeTracking))]
 mod employee_repo {}
 
-#[netabase_macros::netabase_repository(
-    PublicRepo,
-    definitions(TimeTracking)  // Can't access HR data
-)]
-mod public_repo {}
-```
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    use employee_repo::EmployeeRepoStores;
 
-See `src/boilerplate_lib/repository_example.rs` for a complete example.
+    // Initialize all stores in the repository
+    let stores = EmployeeRepoStores::new("data/employee_repo")?;
+
+    // Access HR store
+    let hr_txn = stores.hr.begin_write()?;
+    // Access TimeTracking store
+    let time_txn = stores.time_tracking.begin_write()?;
+    
+    Ok(())
+}
+```
 
 ---
 
@@ -679,17 +672,27 @@ See `tests/comprehensive_table_tests.rs::test_merkle_tree_construction` for a co
 Shows all core features in action:
 
 ```bash
-cargo run -p netabase_store_examples
+cargo run -p example --bin example
+```
+
+### Runnable Examples
+
+```bash
+# Merkle tree P2P synchronization
+cargo run -p example --example merkle_sync
+
+# Selective subscription control
+cargo run -p example --example selective_subscriptions
 ```
 
 ### Tests
 
 ```bash
 # All tests
-cargo test -p netabase_store_examples
+cargo test -p example
 
 # Specific test
-cargo test -p netabase_store_examples schema_export
+cargo test -p example schema_export
 ```
 
 ### Benchmarks
@@ -698,10 +701,14 @@ Performance benchmarks for CRUD operations:
 
 ```bash
 # Basic CRUD benchmark
-cargo bench -p netabase_store_examples --bench crud
+cargo bench -p example --bench crud
 
 # Stress test
-cargo bench -p netabase_store_examples --bench stress
+cargo bench -p example --bench stress
+
+# Record store benchmark
+cargo bench -p example --bench record_store
+```
 
 # Record store benchmark
 cargo bench -p netabase_store_examples --bench record_store

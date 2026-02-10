@@ -559,12 +559,276 @@ where
         // when actual hydration from database occurs
         Ok(())
     }
+}
 
-    // TODO: Add hydrate_in_repository() method after transaction implementation
-    // This method will load the model from the database within repository context
-    //
-    // Signature: pub fn hydrate_in_repository<Trans>(self, transaction: &Trans) -> Result<Self, RelationalLinkError>
-    // where Trans: NBRepositoryTransaction<'db, R>
+// ============================================================================
+// Hydration Support
+// ============================================================================
+
+/// Trait for hydrating relational links.
+/// 
+/// This trait is implemented for `RelationalLink` with different bounds
+/// depending on whether hydration is within the same definition or across
+/// definitions.
+pub trait Hydratable<'data, 'db> {
+    type Hydrated;
+    type Error;
+    type Transaction;
+    
+    /// Hydrate this link using the provided transaction.
+    fn hydrate(self, txn: &'db Self::Transaction) -> Result<Self::Hydrated, Self::Error>;
+}
+
+impl<'data, R, SourceD, TargetD, M> RelationalLink<'data, R, SourceD, TargetD, M>
+where
+    R: NetabaseRepository,
+    SourceD: NetabaseDefinition + InRepository<R> + 'static,
+    SourceD::Discriminant: std::fmt::Debug,
+    TargetD: NetabaseDefinition + InRepository<R> + 'static,
+    TargetD::Discriminant: std::fmt::Debug,
+    M: crate::traits::registry::models::model::NetabaseModel<TargetD>,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<TargetD, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<TargetD, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<TargetD, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<TargetD, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static,
+{
+    /// Create an owned (hydrated) link from a model that was loaded separately.
+    ///
+    /// This is useful when you've already loaded the model and want to create
+    /// a hydrated link from it.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// // Load the model separately
+    /// let author: Author = txn.read(&author_id)?.unwrap();
+    /// 
+    /// // Create a hydrated link
+    /// let link = RelationalLink::from_loaded(author_id, author);
+    /// ```
+    pub fn from_loaded(
+        primary_key: <M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<TargetD, M>>::Primary,
+        model: M,
+    ) -> Self {
+        Self::Owned {
+            primary_key,
+            model: Box::new(model),
+            _source: SourceD::debug_name(),
+            _repo: std::marker::PhantomData,
+        }
+    }
+}
+
+// ============================================================================
+// Same-Definition Hydration (SourceD == TargetD)
+// ============================================================================
+
+/// Implementation for hydrating links within the same definition.
+/// 
+/// When `SourceD` and `TargetD` are the same, we can use a single definition
+/// transaction to load the related model.
+impl<'data, 'db, R, D, M> RelationalLink<'data, R, D, D, M>
+where
+    R: NetabaseRepository,
+    D: crate::traits::registry::definition::redb_definition::RedbDefinition 
+        + InRepository<R> 
+        + Clone 
+        + 'static,
+    D::Discriminant: std::fmt::Debug + 'static,
+    M: crate::traits::registry::models::model::NetabaseModel<D>
+       + crate::traits::registry::models::model::redb_model::RedbNetbaseModel<'db, D>
+       + crate::databases::redb::transaction::crud::RedbModelCrud<'db, D>
+       + Clone,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Libp2p as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Primary: redb::Key + Clone + 'static,
+    <M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Secondary: redb::Key + Clone + 'static,
+    <M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Relational: redb::Key + Clone + 'static,
+    <M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Blob: redb::Key + 'static,
+    <M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Subscription: 'static,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Blob as crate::traits::registry::models::keys::blob::NetabaseModelBlobKey<D, M>>::BlobItem: redb::Key + 'static,
+    for<'a> <M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Primary: std::borrow::Borrow<<<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Primary as redb::Value>::SelfType<'a>>,
+    for<'a> <M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Blob: std::borrow::Borrow<<<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Blob as redb::Value>::SelfType<'a>>,
+    for<'a> <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Blob as crate::traits::registry::models::keys::blob::NetabaseModelBlobKey<D, M>>::BlobItem: std::borrow::Borrow<<<<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Blob as crate::traits::registry::models::keys::blob::NetabaseModelBlobKey<D, M>>::BlobItem as redb::Value>::SelfType<'a>>,
+    for<'a> <M as crate::traits::registry::models::model::redb_model::RedbNetbaseModel<'db, D>>::TableV: redb::Value<SelfType<'a> = M>,
+    D::SubscriptionKeys: redb::Key + 'static,
+{
+    /// Hydrate this link using a transaction from the same definition.
+    ///
+    /// Since both source and target are in the same definition `D`, we can
+    /// use a single `RedbTransaction<D>` to load the related model.
+    ///
+    /// # Arguments
+    ///
+    /// * `txn` - A read transaction for definition `D`
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Self)` with the `Owned` variant containing the loaded model
+    /// * `Err(RelationalLinkError::NotFound)` if the model doesn't exist
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// // Within a definition where Post has a link to Author
+    /// let post: Post = txn.read(&post_id)?.unwrap();
+    /// 
+    /// // Hydrate the author link (both Post and Author are in same definition)
+    /// let hydrated_link = post.author.hydrate(&txn, &author_id)?;
+    /// 
+    /// // Access the author
+    /// let author = hydrated_link.get_model().unwrap();
+    /// ```
+    pub fn hydrate(
+        self,
+        txn: &crate::databases::redb::transaction::RedbTransaction<'db, D>,
+        // Pass the key by reference - will be cloned internally
+        key: &<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Primary,
+    ) -> Result<Self, RelationalLinkError>
+    {
+        // If already hydrated, return as-is
+        if self.get_model().is_some() {
+            return Ok(self);
+        }
+        
+        // Read the model from the database using read_by_key (takes owned key)
+        let model = txn.read_by_key::<M>(key.clone())
+            .map_err(|_| RelationalLinkError::NotFound)?
+            .ok_or(RelationalLinkError::NotFound)?;
+        
+        // Return an owned link with the loaded model
+        Ok(Self::from_loaded(key.clone(), model))
+    }
+    
+    /// Convenience method to hydrate using the link's stored key.
+    /// 
+    /// This creates an owned copy of the key for the read operation.
+    /// For better performance when hydrating many links, consider
+    /// storing keys separately and using `hydrate` directly.
+    pub fn hydrate_self(
+        self,
+        txn: &crate::databases::redb::transaction::RedbTransaction<'db, D>,
+    ) -> Result<Self, RelationalLinkError>
+    {
+        // If already hydrated, return as-is
+        if self.get_model().is_some() {
+            return Ok(self);
+        }
+        
+        // Clone the primary key
+        let pk = self.get_primary_key().clone();
+        
+        // Read the model from the database using read_by_key (takes owned key)
+        let model = txn.read_by_key::<M>(pk.clone())
+            .map_err(|_| RelationalLinkError::NotFound)?
+            .ok_or(RelationalLinkError::NotFound)?;
+        
+        // Return an owned link with the loaded model
+        Ok(Self::from_loaded(pk, model))
+    }
+    
+    /// Hydrate this link if it's not already hydrated.
+    ///
+    /// Convenience method that only performs a database read if the link
+    /// is currently dehydrated.
+    pub fn hydrate_if_needed(
+        self,
+        txn: &crate::databases::redb::transaction::RedbTransaction<'db, D>,
+    ) -> Result<Self, RelationalLinkError>
+    {
+        if self.is_dehydrated() {
+            self.hydrate_self(txn)
+        } else {
+            Ok(self)
+        }
+    }
+}
+
+// ============================================================================
+// Vec<RelationalLink> Hydration Helpers
+// ============================================================================
+
+/// Extension trait for hydrating vectors of relational links.
+pub trait HydrateVec<'data, 'db, R, D, M>
+where
+    R: NetabaseRepository,
+    D: crate::traits::registry::definition::redb_definition::RedbDefinition + InRepository<R> + 'static,
+    D::Discriminant: std::fmt::Debug,
+    M: crate::traits::registry::models::model::NetabaseModel<D>,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static,
+{
+    /// Hydrate all links in this vector.
+    ///
+    /// Fails if any link cannot be hydrated.
+    fn hydrate_all(
+        self,
+        txn: &crate::databases::redb::transaction::RedbTransaction<'db, D>,
+    ) -> Result<Vec<RelationalLink<'data, R, D, D, M>>, RelationalLinkError>;
+    
+    /// Hydrate as many links as possible, keeping dehydrated versions for failures.
+    fn hydrate_best_effort(
+        self,
+        txn: &crate::databases::redb::transaction::RedbTransaction<'db, D>,
+    ) -> Vec<RelationalLink<'data, R, D, D, M>>;
+}
+
+impl<'data, 'db, R, D, M> HydrateVec<'data, 'db, R, D, M> for Vec<RelationalLink<'data, R, D, D, M>>
+where
+    R: NetabaseRepository,
+    D: crate::traits::registry::definition::redb_definition::RedbDefinition 
+        + InRepository<R> 
+        + Clone 
+        + 'static,
+    D::Discriminant: std::fmt::Debug + 'static,
+    M: crate::traits::registry::models::model::NetabaseModel<D>
+       + crate::traits::registry::models::model::redb_model::RedbNetbaseModel<'db, D>
+       + crate::databases::redb::transaction::crud::RedbModelCrud<'db, D>
+       + Clone,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Secondary as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Relational as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Blob as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Subscription as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Libp2p as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+    <M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Primary: redb::Key + Clone + 'static,
+    <M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Secondary: redb::Key + Clone + 'static,
+    <M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Relational: redb::Key + Clone + 'static,
+    <M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Blob: redb::Key + 'static,
+    <M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Subscription: 'static,
+    <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Blob as crate::traits::registry::models::keys::blob::NetabaseModelBlobKey<D, M>>::BlobItem: redb::Key + 'static,
+    for<'a> <M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Primary: std::borrow::Borrow<<<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Primary as redb::Value>::SelfType<'a>>,
+    for<'a> <M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Blob: std::borrow::Borrow<<<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Blob as redb::Value>::SelfType<'a>>,
+    for<'a> <<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Blob as crate::traits::registry::models::keys::blob::NetabaseModelBlobKey<D, M>>::BlobItem: std::borrow::Borrow<<<<M::Keys as crate::traits::registry::models::keys::NetabaseModelKeys<D, M>>::Blob as crate::traits::registry::models::keys::blob::NetabaseModelBlobKey<D, M>>::BlobItem as redb::Value>::SelfType<'a>>,
+    for<'a> <M as crate::traits::registry::models::model::redb_model::RedbNetbaseModel<'db, D>>::TableV: redb::Value<SelfType<'a> = M>,
+    D::SubscriptionKeys: redb::Key + 'static,
+{
+    fn hydrate_all(
+        self,
+        txn: &crate::databases::redb::transaction::RedbTransaction<'db, D>,
+    ) -> Result<Vec<RelationalLink<'data, R, D, D, M>>, RelationalLinkError>
+    {
+        self.into_iter()
+            .map(|link| link.hydrate_self(txn))
+            .collect()
+    }
+    
+    fn hydrate_best_effort(
+        self,
+        txn: &crate::databases::redb::transaction::RedbTransaction<'db, D>,
+    ) -> Vec<RelationalLink<'data, R, D, D, M>>
+    {
+        self.into_iter()
+            .map(|link| {
+                let pk = link.get_primary_key().clone();
+                link.hydrate_self(txn).unwrap_or_else(|_| RelationalLink::new_dehydrated(pk))
+            })
+            .collect()
+    }
 }
 
 impl<'data, R, SourceD, TargetD, M> Serialize for RelationalLink<'data, R, SourceD, TargetD, M>

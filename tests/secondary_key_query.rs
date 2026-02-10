@@ -3,19 +3,20 @@
 mod common;
 
 use netabase_store::relational::RelationalLink;
-use example::boilerplate_lib::definition::{
+use example::boilerplate_lib::main_repository::definition::{
     AnotherLargeUserFile, LargeUserFile, User, UserID, UserSecondaryKeys,
     UserFirstName, UserAge,
 };
-use example::boilerplate_lib::{CategoryID, Definition};
+use example::boilerplate_lib::{CategoryID, MainRepositoryStores};
 
 #[test]
 fn test_secondary_key_query_basic() -> Result<(), Box<dyn std::error::Error>> {
-    let (store, db_path) = common::create_test_db::<Definition>("secondary_key_basic")?;
+    let temp_dir = tempfile::tempdir()?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     // Create users with different names and ages
     {
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
 
         let alice = User {
             id: UserID("alice1".into()),
@@ -58,7 +59,7 @@ fn test_secondary_key_query_basic() -> Result<(), Box<dyn std::error::Error>> {
 
     // Query by first_name (secondary key)
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
 
         // Find all users named "Alice"
         let alices = txn.query_by_secondary_key::<User>(
@@ -87,17 +88,17 @@ fn test_secondary_key_query_basic() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(charlies.len(), 0, "Should find no users named Charlie");
     }
 
-    common::cleanup_test_db(db_path);
     Ok(())
 }
 
 #[test]
 fn test_secondary_key_query_by_age() -> Result<(), Box<dyn std::error::Error>> {
-    let (store, db_path) = common::create_test_db::<Definition>("secondary_key_age")?;
+    let temp_dir = tempfile::tempdir()?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     // Create users with different ages
     {
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
 
         for i in 0..5 {
             let user = User {
@@ -118,7 +119,7 @@ fn test_secondary_key_query_by_age() -> Result<(), Box<dyn std::error::Error>> {
 
     // Query by age
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
 
         // Find all 25-year-olds
         let age25 = txn.query_by_secondary_key::<User>(
@@ -145,19 +146,19 @@ fn test_secondary_key_query_by_age() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(age40.len(), 0, "Should find no users aged 40");
     }
 
-    common::cleanup_test_db(db_path);
     Ok(())
 }
 
 #[test]
 fn test_secondary_key_query_update() -> Result<(), Box<dyn std::error::Error>> {
-    let (store, db_path) = common::create_test_db::<Definition>("secondary_key_update")?;
+    let temp_dir = tempfile::tempdir()?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     let user_id = UserID("user1".into());
 
     // Create a user
     {
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         let user = User {
             id: user_id.clone(),
             first_name: "Alice".into(),
@@ -174,7 +175,7 @@ fn test_secondary_key_query_update() -> Result<(), Box<dyn std::error::Error>> {
 
     // Verify we can query by original name
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
         let alices = txn.query_by_secondary_key::<User>(
             &UserSecondaryKeys::FirstName(UserFirstName("Alice".into()))
         )?;
@@ -183,7 +184,7 @@ fn test_secondary_key_query_update() -> Result<(), Box<dyn std::error::Error>> {
 
     // Update the user's name
     {
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         let mut user = txn.read::<User>(&user_id)?.unwrap();
         user.first_name = "Bob".into();
         txn.update(&user)?;
@@ -192,7 +193,7 @@ fn test_secondary_key_query_update() -> Result<(), Box<dyn std::error::Error>> {
 
     // Verify old name returns nothing and new name returns the user
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
         
         let alices = txn.query_by_secondary_key::<User>(
             &UserSecondaryKeys::FirstName(UserFirstName("Alice".into()))
@@ -206,6 +207,5 @@ fn test_secondary_key_query_update() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(bobs[0].id, user_id);
     }
 
-    common::cleanup_test_db(db_path);
     Ok(())
 }

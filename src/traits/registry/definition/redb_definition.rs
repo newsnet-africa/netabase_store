@@ -69,7 +69,7 @@ pub struct DetectedVersion {
     pub record_count: u64,
 }
 
-pub trait RedbDefinition: NetabaseDefinition
+pub trait RedbDefinition: NetabaseDefinition + Clone
 where
     <Self as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
 {
@@ -185,4 +185,50 @@ where
         key: &libp2p::kad::RecordKey,
         provider: &libp2p::PeerId,
     ) -> NetabaseResult<()>;
+
+    // ========================================================================
+    // Dispatch methods for generic CRUD
+    // ========================================================================
+
+    /// Dispatch create operation to specific model implementation.
+    fn dispatch_create(
+        txn: &crate::databases::redb::transaction::NetabaseRedbWriteTransaction<'_, Self>,
+        definition: &Self,
+    ) -> NetabaseResult<()>;
+
+    /// Dispatch read operation to specific model implementation.
+    fn dispatch_read(
+        txn: &crate::databases::redb::transaction::NetabaseRedbReadTransaction<'_, Self>,
+        key: &Self::DefKeys,
+    ) -> NetabaseResult<Option<Self>>
+    where
+        Self: serde::Serialize + for<'de> serde::Deserialize<'de>;
+
+    /// Dispatch update operation to specific model implementation.
+    fn dispatch_update(
+        txn: &crate::databases::redb::transaction::NetabaseRedbWriteTransaction<'_, Self>,
+        definition: &Self,
+    ) -> NetabaseResult<()>;
+
+    /// Dispatch delete operation to specific model implementation.
+    fn dispatch_delete(
+        txn: &crate::databases::redb::transaction::NetabaseRedbWriteTransaction<'_, Self>,
+        key: &Self::DefKeys,
+    ) -> NetabaseResult<()>;
+
+    /// Dispatch list operation (read all) for a specific model variant.
+    fn dispatch_list(
+        txn: &crate::databases::redb::transaction::NetabaseRedbReadTransaction<'_, Self>,
+        discriminant: <Self as strum::IntoDiscriminant>::Discriminant,
+    ) -> NetabaseResult<Vec<Self>>
+    where
+        Self: serde::Serialize + for<'de> serde::Deserialize<'de>;
+
+    /// Dispatch delete_if operation.
+    fn dispatch_delete_if<F>(
+        txn: &crate::databases::redb::transaction::NetabaseRedbWriteTransaction<'_, Self>,
+        predicate: F,
+    ) -> NetabaseResult<()>
+    where
+        F: Fn(&Self) -> bool;
 }

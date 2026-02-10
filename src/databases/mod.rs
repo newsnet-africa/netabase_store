@@ -15,17 +15,10 @@
 //! ```rust
 //! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::traits::database::store::NBStore;
-//! # use serde::{Serialize, Deserialize};
-//! # #[netabase_macros::netabase_definition(MyApp)]
-//! # mod models {
-//! #     use super::*;
-//! #     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-//! #     pub struct User { #[primary_key] pub id: String }
-//! # }
+//! use netabase_store::doc_example::*;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use models::*;
-//! let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
+//! let (store, _temp) = RedbStore::<ExampleDef>::new_temporary()?;
 //! # Ok(())
 //! # }
 //! ```
@@ -34,7 +27,7 @@
 //!
 //! ```rust
 //! use netabase_store::databases::memory::MemoryStore;
-//! use netabase_store::doc_examples::ExampleDef;
+//! use netabase_store::doc_example::ExampleDef;
 //!
 //! # fn main() {
 //! // Fast, no disk I/O, ephemeral data

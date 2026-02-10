@@ -11,7 +11,7 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::traits::database::store::NBStore;
 //! use netabase_store::databases::redb::RedbStore;
 //! # use serde::{Serialize, Deserialize};

@@ -10,7 +10,6 @@
 //!
 //! Core traits for database backends:
 //! - `NBStore` - Database store lifecycle (open, transactions)
-//! - `NBTransaction` - Transaction operations (read, write, commit)
 //! - `NBHash` - Content hashing strategies
 //!
 //! ## `registry` - Type System

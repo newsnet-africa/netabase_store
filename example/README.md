@@ -11,16 +11,16 @@ Examples, tests, and benchmarks for the `netabase_store` embedded database libra
 
 ```bash
 # Run the demonstration
-cargo run -p netabase_store_examples
+cargo run -p example --bin example
 
 # Run all tests
-cargo test -p netabase_store_examples
+cargo test -p example
 
 # Run benchmarks
-cargo bench -p netabase_store_examples
+cargo bench -p example
 
 # Clean up benchmark artifacts (recommended after benchmarks)
-rm -rf boilerplate/tmp/
+rm -rf example/tmp/
 ```
 
 > **Note:** Benchmarks create temporary database files in `./tmp/`. These are automatically cleaned up after each benchmark run via `CleanupGuard`, but if benchmarks are interrupted, you may need to manually clean with `rm -rf ./tmp/`.
@@ -28,23 +28,29 @@ rm -rf boilerplate/tmp/
 ## 📁 Project Structure
 
 ```
-boilerplate/
+example/
 ├── src/
 │   ├── main.rs                    # Feature demonstration program
 │   ├── lib.rs                     # Library exports
 │   └── boilerplate_lib/
 │       ├── mod.rs                 # Main model definitions (User, Post, Category)
 │       ├── repository_example.rs  # Advanced repository pattern
-│       └── simple_repo_example.rs # Simplified repository example
+│       └── simple_def_example.rs  # Simplified definition example
+├── examples/
+│   ├── merkle_sync.rs             # Merkle tree P2P sync example
+│   └── selective_subscriptions.rs # Subscription control example
 ├── tests/
 │   ├── schema_export.rs           # Schema serialization tests
 │   ├── schema_import.rs           # Schema import tests
 │   ├── migration_logic.rs         # Model migration tests
-│   └── macro_test.rs              # Macro expansion tests
+│   ├── content_addressed_test.rs  # Content-addressed model tests
+│   └── networking_capabilities.rs # Networking capabilities tests
 ├── benches/
 │   ├── crud.rs                    # CRUD performance benchmarks
 │   ├── stress.rs                  # High-load stress tests
-│   └── record_store.rs            # Record storage benchmarks
+│   ├── record_store.rs            # Record storage benchmarks
+│   ├── minimal.rs                 # Minimal overhead benchmarks
+│   └── iterators.rs               # Iterator performance benchmarks
 └── GUIDE.md                       # Beginner's guide (start here!)
 ```
 
@@ -86,9 +92,9 @@ boilerplate/
 
 ### Repository Examples
 
-1. **MainRepository**: Combines Definition + DefinitionTwo
-2. **EmployeeRepo**: Demonstrates bounded access patterns
-3. **SimpleRepo**: Minimal repository setup
+1. **MainRepository**: Combines Definition + DefinitionTwo (Proper Pattern)
+2. **EmployeeRepo**: Demonstrates bounded access patterns with multiple repositories
+3. **SimpleDefinition**: Minimal standalone definition (Decoupled Pattern)
 
 ## 💡 Usage Examples
 
@@ -97,13 +103,13 @@ boilerplate/
 ```rust
 use example::*;
 use netabase_store::prelude::*;
-use netabase_store::traits::database::store::NBStore;
 
-// Create store
-let (store, _temp) = RedbStore::<Definition>::new_temporary()?;
+// Initialize repository stores
+let temp_dir = tempfile::tempdir()?;
+let stores = MainRepositoryStores::new(temp_dir.path())?;
 
-// Write
-let txn = store.begin_write()?;
+// Write to 'definition' store
+let txn = stores.definition.begin_write()?;
 txn.create(&User {
     id: UserID("alice".into()),
     first_name: "Alice".into(),
@@ -114,7 +120,7 @@ txn.create(&User {
 txn.commit()?;
 
 // Read
-let txn = store.begin_read()?;
+let txn = stores.definition.begin_read()?;
 let user: Option<User> = txn.read(&UserID("alice".into()))?;
 ```
 
@@ -149,29 +155,42 @@ let new = User::migrate_from(old);
 
 ```bash
 # All tests
-cargo test -p netabase_store_examples
+cargo test -p example
 
 # Schema export (must run before import)
-cargo test -p netabase_store_examples --test 0_schema_export
+cargo test -p example --test 0_schema_export
 
 # Schema import
-cargo test -p netabase_store_examples --test 1_schema_import
+cargo test -p example --test 1_schema_import
 
 # Migration logic
-cargo test -p netabase_store_examples --test migration_logic
+cargo test -p example --test migration_logic
+
+# Content-addressed models
+cargo test -p example --test content_addressed_test
+
+# Networking capabilities
+cargo test -p example --test networking_capabilities
 ```
 
 ## 📊 Benchmarks
 
 ```bash
 # CRUD operations benchmark
-cargo bench -p netabase_store_examples --bench crud
+cargo bench -p example --bench crud
 
 # Stress testing (1000+ records)
-cargo bench -p netabase_store_examples --bench stress
+cargo bench -p example --bench stress
 
 # Record store performance
-cargo bench -p netabase_store_examples --bench record_store
+cargo bench -p example --bench record_store
+
+# Minimal overhead
+cargo bench -p example --bench minimal
+
+# Iterator performance
+cargo bench -p example --bench iterators
+```
 ```
 
 ## 📖 Learning Path

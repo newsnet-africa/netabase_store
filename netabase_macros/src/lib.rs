@@ -1244,93 +1244,14 @@ pub fn generate_cli(input: TokenStream) -> TokenStream {
         .map(|m| syn::Ident::new(&m.name, proc_macro2::Span::call_site()))
         .collect();
 
-    let model_commands = model_idents.iter().map(|model| {
-        let model_lower = model.to_string().to_lowercase();
-
-        quote! {
-            #[command(name = #model_lower, subcommand)]
-            #model(#model::Commands)
-        }
-    });
-
-    let model_modules = model_idents.iter().map(|model| {
-        quote! {
-            pub mod #model {
-                use clap::{Args, Subcommand};
-
-                #[derive(Subcommand, Debug, Clone)]
-                pub enum Commands {
-                    /// Create a new record
-                    Create(CreateArgs),
-                    /// Read a record by ID
-                    Read(ReadArgs),
-                    /// Update a record
-                    Update(UpdateArgs),
-                    /// Delete a record
-                    Delete(DeleteArgs),
-                    /// List all records
-                    List,
-                }
-
-                #[derive(Args, Debug, Clone)]
-                pub struct CreateArgs {
-                    /// JSON string of the record to create
-                    #[arg(short, long)]
-                    pub json: String,
-                }
-
-                #[derive(Args, Debug, Clone)]
-                pub struct ReadArgs {
-                    /// Primary key of the record to read
-                    #[arg(short, long)]
-                    pub id: String,
-                }
-
-                #[derive(Args, Debug, Clone)]
-                pub struct UpdateArgs {
-                    /// Primary key of the record to update
-                    #[arg(short, long)]
-                    pub id: String,
-                    /// JSON string of the updated record
-                    #[arg(short, long)]
-                    pub json: String,
-                }
-
-                #[derive(Args, Debug, Clone)]
-                pub struct DeleteArgs {
-                    /// Primary key of the record to delete
-                    #[arg(short, long)]
-                    pub id: String,
-                }
-            }
-        }
-    });
-
     let cli_name = format_ident!("{}Cli", def_name);
-    let commands_name = format_ident!("{}Commands", def_name);
-
-    let output = quote! {
-        use clap::{Parser, Subcommand, Args};
-
-        #[derive(Parser, Debug)]
-        #[command(name = stringify!(#def_name))]
-        #[command(about = "CLI for interacting with the database store", long_about = None)]
-        pub struct #cli_name {
-            /// Database path
-            #[arg(short, long, default_value = "./database")]
-            pub db_path: String,
-
-            #[command(subcommand)]
-            pub command: #commands_name,
-        }
-
-        #[derive(Subcommand, Debug, Clone)]
-        pub enum #commands_name {
-            #(#model_commands,)*
-        }
-
-        #(#model_modules)*
-    };
+    
+    // Use the shared generator which includes the run method
+    let output = crate::generators::cli::generate_single_definition_cli(
+        &cli_name,
+        &def_name,
+        &model_idents
+    );
 
     output.into()
 }

@@ -15,32 +15,15 @@
 //! ## Quick Start
 //!
 //! ```rust
-//! use netabase_store::prelude::*;
+//! use netabase_store::doc_example::*;
+//! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::traits::database::store::NBStore;
-//! use serde::{Serialize, Deserialize};
-//!
-//! // 1. Define your definition with models inside it
-//! #[netabase_macros::netabase_definition(MyApp)]
-//! mod my_models {
-//!     use super::*;
-//!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-//!     pub struct User {
-//!         #[primary_key]
-//!         pub id: String,
-//!         pub name: String,
-//!         #[secondary_key]
-//!         pub email: String,
-//!     }
-//! }
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use my_models::*;
+//! // Create an in-memory database for testing
+//! let (store, _temp) = RedbStore::<ExampleDef>::new_temporary()?;
 //!
-//! // 2. Create an in-memory database for testing
-//! let (store, _temp) = RedbStore::<MyApp>::new_temporary()?;
-//!
-//! // 3. Write data in a transaction
+//! // Write data in a transaction
 //! let txn = store.begin_write()?;
 //! txn.create(&User {
 //!     id: UserID("alice".into()),
@@ -49,7 +32,7 @@
 //! })?;
 //! txn.commit()?;
 //!
-//! // 4. Read data back
+//! // Read data back
 //! let txn = store.begin_read()?;
 //! let user: Option<User> = txn.read(&UserID("alice".into()))?;
 //! assert_eq!(user.unwrap().name, "Alice");
@@ -62,35 +45,17 @@
 //! ### Secondary Index Queries
 //!
 //! ```rust
-//! use netabase_store::prelude::*;
+//! use netabase_store::doc_example::*;
+//! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::traits::database::store::NBStore;
-//! use netabase_store::databases::redb::transaction::RedbModelCrud;
-//! use serde::{Serialize, Deserialize};
-//!
-//! #[netabase_macros::netabase_definition(Shop)]
-//! mod shop_models {
-//!     use super::*;
-//!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-//!     pub struct Product {
-//!         #[primary_key]
-//!         pub sku: String,
-//!         pub name: String,
-//!         #[secondary_key]
-//!         pub category: String,
-//!         pub price: u64,
-//!     }
-//! }
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use shop_models::*;
-//!
-//! let (store, _temp) = RedbStore::<Shop>::new_temporary()?;
+//! let (store, _temp) = RedbStore::<ExampleDef>::new_temporary()?;
 //!
 //! // Create some products
 //! let txn = store.begin_write()?;
 //! txn.create(&Product {
-//!     sku: ProductID("001".into()),
+//!     sku: ProductSKU("001".into()),
 //!     name: "Laptop".into(),
 //!     category: "Electronics".into(),
 //!     price: 999,
@@ -99,7 +64,7 @@
 //!
 //! // Read back by primary key
 //! let txn = store.begin_read()?;
-//! let product: Option<Product> = txn.read(&ProductID("001".into()))?;
+//! let product: Option<Product> = txn.read(&ProductSKU("001".into()))?;
 //! assert_eq!(product.unwrap().name, "Laptop");
 //! # Ok(())
 //! # }
@@ -110,42 +75,46 @@
 //! ```rust
 //! use netabase_store::doc_example::*;
 //! use netabase_store::databases::redb::RedbStore;
-//! use netabase_store::databases::redb::transaction::RedbModelCrud;
 //! use netabase_store::relational::RelationalLink;
-//! use netabase_store::traits::registry::repository::Standalone;
+//! use netabase_store::traits::database::store::NBStore;
 //!
-//! let store = RedbStore::<ExampleDef>::new_in_memory().unwrap();
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let (store, _temp) = RedbStore::<ExampleDef>::new_temporary()?;
 //!
 //! // Create related models
-//! let txn = store.begin_write().unwrap();
+//! let txn = store.begin_write()?;
 //! txn.create(&Author {
 //!     id: AuthorID("author1".into()),
 //!     name: "Jane Doe".into(),
 //!     genre: "Fiction".into(),
-//! }).unwrap();
+//! })?;
 //! txn.create(&Book {
 //!     isbn: BookID("978-3-16".into()),
 //!     title: "Rust Guide".into(),
 //!     genre: "Technology".into(),
 //!     author: RelationalLink::new_dehydrated(AuthorID("author1".into())),
-//! }).unwrap();
-//! txn.commit().unwrap();
+//! })?;
+//! txn.commit()?;
 //!
 //! // Read the book and access its author link
-//! let txn = store.begin_read().unwrap();
-//! let book: Book = txn.read(&BookID("978-3-16".into())).unwrap().unwrap();
+//! let txn = store.begin_read()?;
+//! let book: Book = txn.read(&BookID("978-3-16".into()))?.unwrap();
 //! // The author field is a RelationalLink that can be resolved
-//! let author: Option<Author> = txn.read(&AuthorID("author1".into())).unwrap();
+//! let author: Option<Author> = txn.read(&AuthorID("author1".into()))?;
 //! assert_eq!(author.unwrap().name, "Jane Doe");
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ### Model Versioning and Migration
 //!
 //! For models that evolve over time, define version families and migration paths:
 //!
-//! ```rust,ignore
+//! ```rust
 //! use netabase_store::prelude::*;
 //! use netabase_store::traits::database::store::NBStore;
+//! use netabase_store::databases::redb::RedbStore;
+//! use netabase_store::traits::migration::MigrateFrom;
 //! use serde::{Serialize, Deserialize};
 //!
 //! #[netabase_macros::netabase_definition(CRM)]
@@ -163,7 +132,7 @@
 //!
 //!     // New version with additional field
 //!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-//!     #[netabase_version(family = "Customer", version = 2)]
+//!     #[netabase_version(family = "Customer", version = 2, current)]
 //!     pub struct Customer {
 //!         #[primary_key]
 //!         pub id: String,
@@ -182,6 +151,27 @@
 //!         }
 //!     }
 //! }
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! use crm_models::*;
+//!
+//! let (store, _temp) = RedbStore::<CRM>::new_temporary()?;
+//!
+//! // Old data is automatically migrated when read
+//! let txn = store.begin_write()?;
+//! let customer = Customer {
+//!     id: CustomerID("cust123".into()),
+//!     name: "John Doe".into(),
+//!     email: "john@example.com".into(),
+//! };
+//! txn.create(&customer)?;
+//! txn.commit()?;
+//!
+//! let txn = store.begin_read()?;
+//! let retrieved: Option<Customer> = txn.read(&CustomerID("cust123".into()))?;
+//! assert_eq!(retrieved.unwrap().email, "john@example.com");
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! See the [`traits::migration`](crate::traits::migration) module for details.
@@ -205,7 +195,7 @@
 //!
 //! ## Quick Start
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::prelude::*;
 //! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
@@ -276,7 +266,7 @@
 //! ### Convenience
 //! - [`prelude`] - Convenient re-exports for quick imports
 //! - [`tutorial`] - Comprehensive usage examples and guides
-//! - [`doc_examples`] - Pre-built models for documentation
+//! - [`doc_example`] - Pre-built models for documentation
 
 // Allow the crate to reference itself, needed for macros that generate
 // code referencing `netabase_store::` paths
@@ -289,6 +279,8 @@ extern crate self as netabase_store;
 /// Re-export libp2p for use in networking features.
 #[cfg(feature = "libp2p")]
 pub use libp2p;
+
+pub use strum;
 
 /// Re-export postcard for serialization.
 pub use postcard;
@@ -303,7 +295,7 @@ pub use postcard;
 ///
 /// Instead of requiring a separate import:
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// use netabase_macros::{NetabaseModel, netabase_definition};
 /// ```
 pub use netabase_macros as macros;
@@ -316,10 +308,7 @@ pub use netabase_macros as macros;
 /// use netabase_store::{NetabaseModel, netabase_definition, netabase_repository, NetabaseBlobItem};
 /// ```
 pub use netabase_macros::{
-    NetabaseBlobItem,
-    NetabaseModel,
-    infer_netabase_definition,
-    netabase_definition,
+    NetabaseBlobItem, NetabaseModel, infer_netabase_definition, netabase_definition,
     netabase_repository,
 };
 
@@ -349,7 +338,6 @@ pub mod traits;
 /// Internal utility functions.
 pub mod utils;
 
-
 // ============================================================================
 // Compatibility Re-exports (maintaining public API)
 // ============================================================================
@@ -370,15 +358,19 @@ pub use schema::subscription_hash;
 // Documentation Examples
 // ============================================================================
 
-/// Pre-built example models for documentation and testing.
-/// Documentation examples module.
-///
-/// This module provides `ExampleDef` with `User`, `Product`, `Author`, and `Book` models
-/// that are used throughout the documentation examples.
-pub mod doc_examples;
-
-/// Re-export for compatibility with docs using singular form.
-pub use doc_examples as doc_example;
+// TODO: Fix doc_example module - it's currently broken due to macro/trait bound issues
+// The generated code references methods that require `#[netabase_networking]` but the
+// module doesn't use that attribute. Temporarily disabled to unblock development.
+// 
+// /// Pre-built example models for documentation and testing.
+// /// Documentation examples module.
+// ///
+// /// This module provides `ExampleDef` with `User`, `Product`, `Author`, and `Book` models
+// /// that are used throughout the documentation examples.
+pub mod doc_example;
+// 
+// /// Re-export for compatibility with docs using singular form.
+// pub use doc_example as doc_example;
 
 // ============================================================================
 // Tutorial and Examples

@@ -12,7 +12,7 @@
 //!
 //! # Examples
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! #[derive(NetabaseModel)]
 //! pub struct Post {
 //!     #[primary_key]
@@ -104,7 +104,7 @@ where
 ///
 /// This trait enables accessing the foreign key from a relational link:
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// // Get the user ID from a post's author link
 /// let author_id: &UserID = post_rel_key.foreign_key();
 ///

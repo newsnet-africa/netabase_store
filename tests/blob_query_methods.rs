@@ -1,21 +1,20 @@
 /// Integration tests for blob storage with large data
 ///
 /// These tests verify that large blob data is correctly stored and retrieved.
-/// The low-level blob query APIs (read_blob_items, list_blob_keys, etc.) are internal
-/// trait methods. See BLOB_QUERY_METHODS.md for architectural details.
 mod common;
 
 use netabase_store::errors::NetabaseResult;
 use netabase_store::relational::RelationalLink;
 use netabase_store::databases::redb::transaction::RedbModelCrud;
-use example::boilerplate_lib::definition::{
+use example::boilerplate_lib::main_repository::definition::{
     AnotherLargeUserFile, LargeUserFile, User, UserID,
 };
-use example::boilerplate_lib::{CategoryID, Definition};
+use example::boilerplate_lib::{CategoryID, MainRepositoryStores};
 
 #[test]
 fn test_blob_storage_single_large_field() -> NetabaseResult<()> {
-    let (store, db_path) = common::create_test_db::<Definition>("blob_single")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     // Create a user with large blob data
     let large_data = vec![42u8; 100_000]; // 100KB of data
@@ -35,14 +34,14 @@ fn test_blob_storage_single_large_field() -> NetabaseResult<()> {
 
     // Create the user
     {
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         txn.create(&user)?;
         txn.commit()?;
     }
 
     // Read back and verify blob data integrity
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
         let retrieved: Option<User> = txn.read(&UserID("user_with_blobs".to_string()))?;
 
         assert!(retrieved.is_some(), "User should exist");
@@ -64,13 +63,13 @@ fn test_blob_storage_single_large_field() -> NetabaseResult<()> {
         assert_eq!(retrieved_user.bio.metadata, "Test metadata");
     }
 
-    common::cleanup_test_db(db_path);
     Ok(())
 }
 
 #[test]
 fn test_blob_storage_multiple_users() -> NetabaseResult<()> {
-    let (store, db_path) = common::create_test_db::<Definition>("blob_multiple")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     // Create multiple users with varying blob sizes
     for i in 0..5 {
@@ -88,14 +87,14 @@ fn test_blob_storage_multiple_users() -> NetabaseResult<()> {
             another: AnotherLargeUserFile(vec![i as u8; 30_000]),
         };
 
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         txn.create(&user)?;
         txn.commit()?;
     }
 
     // Verify all users can be read back with intact blob data
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
 
         for i in 0..5 {
             let user: Option<User> = txn.read(&UserID(format!("user_{}", i)))?;
@@ -115,13 +114,13 @@ fn test_blob_storage_multiple_users() -> NetabaseResult<()> {
         println!("Successfully verified 5 users with multiple blob fields");
     }
 
-    common::cleanup_test_db(db_path);
     Ok(())
 }
 
 #[test]
 fn test_blob_storage_very_large_data() -> NetabaseResult<()> {
-    let (store, db_path) = common::create_test_db::<Definition>("blob_very_large")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     // Create a user with very large blob data (will be chunked)
     let large_bio = vec![1u8; 200_000]; // 200KB
@@ -142,14 +141,14 @@ fn test_blob_storage_very_large_data() -> NetabaseResult<()> {
     };
 
     {
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         txn.create(&user)?;
         txn.commit()?;
     }
 
     // Verify large blobs are correctly stored and retrieved
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
         let retrieved: Option<User> = txn.read(&UserID("large_user".to_string()))?;
 
         assert!(retrieved.is_some());
@@ -169,13 +168,13 @@ fn test_blob_storage_very_large_data() -> NetabaseResult<()> {
         assert_eq!(retrieved_user.bio.metadata, "Very large metadata");
     }
 
-    common::cleanup_test_db(db_path);
     Ok(())
 }
 
 #[test]
 fn test_blob_storage_update_workflow() -> NetabaseResult<()> {
-    let (store, db_path) = common::create_test_db::<Definition>("blob_update")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     let user_id = UserID("updatable_user".to_string());
 
@@ -195,7 +194,7 @@ fn test_blob_storage_update_workflow() -> NetabaseResult<()> {
             another: AnotherLargeUserFile(vec![]),
         };
 
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         txn.create(&user)?;
         txn.commit()?;
     }
@@ -216,14 +215,14 @@ fn test_blob_storage_update_workflow() -> NetabaseResult<()> {
             another: AnotherLargeUserFile(vec![3u8; 60_000]),
         };
 
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         txn.update(&updated_user)?;
         txn.commit()?;
     }
 
     // Verify updated data
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
         let user: Option<User> = txn.read(&user_id)?;
 
         assert!(user.is_some());
@@ -238,13 +237,13 @@ fn test_blob_storage_update_workflow() -> NetabaseResult<()> {
         println!("Successfully updated blob data from 1KB to 80KB + 60KB");
     }
 
-    common::cleanup_test_db(db_path);
     Ok(())
 }
 
 #[test]
 fn test_blob_indices_and_chunk_reading() -> NetabaseResult<()> {
-    let (store, db_path) = common::create_test_db::<Definition>("blob_indices")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     // Create a user with a blob large enough to have multiple chunks
     // 60KB chunk size. Create 150KB blob -> 3 chunks (0, 1, 2)
@@ -266,17 +265,17 @@ fn test_blob_indices_and_chunk_reading() -> NetabaseResult<()> {
     };
 
     {
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         txn.create(&user)?;
         txn.commit()?;
     }
 
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
         let tables = txn.prepare_model::<User>()?;
         
         // Test fetch_blob_indices
-        use example::boilerplate_lib::definition::UserBlobKeys;
+        use example::boilerplate_lib::main_repository::definition::UserBlobKeys;
         let blob_key = UserBlobKeys::Bio { owner: user_id.clone() };
         
         let indices = User::fetch_blob_indices(&blob_key, &tables)?;
@@ -291,27 +290,18 @@ fn test_blob_indices_and_chunk_reading() -> NetabaseResult<()> {
         let chunks = User::read_blob_chunks(&blob_key, &[1], &tables)?;
         assert_eq!(chunks.len(), 1);
         
-        // Verify the chunk data
-        // UserBlobItem is the enum. We need to extract the data.
-        // Since we can't easily unwrap the enum in generic code without knowing the variant,
-        // we assume the test setup ensures the correct variant.
-        // In this test environment, we know it's UserBlobItem::Bio.
-        
-        // Note: read_blob_chunks returns Vec<UserBlobItem>
-        // We can check if we got something.
-        
         // Test read_blob_chunks with multiple indices (0 and 2)
         let chunks = User::read_blob_chunks(&blob_key, &[0, 2], &tables)?;
         assert_eq!(chunks.len(), 2);
     }
 
-    common::cleanup_test_db(db_path);
     Ok(())
 }
 
 #[test]
 fn test_blob_storage_empty_data() -> NetabaseResult<()> {
-    let (store, db_path) = common::create_test_db::<Definition>("blob_empty")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     // Create user with empty blob fields
     let user = User {
@@ -329,14 +319,14 @@ fn test_blob_storage_empty_data() -> NetabaseResult<()> {
     };
 
     {
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         txn.create(&user)?;
         txn.commit()?;
     }
 
     // Verify empty blobs are handled correctly
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
         let retrieved: Option<User> = txn.read(&UserID("empty_blobs".to_string()))?;
 
         assert!(retrieved.is_some());
@@ -349,6 +339,5 @@ fn test_blob_storage_empty_data() -> NetabaseResult<()> {
         println!("Empty blob data handled correctly");
     }
 
-    common::cleanup_test_db(db_path);
     Ok(())
 }

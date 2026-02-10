@@ -328,6 +328,96 @@ fn bench_range_iteration(c: &mut Criterion) {
                             user.id = UserID(format!("user_{:08}", i));
                             user
                         }).collect();
+                        let name = format!("bench_range_iter_{}_{}", db_size, rng.random::<u64>());
+                        let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
+                        let txn = store.begin_write().expect("Failed to begin txn");
+                        {
+                            let mut tables = txn.prepare_model::<User>().expect("Failed to prepare model");
+                            for user in &users {
+                                user.create_entry(&mut tables).expect("Failed to create user");
+                            }
+                        }
+                        txn.commit().expect("Failed to commit");
+                        store
+                    },
+                    |store| {
+                        let txn = store.begin_read().expect("Failed to begin txn");
+                        let tables = txn.prepare_model::<User>().expect("Failed to prepare model");
+                        let start = UserID(format!("user_{:08}", 100));
+                        let end = UserID(format!("user_{:08}", 200));
+                        let iter = User::iter_range(&tables, start..end).expect("Failed to iter range");
+                        let mut count = 0;
+                        for item in iter {
+                            let (_k, v) = item.expect("Failed to read item");
+                            let user = v.value();
+                            black_box(&user);
+                            count += 1;
+                        }
+                        black_box(count);
+                    },
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+
+        // ModelKeyRange-based list_with_key_ranges
+        group.bench_with_input(
+            BenchmarkId::new("list_key_range_vec", db_size),
+            db_size,
+            |b, &db_size| {
+                b.iter_batched(
+                    || {
+                        let mut rng = rand::rng();
+                        let users: Vec<User> = (0..db_size).map(|i| {
+                            let mut user = generate_random_user(&mut rng);
+                            user.id = UserID(format!("user_{:08}", i));
+                            user
+                        }).collect();
+                        let name = format!("bench_key_range_vec_{}_{}", db_size, rng.random::<u64>());
+                        let store = create_test_db::<Definition>(&name).expect("Failed to create DB");
+                        let txn = store.begin_write().expect("Failed to begin txn");
+                        {
+                            let mut tables = txn.prepare_model::<User>().expect("Failed to prepare model");
+                            for user in &users {
+                                user.create_entry(&mut tables).expect("Failed to create user");
+                            }
+                        }
+                        txn.commit().expect("Failed to commit");
+                        store
+                    },
+                    |store| {
+                        let txn = store.begin_read().expect("Failed to begin txn");
+                        let tables = txn.prepare_model::<User>().expect("Failed to prepare model");
+                        let ranges = ModelKeyRange::<Definition, User>::with_primary(SimpleKeyRange::Between {
+                            start: UserID(format!("user_{:08}", 100)),
+                            end:   UserID(format!("user_{:08}", 200)),
+                            start_inclusive: true,
+                            end_inclusive: false,
+                        });
+                        let users = User::list_with_key_ranges(&tables, &ranges, CrudOptions::default())
+                            .expect("Failed to list with key ranges");
+                        let mut count = 0;
+                        for guard in users {
+                            let user = guard.value();
+                            black_box(&user);
+                            count += 1;
+                        }
+                        black_box(count);
+                    },
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+            db_size,
+            |b, &db_size| {
+                b.iter_batched(
+                    || {
+                        let mut rng = rand::rng();
+                        let users: Vec<User> = (0..db_size).map(|i| {
+                            let mut user = generate_random_user(&mut rng);
+                            user.id = UserID(format!("user_{:08}", i));
+                            user
+                        }).collect();
                         
                         let name = format!("bench_range_iter_{}_{}", db_size, rng.random::<u64>());
                         let store = create_test_db::<Definition>(&name).expect("Failed to create DB");

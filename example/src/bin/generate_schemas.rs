@@ -3,8 +3,7 @@
 use netabase_store::prelude::NetabaseDefinition;
 use example::MainRepository;
 use example::repository_example::{EmployeeRepo, ManagerRepo};
-use example::simple_definition::SimpleDefinition;
-use example::simple_repo_example::simple_definition;
+use example::simple_def_example::simple_definition::SimpleDefinition;
 
 use std::fs;
 use std::path::Path;

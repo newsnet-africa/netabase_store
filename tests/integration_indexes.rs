@@ -6,7 +6,6 @@
 
 mod common;
 
-use common::{cleanup_test_db, create_test_db};
 use netabase_store::databases::redb::transaction::RedbModelCrud;
 use netabase_store::errors::NetabaseResult;
 use netabase_store::relational::{
@@ -15,13 +14,14 @@ use netabase_store::relational::{
 use netabase_store::traits::registry::models::model::{NetabaseModel, RedbNetbaseModel};
 
 use example::{
-    AnotherLargeUserFile, CategoryID, Definition, DefinitionSubscriptions, LargeUserFile, Post,
-    PostID, User, UserID,
+    AnotherLargeUserFile, CategoryID, DefinitionSubscriptions, LargeUserFile, Post,
+    PostID, User, UserID, MainRepositoryStores
 };
 
 // #[test]
 fn test_secondary_key_indexes_created() -> NetabaseResult<()> {
-    let (store, db_path) = create_test_db::<Definition>("secondary_indexes")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     // Create users with same names and ages to test multimap behavior
     let users = vec![
@@ -30,7 +30,7 @@ fn test_secondary_key_indexes_created() -> NetabaseResult<()> {
         ("user3", "Bob", 30),   // Different name, same age as user1
     ];
 
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     for (id, name, age) in &users {
         let user = User {
             id: UserID(id.to_string()),
@@ -47,7 +47,7 @@ fn test_secondary_key_indexes_created() -> NetabaseResult<()> {
     txn.commit()?;
 
     // VERIFY: All users can be read back
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -69,18 +69,13 @@ fn test_secondary_key_indexes_created() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    // TODO: Once secondary key query methods are implemented, verify:
-    // - Query by Name("Alice") returns [user1, user2]
-    // - Query by Age(30) returns [user1, user3]
-    // - Query by Name("Bob") returns [user3]
-
-    cleanup_test_db(db_path);
     Ok(())
 }
 
 // #[test]
 fn test_secondary_index_update() -> NetabaseResult<()> {
-    let (store, db_path) = create_test_db::<Definition>("secondary_index_update")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     let user_id = UserID("update_secondary".to_string());
 
@@ -96,7 +91,7 @@ fn test_secondary_index_update() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     txn.create(&user)?;
     txn.commit()?;
 
@@ -112,7 +107,7 @@ fn test_secondary_index_update() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     {
         let table_defs = User::table_definitions();
         let perms = ModelRelationPermissions {
@@ -127,7 +122,7 @@ fn test_secondary_index_update() -> NetabaseResult<()> {
     txn.commit()?;
 
     // VERIFY: User has new name
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -138,17 +133,13 @@ fn test_secondary_index_update() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    // TODO: Once query methods implemented, verify:
-    // - Query by Name("Alice") returns empty
-    // - Query by Name("Bob") returns [user_id]
-
-    cleanup_test_db(db_path);
     Ok(())
 }
 
 // #[test]
 fn test_relational_key_indexes_created() -> NetabaseResult<()> {
-    let (store, db_path) = create_test_db::<Definition>("relational_indexes")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     // Create two users with partner relationship
     let user1_id = UserID("user1".to_string());
@@ -176,13 +167,13 @@ fn test_relational_key_indexes_created() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     txn.create(&user1)?;
     txn.create(&user2)?;
     txn.commit()?;
 
     // VERIFY: Both users exist with correct partner references
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -199,18 +190,13 @@ fn test_relational_key_indexes_created() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    // TODO: Once relational query methods implemented, verify:
-    // - Query by Partner(user2_id) returns [user1_id]
-    // - Query by Partner(user1_id) returns [user2_id]
-    // - Query by Category(cat1) returns [user1_id, user2_id]
-
-    cleanup_test_db(db_path);
     Ok(())
 }
 
 // #[test]
 fn test_post_author_relationship() -> NetabaseResult<()> {
-    let (store, db_path) = create_test_db::<Definition>("post_author")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     // Create user (author)
     let author_id = UserID("author1".to_string());
@@ -225,14 +211,14 @@ fn test_post_author_relationship() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     txn.create(&author)?;
     txn.commit()?;
 
     // Create posts by this author
     let post_ids = vec!["post1", "post2", "post3"];
 
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     for post_id in &post_ids {
         let post = Post {
             id: PostID(post_id.to_string()),
@@ -247,7 +233,7 @@ fn test_post_author_relationship() -> NetabaseResult<()> {
     txn.commit()?;
 
     // VERIFY: All posts exist with correct author
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = Post::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -262,16 +248,13 @@ fn test_post_author_relationship() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    // TODO: Once relational query implemented, verify:
-    // - Query posts by Author(author1) returns [post1, post2, post3]
-
-    cleanup_test_db(db_path);
     Ok(())
 }
 
 // #[test]
 fn test_relational_key_update() -> NetabaseResult<()> {
-    let (store, db_path) = create_test_db::<Definition>("relational_update")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     let user_id = UserID("user_rel_update".to_string());
     let old_partner_id = UserID("old_partner".to_string());
@@ -289,12 +272,12 @@ fn test_relational_key_update() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     txn.create(&user)?;
     txn.commit()?;
 
     // VERIFY: Has old partner
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -316,7 +299,7 @@ fn test_relational_key_update() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     {
         let table_defs = User::table_definitions();
         let perms = ModelRelationPermissions {
@@ -331,7 +314,7 @@ fn test_relational_key_update() -> NetabaseResult<()> {
     txn.commit()?;
 
     // VERIFY: Has new partner
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -352,17 +335,13 @@ fn test_relational_key_update() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    // TODO: Once query implemented, verify:
-    // - Query by Partner(old_partner_id) returns empty
-    // - Query by Partner(new_partner_id) returns [user_id]
-
-    cleanup_test_db(db_path);
     Ok(())
 }
 
 // #[test]
 fn test_subscription_indexes_created() -> NetabaseResult<()> {
-    let (store, db_path) = create_test_db::<Definition>("subscription_indexes")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     // Create users - all Users automatically subscribe to Topic1 and Topic2 (trait-level)
     let user1 = User {
@@ -387,23 +366,23 @@ fn test_subscription_indexes_created() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     txn.create(&user1)?;
     txn.create(&user2)?;
     txn.commit()?;
 
     // Verify subscription tables were created and populated
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     let topic1_subs = txn.query_by_subscription::<User, _>(&DefinitionSubscriptions::Topic1)?;
     assert_eq!(topic1_subs.len(), 2, "Both users subscribed to Topic1");
 
-    cleanup_test_db(db_path);
     Ok(())
 }
 
 // #[test]
 fn test_subscription_update() -> NetabaseResult<()> {
-    let (store, db_path) = create_test_db::<Definition>("subscription_update")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     let user_id = UserID("sub_update_user".to_string());
 
@@ -419,7 +398,7 @@ fn test_subscription_update() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     txn.create(&user)?;
     txn.commit()?;
 
@@ -435,7 +414,7 @@ fn test_subscription_update() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     {
         let table_defs = User::table_definitions();
         let perms = ModelRelationPermissions {
@@ -450,7 +429,7 @@ fn test_subscription_update() -> NetabaseResult<()> {
     txn.commit()?;
 
     // VERIFY: Has new subscription
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -466,17 +445,13 @@ fn test_subscription_update() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    // TODO: Once query implemented, verify:
-    // - Query subscribers to Topic1 returns empty
-    // - Query subscribers to Topic2 returns [user_id]
-
-    cleanup_test_db(db_path);
     Ok(())
 }
 
 // #[test]
 fn test_delete_cleans_all_indexes() -> NetabaseResult<()> {
-    let (store, db_path) = create_test_db::<Definition>("delete_indexes")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     let user_id = UserID("delete_all_indexes".to_string());
 
@@ -492,12 +467,12 @@ fn test_delete_cleans_all_indexes() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     txn.create(&user)?;
     txn.commit()?;
 
     // VERIFY: User exists
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -507,7 +482,7 @@ fn test_delete_cleans_all_indexes() -> NetabaseResult<()> {
     txn.commit()?;
 
     // Delete user
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     {
         let table_defs = User::table_definitions();
         let perms = ModelRelationPermissions {
@@ -523,7 +498,7 @@ fn test_delete_cleans_all_indexes() -> NetabaseResult<()> {
     txn.commit()?;
 
     // VERIFY: User is gone
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -535,14 +510,5 @@ fn test_delete_cleans_all_indexes() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    // TODO: Once query methods implemented, verify:
-    // - Query by Name("Delete Me") returns empty (secondary index cleaned)
-    // - Query by Age(40) returns empty (secondary index cleaned)
-    // - Query by Partner("partner") returns empty (relational index cleaned)
-    // - Query by Category("cat") returns empty (relational index cleaned)
-    // - Query subscribers to Topic1 returns empty (subscription index cleaned)
-    // - Query subscribers to Topic2 returns empty (subscription index cleaned)
-
-    cleanup_test_db(db_path);
     Ok(())
 }

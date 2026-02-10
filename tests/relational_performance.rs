@@ -79,6 +79,68 @@ fn test_relational_query_performance() -> Result<(), Box<dyn std::error::Error>>
 }
 
 #[test]
+fn test_relational_link_hydration() -> Result<(), Box<dyn std::error::Error>> {
+    // Test hydration using the partner field (User -> User, same definition)
+    let (store, db_path) = common::create_test_db::<Definition>("relational_hydration")?;
+
+    // Create two users - one will be the partner of the other
+    let partner_id = UserID("partner1".into());
+    let partner = User {
+        id: partner_id.clone(),
+        first_name: "Jane".into(),
+        last_name: "Partner".into(),
+        age: 28,
+        partner: RelationalLink::new_dehydrated(UserID("none".into())),
+        category: RelationalLink::new_dehydrated(CategoryID("cat1".into())),
+        bio: LargeUserFile::default(),
+        another: AnotherLargeUserFile::default(),
+    };
+    
+    let user_id = UserID("user1".into());
+    let user = User {
+        id: user_id.clone(),
+        first_name: "John".into(),
+        last_name: "Doe".into(),
+        age: 30,
+        partner: RelationalLink::new_dehydrated(partner_id.clone()),
+        category: RelationalLink::new_dehydrated(CategoryID("cat1".into())),
+        bio: LargeUserFile::default(),
+        another: AnotherLargeUserFile::default(),
+    };
+
+    {
+        let txn = store.begin_write()?;
+        txn.create(&partner)?;
+        txn.create(&user)?;
+        txn.commit()?;
+    }
+
+    // Test hydration
+    {
+        let txn = store.begin_read()?;
+        
+        // Read the user
+        let user: User = txn.read(&user_id)?.expect("User should exist");
+        
+        // The partner link should be dehydrated (only has the key)
+        assert!(user.partner.is_dehydrated(), "Partner link should be dehydrated after read");
+        assert_eq!(user.partner.get_primary_key(), &partner_id);
+        
+        // Hydrate the link (same definition: User -> User)
+        let hydrated_link = user.partner.hydrate_self(&txn)?;
+        
+        // Now we should have access to the model
+        assert!(!hydrated_link.is_dehydrated(), "Partner link should be hydrated");
+        let partner_model = hydrated_link.get_model().expect("Should have model after hydration");
+        assert_eq!(partner_model.first_name, "Jane");
+        assert_eq!(partner_model.last_name, "Partner");
+    }
+
+    common::cleanup_test_db(db_path);
+    Ok(())
+}
+
+#[test]
 fn test_relational_query_with_vec() -> Result<(), Box<dyn std::error::Error>> {
     // This test demonstrates querying when models have Vec<RelationalLink<T>>
     // Currently not implemented in the example schema, but this shows the API we want

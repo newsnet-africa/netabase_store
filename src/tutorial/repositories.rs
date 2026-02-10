@@ -9,41 +9,46 @@
 //! A repository is declared with `#[netabase_repository(Name, definitions(...))]`
 //! and acts as the boundary for which definitions can link to each other.
 //!
-//! ```rust
-//! use netabase_store::{NetabaseModel, netabase_definition, netabase_repository};
+//! ```rust,no_run
+//! use netabase_store::prelude::*;
+//! use netabase_store::databases::redb::RedbStore;
+//! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
 //!
-//! #[netabase_definition(UserDef, repos(MainRepo))]
-//! mod users {
+//! #[netabase_repository(MainRepo)]
+//! mod repo {
 //!     use super::*;
 //!
-//!     #[derive(NetabaseModel, Debug, Clone, Serialize, Deserialize,
-//!              PartialEq, Eq, Hash, PartialOrd, Ord)]
-//!     pub struct User {
-//!         #[primary_key]
-//!         pub id: String,
-//!         pub name: String,
+//!     #[netabase_definition(UserDef, repos(MainRepo))]
+//!     pub mod users {
+//!         use super::*;
+//!
+//!         #[derive(NetabaseModel, Debug, Clone, Serialize, Deserialize,
+//!                  PartialEq, Eq, Hash, PartialOrd, Ord)]
+//!         pub struct User {
+//!             #[primary_key]
+//!             pub id: String,
+//!             pub name: String,
+//!         }
+//!     }
+//!
+//!     #[netabase_definition(PostDef, repos(MainRepo))]
+//!     pub mod posts {
+//!         use super::*;
+//!         use netabase_store::relational::RelationalLink;
+//!
+//!         #[derive(NetabaseModel, Debug, Clone, Serialize, Deserialize,
+//!                  PartialEq, Eq, Hash, PartialOrd, Ord)]
+//!         pub struct Post {
+//!             #[primary_key]
+//!             pub id: String,
+//!
+//!             /// Author in another definition but same repository.
+//!             #[link(UserDef, User)]
+//!             pub author: String,
+//!         }
 //!     }
 //! }
-//!
-//! #[netabase_definition(PostDef, repos(MainRepo))]
-//! mod posts {
-//!     use super::*;
-//!
-//!     #[derive(NetabaseModel, Debug, Clone, Serialize, Deserialize,
-//!              PartialEq, Eq, Hash, PartialOrd, Ord)]
-//!     pub struct Post {
-//!         #[primary_key]
-//!         pub id: String,
-//!
-//!         /// Author in another definition but same repository.
-//!         #[link(UserDef, User)]
-//!         pub author: String,
-//!     }
-//! }
-//!
-//! #[netabase_repository(MainRepo, definitions(UserDef, PostDef))]
-//! mod repo {}
 //! ```
 //!
 //! The macros generate a `MainRepo` marker type, definition and model

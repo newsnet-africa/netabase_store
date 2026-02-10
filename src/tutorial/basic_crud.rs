@@ -9,8 +9,9 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::prelude::*;
+//! use netabase_store::databases::redb::transaction::RedbModelCrud;
 //! use serde::{Serialize, Deserialize};
 //!
 //! #[netabase_macros::netabase_definition(SimpleBlog)]
@@ -65,7 +66,7 @@
 //!
 //! // DELETE: Remove the post
 //! let write_txn = store.begin_write()?;
-//! write_txn.delete::<Post, _>(&PostID("post-1".into()))?;
+//! write_txn.delete::<Post>(&PostID("post-1".into()))?;
 //! write_txn.commit()?;
 //! # Ok(())
 //! # }

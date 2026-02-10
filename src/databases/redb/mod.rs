@@ -18,7 +18,7 @@
 //!
 //! # Quick Start
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::prelude::*;
 //! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
@@ -61,11 +61,19 @@
 //!
 //! RedbStore tracks schema versions and can detect when migration is needed:
 //!
-//! ```rust,ignore
+//! ```rust
+//! use netabase_store::doc_example::*;
+//! use netabase_store::databases::redb::RedbStore;
+//! use netabase_store::traits::database::store::NBStore;
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let (store, _temp) = RedbStore::<ExampleDef>::new_temporary()?;
 //! if store.needs_migration() {
 //!     let result = store.migrate_all()?;
 //!     println!("Migrated {} records", result.records_migrated);
 //! }
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! # Implementation Details
@@ -240,7 +248,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
     /// use netabase_store::databases::redb::RedbStore;
     /// use myapp::MyAppDef;
     ///
@@ -286,7 +294,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```rust,ignore
+    /// ```rust,no_run
     /// use netabase_store::databases::redb::{RedbStore, migration::MigrationOptions};
     /// use myapp::MyAppDef;
     ///

@@ -90,7 +90,7 @@ impl<'a> SubscriptionCapabilityGenerator<'a> {
         };
 
         quote! {
-            pub struct #subscription_name<D: netabase_store::traits::registry::definition::network::NetworkDefinition + 'static>
+            pub struct #subscription_name<D: netabase::data::store::network::NetworkDefinition + 'static>
             where
                 D::Discriminant: std::fmt::Debug,
                 D::SubscriptionKeysDiscriminant: serde::Serialize + serde::de::DeserializeOwned + std::fmt::Debug + Clone + PartialEq + Eq,
@@ -133,7 +133,7 @@ impl<'a> SubscriptionCapabilityGenerator<'a> {
         let cap_struct_name = format_ident!("{}Capabilities", def_name);
         
         quote! {
-            impl netabase_store::traits::registry::definition::network::NetworkDefinition for #def_name {
+            impl netabase::data::store::network::NetworkDefinition for #def_name {
                 type DefinitionCapabilities = #cap_struct_name;
             }
         }

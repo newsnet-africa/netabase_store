@@ -6,11 +6,9 @@
 use netabase_store::databases::redb::RedbStore;
 use netabase_store::relational::RelationalLink;
 use netabase_store::subscription_hash::SubscriptionMerkleTree;
-use netabase_store::traits::database::store::NBStore;
-use example::boilerplate_lib::definition::{AnotherLargeUserFile, LargeUserFile};
+use example::boilerplate_lib::main_repository::definition::{AnotherLargeUserFile, LargeUserFile, Definition, DefinitionSubscriptions};
 use example::boilerplate_lib::{
-    CategoryID, Definition, DefinitionSubscriptions, ImmutablePost, ImmutablePostEnvelope, User,
-    UserID,
+    CategoryID, ImmutablePost, ImmutablePostEnvelope, User, UserID,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -249,7 +247,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Sync Peer 1 -> Peer 2
     // In a real Merkle sync, we would compare root hashes.
     // Here we simulate detecting the missing hash and transferring it.
-    use example::boilerplate_lib::definition::ImmutablePostID;
+    use example::boilerplate_lib::main_repository::definition::ImmutablePostID;
     use example::boilerplate_lib::models::hash_model;
 
     let hash = ImmutablePostID(hash_model(&post));

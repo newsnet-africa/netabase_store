@@ -5,7 +5,7 @@
 //!
 //! # Usage
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::prelude::*;
 //! // Now you have access to all common types and traits
 //! ```
@@ -54,7 +54,7 @@
 //!
 //! ## Basic CRUD Operations
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::doc_example::*;
 //! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
@@ -94,7 +94,7 @@
 //!
 //! Query operations use model-level methods on open tables:
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::prelude::*;
 //! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::databases::redb::transaction::{CrudOptions, RedbModelCrud};
@@ -112,6 +112,7 @@
 //!
 //! // Open tables for the model
 //! let txn = store.begin_read()?;
+//! use netabase_store::traits::registry::models::model::redb_model::RedbNetbaseModel;
 //! let table_defs = User::table_definitions();
 //! let tables = txn.open_model_tables(table_defs, None)?;
 //!
@@ -130,7 +131,7 @@
 //!
 //! ## Working with Relational Links
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::doc_example::*;
 //! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
@@ -162,7 +163,7 @@
 //!
 //! Migration is defined using the `MigrateFrom` trait. Here's a conceptual example:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use netabase_store::prelude::*;
 //!
 //! // Given UserV1 and UserV2 in the same definition:

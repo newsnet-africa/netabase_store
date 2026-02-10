@@ -80,6 +80,8 @@ mod my_models {
 ```rust
 use my_models::*;
 use netabase_store::relational::RelationalLink;
+use netabase_store::traits::database::store::NBStore;
+use netabase_store::databases::redb::RedbStore;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create an in-memory database
@@ -105,18 +107,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let user: Option<User> = txn.read(&UserID("alice".into()))?;
     println!("User: {:?}", user);
 
-    let post: Option<Post> = txn.read(&PostID("post1".into()))?;
-    println!("Post: {:?}", post);
-
     Ok(())
 }
 ```
 
 ## Documentation
 
-- **[Examples & Guide](./boilerplate/GUIDE.md)** - Comprehensive beginner's guide with examples
+- **[Examples & Guide](./example/GUIDE.md)** - Comprehensive beginner's guide with examples
 - **[Architecture](./ARCHITECTURE.md)** - Internal design and implementation details
-- **[Examples Crate](./boilerplate/README.md)** - Runnable examples and benchmarks
+- **[Examples Crate](./example/README.md)** - Runnable examples and benchmarks
 
 ## Core Concepts
 
@@ -167,14 +166,16 @@ mod my_app {
 
 ### Repositories
 
-Repositories enforce access boundaries across multiple definitions:
+Repositories are used to manage **multiple definitions** that need to work together (e.g., cross-definition relational links). They provide a type-safe `Stores` struct for multi-database management:
 
 ```rust
 #[netabase_repository(MainRepo, definitions(Users, Posts, Comments))]
 mod main_repo {}
 
-// Only models from Users, Posts, Comments can be accessed
-let store = RedbRepositoryStore::<MainRepo>::new("data.redb")?;
+// Recommended for multi-definition setups:
+let stores = MainRepoStores::new("repo_folder")?;
+let user_txn = stores.users.begin_read()?;
+let post_txn = stores.posts.begin_read()?;
 ```
 
 ### Schema Migration
@@ -346,24 +347,24 @@ Benchmarks from the examples crate (on typical hardware):
 - **Blob Storage/Retrieval**: ~5-10 MB/sec
 - **Migration**: ~10k-50k records/sec
 
-See [benches/](./boilerplate/benches/) for detailed benchmarks.
+See [benches/](./example/benches/) for detailed benchmarks.
 
 ## Examples
 
-The `boilerplate` crate contains comprehensive examples:
+The `example` crate contains comprehensive examples:
 
 ```bash
 # Run the demonstration
-cargo run -p netabase_store_examples
+cargo run -p example --bin example
 
 # Run tests
-cargo test -p netabase_store_examples
+cargo test -p example
 
 # Run benchmarks
-cargo bench -p netabase_store_examples
+cargo bench -p example
 ```
 
-See [boilerplate/GUIDE.md](./boilerplate/GUIDE.md) for a detailed walkthrough.
+See [example/GUIDE.md](./example/GUIDE.md) for a detailed walkthrough.
 
 ## Architecture
 
@@ -392,10 +393,11 @@ netabase_store/
 │   ├── query.rs              # Query types
 │   └── ...
 ├── netabase_macros/          # Procedural macros
-├── boilerplate/              # Examples and tests
+├── example/                  # Examples and tests
 │   ├── src/                  # Example models
 │   ├── tests/                # Integration tests
 │   ├── benches/              # Performance benchmarks
+│   ├── examples/             # Runnable examples
 │   ├── GUIDE.md              # Beginner's guide
 │   └── README.md
 ├── ARCHITECTURE.md           # Architecture documentation
@@ -416,13 +418,13 @@ cargo test
 
 # Run specific test suite
 cargo test -p netabase_store
-cargo test -p netabase_store_examples
+cargo test -p example
 
 # Run with logging
 RUST_LOG=debug cargo test
 
 # Run benchmarks
-cargo bench -p netabase_store_examples
+cargo bench -p example
 ```
 
 ## Contributing

@@ -27,7 +27,7 @@ use netabase_store::traits::registry::repository::Standalone;
 
 use example::{
     AnotherLargeUserFile, Category, CategoryID, Definition, DefinitionSubscriptions, DefinitionTwo,
-    LargeUserFile, User, UserID,
+    LargeUserFile, User, UserID, MainRepository, MainRepositoryStores,
 };
 
 // ============================================================================
@@ -48,14 +48,15 @@ use example::{
 /// 5. Assert all fields match exactly
 ///
 /// ## User-Facing API Demonstrated
-/// - `store.begin_write()` / `store.begin_read()` - Start read or write transactions
+/// - `stores.definition.begin_write()` / `stores.definition.begin_read()` - Start read or write transactions
 /// - `txn.create(&model)` - Insert a model into the database
 /// - `txn.commit()` - Commit changes atomically
 /// - `User::read_default(&id, &tables)` - Read a model by primary key
 #[test]
 fn test_crud_create_single_model() -> NetabaseResult<()> {
     println!("\n=== Test: Create Single Model ===");
-    let (store, db_path) = create_test_db::<Definition>("crud_create_single")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let db_path = temp_dir.path();
 
     // Prepare test data
     let user_id = UserID("alice_123".to_string());
@@ -67,10 +68,10 @@ fn test_crud_create_single_model() -> NetabaseResult<()> {
         first_name: "Alice Johnson".to_string(),
         last_name: "Test".to_string(),
         age: 28,
-        partner: RelationalLink::<Standalone, Definition, Definition, User>::new_dehydrated(
+        partner: RelationalLink::<MainRepository, Definition, Definition, User>::new_dehydrated(
             partner_id.clone(),
         ),
-        category: RelationalLink::<Standalone, Definition, DefinitionTwo, Category>::new_dehydrated(
+        category: RelationalLink::<MainRepository, Definition, DefinitionTwo, Category>::new_dehydrated(
             category_id.clone(),
         ),
         bio: LargeUserFile {
@@ -80,17 +81,20 @@ fn test_crud_create_single_model() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![10, 20, 30]),
     };
 
+    // Create the repository stores
+    let stores = example::MainRepositoryStores::new(db_path)?;
+
     println!("Creating user: {:?}", user.id);
 
     // Create the model in a write transaction
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     txn.create(&user)?;
     txn.commit()?;
 
     println!("User created and committed");
 
     // Verify: Read back in a new transaction
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -159,7 +163,7 @@ fn test_crud_create_single_model() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    cleanup_test_db(db_path);
+    
     Ok(())
 }
 
@@ -182,7 +186,9 @@ fn test_crud_create_single_model() -> NetabaseResult<()> {
 #[test]
 fn test_crud_update_model_full_verification() -> NetabaseResult<()> {
     println!("\n=== Test: Update Model - Full Verification ===");
-    let (store, db_path) = create_test_db::<Definition>("crud_update_full")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let db_path = temp_dir.path();
+    let stores = example::MainRepositoryStores::new(db_path)?;
 
     let user_id = UserID("updatable_user".to_string());
 
@@ -202,13 +208,13 @@ fn test_crud_update_model_full_verification() -> NetabaseResult<()> {
     };
 
     println!("Creating initial user version");
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     txn.create(&user_v1)?;
     txn.commit()?;
 
     // Verify initial state
     println!("Verifying initial state");
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -236,13 +242,13 @@ fn test_crud_update_model_full_verification() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![10]),
     };
 
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     txn.update(&user_v2)?;
     txn.commit()?;
 
     // Read back and verify all changes
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
         let user: User = txn.read(&user_id)?.expect("User should exist");
 
         assert_eq!(user.first_name, "Updated Name", "Name should be updated");
@@ -276,7 +282,7 @@ fn test_crud_update_model_full_verification() -> NetabaseResult<()> {
         println!("✓ All changes and non-changes verified successfully");
     }
 
-    cleanup_test_db(db_path);
+    
     Ok(())
 }
 
@@ -299,14 +305,16 @@ fn test_crud_update_model_full_verification() -> NetabaseResult<()> {
 #[test]
 fn test_crud_delete_model_state_verification() -> NetabaseResult<()> {
     println!("\n=== Test: Delete Model - State Verification ===");
-    let (store, db_path) = create_test_db::<Definition>("crud_delete_state")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let db_path = temp_dir.path();
+    let stores = example::MainRepositoryStores::new(db_path)?;
 
     let user1_id = UserID("user_to_delete".to_string());
     let user2_id = UserID("user_to_keep".to_string());
 
     // Create two users
     println!("Creating two users");
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
 
     let user1 = User {
         id: user1_id.clone(),
@@ -336,7 +344,7 @@ fn test_crud_delete_model_state_verification() -> NetabaseResult<()> {
 
     // Verify both users exist
     println!("Verifying both users exist");
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -356,13 +364,13 @@ fn test_crud_delete_model_state_verification() -> NetabaseResult<()> {
 
     // Delete user1
     println!("Deleting user1");
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     txn.delete::<User>(&user1_id)?;
     txn.commit()?;
 
     // Verify user1 deleted, user2 remains
     println!("Verifying deletion");
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -385,7 +393,7 @@ fn test_crud_delete_model_state_verification() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    cleanup_test_db(db_path);
+    
     Ok(())
 }
 
@@ -615,12 +623,14 @@ fn test_relational_links_all_variants() -> NetabaseResult<()> {
 #[test]
 fn test_transaction_rollback_on_drop() -> NetabaseResult<()> {
     println!("\n=== Test: Transaction Rollback on Drop ===");
-    let (store, db_path) = create_test_db::<Definition>("txn_rollback")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let db_path = temp_dir.path();
+    let stores = example::MainRepositoryStores::new(db_path)?;
 
     let user_id = UserID("rollback_user".to_string());
 
     // Verify initial state is empty
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -632,7 +642,7 @@ fn test_transaction_rollback_on_drop() -> NetabaseResult<()> {
     // Create a transaction but DON'T commit
     println!("Creating user in transaction that won't be committed");
     {
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
 
         let user = User {
             id: user_id.clone(),
@@ -652,7 +662,7 @@ fn test_transaction_rollback_on_drop() -> NetabaseResult<()> {
 
     // Verify nothing was persisted
     println!("Verifying rollback occurred");
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -670,7 +680,7 @@ fn test_transaction_rollback_on_drop() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    cleanup_test_db(db_path);
+    
     Ok(())
 }
 
@@ -691,10 +701,12 @@ fn test_transaction_rollback_on_drop() -> NetabaseResult<()> {
 #[test]
 fn test_transaction_multiple_models() -> NetabaseResult<()> {
     println!("\n=== Test: Multiple Models in Single Transaction ===");
-    let (store, db_path) = create_test_db::<Definition>("txn_multiple")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let db_path = temp_dir.path();
+    let stores = example::MainRepositoryStores::new(db_path)?;
 
     println!("Creating 3 users in a single transaction");
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
 
     for i in 0..3 {
         let user = User {
@@ -715,7 +727,7 @@ fn test_transaction_multiple_models() -> NetabaseResult<()> {
 
     // Verify all three users exist
     println!("Verifying all users were created atomically");
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -741,7 +753,7 @@ fn test_transaction_multiple_models() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    cleanup_test_db(db_path);
+    
     Ok(())
 }
 
@@ -760,10 +772,12 @@ fn test_transaction_multiple_models() -> NetabaseResult<()> {
 #[test]
 fn test_count_entries_accurate() -> NetabaseResult<()> {
     println!("\n=== Test: Counting Entries ===");
-    let (store, db_path) = create_test_db::<Definition>("count_accurate")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let db_path = temp_dir.path();
+    let stores = example::MainRepositoryStores::new(db_path)?;
 
     // Initial count: 0
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -775,7 +789,7 @@ fn test_count_entries_accurate() -> NetabaseResult<()> {
 
     // Add 5 users
     println!("Adding 5 users");
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     for i in 0..5 {
         let user = User {
             id: UserID(format!("count_user_{}", i)),
@@ -792,7 +806,7 @@ fn test_count_entries_accurate() -> NetabaseResult<()> {
     txn.commit()?;
 
     // Count: 5
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -804,13 +818,13 @@ fn test_count_entries_accurate() -> NetabaseResult<()> {
 
     // Delete 2 users
     println!("Deleting 2 users");
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     txn.delete::<User>(&UserID("count_user_0".to_string()))?;
     txn.delete::<User>(&UserID("count_user_1".to_string()))?;
     txn.commit()?;
 
     // Count: 3
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -820,7 +834,7 @@ fn test_count_entries_accurate() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    cleanup_test_db(db_path);
+    
     Ok(())
 }
 
@@ -835,11 +849,13 @@ fn test_count_entries_accurate() -> NetabaseResult<()> {
 #[test]
 fn test_list_entries_complete() -> NetabaseResult<()> {
     println!("\n=== Test: Listing All Entries ===");
-    let (store, db_path) = create_test_db::<Definition>("list_complete")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let db_path = temp_dir.path();
+    let stores = example::MainRepositoryStores::new(db_path)?;
 
     // Create 4 users with distinct data
     println!("Creating 4 users with distinct data");
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
 
     let users_data = vec![
         ("alice", "Alice Anderson", 28),
@@ -865,7 +881,7 @@ fn test_list_entries_complete() -> NetabaseResult<()> {
 
     // List and verify
     println!("Listing all users");
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -907,7 +923,7 @@ fn test_list_entries_complete() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    cleanup_test_db(db_path);
+    
     Ok(())
 }
 
@@ -933,7 +949,9 @@ fn test_list_entries_complete() -> NetabaseResult<()> {
 #[test]
 fn test_blob_storage_large_data() -> NetabaseResult<()> {
     println!("\n=== Test: Blob Storage - Large Data ===");
-    let (store, db_path) = create_test_db::<Definition>("blob_large")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let db_path = temp_dir.path();
+    let stores = example::MainRepositoryStores::new(db_path)?;
 
     let user_id = UserID("blob_user".to_string());
 
@@ -962,14 +980,14 @@ fn test_blob_storage_large_data() -> NetabaseResult<()> {
     };
 
     // Store
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     txn.create(&user)?;
     txn.commit()?;
     println!("✓ Large blobs stored");
 
     // Read back and verify
     println!("Reading back and verifying blob data integrity");
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -1013,7 +1031,7 @@ fn test_blob_storage_large_data() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    cleanup_test_db(db_path);
+    
     Ok(())
 }
 
@@ -1046,7 +1064,9 @@ fn test_standalone_repository_cross_definition_links() -> NetabaseResult<()> {
     // Actual cross-definition linking would require both Definition and DefinitionTwo
     // to be in the same store, which requires additional setup
 
-    let (store, db_path) = create_test_db::<Definition>("standalone_links")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let db_path = temp_dir.path();
+    let stores = example::MainRepositoryStores::new(db_path)?;
 
     let alice_id = UserID("alice".to_string());
     let bob_id = UserID("bob".to_string());
@@ -1064,7 +1084,7 @@ fn test_standalone_repository_cross_definition_links() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     txn.create(&alice)?;
     txn.commit()?;
 
@@ -1082,13 +1102,13 @@ fn test_standalone_repository_cross_definition_links() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     txn.create(&bob)?;
     txn.commit()?;
 
     // Verify Bob's links
     println!("Verifying Bob's relational links");
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -1129,7 +1149,7 @@ fn test_standalone_repository_cross_definition_links() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    cleanup_test_db(db_path);
+    
     Ok(())
 }
 
@@ -1155,7 +1175,9 @@ fn test_standalone_repository_cross_definition_links() -> NetabaseResult<()> {
 #[test]
 fn test_subscriptions_storage_and_retrieval() -> NetabaseResult<()> {
     println!("\n=== Test: Subscriptions - Storage and Retrieval ===");
-    let (store, db_path) = create_test_db::<Definition>("subscriptions")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let db_path = temp_dir.path();
+    let stores = example::MainRepositoryStores::new(db_path)?;
 
     // Create users with different subscription patterns
     let users = vec![
@@ -1185,7 +1207,7 @@ fn test_subscriptions_storage_and_retrieval() -> NetabaseResult<()> {
     ];
 
     println!("Creating users with various subscription patterns");
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     for (id, _subs, desc) in &users {
         println!("  - {}: {}", id, desc);
         let user = User {
@@ -1204,7 +1226,7 @@ fn test_subscriptions_storage_and_retrieval() -> NetabaseResult<()> {
 
     // Verify each user's subscriptions
     println!("Verifying subscription data");
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -1227,7 +1249,7 @@ fn test_subscriptions_storage_and_retrieval() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    cleanup_test_db(db_path);
+    
     Ok(())
 }
 
@@ -1247,11 +1269,13 @@ fn test_subscriptions_storage_and_retrieval() -> NetabaseResult<()> {
 #[test]
 fn test_read_nonexistent_model() -> NetabaseResult<()> {
     println!("\n=== Test: Reading Non-Existent Model ===");
-    let (store, db_path) = create_test_db::<Definition>("read_nonexistent")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let db_path = temp_dir.path();
+    let stores = example::MainRepositoryStores::new(db_path)?;
 
     let nonexistent_id = UserID("does_not_exist".to_string());
 
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -1266,7 +1290,7 @@ fn test_read_nonexistent_model() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    cleanup_test_db(db_path);
+    
     Ok(())
 }
 
@@ -1281,7 +1305,9 @@ fn test_read_nonexistent_model() -> NetabaseResult<()> {
 #[test]
 fn test_delete_nonexistent_model() -> NetabaseResult<()> {
     println!("\n=== Test: Delete Non-Existent Model ===");
-    let (store, db_path) = create_test_db::<Definition>("delete_nonexistent")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let db_path = temp_dir.path();
+    let stores = example::MainRepositoryStores::new(db_path)?;
 
     // Create one user to ensure database isn't empty
     let existing_id = UserID("existing".to_string());
@@ -1296,7 +1322,7 @@ fn test_delete_nonexistent_model() -> NetabaseResult<()> {
         another: AnotherLargeUserFile(vec![]),
     };
 
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     txn.create(&user)?;
     txn.commit()?;
 
@@ -1304,7 +1330,7 @@ fn test_delete_nonexistent_model() -> NetabaseResult<()> {
     let nonexistent_id = UserID("does_not_exist".to_string());
 
     println!("Attempting to delete non-existent model");
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     let result = txn.delete::<User>(&nonexistent_id);
     txn.commit()?;
 
@@ -1316,7 +1342,7 @@ fn test_delete_nonexistent_model() -> NetabaseResult<()> {
     println!("✓ Delete of non-existent model succeeded gracefully");
 
     // Verify existing user is still there
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -1331,7 +1357,7 @@ fn test_delete_nonexistent_model() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    cleanup_test_db(db_path);
+    
     Ok(())
 }
 
@@ -1345,9 +1371,11 @@ fn test_delete_nonexistent_model() -> NetabaseResult<()> {
 #[test]
 fn test_empty_database_operations() -> NetabaseResult<()> {
     println!("\n=== Test: Empty Database Operations ===");
-    let (store, db_path) = create_test_db::<Definition>("empty_db")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let db_path = temp_dir.path();
+    let stores = example::MainRepositoryStores::new(db_path)?;
 
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -1369,7 +1397,7 @@ fn test_empty_database_operations() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    cleanup_test_db(db_path);
+    
     Ok(())
 }
 
@@ -1397,7 +1425,9 @@ fn test_empty_database_operations() -> NetabaseResult<()> {
 #[test]
 fn test_complex_multi_model_relationships() -> NetabaseResult<()> {
     println!("\n=== Test: Complex Multi-Model Relationships ===");
-    let (store, db_path) = create_test_db::<Definition>("complex_relationships")?;
+    let temp_dir = tempfile::tempdir().map_err(|e| netabase_store::errors::NetabaseError::IoError(e.to_string()))?;
+    let db_path = temp_dir.path();
+    let stores = example::MainRepositoryStores::new(db_path)?;
 
     let alice_id = UserID("alice".to_string());
     let bob_id = UserID("bob".to_string());
@@ -1409,7 +1439,7 @@ fn test_complex_multi_model_relationships() -> NetabaseResult<()> {
     println!("  - Alice ↔ Bob (partners, both in Tech)");
     println!("  - Charlie (separate, in Science)");
 
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
 
     // Alice (links to Bob as partner, Tech category)
     let alice = User {
@@ -1454,7 +1484,7 @@ fn test_complex_multi_model_relationships() -> NetabaseResult<()> {
 
     // Verify the relationship structure
     println!("Verifying relationship structure");
-    let txn = store.begin_read()?;
+    let txn = stores.definition.begin_read()?;
     {
         let table_defs = User::table_definitions();
         let tables = txn.open_model_tables(table_defs, None)?;
@@ -1508,6 +1538,6 @@ fn test_complex_multi_model_relationships() -> NetabaseResult<()> {
     }
     txn.commit()?;
 
-    cleanup_test_db(db_path);
+    
     Ok(())
 }

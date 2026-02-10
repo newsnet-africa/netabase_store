@@ -3,28 +3,26 @@
 /// This test creates a database with a single User record and analyzes
 /// the storage overhead per row, breaking down where each byte goes.
 
-use netabase_store::databases::redb::RedbStore;
-use netabase_store::traits::database::store::NBStore;
 use netabase_store::relational::RelationalLink;
-use example::boilerplate_lib::definition::{
+use example::boilerplate_lib::main_repository::definition::{
     AnotherLargeUserFile, LargeUserFile,
 };
 use example::boilerplate_lib::{
-    CategoryID, Definition, User, UserID,
+    CategoryID, MainRepositoryStores, User, UserID,
 };
 use std::path::PathBuf;
 
 #[test]
 fn analyze_storage_size_per_row() -> Result<(), Box<dyn std::error::Error>> {
-    let db_path = PathBuf::from("/tmp/netabase_size_test");
+    let repo_path = PathBuf::from("/tmp/netabase_size_test");
     
     // Clean up
-    if db_path.exists() {
-        std::fs::remove_dir_all(&db_path).ok();
+    if repo_path.exists() {
+        std::fs::remove_dir_all(&repo_path).ok();
     }
     
-    // Create store and insert a single minimal user
-    let store = RedbStore::<Definition>::new(&db_path)?;
+    // Create repository and insert a single minimal user
+    let stores = MainRepositoryStores::new(&repo_path)?;
     
     let user = User {
         id: UserID("test123".into()),
@@ -38,13 +36,13 @@ fn analyze_storage_size_per_row() -> Result<(), Box<dyn std::error::Error>> {
     };
     
     // Insert user
-    let txn = store.begin_write()?;
+    let txn = stores.definition.begin_write()?;
     txn.create::<User>(&user)?;
     txn.commit()?;
-    drop(store);
+    drop(stores);
     
-    // Get database size
-    let db_file = db_path.join("data.redb");
+    // Get database size for the definition
+    let db_file = repo_path.join("Definition").join("data.redb");
     let total_size = std::fs::metadata(&db_file)?.len();
     
     println!("\n=== STORAGE SIZE ANALYSIS ===\n");
@@ -130,7 +128,7 @@ fn analyze_storage_size_per_row() -> Result<(), Box<dyn std::error::Error>> {
     }
     
     // Clean up
-    std::fs::remove_dir_all(&db_path).ok();
+    std::fs::remove_dir_all(&repo_path).ok();
     
     Ok(())
 }

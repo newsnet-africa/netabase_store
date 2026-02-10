@@ -7,7 +7,7 @@
 //!
 //! ## Input
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use netabase_macros::NetabaseModel;
 //! use serde::{Serialize, Deserialize};
 //!
@@ -27,7 +27,7 @@
 //!
 //! The macro generates approximately:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! // 1. Primary key type alias
 //! pub type UserID = String;
 //!
@@ -92,7 +92,7 @@
 //!
 //! ## Input
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! #[netabase_definition(MyApp)]
 //! mod my_app {
 //!     #[derive(NetabaseModel)]
@@ -114,7 +114,7 @@
 //!
 //! ## Generated Output (Conceptual)
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! // 1. Definition enum wrapping all models
 //! #[derive(Debug, Clone, strum::EnumDiscriminants)]
 //! pub enum MyApp {
@@ -173,7 +173,7 @@
 //!
 //! When you use `#[link(Def, Model)]`:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! #[derive(NetabaseModel)]
 //! pub struct Post {
 //!     #[primary_key]
@@ -186,7 +186,7 @@
 //!
 //! The macro generates:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! // 1. Relational key enum
 //! #[derive(Debug, Clone, Serialize, Deserialize)]
 //! pub enum PostRelationalKeys {
@@ -211,7 +211,7 @@
 //!
 //! When you use `#[blob]`:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! #[derive(NetabaseModel)]
 //! pub struct Document {
 //!     #[primary_key]
@@ -224,7 +224,7 @@
 //!
 //! The macro generates:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! // 1. Blob key enum
 //! #[derive(Debug, Clone, Serialize, Deserialize)]
 //! pub enum DocumentBlobKeys {
@@ -247,7 +247,7 @@
 //!
 //! When you use `#[netabase_version]`:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! #[derive(NetabaseModel)]
 //! #[netabase_version(family = "User", version = 2)]
 //! pub struct UserV2 {
@@ -260,7 +260,7 @@
 //!
 //! The macro generates:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! impl VersionInfo for UserV2 {
 //!     fn family() -> &'static str {
 //!         "User"
@@ -279,9 +279,9 @@
 //!
 //! When models subscribe to topics:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! // In definition
-//! #[netabase_definition(MyApp, topics(NewUser))]
+//! #[netabase_definition(MyApp, subscriptions(NewUser))]
 //! mod my_app {
 //!     #[derive(NetabaseModel)]
 //!     #[subscribe(NewUser)]
@@ -294,7 +294,7 @@
 //!
 //! The macro generates:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! // 1. Subscription keys enum at definition level
 //! #[derive(Debug, Clone, Serialize, Deserialize)]
 //! pub enum MyAppSubscriptionKeys {
@@ -320,7 +320,7 @@
 //!
 //! The macros also generate helper methods:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! // On each model:
 //! impl User {
 //!     /// Create from primary key and full data

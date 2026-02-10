@@ -86,7 +86,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use std::fs;
 use std::path::PathBuf;
-use syn::{ItemMod, Result, parse2, visit_mut::VisitMut};
+use syn::{ItemMod, Result, parse2, visit_mut::VisitMut, parse_quote};
 
 use crate::generators::definition::{DefinitionEnumGenerator, DefinitionTraitGenerator};
 use crate::generators::model::{
@@ -106,7 +106,7 @@ fn generate_repository_registration_marker(visitor: &DefinitionVisitor) -> Token
     let marker_name = format_ident!("__NETABASE_REPO_REGISTRATION_{}", definition_name);
 
     // Get repository names this definition is registered to
-    let repo_names: Vec<_> = visitor.repositories.iter().map(|r| r.to_string()).collect();
+    let repo_names: Vec<_> = visitor.repositories.iter().map(|r| quote!(#r).to_string()).collect();
     let repo_names_lit = repo_names.join(",");
 
     quote! {
@@ -311,7 +311,13 @@ pub fn netabase_definition_attribute(attr: TokenStream, item: TokenStream) -> Re
     }
 
     // 4. Mutate the module content (Transform structs)
-    let mut mutator = ModelMutator::new(definition_name.clone());
+    let repository_type: syn::Type = if let Some(repo) = config.repositories.first() {
+        parse_quote! { #repo }
+    } else {
+        parse_quote! { netabase_store::traits::registry::repository::Standalone }
+    };
+
+    let mut mutator = ModelMutator::new(definition_name.clone(), repository_type);
     mutator.visit_item_mod_mut(&mut module);
 
     // Remove the netabase_definition attribute from the module

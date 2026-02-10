@@ -11,7 +11,6 @@ use netabase_store::macros::{
 use netabase_store::databases::redb::RedbStore;
 use netabase_store::databases::redb::transaction::RedbModelCrud;
 use netabase_store::traits::database::store::NBStore;
-use netabase_store::traits::database::transaction::NBTransaction;
 use serde::{Deserialize, Serialize};
 
 /// Blob payload type used for `#[blob]` tests.

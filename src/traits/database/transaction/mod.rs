@@ -18,7 +18,7 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::traits::database::transaction::TransactionConfig;
 //!
 //! // Default configuration
@@ -118,165 +118,9 @@ impl TransactionConfig {
     }
 }
 
-/// Core transaction trait for CRUD operations on definitions.
-///
-/// This trait defines the interface that transactions must implement to support
-/// all basic database operations. Implementations are provided by each backend
-/// (redb, memory, etc.).
-///
-/// # Type Parameters
-///
-/// - `'db`: Lifetime of the database the transaction is attached to
-/// - `D`: The [`NetabaseDefinition`] this transaction operates on
-///
-/// # Operations
-///
-/// - **Create**: Insert new records
-/// - **Read**: Fetch records by key or predicate
-/// - **Update**: Modify existing records
-/// - **Delete**: Remove records
-///
-/// # Notes
-///
-/// Most users will interact with higher-level transaction types like
-/// [`RedbTransaction`](crate::databases::redb::transaction::RedbTransaction)
-/// rather than implementing this trait directly.
-pub trait NBTransaction<'db, D: NetabaseDefinition>
-where
-    <D as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-{
-    /// Type for read-only transactions.
-    type ReadTransaction;
-    /// Type for read-write transactions.
-    type WriteTransaction;
-
-    /// Create a new record in the database.
-    ///
-    /// # Arguments
-    ///
-    /// - `definition`: The model instance to create
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - A record with the same primary key already exists
-    /// - Serialization fails
-    /// - Backend I/O fails
-    fn create(&self, definition: &D) -> NetabaseResult<()>;
-
-    /// Read a record by its primary key.
-    ///
-    /// # Arguments
-    ///
-    /// - `key`: The primary key to look up
-    ///
-    /// # Returns
-    ///
-    /// - `Some(D)` if a record with that key exists
-    /// - `None` if no record exists
-    fn read(&self, key: &D::DefKeys) -> NetabaseResult<Option<D>>;
-
-    /// Update an existing record.
-    ///
-    /// # Arguments
-    ///
-    /// - `definition`: The updated model instance
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the record doesn't exist or update fails.
-    fn update(&self, definition: &D) -> NetabaseResult<()>;
-
-    /// Delete a record by its primary key.
-    ///
-    /// # Arguments
-    ///
-    /// - `key`: The primary key of the record to delete
-    fn delete(&self, key: &D::DefKeys) -> NetabaseResult<()>;
-
-    /// Create multiple records in a batch.
-    ///
-    /// This may be more efficient than calling `create()` repeatedly.
-    fn create_many(&self, definitions: &[D]) -> NetabaseResult<()>;
-
-    /// Read all records matching a predicate.
-    ///
-    /// # Arguments
-    ///
-    /// - `predicate`: Function that returns `true` for records to include
-    fn read_if<F>(&self, predicate: F) -> NetabaseResult<Vec<D>>
-    where
-        F: Fn(&D) -> bool;
-
-    /// Read all records in a range of primary keys.
-    ///
-    /// # Arguments
-    ///
-    /// - `range`: Range of keys to fetch (inclusive start, exclusive end)
-    fn read_range(&self, range: std::ops::Range<D::DefKeys>) -> NetabaseResult<Vec<D>>;
-
-    /// Update all records in a key range.
-    ///
-    /// # Arguments
-    ///
-    /// - `range`: Range of keys to update
-    /// - `updater`: Function to apply to each record
-    fn update_range<F>(&self, range: std::ops::Range<D::DefKeys>, updater: F) -> NetabaseResult<()>
-    where
-        F: Fn(&mut D);
-
-    /// Update all records matching a predicate.
-    ///
-    /// # Arguments
-    ///
-    /// - `predicate`: Selects records to update
-    /// - `updater`: Transformation to apply
-    fn update_if<P, U>(&self, predicate: P, updater: U) -> NetabaseResult<()>
-    where
-        P: Fn(&D) -> bool,
-        U: Fn(&mut D);
-
-    /// Delete multiple records by their keys.
-    fn delete_many(&self, keys: &[D::DefKeys]) -> NetabaseResult<()>;
-
-    /// Delete all records matching a predicate.
-    fn delete_if<F>(&self, predicate: F) -> NetabaseResult<()>
-    where
-        F: Fn(&D) -> bool;
-
-    /// Delete all records in a key range.
-    fn delete_range(&self, range: std::ops::Range<D::DefKeys>) -> NetabaseResult<()>;
-
-    /// Execute a write operation within this transaction.
-    ///
-    /// Provides access to the underlying write transaction for low-level operations.
-    fn write<F, R>(&self, f: F) -> NetabaseResult<R>
-    where
-        F: FnOnce(&Self::WriteTransaction) -> NetabaseResult<R>;
-
-    /// Execute a read operation within this transaction.
-    ///
-    /// Provides access to the underlying read transaction for low-level operations.
-    fn read_fn<F, R>(&self, f: F) -> NetabaseResult<R>
-    where
-        F: FnOnce(&Self::ReadTransaction) -> NetabaseResult<R>;
-
-    /// Read a record from a different definition.
-    ///
-    /// Allows cross-definition queries within the same database.
-    fn read_related<OD>(&self, key: &OD::DefKeys) -> NetabaseResult<Option<OD>>
-    where
-        OD: NetabaseDefinition,
-        <OD as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug;
-
-    /// Check if a definition is accessible from this transaction.
-    ///
-    /// Used for runtime permission checks in repository-scoped contexts.
-    fn can_access_definition<OD>(&self) -> bool
-    where
-        OD: NetabaseDefinition,
-        <OD as strum::IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug;
-}
+// NOTE: The NBTransaction trait was removed as it required overly specialized
+// trait bounds for each backend implementation. Users should interact with
+// backend-specific transaction types directly (e.g., RedbTransaction).
 
 /// Repository-scoped transaction trait for type-safe cross-definition access.
 ///

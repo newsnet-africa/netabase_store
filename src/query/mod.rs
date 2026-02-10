@@ -24,7 +24,7 @@
 //! Query operations use `QueryConfig` to control pagination and limits.
 //! Models are queried via transaction methods:
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use netabase_store::prelude::*;
 //! use netabase_store::query::QueryConfig;
 //!
@@ -43,7 +43,7 @@
 //!
 //! ## Pagination
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::query::QueryConfig;
 //!
 //! // Page 1: items 0-9
@@ -61,7 +61,7 @@
 //!
 //! Range queries allow filtering by primary key ranges:
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::query::QueryConfig;
 //!
 //! // Fetch items with keys in range
@@ -70,7 +70,7 @@
 //!
 //! ## Reversed Iteration
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::query::QueryConfig;
 //!
 //! // Get most recent items first

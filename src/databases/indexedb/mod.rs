@@ -16,7 +16,7 @@
 //!
 //! # Example (Future API)
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use netabase_store::databases::indexedb::IndexedDbStore;
 //!
 //! // Future API - not yet implemented

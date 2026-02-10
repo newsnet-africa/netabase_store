@@ -3,25 +3,23 @@
 /// This test creates a database and analyzes each individual table's size
 /// to understand exactly where the storage is going.
 
-use netabase_store::databases::redb::RedbStore;
-use netabase_store::traits::database::store::NBStore;
 use netabase_store::relational::RelationalLink;
-use example::boilerplate_lib::definition::{
+use example::boilerplate_lib::main_repository::definition::{
     AnotherLargeUserFile, LargeUserFile,
 };
 use example::boilerplate_lib::{
-    CategoryID, Definition, User, UserID,
+    CategoryID, MainRepositoryStores, User, UserID,
 };
 use std::path::PathBuf;
 use std::fs;
 
 #[test]
 fn detailed_size_per_table() -> Result<(), Box<dyn std::error::Error>> {
-    let db_path = PathBuf::from("/tmp/netabase_detailed_size_test");
+    let repo_path = PathBuf::from("/tmp/netabase_detailed_size_test");
     
     // Clean up
-    if db_path.exists() {
-        std::fs::remove_dir_all(&db_path).ok();
+    if repo_path.exists() {
+        std::fs::remove_dir_all(&repo_path).ok();
     }
     
     println!("\n=== DETAILED SIZE ANALYSIS ===\n");
@@ -29,21 +27,21 @@ fn detailed_size_per_table() -> Result<(), Box<dyn std::error::Error>> {
     // Test 1: Empty database
     println!("1. Empty Database (no records):");
     {
-        let store = RedbStore::<Definition>::new(&db_path)?;
-        drop(store);
+        let stores = MainRepositoryStores::new(&repo_path)?;
+        drop(stores);
         
-        let db_file = db_path.join("data.redb");
+        let db_file = repo_path.join("Definition").join("data.redb");
         let size = fs::metadata(&db_file)?.len();
         println!("   Size: {} bytes ({:.2} KB)", size, size as f64 / 1024.0);
         println!("   This is the baseline overhead for all table structures\n");
         
-        std::fs::remove_dir_all(&db_path).ok();
+        std::fs::remove_dir_all(&repo_path).ok();
     }
     
     // Test 2: Single minimal user
     println!("2. Single Minimal User (empty blobs):");
     {
-        let store = RedbStore::<Definition>::new(&db_path)?;
+        let stores = MainRepositoryStores::new(&repo_path)?;
         
         let user = User {
             id: UserID("test123".into()),
@@ -59,23 +57,23 @@ fn detailed_size_per_table() -> Result<(), Box<dyn std::error::Error>> {
         let user_postcard = postcard::to_allocvec(&user)?;
         println!("   Data size: {} bytes", user_postcard.len());
         
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         txn.create::<User>(&user)?;
         txn.commit()?;
-        drop(store);
+        drop(stores);
         
-        let db_file = db_path.join("data.redb");
+        let db_file = repo_path.join("Definition").join("data.redb");
         let size = fs::metadata(&db_file)?.len();
         println!("   DB size: {} bytes ({:.2} KB)", size, size as f64 / 1024.0);
         println!("   Overhead: {:.1}x\n", size as f64 / user_postcard.len() as f64);
         
-        std::fs::remove_dir_all(&db_path).ok();
+        std::fs::remove_dir_all(&repo_path).ok();
     }
     
     // Test 3: User with 1KB blob
     println!("3. Single User with 1KB blob:");
     {
-        let store = RedbStore::<Definition>::new(&db_path)?;
+        let stores = MainRepositoryStores::new(&repo_path)?;
         
         let user = User {
             id: UserID("test123".into()),
@@ -94,25 +92,25 @@ fn detailed_size_per_table() -> Result<(), Box<dyn std::error::Error>> {
         let user_postcard = postcard::to_allocvec(&user)?;
         println!("   Data size: {} bytes", user_postcard.len());
         
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         txn.create::<User>(&user)?;
         txn.commit()?;
-        drop(store);
+        drop(stores);
         
-        let db_file = db_path.join("data.redb");
+        let db_file = repo_path.join("Definition").join("data.redb");
         let size = fs::metadata(&db_file)?.len();
         println!("   DB size: {} bytes ({:.2} KB)", size, size as f64 / 1024.0);
         println!("   Overhead: {:.1}x\n", size as f64 / user_postcard.len() as f64);
         
-        std::fs::remove_dir_all(&db_path).ok();
+        std::fs::remove_dir_all(&repo_path).ok();
     }
     
     // Test 4: 10 minimal users
     println!("4. Ten Minimal Users:");
     {
-        let store = RedbStore::<Definition>::new(&db_path)?;
+        let stores = MainRepositoryStores::new(&repo_path)?;
         
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         for i in 0..10 {
             let user = User {
                 id: UserID(format!("user{}", i)),
@@ -127,23 +125,23 @@ fn detailed_size_per_table() -> Result<(), Box<dyn std::error::Error>> {
             txn.create::<User>(&user)?;
         }
         txn.commit()?;
-        drop(store);
+        drop(stores);
         
-        let db_file = db_path.join("data.redb");
+        let db_file = repo_path.join("Definition").join("data.redb");
         let size = fs::metadata(&db_file)?.len();
         let size_per_user = size / 10;
         println!("   Total size: {} bytes ({:.2} KB)", size, size as f64 / 1024.0);
         println!("   Per user: {} bytes ({:.2} KB)", size_per_user, size_per_user as f64 / 1024.0);
         
-        std::fs::remove_dir_all(&db_path).ok();
+        std::fs::remove_dir_all(&repo_path).ok();
     }
     
     // Test 5: 100 minimal users
     println!("\n5. One Hundred Minimal Users:");
     {
-        let store = RedbStore::<Definition>::new(&db_path)?;
+        let stores = MainRepositoryStores::new(&repo_path)?;
         
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         for i in 0..100 {
             let user = User {
                 id: UserID(format!("user{}", i)),
@@ -158,23 +156,23 @@ fn detailed_size_per_table() -> Result<(), Box<dyn std::error::Error>> {
             txn.create::<User>(&user)?;
         }
         txn.commit()?;
-        drop(store);
+        drop(stores);
         
-        let db_file = db_path.join("data.redb");
+        let db_file = repo_path.join("Definition").join("data.redb");
         let size = fs::metadata(&db_file)?.len();
         let size_per_user = size / 100;
         println!("   Total size: {} bytes ({:.2} MB)", size, size as f64 / (1024.0 * 1024.0));
         println!("   Per user: {} bytes ({:.2} KB)", size_per_user, size_per_user as f64 / 1024.0);
         
-        std::fs::remove_dir_all(&db_path).ok();
+        std::fs::remove_dir_all(&repo_path).ok();
     }
     
     // Test 6: 1000 minimal users
     println!("\n6. One Thousand Minimal Users:");
     {
-        let store = RedbStore::<Definition>::new(&db_path)?;
+        let stores = MainRepositoryStores::new(&repo_path)?;
         
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         for i in 0..1000 {
             let user = User {
                 id: UserID(format!("user{}", i)),
@@ -189,15 +187,15 @@ fn detailed_size_per_table() -> Result<(), Box<dyn std::error::Error>> {
             txn.create::<User>(&user)?;
         }
         txn.commit()?;
-        drop(store);
+        drop(stores);
         
-        let db_file = db_path.join("data.redb");
+        let db_file = repo_path.join("Definition").join("data.redb");
         let size = fs::metadata(&db_file)?.len();
         let size_per_user = size / 1000;
         println!("   Total size: {} bytes ({:.2} MB)", size, size as f64 / (1024.0 * 1024.0));
         println!("   Per user: {} bytes ({:.2} KB)", size_per_user, size_per_user as f64 / 1024.0);
         
-        std::fs::remove_dir_all(&db_path).ok();
+        std::fs::remove_dir_all(&repo_path).ok();
     }
     
     println!("\n=== ANALYSIS ===");

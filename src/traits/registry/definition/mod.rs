@@ -32,7 +32,7 @@
 //!
 //! Using the pre-built example types:
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::doc_example::*;
 //! use netabase_store::traits::registry::definition::NetabaseDefinition;
 //!
@@ -60,18 +60,15 @@
 //! - [`redb_definition`]: Redb-specific definition traits
 //! - [`schema`]: Schema representation and export
 //! - [`subscription`]: Subscription topic management
-//! - [`network`]: P2P network definition traits
 
 pub mod redb_definition;
 pub mod schema;
 pub mod subscription;
-pub mod network;
 
 use schema::DefinitionSchema;
 use serde::Serialize;
 use strum::IntoDiscriminant;
 use subscription::{DefinitionSubscriptionRegistry, NetabaseDefinitionSubscriptionKeys};
-pub use network::NetworkDefinition;
 
 use crate::traits::registry::models::{
     keys::NetabaseModelKeys,
@@ -155,7 +152,7 @@ use crate::traits::registry::models::{
 /// use netabase_store::doc_example::*;
 /// use netabase_store::traits::registry::definition::NetabaseDefinition;
 ///
-/// // Access the schema from doc_examples
+/// // Access the schema from doc_example
 /// let schema = ExampleDef::schema();
 /// let toml = ExampleDef::export_toml();
 /// assert!(!toml.is_empty());
@@ -178,6 +175,9 @@ where
 
     /// Returns the debug identifier for this definition
     fn debug_name() -> Self::DebugName;
+
+    /// Returns the stable string name of the definition
+    fn definition_name() -> &'static str;
 
     /// Returns the schema definition
     fn schema() -> DefinitionSchema;

@@ -12,7 +12,7 @@ use netabase_store::errors::NetabaseResult;
 use netabase_store::relational::RelationalLink;
 use netabase_store::subscription_hash::{ModelHash, SubscriptionMerkleTree};
 use netabase_store::traits::registry::models::model::NetabaseModel;
-use example::boilerplate_lib::definition::{
+use example::boilerplate_lib::main_repository::definition::{
     AnotherLargeUserFile, DefinitionSubscriptions, LargeUserFile, User, UserID,
 };
 use example::boilerplate_lib::{CategoryID, Definition};
@@ -197,7 +197,7 @@ fn test_merkle_sync_simulation() -> NetabaseResult<()> {
     // 5. Verify the difference
     // Reconstruct Tree A (in memory for simulation)
     let tree_a = {
-        let hashes: Vec<ModelHash> = users_a.iter().map(|u| u.compute_hash()).collect();
+        let hashes: Vec<ModelHash> = users_a.iter().map(|u: &User| u.compute_hash()).collect();
         SubscriptionMerkleTree::from_hashes(hashes)
     };
 

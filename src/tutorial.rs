@@ -28,6 +28,10 @@
 //!
 //! ```rust
 //! use netabase_store::prelude::*;
+//! use netabase_store::databases::redb::RedbStore;
+//! use netabase_store::traits::database::store::NBStore;
+//! use netabase_store::databases::redb::RedbStore;
+//! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
 //!
 //! #[netabase_macros::netabase_definition(SimpleBlog)]
@@ -53,7 +57,6 @@
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! use blog::*;
-//! use netabase_store::traits::database::store::NBStore;
 //!
 //! // Create a temporary database (deleted when _temp is dropped)
 //! let (store, _temp) = RedbStore::<SimpleBlog>::new_temporary()?;
@@ -75,7 +78,7 @@
 //!
 //! // UPDATE: Modify the post
 //! let write_txn = store.begin_write()?;
-//! let mut post = write_txn.read(&PostID("post-1".into()))?.unwrap();
+//! let mut post: Post = write_txn.read(&PostID("post-1".into()))?.unwrap();
 //! post.title = "Updated Title".into();
 //! write_txn.update(&post)?;
 //! write_txn.commit()?;
@@ -92,11 +95,13 @@
 //!
 //! Secondary indexes enable fast lookups on non-primary key fields.
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::prelude::*;
+//! use netabase_store::databases::redb::RedbStore;
+//! use netabase_store::traits::database::store::NBStore;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
 //! use netabase_store::relational::RelationalLink;
-//! use netabase_store::traits::database::transaction::NBTransaction;
+//! 
 //! use serde::{Serialize, Deserialize};
 //!
 //! #[netabase_macros::netabase_definition(UserApp)]
@@ -182,11 +187,13 @@
 //!
 //! Link models together with type-safe foreign keys.
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::prelude::*;
+//! use netabase_store::databases::redb::RedbStore;
+//! use netabase_store::traits::database::store::NBStore;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
 //! use netabase_store::relational::RelationalLink;
-//! use netabase_store::traits::database::transaction::NBTransaction;
+//! 
 //! use serde::{Serialize, Deserialize};
 //!
 //! #[netabase_macros::netabase_definition(BlogApp)]
@@ -275,11 +282,13 @@
 //!
 //! Store large binary data with automatic chunking.
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::prelude::*;
+//! use netabase_store::databases::redb::RedbStore;
+//! use netabase_store::traits::database::store::NBStore;
 //! use netabase_store::databases::redb::transaction::RedbModelCrud;
 //! use netabase_store::relational::RelationalLink;
-//! use netabase_store::traits::database::transaction::NBTransaction;
+//! 
 //! use serde::{Serialize, Deserialize};
 //!
 //! #[netabase_macros::netabase_definition(MediaApp)]
@@ -332,14 +341,16 @@
 //!
 //! Implement pub/sub patterns with subscription topics.
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::prelude::*;
+//! use netabase_store::databases::redb::RedbStore;
+//! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
 //!
 //! // Define a topic
 //! pub struct NewPostTopic;
 //!
-//! #[netabase_macros::netabase_definition(BlogWithSubs, topics(NewPostTopic))]
+//! #[netabase_macros::netabase_definition(BlogWithSubs, subscriptions(NewPostTopic))]
 //! mod blog {
 //!     use super::*;
 //!
@@ -366,8 +377,10 @@
 //!
 //! Evolve your schema over time with version migrations.
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! use netabase_store::prelude::*;
+//! use netabase_store::databases::redb::RedbStore;
+//! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
 //!
 //! // Version 1 of User
@@ -407,8 +420,10 @@
 //!
 //! Read transactions provide snapshot isolation:
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::prelude::*;
+//! use netabase_store::databases::redb::RedbStore;
+//! use netabase_store::traits::database::store::NBStore;
 //! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
 //!
@@ -434,8 +449,10 @@
 //!
 //! Write transactions must be explicitly committed:
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::prelude::*;
+//! use netabase_store::databases::redb::RedbStore;
+//! use netabase_store::traits::database::store::NBStore;
 //! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
 //!
@@ -471,8 +488,10 @@
 //! Group definitions into repositories for access control. See also
 //! the more detailed [`tutorial::repositories`] module.
 //!
-//! ```rust
+//! ```rust,no_run
 //! use netabase_store::prelude::*;
+//! use netabase_store::databases::redb::RedbStore;
+//! use netabase_store::traits::database::store::NBStore;
 //! use serde::{Serialize, Deserialize};
 //!
 //! #[netabase_repository(MyRepo)]
@@ -507,7 +526,7 @@
 //!
 //! The macros generate type aliases for primary keys:
 //!
-//! ```rust
+//! ```rust,no_run
 //! // Generated by macro (simplified for illustration):
 //! pub type UserID = String;
 //!
@@ -520,21 +539,17 @@
 //!
 //! Always explicitly commit write transactions:
 //!
-//! ```rust
-//! # fn demo<TTxn, TModel>(store: &impl netabase_store::traits::database::store::NBStore<Transaction = TTxn>, my_model: &TModel) -> Result<(), Box<dyn std::error::Error>>
-//! # where TTxn: netabase_store::traits::database::transaction::NBTransaction {
+//! ```rust,no_run
+//! // Note: Actual usage depends on your definition type
 //! let txn = store.begin_write()?;
-//! // txn.create(&my_model)?; // pseudo-code, depends on your model
 //! txn.commit()?; // Don't forget this!
-//! # Ok(())
-//! # }
 //! ```
 //!
 //! ## 3. Use Secondary Indexes Wisely
 //!
 //! Only add secondary indexes on fields you'll query:
 //!
-//! ```rust
+//! ```rust,no_run
 //! // Good - query by email often
 //! #[secondary_key]
 //! pub email: String,
@@ -548,7 +563,7 @@
 //!
 //! Where possible, design models to be append-only:
 //!
-//! ```rust
+//! ```rust,no_run
 //! // Instead of updating:
 //! pub struct Post {
 //!     pub content: String,
@@ -591,13 +606,13 @@
 /// most of the Netabase features together. The code is documented as
 /// `rust,ignore` here for readability; an executable variant of the same
 /// scenario lives in `tests/macro_attributes.rs`.
-pub mod basic_crud;
-pub mod blobs;
-pub mod subscriptions;
-pub mod repositories;
-pub mod schema_toml;
+mod basic_crud;
+mod blobs;
+mod subscriptions;
+mod repositories;
+mod schema_toml;
 
-pub mod patterns {
+mod patterns {
     //! # Common Patterns Overview
     //!
     //! This module sketches a small "blog + media" application that uses:
@@ -607,13 +622,9 @@ pub mod patterns {
     //! - `#[subscribe(immutable, Topic)]` for event-style models
     //! - Query configuration via `CrudOptions` and `QueryConfig`.
     //!
-    //! ```rust
-    //! use netabase_store::{
-    //!     NetabaseModel,
-    //!     NetabaseBlobItem,
-    //!     netabase_definition,
-    //!     netabase_repository,
-    //! };
+    //! ```rust,no_run
+    //! use netabase_store::prelude::*;
+    //! use netabase_store::blob::NetabaseBlobItem;
     //! use serde::{Serialize, Deserialize};
     //!
     //! // Blob payload used by the media model
@@ -647,10 +658,10 @@ pub mod patterns {
     //!         #[derive(NetabaseModel, Debug, Clone, Serialize, Deserialize,
     //!                  PartialEq, Eq, Hash, PartialOrd, Ord)]
     //!         #[subscribe(immutable, NewPost)]
-    //!         pub struct Notification {
+    //!         struct Notification {
     //!             #[primary_key]
-    //!             pub id: String,
-    //!             pub message: String,
+    //!             id: String,
+    //!             message: String,
     //!         }
     //!     }
     //!

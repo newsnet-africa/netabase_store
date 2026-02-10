@@ -135,13 +135,13 @@ pub struct DefinitionAttributeConfig {
     /// Optional file path to import schema from
     pub from_file: Option<String>,
     /// Repository identifiers this definition belongs to
-    pub repositories: Vec<syn::Ident>,
+    pub repositories: Vec<syn::Path>,
 }
 
 impl DefinitionAttributeConfig {
     /// Check if this definition belongs to a specific repository
     pub fn belongs_to_repository(&self, repo_name: &syn::Ident) -> bool {
-        self.repositories.iter().any(|r| r == repo_name)
+        self.repositories.iter().any(|r| r.is_ident(repo_name))
     }
 
     /// Check if this definition has any repository memberships
@@ -162,7 +162,7 @@ pub fn parse_definition_attribute_from_tokens(
         definition: Path,
         subscriptions: Vec<Path>,
         from_file: Option<String>,
-        repositories: Vec<syn::Ident>,
+        repositories: Vec<syn::Path>,
     }
 
     impl Parse for DefinitionAttr {
@@ -174,7 +174,10 @@ pub fn parse_definition_attribute_from_tokens(
             let mut repositories = Vec::new();
 
             while !input.is_empty() {
-                let _comma: Token![,] = input.parse()?;
+                if input.peek(Token![,]) {
+                    let _comma: Token![,] = input.parse()?;
+                }
+                
                 if input.is_empty() {
                     break;
                 }
@@ -193,8 +196,8 @@ pub fn parse_definition_attribute_from_tokens(
                 } else if ident == "repos" {
                     let content;
                     syn::parenthesized!(content in input);
-                    let repo_list: syn::punctuated::Punctuated<syn::Ident, Token![,]> =
-                        content.parse_terminated(Parse::parse, Token![,])?;
+                    let repo_list: syn::punctuated::Punctuated<syn::Path, Token![,]> =
+                        content.parse_terminated(syn::Path::parse, Token![,])?;
                     repositories = repo_list.into_iter().collect();
                 } else {
                     return Err(Error::new(

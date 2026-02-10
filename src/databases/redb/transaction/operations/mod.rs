@@ -15,7 +15,7 @@
 //!
 //! These operations are available directly on [`RedbTransaction`](super::RedbTransaction):
 //!
-//! ```rust,ignore
+//! ```rust,no_run
 //! // Create
 //! txn.create(&model)?;
 //!

@@ -17,6 +17,8 @@
 //!
 //! ```rust
 //! use netabase_store::prelude::*;
+//! use netabase_store::databases::redb::RedbStore;
+//! use netabase_store::traits::database::store::NBStore;
 //! use netabase_store::traits::migration::{MigrateFrom, MigrateTo};
 //! use serde::{Serialize, Deserialize};
 //!
@@ -25,7 +27,7 @@
 //!     use super::*;
 //!
 //!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-//!     #[netabase_version(family = \"User\", version = 1)]
+//!     #[netabase_version(family = "User", version = 1)]
 //!     pub struct UserV1 {
 //!         #[primary_key]
 //!         pub id: String,
@@ -33,7 +35,7 @@
 //!     }
 //!
 //!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-//!     #[netabase_version(family = \"User\", version = 2)]
+//!     #[netabase_version(family = "User", version = 2, current)]
 //!     pub struct UserV2 {
 //!         #[primary_key]
 //!         pub id: String,
@@ -57,7 +59,7 @@
 //!         fn migrate_to(&self) -> UserV1 {
 //!             UserV1 {
 //!                 id: self.id.clone(),
-//!                 name: format!(\"{} {}\", self.first_name, self.last_name),
+//!                 name: format!("{} {}", self.first_name, self.last_name),
 //!             }
 //!         }
 //!     }

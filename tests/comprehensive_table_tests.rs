@@ -1,27 +1,27 @@
 //! Comprehensive test suite for all table types and query features
 //!
 //! Tests primary keys, secondary keys, relational links, and blob storage.
-//! Note: Subscription queries currently blocked by macro issue - see SUBSCRIPTION_HASH_IMPLEMENTATION.md
 
 mod common;
 
 use netabase_store::relational::RelationalLink;
 use netabase_store::subscription_hash::{ModelHash, SubscriptionMerkleTree};
-use example::boilerplate_lib::definition::{
+use example::boilerplate_lib::main_repository::definition::{
     AnotherLargeUserFile, LargeUserFile, User, UserAge, UserCategory, UserFirstName, UserID,
     UserLastName, UserRelationalKeys, UserSecondaryKeys,
 };
-use example::boilerplate_lib::{CategoryID, Definition};
+use example::boilerplate_lib::{CategoryID, MainRepositoryStores};
 
 #[test]
 fn test_primary_key_crud() -> Result<(), Box<dyn std::error::Error>> {
-    let (store, db_path) = common::create_test_db::<Definition>("primary_key")?;
+    let temp_dir = tempfile::tempdir()?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     let user_id = UserID("user1".into());
 
     // Create
     {
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         let user = User {
             id: user_id.clone(),
             first_name: "Alice".into(),
@@ -38,7 +38,7 @@ fn test_primary_key_crud() -> Result<(), Box<dyn std::error::Error>> {
 
     // Read
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
         let user = txn.read::<User>(&user_id)?.expect("User should exist");
         assert_eq!(user.first_name, "Alice");
         assert_eq!(user.age, 30);
@@ -46,7 +46,7 @@ fn test_primary_key_crud() -> Result<(), Box<dyn std::error::Error>> {
 
     // Update
     {
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         let mut user = txn.read::<User>(&user_id)?.unwrap();
         user.age = 31;
         txn.update(&user)?;
@@ -55,36 +55,36 @@ fn test_primary_key_crud() -> Result<(), Box<dyn std::error::Error>> {
 
     // Verify update
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
         let user = txn.read::<User>(&user_id)?.unwrap();
         assert_eq!(user.age, 31);
     }
 
     // Delete
     {
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         txn.delete::<User>(&user_id)?;
         txn.commit()?;
     }
 
     // Verify deletion
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
         let user = txn.read::<User>(&user_id)?;
         assert!(user.is_none(), "User should be deleted");
     }
 
-    common::cleanup_test_db(db_path);
     Ok(())
 }
 
 #[test]
 fn test_secondary_key_queries() -> Result<(), Box<dyn std::error::Error>> {
-    let (store, db_path) = common::create_test_db::<Definition>("secondary_key")?;
+    let temp_dir = tempfile::tempdir()?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     // Create multiple users
     {
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
 
         let user1 = User {
             id: UserID("user1".into()),
@@ -127,7 +127,7 @@ fn test_secondary_key_queries() -> Result<(), Box<dyn std::error::Error>> {
 
     // Query by first_name
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
         let users = txn.query_by_secondary_key::<User>(&UserSecondaryKeys::FirstName(
             UserFirstName("Alice".into()),
         ))?;
@@ -138,7 +138,7 @@ fn test_secondary_key_queries() -> Result<(), Box<dyn std::error::Error>> {
 
     // Query by last_name
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
         let users = txn.query_by_secondary_key::<User>(&UserSecondaryKeys::LastName(
             UserLastName("Smith".into()),
         ))?;
@@ -148,7 +148,7 @@ fn test_secondary_key_queries() -> Result<(), Box<dyn std::error::Error>> {
 
     // Query by age
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
         let users = txn.query_by_secondary_key::<User>(&UserSecondaryKeys::Age(UserAge(30)))?;
 
         assert_eq!(users.len(), 2, "Should find 2 users aged 30");
@@ -156,7 +156,7 @@ fn test_secondary_key_queries() -> Result<(), Box<dyn std::error::Error>> {
 
     // Query non-existent
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
         let users = txn.query_by_secondary_key::<User>(&UserSecondaryKeys::FirstName(
             UserFirstName("Charlie".into()),
         ))?;
@@ -164,27 +164,27 @@ fn test_secondary_key_queries() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(users.len(), 0, "Should find no users named Charlie");
     }
 
-    common::cleanup_test_db(db_path);
     Ok(())
 }
 
 #[test]
 fn test_relational_queries_forward() -> Result<(), Box<dyn std::error::Error>> {
-    let (store, db_path) = common::create_test_db::<Definition>("relational_key")?;
+    let temp_dir = tempfile::tempdir()?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     let cat1 = CategoryID("tech".into());
     let cat2 = CategoryID("sports".into());
 
     // Create users with different categories
     {
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
 
         for i in 1..=3 {
             let user = User {
                 id: UserID(format!("user{}", i)),
                 first_name: format!("User{}", i),
                 last_name: "Test".into(),
-                age: 20 + i,
+                age: 20 + i as u8,
                 partner: RelationalLink::new_dehydrated(UserID("none".into())),
                 category: RelationalLink::new_dehydrated(if i < 3 {
                     cat1.clone()
@@ -201,7 +201,7 @@ fn test_relational_queries_forward() -> Result<(), Box<dyn std::error::Error>> {
 
     // Query relations
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
 
         // User 1 -> Tech
         let rels1 = txn.query_relations::<User>(&UserID("user1".into()))?;
@@ -228,20 +228,20 @@ fn test_relational_queries_forward() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    common::cleanup_test_db(db_path);
     Ok(())
 }
 
 #[test]
 fn test_blob_storage() -> Result<(), Box<dyn std::error::Error>> {
-    let (store, db_path) = common::create_test_db::<Definition>("blob_storage")?;
+    let temp_dir = tempfile::tempdir()?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     let user_id = UserID("blob_user".into());
     let large_data = vec![42u8; 100_000]; // 100KB
 
     // Create with blob
     {
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         let user = User {
             id: user_id.clone(),
             first_name: "BlobUser".into(),
@@ -261,7 +261,7 @@ fn test_blob_storage() -> Result<(), Box<dyn std::error::Error>> {
 
     // Read and verify blob
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
         let user = txn.read::<User>(&user_id)?.unwrap();
 
         assert_eq!(user.bio.data.len(), 100_000);
@@ -272,7 +272,7 @@ fn test_blob_storage() -> Result<(), Box<dyn std::error::Error>> {
 
     // Update blob
     {
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         let mut user = txn.read::<User>(&user_id)?.unwrap();
         user.bio.data = vec![99u8; 50_000];
         user.bio.metadata = "Updated bio".into();
@@ -282,7 +282,7 @@ fn test_blob_storage() -> Result<(), Box<dyn std::error::Error>> {
 
     // Verify update
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
         let user = txn.read::<User>(&user_id)?.unwrap();
 
         assert_eq!(user.bio.data.len(), 50_000);
@@ -290,14 +290,11 @@ fn test_blob_storage() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(user.bio.metadata, "Updated bio");
     }
 
-    common::cleanup_test_db(db_path);
     Ok(())
 }
 
 #[test]
 fn test_model_hash_computation() -> Result<(), Box<dyn std::error::Error>> {
-    let (_store, db_path) = common::create_test_db::<Definition>("model_hash")?;
-
     let user1 = User {
         id: UserID("user1".into()),
         first_name: "Alice".into(),
@@ -336,18 +333,18 @@ fn test_model_hash_computation() -> Result<(), Box<dyn std::error::Error>> {
     let parsed = ModelHash::from_hex(&hex)?;
     assert_eq!(hash1, parsed);
 
-    common::cleanup_test_db(db_path);
     Ok(())
 }
 
 #[test]
 fn test_merkle_tree_construction() -> Result<(), Box<dyn std::error::Error>> {
-    let (store, db_path) = common::create_test_db::<Definition>("merkle_tree")?;
+    let temp_dir = tempfile::tempdir()?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     // Create multiple users
     let mut hashes = Vec::new();
     {
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
 
         for i in 1..=5 {
             let user = User {
@@ -392,19 +389,19 @@ fn test_merkle_tree_construction() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(diff.missing_in_other.len(), 1);
     assert_eq!(diff.missing_in_self.len(), 1);
 
-    common::cleanup_test_db(db_path);
     Ok(())
 }
 
 #[test]
 fn test_index_maintenance_on_update() -> Result<(), Box<dyn std::error::Error>> {
-    let (store, db_path) = common::create_test_db::<Definition>("index_maintenance")?;
+    let temp_dir = tempfile::tempdir()?;
+    let stores = MainRepositoryStores::new(temp_dir.path())?;
 
     let user_id = UserID("user1".into());
 
     // Create
     {
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         let user = User {
             id: user_id.clone(),
             first_name: "Alice".into(),
@@ -421,7 +418,7 @@ fn test_index_maintenance_on_update() -> Result<(), Box<dyn std::error::Error>> 
 
     // Verify initial indexes
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
 
         let by_name = txn.query_by_secondary_key::<User>(&UserSecondaryKeys::FirstName(
             UserFirstName("Alice".into()),
@@ -454,7 +451,7 @@ fn test_index_maintenance_on_update() -> Result<(), Box<dyn std::error::Error>> 
 
     // Update - change secondary and relational keys
     {
-        let txn = store.begin_write()?;
+        let txn = stores.definition.begin_write()?;
         let mut user = txn.read::<User>(&user_id)?.unwrap();
         user.first_name = "Alicia".into();
         user.category = RelationalLink::new_dehydrated(CategoryID("cat2".into()));
@@ -464,7 +461,7 @@ fn test_index_maintenance_on_update() -> Result<(), Box<dyn std::error::Error>> 
 
     // Verify indexes updated
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
 
         let by_old_name = txn.query_by_secondary_key::<User>(&UserSecondaryKeys::FirstName(
             UserFirstName("Alice".into()),
@@ -495,7 +492,7 @@ fn test_index_maintenance_on_update() -> Result<(), Box<dyn std::error::Error>> 
 
     // Verify new indexes added (Secondary)
     {
-        let txn = store.begin_read()?;
+        let txn = stores.definition.begin_read()?;
 
         let by_new_name = txn.query_by_secondary_key::<User>(&UserSecondaryKeys::FirstName(
             UserFirstName("Alicia".into()),
@@ -503,6 +500,5 @@ fn test_index_maintenance_on_update() -> Result<(), Box<dyn std::error::Error>> 
         assert_eq!(by_new_name.len(), 1, "New name index should exist");
     }
 
-    common::cleanup_test_db(db_path);
     Ok(())
 }

@@ -87,7 +87,7 @@ pub struct DefinitionVisitor {
     pub subscriptions: DefinitionSubscriptions,
     pub nested_definitions: Vec<DefinitionVisitor>,
     /// Repository identifiers this definition belongs to
-    pub repositories: Vec<syn::Ident>,
+    pub repositories: Vec<syn::Path>,
     /// Model families grouped by family name (populated after visiting).
     pub model_families: HashMap<String, ModelFamily>,
 }
@@ -96,7 +96,7 @@ impl DefinitionVisitor {
     pub fn new(
         definition_name: syn::Ident,
         subscriptions: Vec<Path>,
-        repositories: Vec<syn::Ident>,
+        repositories: Vec<syn::Path>,
     ) -> Self {
         Self {
             definition_name,
@@ -113,12 +113,12 @@ impl DefinitionVisitor {
 
     /// Check if this definition belongs to a specific repository
     pub fn belongs_to_repository(&self, repo_name: &syn::Ident) -> bool {
-        self.repositories.iter().any(|r| r == repo_name)
+        self.repositories.iter().any(|r| r.is_ident(repo_name))
     }
 
     /// Get repository discriminant names as strings
     pub fn repository_discriminant_names(&self) -> Vec<String> {
-        self.repositories.iter().map(|r| r.to_string()).collect()
+        self.repositories.iter().filter_map(|r| crate::utils::naming::path_last_segment(r).map(|i| i.to_string())).collect()
     }
 
     /// Group models by their family name and determine current versions.
