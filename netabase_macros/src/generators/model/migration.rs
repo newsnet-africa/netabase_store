@@ -520,6 +520,19 @@ impl<'a> MigrationGenerator<'a> {
             quote! { #family_name::#variant_name(_) => #model_name_str }
         });
 
+        // Generate try_from_bytes_with_version match arms
+        let try_decode_with_version_arms = family.versions.iter().map(|model| {
+            let version = model.version();
+            let variant_name = format_ident!("V{}", version);
+            let model_name = &model.name;
+            quote! {
+                #version => {
+                    let decoded: #model_name = postcard::from_bytes(bytes)?;
+                    Ok(#family_name::#variant_name(decoded))
+                }
+            }
+        });
+
         quote! {
             /// Enum representing all versions of a model family.
             ///
@@ -540,10 +553,46 @@ impl<'a> MigrationGenerator<'a> {
             }
 
             impl #family_name {
-                /// Attempt to deserialize from bytes, trying each version.
+                /// Attempt to deserialize from bytes with version header support.
+                ///
+                /// This is the recommended method that handles both versioned and legacy data:
+                /// 1. Checks for version header ("NV" magic bytes)
+                /// 2. If header exists, extracts version and deserializes that version
+                /// 3. If no header (legacy data), tries each version (newest first)
+                ///
+                /// # Returns
+                /// - `Ok(family_variant)` if deserialization succeeds
+                /// - `Err(_)` if all attempts fail
+                ///
+                /// # Example
+                ///
+                /// ```ignore
+                /// let family = UserFamily::from_bytes_auto(&db_bytes)?;
+                /// println!("Detected version: {}", family.version());
+                /// let current_user: User = family.to_current();
+                /// ```
+                pub fn from_bytes_auto(bytes: &[u8]) -> Result<Self, postcard::Error> {
+                    use netabase_store::traits::migration::VersionHeader;
+                    
+                    // Check for version header
+                    if VersionHeader::is_versioned(bytes) {
+                        // Data has version header - extract and use it
+                        if let Some(header) = VersionHeader::from_bytes(bytes) {
+                            let payload = &bytes[VersionHeader::SIZE..];
+                            return Self::try_from_bytes_with_version(payload, header.version);
+                        }
+                    }
+                    
+                    // No version header - try legacy detection
+                    Self::try_from_bytes(bytes)
+                }
+
+                /// Attempt to deserialize from bytes without version header (legacy).
                 ///
                 /// Tries versions in reverse order (newest first) for better performance,
                 /// as most data in production will be the current version.
+                ///
+                /// Use `from_bytes_auto` instead if you want automatic version header detection.
                 ///
                 /// # Returns
                 /// - `Ok(family_variant)` if any version successfully deserializes
@@ -552,7 +601,7 @@ impl<'a> MigrationGenerator<'a> {
                 /// # Example
                 ///
                 /// ```ignore
-                /// let family = UserFamily::try_from_bytes(&db_bytes)?;
+                /// let family = UserFamily::try_from_bytes(&legacy_bytes)?;
                 /// println!("Detected version: {}", family.version());
                 /// ```
                 pub fn try_from_bytes(bytes: &[u8]) -> Result<Self, postcard::Error> {
@@ -560,6 +609,21 @@ impl<'a> MigrationGenerator<'a> {
 
                     // No version matched
                     Err(postcard::Error::DeserializeUnexpectedEnd)
+                }
+
+                /// Deserialize from bytes knowing the version number.
+                ///
+                /// This is more efficient than trying each version when you already
+                /// know which version the data is (e.g., from a version header).
+                ///
+                /// # Returns
+                /// - `Ok(family_variant)` if the specified version deserializes successfully
+                /// - `Err(_)` if deserialization fails or version is unknown
+                pub fn try_from_bytes_with_version(bytes: &[u8], version: u32) -> Result<Self, postcard::Error> {
+                    match version {
+                        #(#try_decode_with_version_arms,)*
+                        _ => Err(postcard::Error::DeserializeBadEncoding),
+                    }
                 }
 
                 /// Convert any version to the current version.

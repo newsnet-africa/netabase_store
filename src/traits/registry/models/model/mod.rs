@@ -37,25 +37,27 @@
 //! # Example
 //!
 //! ```rust
-//! use serde::{Serialize, Deserialize};
+//! use netabase_store::doc_example::*;
+//! use netabase_store::traits::registry::models::model::NetabaseModel;
 //!
-//! #[netabase_macros::netabase_definition(MyDef)]
-//! mod my_def {
-//!     use super::*;
+//! // User implements NetabaseModel with:
+//! // - Primary key: UserID(String)
+//! // - Secondary key: Email
+//! // - Regular field: name
 //!
-//!     #[derive(netabase_macros::NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-//!     pub struct User {
-//!         #[primary_key]
-//!         pub id: String,
-//!         
-//!         #[secondary_key]
-//!         pub email: String,
-//!         
-//!         pub name: String,
-//!     }
-//! }
+//! let user = User {
+//!     id: UserID("alice".into()),
+//!     name: "Alice".into(),
+//!     email: "alice@example.com".into(),
+//! };
 //!
-//! // This generates all the key types, table names, and CRUD operations
+//! // Get the primary key
+//! let pk = user.get_key();
+//! assert_eq!(pk, UserID("alice".into()));
+//!
+//! // Get secondary keys (automatically extracted)
+//! let sk = user.get_secondary_keys();
+//! assert_eq!(sk.len(), 1); // One secondary key: email
 //! ```
 //!
 //! # Trait Bounds

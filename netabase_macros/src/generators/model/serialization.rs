@@ -162,11 +162,12 @@ impl<'a> SerializationGenerator<'a> {
                     
                     quote! {
                         // Try using family enum for automatic version detection
-                        // This allows reading old versions and auto-migrating
-                        match #family_enum::try_from_bytes(data) {
+                        // This handles both versioned (with header) and legacy data
+                        match #family_enum::from_bytes_auto(data) {
                             Ok(family) => family.to_current(),
                             Err(_) => {
-                                // Fallback to direct deserialization (shouldn't happen)
+                                // Fallback to direct deserialization
+                                // This shouldn't happen but provides a safety net
                                 postcard::from_bytes(data).unwrap()
                             }
                         }

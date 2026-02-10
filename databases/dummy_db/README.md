@@ -1,4 +1,4 @@
-# ExampleDef Database
+# SimpleDefinition Database
 
 This folder contains a complete Netabase database with its CLI client.
 

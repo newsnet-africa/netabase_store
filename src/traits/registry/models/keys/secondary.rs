@@ -12,20 +12,17 @@
 //!
 //! # Examples
 //!
+//! Secondary keys enable lookups by fields other than the primary key:
+//!
 //! ```rust
-//! #[derive(NetabaseModel)]
-//! pub struct User {
-//!     #[primary_key]
-//!     pub id: String,
-//!     
-//!     #[secondary_key]  // Indexed - can look up user by email
-//!     pub email: String,
-//!     
-//!     pub name: String,   // Not indexed, can't search by this
-//! }
+//! use netabase_store::doc_example::*;
+//!
+//! // UserSecondaryKeys is generated from fields marked #[secondary_key]
+//! let email_key = UserSecondaryKeys::Email("alice@example.com".into());
+//! // This key can be used to query users by email
 //! ```
 //!
-//! See [`doc_example`](crate::doc_example) for working examples.
+//! See [`doc_example`](crate::doc_example) for model definitions.
 //!
 //! # Performance
 //!

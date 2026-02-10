@@ -11,7 +11,8 @@
 //! - [`repository`]: Generates repository isolation code
 //! - [`structure`]: Generates struct modifications and derives
 //! - [`global`]: Generates global registration code
-//! - [`cli`]: Generates CLI bindings (experimental)
+//! - [`cli`]: Generates CLI bindings
+//! - [`nu_test`]: Generates Nushell test scripts for CLI testing
 //!
 //! # Code Generation Flow
 //!
@@ -32,5 +33,6 @@ pub mod cli;
 pub mod definition;
 pub mod global;
 pub mod model;
+pub mod nu_test;
 pub mod repository;
 pub mod structure;

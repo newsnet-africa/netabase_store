@@ -203,6 +203,7 @@
 //! | `#[netabase_content_addressed]` | Use content-based addressing (CID) |
 //! | `infer_netabase_definition!` | Import definition from TOML file |
 //! | `generate_cli!` | Generate CLI commands for a definition |
+//! | `generate_cli_tests!` | Generate Nushell test script for CLI |
 //!
 //! # Model Versioning
 //!
@@ -1206,6 +1207,7 @@ pub fn infer_netabase_definition(input: TokenStream) -> TokenStream {
 /// # See Also
 ///
 /// - [`infer_netabase_definition!`] - Import definition from TOML
+/// - [`generate_cli_tests!`] - Generate Nushell test script for CLI
 /// - `StoreConfig::with_client_binary()` - Export CLI with database
 #[proc_macro]
 pub fn generate_cli(input: TokenStream) -> TokenStream {
@@ -1251,6 +1253,152 @@ pub fn generate_cli(input: TokenStream) -> TokenStream {
         &cli_name,
         &def_name,
         &model_idents
+    );
+
+    output.into()
+}
+
+/// Procedural macro for generating Nushell test scripts for CLI testing.
+///
+/// Creates a comprehensive test script that exercises all CLI endpoints with
+/// verbose output and granular test selection capabilities.
+///
+/// # Syntax
+///
+/// ```rust,ignore
+/// use netabase_macros::generate_cli_tests;
+///
+/// generate_cli_tests!("path/to/schema.toml", "cli_binary_name", "output/path/test_cli.nu");
+/// ```
+///
+/// # Arguments
+///
+/// 1. Path to TOML schema file
+/// 2. Name of the CLI binary to test
+/// 3. Output path for the generated test script
+///
+/// # Generated Test Script Features
+///
+/// - **Comprehensive coverage**: Tests all CRUD operations (Create, Read, Update, Delete, List, Count)
+/// - **Multiple formats**: Tests both JSON and RON input/output
+/// - **Schema commands**: Tests schema inspection features
+/// - **Verbose output**: Shows detailed test execution with color-coded results
+/// - **Granular selection**: Run all tests or specific subsets
+/// - **Error handling**: Captures and displays errors clearly
+///
+/// # Usage Example
+///
+/// ```rust,ignore
+/// use netabase_macros::{generate_cli, generate_cli_tests};
+///
+/// // First generate the CLI
+/// generate_cli!("schema.toml");
+///
+/// // Then generate tests for it
+/// generate_cli_tests!("schema.toml", "my_cli", "tests/test_cli.nu");
+/// ```
+///
+/// # Running the Generated Tests
+///
+/// ```bash
+/// # Run all tests
+/// nu tests/test_cli.nu
+///
+/// # Run only schema tests
+/// nu tests/test_cli.nu --tests schema
+///
+/// # Run only user CRUD tests
+/// nu tests/test_cli.nu --tests user
+/// ```
+///
+/// # Test Output Example
+///
+/// ```text
+/// ╔══════════════════════════════════════════════════════════════╗
+/// ║  CLI Comprehensive Test Suite                               ║
+/// ╚══════════════════════════════════════════════════════════════╝
+///
+/// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+///   Testing Schema Commands
+/// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+///   ✓ schema show
+///     → Running: ./target/debug/my_cli --db-path ./.test_db schema show
+///     Output: Database Schema...
+///   ✓ schema tables
+///   ✓ schema stats
+/// ```
+///
+/// # Requirements
+///
+/// - Nushell (nu) installed on the system
+/// - CLI binary built in `target/debug/`
+/// - Schema file with valid models
+///
+/// # See Also
+///
+/// - [`generate_cli!`] - Generate the CLI being tested
+/// - [`infer_netabase_definition!`] - Import definition from TOML
+#[proc_macro]
+pub fn generate_cli_tests(input: TokenStream) -> TokenStream {
+    let input_str = input.to_string();
+    let parts: Vec<&str> = input_str.split(',').map(|s| s.trim()).collect();
+    
+    if parts.len() != 3 {
+        return syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "generate_cli_tests! requires 3 arguments: schema_path, cli_name, output_path"
+        )
+        .to_compile_error()
+        .into();
+    }
+    
+    let schema_path = parts[0].trim_matches('"');
+    let cli_name = parts[1].trim_matches('"');
+    let output_path = parts[2].trim_matches('"');
+
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
+    let full_schema_path = PathBuf::from(&manifest_dir).join(schema_path);
+
+    let content = match fs::read_to_string(&full_schema_path) {
+        Ok(c) => c,
+        Err(e) => {
+            return syn::Error::new(
+                proc_macro2::Span::call_site(),
+                format!("Failed to read schema file at {:?}: {}", full_schema_path, e),
+            )
+            .to_compile_error()
+            .into();
+        }
+    };
+
+    let schema: FullSchema = match toml::from_str(&content) {
+        Ok(s) => s,
+        Err(e) => {
+            return syn::Error::new(
+                proc_macro2::Span::call_site(),
+                format!("Failed to parse TOML schema: {}", e)
+            )
+            .to_compile_error()
+            .into();
+        }
+    };
+
+    let def_name = syn::Ident::new(&schema.name, proc_macro2::Span::call_site());
+    let model_idents: Vec<syn::Ident> = schema
+        .models
+        .iter()
+        .map(|m| syn::Ident::new(&m.name, proc_macro2::Span::call_site()))
+        .collect();
+
+    let definitions = vec![(def_name, model_idents)];
+    
+    let full_output_path = PathBuf::from(&manifest_dir).join(output_path);
+    let output_path_str = full_output_path.to_string_lossy().to_string();
+    
+    let output = crate::generators::nu_test::generate_nu_test_script_writer(
+        cli_name,
+        &output_path_str,
+        &definitions
     );
 
     output.into()

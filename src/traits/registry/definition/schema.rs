@@ -151,10 +151,19 @@ impl RepositorySchema {
     ///
     /// # Example
     ///
-    /// ```no_run
+    /// ```
     /// # use netabase_store::traits::registry::definition::schema::RepositorySchema;
     /// # use std::path::Path;
-    /// let schema = RepositorySchema::from_toml_file(Path::new("schema.toml")).unwrap();
+    /// # use std::fs;
+    /// # let temp_dir = tempfile::tempdir().unwrap();
+    /// # let schema_path = temp_dir.path().join("test_repo_schema.toml");
+    /// # let content = r#"
+    /// # schema_format_version = 2
+    /// # name = "TestRepo"
+    /// # definitions = []
+    /// # "#;
+    /// # fs::write(&schema_path, content).unwrap();
+    /// let schema = RepositorySchema::from_toml_file(&schema_path).unwrap();
     /// println!("Loaded repository: {}", schema.name);
     /// ```
     #[cfg(feature = "schema_export")]

@@ -11,20 +11,19 @@
 //!
 //! # Examples
 //!
-//! Primary keys are typically newtypes around string or numeric types.
-//! The `#[primary_key]` attribute on a model field generates the ID type:
+//! Primary keys are generated automatically from the `#[primary_key]` attribute.
+//! Here's how to work with them:
 //!
 //! ```rust
-//! // In your model definition:
-//! #[derive(NetabaseModel)]
-//! pub struct User {
-//!     #[primary_key]  // Generates UserID(String) newtype
-//!     pub id: String,
-//!     // ... other fields
-//! }
+//! use netabase_store::doc_example::*;
+//!
+//! // UserID is generated from User struct's #[primary_key] field
+//! let user_id = UserID("alice".into());
+//! let cloned_id = user_id.clone();
+//! assert_eq!(user_id, cloned_id);
 //! ```
 //!
-//! See [`doc_example`](crate::doc_example) for working examples.
+//! See [`doc_example`](crate::doc_example) for the model definitions.
 //!
 //! # Rules
 //!

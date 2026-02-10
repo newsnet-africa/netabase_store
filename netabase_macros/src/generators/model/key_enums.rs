@@ -52,17 +52,6 @@ impl<'a> KeyEnumGenerator<'a> {
             - `Bare(id)`: Sync only the core record data without blobs or relations\n\
             - `WithBlobs(id, blob_keys)`: Sync the record with specific blob fields\n\
             - `WithRelations(id, relation_keys)`: Sync the record with specific relational links\n\n\
-            # Example\n\n\
-            ```rust\n\
-            # use netabase_store::doc_example::*;\n\
-            // Request full record\n\
-            let full_key = UserProviderKey::Full(UserID(\"alice\".into()));\n\
-            \n\
-            // Request only core data\n\
-            let bare_key = UserProviderKey::Bare(UserID(\"bob\".into()));\n\
-            \n\
-            // These keys are used in P2P synchronization protocols\n\
-            ```\n\n\
             # P2P Context\n\n\
             These keys are used with libp2p's Kademlia DHT to provide and request records.\n\
             Different modes allow bandwidth optimization by fetching only needed data.",
@@ -339,16 +328,7 @@ impl<'a> KeyEnumGenerator<'a> {
             "Relational key variants for `{}`.\n\n\
             This enum is used to specify which relational field to query when traversing links between models.\n\
             Each variant corresponds to a field marked with `#[link(Definition, TargetModel)]` in the model.\n\n\
-            # Example\n\n\
-            ```rust\n\
-            # use netabase_store::doc_example::*;\n\
-            // Create a relational key\n\
-            let key = PostRelationalKeys::Author(PostAuthor(UserID(\"alice\".into())));\n\
-            \n\
-            // The key specifies which relationship to traverse:\n\
-            // let linked_users: Vec<User> = txn.read_relational(&post_id, &key)?;\n\
-            ```\n\n\
-            # Available Variants\n\n\
+            # Generated Variants\n\n\
             {}",
             model_name,
             variant_docs.iter().enumerate()

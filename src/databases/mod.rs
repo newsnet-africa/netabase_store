@@ -37,7 +37,5 @@
 //! txn.commit().unwrap();
 //! # }
 //! ```
-
-pub mod indexedb;
 pub mod memory;
 pub mod redb;

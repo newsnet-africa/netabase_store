@@ -248,12 +248,12 @@ where
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```rust,no_run
     /// use netabase_store::databases::redb::RedbStore;
-    /// use myapp::MyAppDef;
+    /// use netabase_store::doc_example::ExampleDef;
     ///
     /// // Open with auto-migration
-    /// let (store, migration_result) = RedbStore::<MyAppDef>::open_with_auto_migrate("./my_db")?;
+    /// let (store, migration_result) = RedbStore::<ExampleDef>::open_with_auto_migrate("./auto_migrate_db")?;
     ///
     /// if let Some(result) = migration_result {
     ///     println!("Migrated {} records", result.total_records);
@@ -261,6 +261,7 @@ where
     ///         eprintln!("Migration had errors!");
     ///     }
     /// }
+    /// # Ok::<(), netabase_store::error::NetabaseError>(())
     /// ```
     ///
     /// # Errors
@@ -294,20 +295,21 @@ where
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```rust,no_run
     /// use netabase_store::databases::redb::{RedbStore, migration::MigrationOptions};
-    /// use myapp::MyAppDef;
+    /// use netabase_store::doc_example::ExampleDef;
     ///
     /// // Do a dry-run first
     /// let options = MigrationOptions { dry_run: true, ..Default::default() };
-    /// let (store, result) = RedbStore::<MyAppDef>::open_with_auto_migrate_options(
-    ///     "./my_db",
+    /// let (store, result) = RedbStore::<ExampleDef>::open_with_auto_migrate_options(
+    ///     "./auto_migrate_options_db",
     ///     options
     /// )?;
     ///
     /// if let Some(result) = result {
     ///     println!("Would migrate {} records", result.total_records);
     /// }
+    /// # Ok::<(), netabase_store::error::NetabaseError>(())
     /// ```
     #[cfg(feature = "migration")]
     pub fn open_with_auto_migrate_options<P: AsRef<Path>>(
@@ -526,12 +528,12 @@ where
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```rust,no_run
     /// use netabase_store::databases::redb::{RedbStore, StoreConfig};
     /// use netabase_store::doc_example::ExampleDef;
     ///
-    /// let config = StoreConfig::new("./my_database")
-    ///     .with_client_binary(Some("./target/release/client"))
+    /// let config = StoreConfig::new("./with_config_db")
+    ///     .with_client_binary(Some("./target/release/with_config_client"))
     ///     .with_readme_auto();
     ///
     /// let store = RedbStore::<ExampleDef>::with_config(config).unwrap();
