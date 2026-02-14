@@ -1,0 +1,40 @@
+@startuml
+
+interface NetabaseDefinition {
+  type TreeNames: NetabaseDefinitionTreeNames<Self>;
+  type DefKeys: NetabaseDefinitionKeys<Self>;
+  type DebugName: Clone + Debug + PartialEq + Eq + Hash + Serialize;
+  type SubscriptionKeysDiscriminant: Debug;
+  type SubscriptionKeys: NetabaseDefinitionSubscriptionKeys<Discriminant = Self::SubscriptionKeysDiscriminant>;
+  const SUBSCRIPTION_REGISTERY: DefinitionSubscriptionRegistery<`static, Self>;
+
+  debug_name() -> Self::DebugName;
+  definition_name() -> &`static str;
+  schema() -> DefinitionSchema;
+  export_toml() -> String;
+}
+
+interface NetabaseDefinitionTreeNames<D: NetabaseDefinition> {
+  get_tree_names(D::Discriminant) -> Vec<Self>;
+  get_model_tree_names(&self) -> Option<&`static ModelTreeNames<`static, D, M>;
+}
+
+interface NetabaseDefinitionKeys<D: NetabaseDefinition>
+
+interface NetabaseDefinitionSubscriptionKeys
+
+' Use "quotes" for the complex display name, and 'as ID' for the reference name
+struct "DefinitionSubscriptionRegistery<`a, D: NetabaseDefinition>" as DefinitionSubscriptionRegistery {
+  +entries: &`a [SubscriptionEntry<&`static str, D::Discriminant>];
+  +const new(&`a [SubscriptionEntry<&`static str, D::Discriminant>]) -> Self;
+  +get_subscribers(&self, topic: &str) -> Option <&[D::Discriminant]>;
+}
+
+' --- Define Relationships LAST ---
+
+NetabaseDefinition "1" *-- "1" NetabaseDefinitionTreeNames
+NetabaseDefinition "1" *-- "1" NetabaseDefinitionKeys
+NetabaseDefinition "1" *-- "1" NetabaseDefinitionSubscriptionKeys
+NetabaseDefinition "1" *-- "1" DefinitionSubscriptionRegistery
+
+@enduml
