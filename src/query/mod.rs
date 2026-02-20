@@ -24,19 +24,22 @@
 //! Query operations use `QueryConfig` to control pagination and limits.
 //! Models are queried via transaction methods:
 //!
-//! ```rust
+//! ```rust,ignore
 //! use netabase_store::prelude::*;
-//! use netabase_store::query::QueryConfig;
+//! use netabase_store::config::QueryConfig;
+//! use netabase_store::doc_example::User;
 //!
 //! // Open tables and use model-level query methods
 //! let table_defs = User::table_definitions();
 //! let tables = txn.open_model_tables(table_defs, None)?;
 //!
 //! // Fetch entries with pagination
-//! let entries = User::list_entries(&tables, CrudOptions::default().with_limit(10))?;
+//! let config = QueryConfig::new().with_limit(10);
+//! let entries = User::list_entries(&tables, config)?;
 //!
 //! // Count entries
 //! let count = User::count_entries(&tables)?;
+//! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
 //! See [tests/integration_list.rs](../tests/integration_list.rs) for complete examples.

@@ -146,6 +146,10 @@ impl<'a> DefinitionTraitGenerator<'a> {
         let record_convertion_impl = self.generate_from_record();
         output.extend(record_convertion_impl);
 
+        // Generate CLI client generation method
+        let cli_impl = self.generate_cli_client_method();
+        output.extend(cli_impl);
+
         for model_info in &self.visitor.models {
             // First generate subscription enum for this model (if it has subscriptions)
             let sub_enum = self.generate_subscription_enum(definition_name, model_info);
@@ -157,6 +161,53 @@ impl<'a> DefinitionTraitGenerator<'a> {
         }
 
         output
+    }
+
+    /// Generate inherent impl with `generate_client` method
+    fn generate_cli_client_method(&self) -> TokenStream {
+        let definition_name = &self.visitor.definition_name;
+        
+        quote! {
+            impl #definition_name {
+                /// Generate a CLI client application for this database definition.
+                ///
+                /// This creates a complete, standalone CLI application that can interact
+                /// with databases conforming to this schema.
+                ///
+                /// # Arguments
+                ///
+                /// * `output_path` - Directory where the CLI client will be generated
+                ///
+                /// # Returns
+                ///
+                /// Returns `Ok(())` on success, or an error if generation fails.
+                ///
+                /// # Example
+                ///
+                /// ```no_run
+                /// # use netabase_macros::NetabaseModel;
+                /// # use serde::{Serialize, Deserialize};
+                /// # #[netabase_macros::netabase_definition(MyDatabase)]
+                /// # pub mod my_database {
+                /// #     use super::*;
+                /// #     #[derive(NetabaseModel, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+                /// #     pub struct User {
+                /// #         #[primary_key]
+                /// #         pub id: u64,
+                /// #         pub name: String,
+                /// #     }
+                /// # }
+                /// # fn main() -> std::io::Result<()> {
+                /// use my_database::*;
+                /// MyDatabase::generate_client("./my_db_cli")?;
+                /// # Ok(())
+                /// # }
+                /// ```
+                pub fn generate_client(output_path: impl AsRef<std::path::Path>) -> std::io::Result<()> {
+                    netabase_store::cli_generation::generate_cli_client::<Self>(output_path)
+                }
+            }
+        }
     }
 
     /// Generate InRepository<Standalone> implementation for all definitions.
@@ -1897,7 +1948,8 @@ impl<'a> DefinitionTraitGenerator<'a> {
                     quote! { #is_current },
                 )
             } else {
-                (quote! { None }, quote! { None }, quote! { false })
+                // Models without version info are considered current
+                (quote! { None }, quote! { None }, quote! { true })
             };
 
             let mut field_schemas = Vec::new();

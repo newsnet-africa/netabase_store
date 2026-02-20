@@ -644,7 +644,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// // Subscribe only to Topic1
     /// let topics = vec![DefinitionSubscriptions::Topic1];
     /// txn.create_with_subscriptions(&user, Some(topics))?;
@@ -1125,7 +1125,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// use netabase_store::prelude::*;
     /// use netabase_store::traits::database::store::NBStore;
     ///

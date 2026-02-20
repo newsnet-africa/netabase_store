@@ -65,9 +65,19 @@ The grammar is designed to be parseable by both humans and machines in a single 
 
   - *Ex*: `AUDIT: TAEa(u32?(u64))` (Query: Why use u32 instead of u64 for this Existing API argument?).
 
-- **TL: Lifetimes & Generics**
+- **TL: Lifetimes**
 
-  - *Ex*: `TLa('a, T: Archive)` (Add a lifetime and bound to a generated AST).
+  - *Ex*: `TLa('a)` (Add a lifetime).
+
+- **TG: Generics**
+
+  - *Ex*: `TGNa(T)` (Add a New Generic parameter).
+
+- **TB: Type Bounds**
+
+  - *Ex*: `TBNa(T: Archive)` (Add a New Type Bound).
+
+  - *Ex*: `TBEa(T: Debug -> Display)` (Change an Existing Bound).
 
 - **TO: Ownership & Memory**
 

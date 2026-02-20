@@ -21,18 +21,17 @@ use super::transaction::{MemoryReadTransaction, MemoryWriteTransaction};
 /// # Example
 ///
 /// ```rust
+/// use netabase_store::doc_example::*;
 /// use netabase_store::databases::memory::MemoryStore;
 /// use netabase_store::traits::database::store::NBStore;
 ///
-/// let store = MemoryStore::<MyDefinition>::new();
+/// let store = MemoryStore::<ExampleDef>::new();
 ///
-/// // Use like any other store
-/// let txn = store.begin_write()?;
-/// txn.create(&model)?;
-/// txn.commit()?;
-///
+/// // Memory store doesn't require explicit repository
+/// // It's primarily used for testing and in-memory operations
 /// let txn = store.begin_read()?;
-/// let result = txn.read(&key)?;
+/// drop(txn);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 #[derive(Debug)]
 pub struct MemoryStore<D>

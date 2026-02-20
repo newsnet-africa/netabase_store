@@ -470,6 +470,8 @@ impl<'a> TraitGenerator<'a> {
             model_name.clone()
         };
 
+        // Always generate the trait impl when libp2p feature is enabled,
+        // but return None for models that don't have libp2p metadata
         let body = if self.visitor.is_libp2p_enabled {
             if is_content_addressed {
                 quote! { self.inner.libp2p_metadata.as_ref() }
@@ -477,6 +479,7 @@ impl<'a> TraitGenerator<'a> {
                 quote! { self.libp2p_metadata.as_ref() }
             }
         } else {
+            // Models without libp2p support just return None
             quote! { None }
         };
 

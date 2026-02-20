@@ -68,7 +68,10 @@ fn default_schema_format_version() -> u32 {
 #[derive(Debug, Clone, PartialEq)]
 pub struct RepositorySchema {
     /// Schema format version
-    #[cfg_attr(feature = "schema_export", serde(default = "default_schema_format_version"))]
+    #[cfg_attr(
+        feature = "schema_export",
+        serde(default = "default_schema_format_version")
+    )]
     pub schema_format_version: u32,
     /// Repository name
     pub name: String,
@@ -124,15 +127,14 @@ impl RepositorySchema {
     /// name = "TestRepo"
     /// definitions = []
     /// "#;
-    /// 
+    ///
     /// let schema = RepositorySchema::from_toml(toml).unwrap();
     /// assert_eq!(schema.name, "TestRepo");
     /// assert_eq!(schema.schema_format_version, 2);
     /// ```
     #[cfg(feature = "schema_export")]
     pub fn from_toml(toml_str: &str) -> Result<Self, String> {
-        toml::from_str(toml_str)
-            .map_err(|e| format!("Failed to parse repository TOML: {}", e))
+        toml::from_str(toml_str).map_err(|e| format!("Failed to parse repository TOML: {}", e))
     }
 
     /// Read a repository schema from a TOML file
@@ -203,23 +205,44 @@ fn default_auto_migration() -> bool {
 #[derive(Debug, Clone, PartialEq)]
 pub struct DefinitionSchema {
     /// Schema format version (for parsing old TOML files).
-    #[cfg_attr(feature = "schema_export", serde(default = "default_schema_format_version"))]
+    #[cfg_attr(
+        feature = "schema_export",
+        serde(default = "default_schema_format_version")
+    )]
     pub schema_format_version: u32,
     pub name: String,
     pub models: Vec<ModelSchema>,
-    #[cfg_attr(feature = "schema_export", serde(default, skip_serializing_if = "Vec::is_empty"))]
+    #[cfg_attr(
+        feature = "schema_export",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
     pub structs: Vec<StructSchema>,
+    // TODO: REFAC: TRNc(SubscriptionTopic) [S]
     pub subscriptions: Vec<String>,
+    // TODO {
+    //   AUDIT: QUTR(ModelVersionHistory?) [i]
+    //   AUDIT: QT(Vec?(ModelVersionHistory)) [i/P]
+    // }
     /// Model version history for migration support.
     /// Contains all previous versions of models, not just the current ones.
-    #[cfg_attr(feature = "schema_export", serde(default, skip_serializing_if = "Vec::is_empty"))]
+    #[cfg_attr(
+        feature = "schema_export",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
     pub model_history: Vec<ModelVersionHistory>,
+    // TODO: REFAC: TRNc(SchemaHash) -> [S]
     /// Schema hash for quick P2P comparison.
-    #[cfg_attr(feature = "schema_export", serde(default, skip_serializing_if = "Option::is_none"))]
+    #[cfg_attr(
+        feature = "schema_export",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     #[cfg_attr(feature = "schema_export", serde(with = "hash_as_string"))]
     pub schema_hash: Option<u64>,
     /// Configuration options for this definition.
-    #[cfg_attr(feature = "schema_export", serde(default, skip_serializing_if = "Option::is_none"))]
+    #[cfg_attr(
+        feature = "schema_export",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub config: Option<DefinitionConfig>,
 }
 
@@ -228,19 +251,29 @@ pub struct DefinitionSchema {
 #[derive(Debug, Clone, PartialEq)]
 pub struct DefinitionConfig {
     /// Retention policy for old model versions (in days).
-    #[cfg_attr(feature = "schema_export", serde(default, skip_serializing_if = "Option::is_none"))]
+    #[cfg_attr(
+        feature = "schema_export",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub retention_days: Option<u32>,
     /// Whether to enable compression for blob fields.
     #[cfg_attr(feature = "schema_export", serde(default))]
     pub compression_enabled: bool,
     /// Maximum blob size in bytes.
-    #[cfg_attr(feature = "schema_export", serde(default, skip_serializing_if = "Option::is_none"))]
+    #[cfg_attr(
+        feature = "schema_export",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
     pub max_blob_size: Option<u64>,
     /// Whether to enable automatic migration.
     #[cfg_attr(feature = "schema_export", serde(default = "default_auto_migration"))]
     pub auto_migration: bool,
+    // TODO: REFAC: TRNc(DefinitionMetadata) [S]
     /// Custom metadata fields.
-    #[cfg_attr(feature = "schema_export", serde(default, skip_serializing_if = "std::collections::HashMap::is_empty"))]
+    #[cfg_attr(
+        feature = "schema_export",
+        serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")
+    )]
     pub metadata: std::collections::HashMap<String, String>,
 }
 
@@ -413,9 +446,10 @@ impl DefinitionSchema {
                             .iter()
                             .find(|v| v.version == other_history.current_version);
                         if let (Some(sv), Some(ov)) = (self_ver, other_ver)
-                            && sv.version_hash != ov.version_hash {
-                                conflicts.push((history.family.clone(), history.current_version));
-                            }
+                            && sv.version_hash != ov.version_hash
+                        {
+                            conflicts.push((history.family.clone(), history.current_version));
+                        }
                     }
                 }
             }
@@ -462,27 +496,41 @@ pub enum SchemaComparisonResult {
     Conflict { families: Vec<(String, u32)> },
 }
 
+// TODO {
+//   AUDIT: QU? [i/P](Can I add add the NetabaseModel generic without breaking anything? Is that type erasure important (for like static dispatch or group vectors. I think maybe in Repository related code))
+//   AUDIT: MDEc(NetabaseModel?) [i/S]
+//   AUDIT: MDNa(trait(NetabaseModelSchema)?) [i/S](Should I generate a new one for every model and follow the macro jacket pattern?)
+// }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ModelSchema {
+    // TODO: REFAC: TRNa(M::name) [s]
     pub name: String,
     pub fields: Vec<FieldSchema>,
+    // TODO: REFAC: TRNc(TW(str -> SubscriptionTopic)) [S]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub subscriptions: Vec<String>,
     /// Whether subscriptions are immutable (from #[subscribe(immutable, ...)]).
     #[serde(default)]
     pub subscription_immutable: bool,
+    // TODO: REFAC: TRNc(ModelFamily) [i/S](There are plans to expand of the model family system to use enums that represent and deal with versioning.)
     /// The model family this belongs to (for versioning).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub family: Option<String>,
+    // TODO{
+    //     REFAC: MTR(version -> ModelFamily) [i/S](Group the new ModelFamily and this type)
+    //     AUDIT: QU(versioning/family system?)
+    // }
     /// Version number within the family.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<u32>,
     /// Whether this is the current (latest) version.
     #[serde(default)]
     pub is_current: bool,
+    // TODO: REFAC: M(all content addressed related fields -> ContentAddressedConfig) [i]
     /// Whether this model supports Libp2p features.
     #[serde(default)]
     pub is_libp2p_enabled: bool,
+    // TODO: REFAC: M(all content addressed related fields -> ContentAddressedConfig) [i]
     /// Whether this model is content-addressed (immutable, hash-based ID).
     #[serde(default)]
     pub is_content_addressed: bool,
@@ -494,32 +542,45 @@ pub struct ModelSchema {
 /// Configuration for content-addressed models.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ContentAddressedConfig {
+    // TODO: REFAC: TRNa(enum) [S]
     /// The hasher type (e.g., "Sha256").
     pub hasher: String,
     /// The hash function path (e.g., "my_hash_fn").
     pub function: String,
+    // TODO {
+    //     AUDIT: QU?(I want to make this a type but how is it used?)
+    //     REFAC: TRNc(KeyType) [S]
+    // }
     /// Optional custom key type (defaults to [u8; 32]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub key_type: Option<String>,
 }
 
+// TODO: REFAC: MNNa(mod struct_schema) [i]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StructSchema {
+    // TODO: REFAC: TW(StructSchemaName)
     pub name: String,
     pub fields: Vec<StructFieldSchema>,
     #[serde(default)]
     pub is_tuple: bool,
 }
 
+// TODO: REFAC: MNNa(mod struct_schema) [i]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StructFieldSchema {
+    // TODO: REFAC: TRTW(StructFieldSchemaName) [S]
     pub name: String,
+    // TODO: REFAC: TRTW(StructFieldSchemaType) [S]
     pub type_name: String,
 }
 
+// TODO: AUDIT: QU? [L](Why is this different to StructFieldSchema? is it model vs utility type?)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FieldSchema {
+    // TODO: REFAC: TRTW(FieldSchemaName) [S]
     pub name: String,
+    // TODO: REFAC: TRTW(FieldSchemaType) [S]
     pub type_name: String,
     #[serde(flatten)]
     pub key_type: KeyTypeSchema,

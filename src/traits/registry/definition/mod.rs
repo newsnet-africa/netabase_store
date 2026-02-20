@@ -60,22 +60,17 @@
 //! - [`redb_definition`]: Redb-specific definition traits
 //! - [`schema`]: Schema representation and export
 //! - [`subscription`]: Subscription topic management
-
 pub mod redb_definition;
 pub mod schema;
 pub mod subscription;
-
+use crate::traits::registry::models::{
+    keys::NetabaseModelKeys, model::NetabaseModel,
+    treenames::{DiscriminantTableName, ModelTreeNames},
+};
 use schema::DefinitionSchema;
 use serde::Serialize;
 use strum::IntoDiscriminant;
 use subscription::{DefinitionSubscriptionRegistry, NetabaseDefinitionSubscriptionKeys};
-
-use crate::traits::registry::models::{
-    keys::NetabaseModelKeys,
-    model::NetabaseModel,
-    treenames::{DiscriminantTableName, ModelTreeNames},
-};
-
 /// Core trait for definition abstractions.
 ///
 /// A definition is a collection of related models that share a schema.
@@ -168,41 +163,43 @@ where
 {
     type TreeNames: NetabaseDefinitionTreeNames<Self> + 'static;
     type DefKeys: NetabaseDefinitionKeys<Self>;
-
     /// A user-friendly identifier for the definition, used in RelationalLink for better debugging/serialization.
     /// This replaces PhantomData to bind the definition type while providing useful info.
-    type DebugName: Clone + std::fmt::Debug + PartialEq + Eq + std::hash::Hash + Serialize + 'static;
-
+    type DebugName: Clone
+        + std::fmt::Debug
+        + PartialEq
+        + Eq
+        + std::hash::Hash
+        + Serialize
+        + 'static;
     /// Returns the debug identifier for this definition
     fn debug_name() -> Self::DebugName;
-
     /// Returns the stable string name of the definition
+    /// TODO: SYNC: TRNc(Self::DefinitionName)^M [L]
     fn definition_name() -> &'static str;
-
     /// Returns the schema definition
     fn schema() -> DefinitionSchema;
-
     /// Exports the schema to a TOML string
+    /// TODO: SYNC: TREc(toml::Value)^M [L]
     fn export_toml() -> String {
         let schema = Self::schema();
         toml::to_string_pretty(&schema)
             .unwrap_or_else(|e| format!("# Error serializing to TOML: {}", e))
     }
-
     /// Definition-level subscription keys enum
     /// This enum holds all subscription topics for the definition
     /// and serves as the unified key type for subscription tables
+    /// TODO: SYNC: MDNc(trait -> NetabaseSubscriptionDefinition)^M [L]
     type SubscriptionKeys: NetabaseDefinitionSubscriptionKeys<
-        Discriminant = Self::SubscriptionKeysDiscriminant,
-    >;
-
+            Discriminant = Self::SubscriptionKeysDiscriminant,
+        >;
     /// Discriminant type for subscription keys
+    /// TODO: SYNC: MDNc(trait -> NetabaseSubscriptionDefinition)^M [L]
     type SubscriptionKeysDiscriminant: 'static + std::fmt::Debug;
-
     /// Subscription registry mapping topics to models
+    /// TODO: SYNC: MDNc(trait -> NetabaseSubscriptionDefinition)^M [L]
     const SUBSCRIPTION_REGISTRY: DefinitionSubscriptionRegistry<'static, Self>;
 }
-
 /// Trait for an enum that encapsulates the tree names for all models in a definition.
 ///
 /// This trait provides a unified interface for accessing database table names
@@ -226,8 +223,8 @@ where
 /// #[derive(Clone, Debug)]
 /// # #[allow(dead_code)]
 /// pub enum MyDefTreeNames {
-///     User,
-///     Post,
+///     User(ModelTreeNames<'static, Definition, User>),
+///     Post(ModelTreeNames<'static, Definition, Post>),
 /// }
 /// ```
 ///
@@ -240,26 +237,65 @@ where
     Self: TryInto<DiscriminantTableName<D>>,
 {
     /// Get all tree name variants for a given definition discriminant.
+    /// TODO {
+    ///     REFAC: TREa(Self)^M [L](There is no reason for this to be a Vec. It is always gonna be one item (The ModelTreeNames of a model))
+    ///     AUDIT: QUE(Self?(NetabaseModel)) [i]
+    /// }
     fn get_tree_names(discriminant: D::Discriminant) -> Vec<Self>;
-
     /// Check if this tree name enum variant corresponds to the given model type.
     /// Returns the model's static tree names if there's a match, None otherwise.
-    fn get_model_tree_names<M: NetabaseModel<D>>(&self) -> Option<&'static ModelTreeNames<'static, D, M>>
+    /// TODO: AUDIT: TREa(impl NetabaseModel(!M)) [i](I think this wouldn't work anyways because the bind would need to come from the implementation)
+    fn get_model_tree_names<M: NetabaseModel<D>>(
+        &self,
+    ) -> Option<&'static ModelTreeNames<'static, D, M>>
     where
         for<'a> Self: From<ModelTreeNames<'a, Self, M>>,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary: IntoDiscriminant,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational: IntoDiscriminant,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob: IntoDiscriminant,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: IntoDiscriminant,
-        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Secondary as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Relational as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Blob as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-        <<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Subscription: 'static,
-        <<<M as NetabaseModel<D>>::Keys as NetabaseModelKeys<D, M>>::Libp2p as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug
-    ;
+        <<M as NetabaseModel<
+            D,
+        >>::Keys as NetabaseModelKeys<D, M>>::Secondary: IntoDiscriminant,
+        <<M as NetabaseModel<
+            D,
+        >>::Keys as NetabaseModelKeys<D, M>>::Relational: IntoDiscriminant,
+        <<M as NetabaseModel<
+            D,
+        >>::Keys as NetabaseModelKeys<D, M>>::Blob: IntoDiscriminant,
+        <<M as NetabaseModel<
+            D,
+        >>::Keys as NetabaseModelKeys<D, M>>::Subscription: IntoDiscriminant,
+        <<<M as NetabaseModel<
+            D,
+        >>::Keys as NetabaseModelKeys<
+            D,
+            M,
+        >>::Secondary as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<<M as NetabaseModel<
+            D,
+        >>::Keys as NetabaseModelKeys<
+            D,
+            M,
+        >>::Relational as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<<M as NetabaseModel<
+            D,
+        >>::Keys as NetabaseModelKeys<
+            D,
+            M,
+        >>::Blob as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<<M as NetabaseModel<
+            D,
+        >>::Keys as NetabaseModelKeys<
+            D,
+            M,
+        >>::Subscription as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
+        <<M as NetabaseModel<
+            D,
+        >>::Keys as NetabaseModelKeys<D, M>>::Subscription: 'static,
+        <<<M as NetabaseModel<
+            D,
+        >>::Keys as NetabaseModelKeys<
+            D,
+            M,
+        >>::Libp2p as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug;
 }
-
 /// Trait for an enum that encapsulates the keys for all models in a definition.
 ///
 /// This trait provides unified access to all key types across all models,
@@ -299,6 +335,4 @@ where
 pub trait NetabaseDefinitionKeys<D: NetabaseDefinition>: Sized + Clone + std::fmt::Debug
 where
     <D as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
-{
-    // Methods to access specific keys, potentially converting from/to generic representations
-}
+{}

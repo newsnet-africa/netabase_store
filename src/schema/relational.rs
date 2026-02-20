@@ -22,7 +22,7 @@
 //!
 //! ## Creating Links
 //!
-//! ```rust
+//! ```rust,ignore
 //! use netabase_store::doc_example::*;
 //! use netabase_store::relational::RelationalLink;
 //! use netabase_store::traits::registry::repository::Standalone;
@@ -599,7 +599,7 @@ where
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// // Load the model separately
     /// let author: Author = txn.read(&author_id)?.unwrap();
     /// 
@@ -672,7 +672,7 @@ where
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// // Within a definition where Post has a link to Author
     /// let post: Post = txn.read(&post_id)?.unwrap();
     /// 

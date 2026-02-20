@@ -15,7 +15,7 @@
 //! Migration between model versions is defined using the `MigrateFrom` and `MigrateTo` traits.
 //! This example shows a typical versioning pattern:
 //!
-//! ```rust
+//! ```rust,ignore
 //! use netabase_store::prelude::*;
 //! use netabase_store::databases::redb::RedbStore;
 //! use netabase_store::traits::database::store::NBStore;

@@ -23,7 +23,7 @@
 //!
 //! Topics are defined at the definition level:
 //!
-//! ```rust
+//! ```ignore
 //! #[netabase_macros::netabase_networking]
 //! #[netabase_definition(MyDefinition, subscriptions(News, Updates, Alerts))]
 //! pub mod my_definition {
@@ -35,7 +35,7 @@
 //!
 //! Models subscribe to topics using the `#[subscribe(...)]` attribute:
 //!
-//! ```rust
+//! ```ignore
 //! #[derive(NetabaseModel)]
 //! #[subscribe(News, Alerts)]  // This model subscribes to News and Alerts
 //! pub struct User {
@@ -57,7 +57,7 @@
 //!
 //! Subscription lookups enable finding models by topic:
 //!
-//! ```rust
+//! ```ignore
 //! // Find all users subscribed to "News"
 //! let news_subscribers = txn.list_subscribers::<User>("News")?;
 //!

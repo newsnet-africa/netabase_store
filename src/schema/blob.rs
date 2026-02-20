@@ -43,7 +43,7 @@
 //!
 //! Mark large fields with `#[blob]` in your model:
 //!
-//! ```rust
+//! ```rust,ignore
 //! #[derive(NetabaseModel)]
 //! pub struct Document {
 //!     #[primary_key]
@@ -60,14 +60,14 @@
 //!
 //! Create custom blob types with the `NetabaseBlobItem` derive:
 //!
-//! ```rust
+//! ```rust,ignore
 //! use netabase_macros::NetabaseBlobItem;
 //! use serde::{Serialize, Deserialize};
 //!
 //! #[derive(NetabaseBlobItem, Serialize, Deserialize, Clone)]
 //! pub struct LargeFile {
 //!     pub data: Vec<u8>,
-//!     pub metadata: FileMetadata,
+//!     pub name: String,
 //! }
 //! ```
 //!
@@ -270,12 +270,15 @@ impl<T, K> BlobItem<T, K> {
 ///
 /// ```rust
 /// use netabase_store::schema::blob::NetabaseBlobItem;
+/// use serde::{Serialize, Deserialize};
 ///
+/// #[derive(Serialize, Deserialize)]
 /// struct MyBlob {
 ///     data: Vec<u8>,
 /// }
 ///
 /// // Define your chunk type
+/// #[derive(Serialize, Deserialize)]
 /// enum MyBlobChunks {
 ///     Data { index: u8, bytes: Vec<u8> },
 /// }

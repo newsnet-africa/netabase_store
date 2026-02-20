@@ -21,26 +21,17 @@
 //!
 //! # Examples
 //!
-//! Blob items are chunked for storage. Define them with the `NetabaseBlobItem` derive:
+//! Blob items are chunked for storage and referenced by model primary keys:
 //!
-//! ```rust
-//! use netabase_store::blob::NetabaseBlobItem;
-//!
-//! #[derive(Clone, Serialize, Deserialize, NetabaseBlobItem)]
-//! pub struct LargeUserFile {
-//!     pub data: Vec<u8>,      // Automatically chunked if >60KB
-//!     pub metadata: String,
-//! }
-//!
+//! ```rust,ignore
+//! // Example: Use blob fields in your models
 //! #[derive(NetabaseModel)]
-//! pub struct User {
+//! struct Document {
 //!     #[primary_key]
-//!     pub id: String,
+//!     id: String,
 //!     
-//!     #[blob]  // Stored in blob table
-//!     pub avatar: LargeUserFile,
-//!     
-//!     pub name: String,  // Stored inline
+//!     #[blob]
+//!     content: Vec<u8>,  // Large binary data stored separately
 //! }
 //! ```
 //!

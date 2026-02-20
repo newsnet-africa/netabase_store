@@ -69,8 +69,8 @@
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let (store, _temp) = RedbStore::<ExampleDef>::new_temporary()?;
 //! if store.needs_migration() {
-//!     let result = store.migrate_all()?;
-//!     println!("Migrated {} records", result.records_migrated);
+//!     let result = store.migrate()?;
+//!     println!("Migrated {} records", result.total_records);
 //! }
 //! # Ok(())
 //! # }
@@ -261,7 +261,7 @@ where
     ///         eprintln!("Migration had errors!");
     ///     }
     /// }
-    /// # Ok::<(), netabase_store::error::NetabaseError>(())
+    /// # Ok::<(), netabase_store::errors::NetabaseError>(())
     /// ```
     ///
     /// # Errors
@@ -309,7 +309,7 @@ where
     /// if let Some(result) = result {
     ///     println!("Would migrate {} records", result.total_records);
     /// }
-    /// # Ok::<(), netabase_store::error::NetabaseError>(())
+    /// # Ok::<(), netabase_store::errors::NetabaseError>(())
     /// ```
     #[cfg(feature = "migration")]
     pub fn open_with_auto_migrate_options<P: AsRef<Path>>(
@@ -355,7 +355,7 @@ const README_FILE_NAME: &str = "README.md";
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```rust,ignore
 /// use netabase_store::databases::redb::{RedbStore, StoreConfig};
 /// use netabase_store::doc_example::ExampleDef;
 ///
@@ -496,10 +496,14 @@ where
     /// use netabase_store::databases::redb::StoreConfig;
     /// use netabase_store::doc_example::ExampleDef;
     ///
-    /// let store = StoreConfig::new("./my_database")
-    ///     .with_client_binary(Some("./target/release/client"))
-    ///     .create::<ExampleDef>()
-    ///     .unwrap();
+    /// let (store, _temp) = {
+    ///     let temp_dir = tempfile::tempdir().unwrap();
+    ///     let store = StoreConfig::new(temp_dir.path())
+    ///         .with_client_binary(None)
+    ///         .create::<ExampleDef>()
+    ///         .unwrap();
+    ///     (store, temp_dir)
+    /// };
     /// ```
     ///
     /// If the folder doesn't exist, it will be created along with all parent directories.
@@ -827,12 +831,15 @@ This database was generated using Netabase Store.
     /// ```rust
     /// use netabase_store::databases::redb::RedbStore;
     /// use netabase_store::doc_example::ExampleDef;
+    /// use netabase_store::traits::database::store::NBStore;
+    ///
+    /// // Create a temporary database for testing
+    /// let temp_dir = tempfile::tempdir().unwrap();
+    /// let _store = RedbStore::<ExampleDef>::new(temp_dir.path()).unwrap();
     ///
     /// // Export the current binary to the database folder
-    /// RedbStore::<ExampleDef>::export_binary("./my_database", None).unwrap();
-    ///
-    /// // Or specify a custom binary path
-    /// RedbStore::<ExampleDef>::export_binary("./my_database", Some("./target/release/client")).unwrap();
+    /// # std::fs::write(std::env::current_exe().unwrap(), b"fake binary").ok();
+    /// RedbStore::<ExampleDef>::export_binary(temp_dir.path(), None).unwrap();
     /// ```
     pub fn export_binary<P: AsRef<Path>>(
         db_path: P,

@@ -51,6 +51,14 @@ use libp2p::PeerId;
 /// # Example
 ///
 /// ```rust
+/// # use libp2p::PeerId;
+/// # use netabase_store::traits::node_metadata::NodeMetadataTrait;
+/// # #[derive(Debug, Clone)]
+/// # struct MyNodeMetadata { peer_id: PeerId }
+/// # impl NodeMetadataTrait for MyNodeMetadata {
+/// #     fn new(node_id: PeerId) -> Self { Self { peer_id: node_id } }
+/// #     fn node_id(&self) -> PeerId { self.peer_id }
+/// # }
 /// let peer_id = PeerId::random();
 /// let metadata = MyNodeMetadata::new(peer_id);
 /// assert_eq!(metadata.node_id(), peer_id);

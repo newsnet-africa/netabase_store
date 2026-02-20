@@ -1434,6 +1434,8 @@ dependencies = [
 name = "netabase"
 version = "0.1.0"
 dependencies = [
+ "bincode",
+ "hex",
  "libp2p",
  "netabase_store",
  "serde",

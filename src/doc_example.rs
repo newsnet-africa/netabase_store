@@ -164,3 +164,40 @@ pub mod example_def {
 
 // Re-export everything from the example definition for easy access
 pub use example_def::*;
+
+// Add convenience From implementations for doctest usage
+impl From<&str> for UserID {
+    fn from(s: &str) -> Self {
+        UserID(s.to_string())
+    }
+}
+
+impl From<&str> for ProductID {
+    fn from(s: &str) -> Self {
+        ProductID(s.to_string())
+    }
+}
+
+impl From<&str> for AuthorID {
+    fn from(s: &str) -> Self {
+        AuthorID(s.to_string())
+    }
+}
+
+impl From<&str> for BookID {
+    fn from(s: &str) -> Self {
+        BookID(s.to_string())
+    }
+}
+
+impl From<&str> for UserEmail {
+    fn from(s: &str) -> Self {
+        UserEmail(s.to_string())
+    }
+}
+
+impl From<&str> for ProductCategory {
+    fn from(s: &str) -> Self {
+        ProductCategory(s.to_string())
+    }
+}

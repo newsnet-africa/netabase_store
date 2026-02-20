@@ -165,7 +165,10 @@
 //!
 //! ```rust
 //! use netabase_store::prelude::*;
+//! use netabase_store::traits::migration::MigrateFrom;
 //!
+//! # pub struct UserV1 { id: String, name: String }
+//! # pub struct UserV2 { id: String, name: String, email: String }
 //! // Given UserV1 and UserV2 in the same definition:
 //! impl MigrateFrom<UserV1> for UserV2 {
 //!     fn migrate_from(old: UserV1) -> Self {

@@ -46,7 +46,23 @@ pub mod database;
 #[cfg(feature = "migration")]
 pub mod migration;
 pub mod registry;
+
 #[cfg(feature = "libp2p")]
-pub mod libp2p;
+pub mod libp2p {
+    //! Libp2p integration traits and types.
+    //!
+    //! Note: The main libp2p integration has moved to the `netabase` crate.
+    //! These traits are used by the macro-generated code.
+    
+    pub mod libp2p_model;
+    pub mod libp2p_store;
+    pub mod conversion;
+}
+
 #[cfg(feature = "libp2p")]
-pub mod node_metadata;
+#[deprecated(since = "0.1.0", note = "NodeMetadataTrait has moved to the netabase crate")]
+pub mod node_metadata {
+    //! Deprecated: NodeMetadataTrait has moved to the `netabase` crate.
+    //!
+    //! Use `netabase::store_integration::traits::NodeMetadataTrait` instead.
+}

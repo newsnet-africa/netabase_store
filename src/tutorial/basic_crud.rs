@@ -59,7 +59,7 @@
 //!
 //! // UPDATE: Modify the post
 //! let write_txn = store.begin_write()?;
-//! let mut post = write_txn.read(&PostID("post-1".into()))?.unwrap();
+//! let mut post: Post = write_txn.read(&PostID("post-1".into()))?.unwrap();
 //! post.title = "Updated Title".into();
 //! write_txn.update(&post)?;
 //! write_txn.commit()?;

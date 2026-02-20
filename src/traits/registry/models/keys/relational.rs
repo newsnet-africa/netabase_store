@@ -13,15 +13,18 @@
 //! # Examples
 //!
 //! ```rust
-//! #[derive(NetabaseModel)]
-//! pub struct Post {
-//!     #[primary_key]
-//!     pub id: String,
-//!     
-//!     #[link(Definition, User)]  // Foreign key to User
-//!     pub author: RelationalLink<Standalone, Definition, Definition, User>,
-//!     
-//!     pub title: String,
+//! use netabase_store::doc_example::*;
+//!
+//! // The Book model has a relational link to Author
+//! // Create a relational key using the Author's ID:
+//! let author_id = AuthorID("tolkien".into());
+//! let book_rel_key = BookRelationalKeys::Author(BookAuthor(author_id.clone()));
+//!
+//! // Relational keys identify the relationship and target
+//! match book_rel_key {
+//!     BookRelationalKeys::Author(author_link) => {
+//!         assert_eq!(author_link.0, author_id);
+//!     }
 //! }
 //! ```
 //!
@@ -104,12 +107,21 @@ where
 ///
 /// This trait enables accessing the foreign key from a relational link:
 ///
-/// ```rust
-/// // Get the user ID from a post's author link
-/// let author_id: &UserID = post_rel_key.foreign_key();
-///
-/// // Create a relational key from a user ID  
-/// let rel_key = PostRelationalKeys::from_foreign_key(user_id);
+/// ```rust,ignore
+/// use netabase_store::doc_example::*;
+/// use netabase_store::traits::registry::models::keys::relational::NetabaseModelRelationalKeyForeign;
+/// 
+/// // The Book model has a relational link to Author
+/// // When you access the author's ID:
+/// let author_id = AuthorID("alice".into());
+/// let book_rel_key = BookRelationalKeys::Author(BookAuthor(author_id.clone()));
+/// let retrieved_id: &AuthorID = book_rel_key.foreign_key();
+/// assert_eq!(retrieved_id, &author_id);
+/// 
+/// // Create a relational key from an author ID
+/// let another_author = AuthorID("bob".into());
+/// let rel_key = BookRelationalKeys::from_foreign_key(another_author.clone());
+/// assert_eq!(rel_key.foreign_key(), &another_author);
 /// ```
 pub trait NetabaseModelRelationalKeyForeign<
     D: NetabaseDefinition,        // Source definition

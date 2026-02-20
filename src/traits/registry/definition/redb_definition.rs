@@ -2,9 +2,10 @@ use crate::errors::NetabaseResult;
 use crate::traits::registry::definition::NetabaseDefinition;
 use strum::IntoDiscriminant;
 
+// TODO: AUDIT: QU? [L]
+// TODO: REFAC: MNNa(mod migration) [i]
 /// Result of a database migration operation.
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct MigrationResult {
     /// Total number of records migrated.
     pub records_migrated: usize,
@@ -12,10 +13,10 @@ pub struct MigrationResult {
     pub records_failed: usize,
     /// Error messages for failed records.
     pub errors: Vec<String>,
+    // TODO: REFAC: TRNc((String, u32, u32)->ModelVersionInformation)
     /// Which model families were migrated and from which versions.
     pub migrations_performed: Vec<(String, u32, u32)>, // (family, from_version, to_version)
 }
-
 
 impl MigrationResult {
     /// Check if the migration was successful (no errors).
@@ -69,10 +70,12 @@ pub struct DetectedVersion {
     pub record_count: u64,
 }
 
+// TODO: REFAC: MNNc(RedbTransaction) [i](Many of these are basically transaction methods.)
 pub trait RedbDefinition: NetabaseDefinition + Clone
 where
     <Self as IntoDiscriminant>::Discriminant: 'static + std::fmt::Debug,
 {
+    // TODO: AUDIT: QU? [L](is there a type for this?)
     type ModelTableDefinition<'db>: Clone + Send + Sync;
 
     /// Probe the database to detect which version tables exist.
@@ -133,6 +136,7 @@ where
     /// `Ok(())` if all tables were created successfully.
     fn init_tables(db: &redb::Database) -> NetabaseResult<()>;
 
+    // TODO: REFAC: TRNc [S](Need to make this more type safe)
     /// Helper struct to hold open read-only tables.
     type ReadOnlyTables;
 
@@ -145,9 +149,7 @@ where
     fn open_read_only_tables(txn: &redb::ReadTransaction) -> NetabaseResult<Self::ReadOnlyTables>;
 
     /// Create an iterator over all records in the definition using the open tables.
-    fn iter_records<'a>(
-        tables: &'a Self::ReadOnlyTables,
-    ) -> NetabaseResult<Self::RecordIter<'a>>;
+    fn iter_records<'a>(tables: &'a Self::ReadOnlyTables) -> NetabaseResult<Self::RecordIter<'a>>;
 
     /// Find a record by key across all models.
     fn find_record(
@@ -156,10 +158,7 @@ where
     ) -> NetabaseResult<Option<libp2p::kad::Record>>;
 
     /// Put (upsert) a record.
-    fn put_record(
-        txn: &redb::WriteTransaction,
-        record: libp2p::kad::Record,
-    ) -> NetabaseResult<()>;
+    fn put_record(txn: &redb::WriteTransaction, record: libp2p::kad::Record) -> NetabaseResult<()>;
 
     /// Add a provider record to the appropriate model table.
     fn add_provider(
@@ -178,7 +177,7 @@ where
         txn: &redb::WriteTransaction,
         key: &libp2p::kad::RecordKey,
     ) -> NetabaseResult<()>;
-    
+
     /// Remove a provider.
     fn remove_provider(
         txn: &redb::WriteTransaction,
@@ -186,6 +185,7 @@ where
         provider: &libp2p::PeerId,
     ) -> NetabaseResult<()>;
 
+    // TODO: AUDIT: QU? [l](Why are these here? what is the difference?)
     // ========================================================================
     // Dispatch methods for generic CRUD
     // ========================================================================

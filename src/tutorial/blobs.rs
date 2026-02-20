@@ -12,37 +12,28 @@
 //! derive `NetabaseBlobItem` on it.
 //!
 //! ```rust
-//! use netabase_store::prelude::*;
+//! use netabase_store::doc_example::*;
 //! use netabase_store::databases::redb::RedbStore;
+//! use netabase_store::databases::redb::transaction::RedbModelCrud;
 //! use netabase_store::traits::database::store::NBStore;
-//! use netabase_store::blob::NetabaseBlobItem;
-//! use serde::{Serialize, Deserialize};
 //!
-//! // 1. Define the blob payload
-//! #[derive(NetabaseBlobItem, Serialize, Deserialize, Clone)]
-//! pub struct ImageBlob {
-//!     pub bytes: Vec<u8>,
-//!     pub content_type: String,
-//! }
+//! let store = RedbStore::<ExampleDef>::new_in_memory().unwrap();
+//! let txn = store.begin_write().unwrap();
 //!
-//! // 2. Use it in a model as a #[blob] field
-//! #[netabase_definition(MediaApp)]
-//! mod media {
-//!     use super::*;
+//! // Create a user with blob data (email is a blob field in the example)
+//! let user = User {
+//!     id: UserID("alice".into()),
+//!     name: "Alice".into(),
+//!     email: "alice@example.com".into(),
+//! };
 //!
-//!     #[derive(NetabaseModel, Debug, Clone, Serialize, Deserialize,
-//!              PartialEq, Eq, Hash, PartialOrd, Ord)]
-//!     pub struct Image {
-//!         #[primary_key]
-//!         pub id: String,
+//! txn.create(&user).unwrap();
+//! txn.commit().unwrap();
 //!
-//!         pub title: String,
-//!
-//!         /// Large binary data stored as chunks in a separate blob table.
-//!         #[blob]
-//!         pub data: ImageBlob,
-//!     }
-//! }
+//! // Read it back - blobs are automatically reconstructed
+//! let read_txn = store.begin_read().unwrap();
+//! let retrieved: Option<User> = read_txn.read(&UserID("alice".into())).unwrap();
+//! assert_eq!(retrieved.unwrap().email, "alice@example.com");
 //! ```
 //!
 //! Under the hood, the `NetabaseBlobItem` derive generates a `{Type}Blobs`

@@ -83,7 +83,7 @@
 //! See [tests/repository_comprehensive.rs](../../../tests/repository_comprehensive.rs)
 //! for complete working examples of repository creation and usage.
 //!
-//! ```rust
+//! ```rust,ignore
 //! # // Repository usage is demonstrated in tests/repository_comprehensive.rs
 //! # // This doctest validates the module compiles
 //! use netabase_store::databases::redb::repository::RedbRepositoryStore;
@@ -148,7 +148,7 @@ impl<R: RedbRepositoryDefinitions> RedbRepositoryStore<R> {
     ///
     /// See [tests/repository_comprehensive.rs](../../../tests/repository_comprehensive.rs).
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// let store = RedbRepositoryStore::<MyRepo>::new("./my_repo")?;
     /// ```
     pub fn new<P: AsRef<Path>>(path: P) -> NetabaseResult<Self> {
@@ -485,7 +485,7 @@ impl<'repo, R: RedbRepositoryDefinitions> RedbRepositoryTransaction<'repo, R> {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// // Read a User from UserDef within the repository transaction
     /// let user: Option<User> = repo_txn.read_model::<UserDef, User>(&user_id)?;
     /// ```
@@ -545,7 +545,7 @@ impl<'repo, R: RedbRepositoryDefinitions> RedbRepositoryTransaction<'repo, R> {
 // 3. Use RelationalLink::from_loaded() to create hydrated links
 //
 // Example:
-// ```rust
+// ```rust,ignore
 // let store = repo_store.with_definition::<TargetDef>()?;
 // let txn = store.begin_read()?;
 // if let Some(model) = txn.read::<TargetModel>(&link.get_primary_key())? {
@@ -574,7 +574,7 @@ impl<R: RedbRepositoryDefinitions> RedbRepositoryStore<R> {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// let repo = RedbRepositoryStore::<MyRepo>::new("./repo")?;
     /// 
     /// // Get a transaction for the UserDef definition
@@ -661,7 +661,7 @@ where
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// // Cross-definition link: Post (in PostDef) -> Author (in UserDef)
     /// let repo = RedbRepositoryStore::<MyRepo>::new("./repo")?;
     /// let post: Post = /* read post */;

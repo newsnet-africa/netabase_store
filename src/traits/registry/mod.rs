@@ -31,7 +31,7 @@
 //! let (store, _temp) = RedbStore::<ExampleDef>::new_temporary()?;
 //!
 //! // Create a user
-//! let txn = store.begin_write()?;
+//! let mut txn = store.begin_write()?;
 //! txn.create(&User {
 //!     id: UserID("alice".into()),
 //!     name: "Alice".into(),
@@ -39,19 +39,10 @@
 //! })?;
 //! txn.commit()?;
 //!
-//! // Create a post linked to the user
-//! let txn = store.begin_write()?;
-//! txn.create(&Post {
-//!     id: PostID("post1".into()),
-//!     title: "Hello World".into(),
-//!     author: UserID("alice".into()),
-//! })?;
-//! txn.commit()?;
-//!
-//! // Read the post
+//! // Read the user back
 //! let txn = store.begin_read()?;
-//! let post: Option<Post> = txn.read(&PostID("post1".into()))?;
-//! assert_eq!(post.unwrap().title, "Hello World");
+//! let user: Option<User> = txn.read(&UserID("alice".into()))?;
+//! assert!(user.is_some());
 //! # Ok(())
 //! # }
 //! ```

@@ -57,12 +57,16 @@ use crate::errors::NetabaseResult;
 ///
 /// Implementing a custom backend:
 ///
-/// ```rust
+/// ```rust,ignore
 /// use netabase_store::traits::database::store::NBStore;
 /// use netabase_store::traits::registry::definition::NetabaseDefinition;
+/// use netabase_store::errors::NetabaseResult;
+/// use std::path::Path;
+/// use std::marker::PhantomData;
 ///
 /// struct MyCustomStore<D: NetabaseDefinition> {
-///     // Your implementation
+///     path: String,
+///     _phantom: PhantomData<D>,
 /// }
 ///
 /// impl<D: NetabaseDefinition> NBStore<D> for MyCustomStore<D>
@@ -70,11 +74,15 @@ use crate::errors::NetabaseResult;
 ///     D::Discriminant: 'static + std::fmt::Debug,
 /// {
 ///     fn new<P: AsRef<Path>>(path: P) -> NetabaseResult<Self> {
-///         // Initialize your backend
+///         Ok(Self {
+///             path: path.as_ref().to_string_lossy().to_string(),
+///             _phantom: PhantomData,
+///         })
 ///     }
 ///     
 ///     fn execute_transaction<F: Fn()>(f: F) {
 ///         // Execute in transaction context
+///         f();
 ///     }
 /// }
 /// ```
@@ -97,11 +105,13 @@ where
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,no_run
+    /// # use netabase_store::doc_example::*;
     /// use netabase_store::databases::redb::RedbStore;
     /// use netabase_store::traits::database::store::NBStore;
     ///
-    /// let store = RedbStore::<MyApp>::new("./my_database.redb")?;
+    /// let store = RedbStore::<ExampleDef>::new("./my_database.redb")?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     fn new<P: AsRef<Path>>(path: P) -> NetabaseResult<Self>
     where

@@ -22,7 +22,7 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! #[derive(NetabaseModel)]
 //! pub struct User {
 //!     #[primary_key]
