@@ -1,19 +1,17 @@
 [package]
 name = "netabase_macros"
-version = "0.1.4"
-edition = "2024"
+version = "0.1.0"
+edition = "2021"
 
 [lib]
 proc-macro = true
 
-[features]
-default = ["schema_export"]
-schema_export = ["dep:toml", "dep:serde"]
 
 [dependencies]
-syn = { version = "2.0.111", features = ["visit", "visit-mut", "full", "extra-traits"] }
-quote = "1.0"
+darling = "0.23.0"
+quote = "1.0.44"
+syn = { version = "2.0.117", features = ["parsing", "visit"] }
 proc-macro2 = "1.0"
-toml = { version = "0.9.10", optional = true }
-serde = { version = "1.0.228", features = ["derive"], optional = true }
-heck = "*"
+heck = "0.5.0"
+rkyv = { version = "0.8.15", features = ["alloc", "bytecheck"] }
+proc_macro_flow = { path = "../proc_macro_flow" }

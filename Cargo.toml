@@ -1,50 +1,27 @@
 [package]
-name = "netabase_store"
+name = "netabase"
 version = "0.1.0"
-edition = "2024"
-
-[features]
-default = ["secondary_keys", "relational_keys", "blobs", "repository", "migration", "libp2p", "subscriptions", "schema_export"]
-secondary_keys = []
-relational_keys = []
-blobs = []
-repository = []
-migration = ["schema_export"]  # Migration requires schema export for versioning
-libp2p = ["dep:libp2p"]
-subscriptions = []
-schema_export = ["dep:toml", "dep:serde"]  # TOML generation and parsing
-
-[dependencies]
-redb = "3.1.0"
-strum = { version = "0.27.2", features = ["derive"] }
-serde = { version = "1.0", features = ["derive"], optional = true }
-postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
-thiserror = "2.0.17"
-rand = "0.9.2"
-derive_more = { version = "2.1.0", features = ["display", "try_into", "from"] }
-toml = { version = "0.9.10", optional = true }
-rustc-hash = "2.1"
-sha2 = "0.10"
-tempfile = "3.15"
-netabase_macros = { path = "./netabase_macros" }
-libp2p = { version = "0.56.0", features = ["kad", "serde"], optional = true }
-clap = { version = "4.5", features = ["derive"] }
-rs_merkle = "1.5.0"
-hex = "0.4"
-bincode = "1.3"
-serde_json = "1.0"
-bitflags = { version = "2.10.0", features = ["serde"] }
-serde-big-array = "0.5.1"
-ron = "0.12.0"
+edition = "2021"
 
 [workspace]
 members = [
-  "netabase_macros",
-  "example"
+  "rewrite_macros/",
+  "proc_macro_flow/",
+  "proc_macro_flow/derive/",
 ]
 
-[dev-dependencies]
-example = { path = "./example" }
-netabase = { path = "../netabase" }
-derive_more = { version = "2.1.0", features = ["display", "try_into", "from"] }
+[dependencies]
+strum = { version = "0.26", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+redb = "2.0"
+thiserror = "1.0"
+libp2p = { version = "0.53", features = ["kad"] }
+rkyv = { version = "0.8.15", features = ["bytecheck", "alloc"] }
+rewrite_macros = { path = "rewrite_macros" }
+proc_macro_flow = { path = "proc_macro_flow" }
 
+[dev-dependencies]
+syn = { version = "2.0", features = ["full", "parsing"] }
+quote = "1.0"
+proc-macro2 = "1.0"
